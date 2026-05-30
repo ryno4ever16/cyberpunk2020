@@ -19,6 +19,8 @@ import { registerHandlebarsHelpers } from "./handlebars-helpers.js"
 import * as migrations from "./migrate.js";
 import { registerSystemSettings } from "./settings.js"
 import { getHtmlElement } from "./compat.js";
+import { registerDamageHooks } from "./combat/damage-hooks.js";
+import { registerSaveRollHandlers, postSavePrompts } from "./combat/save-rolls.js";
 
 Hooks.once('init', async function () {
 
@@ -155,6 +157,12 @@ Hooks.once('init', async function () {
  * Check whether this world needs a system data migration.
  */
 Hooks.once("ready", async function () {
+  // Register damage automation hooks (all users)
+  registerDamageHooks();
+
+  // Register stun/death save chat button handlers (all users)
+  registerSaveRollHandlers();
+
   if (!game.user.isGM) return;
 
   const TARGET_VERSION = game.system.version;
@@ -176,4 +184,29 @@ Hooks.once("ready", async function () {
   }
 
   await migrations.migrateWorld(TARGET_VERSION);
+});
+
+/**
+ * Fire stun/death save prompts whenever actor damage changes —
+ * including manual edits on the character sheet.
+ *
+ * We check that:
+ *  - damage actually increased (not a heal)
+ *  - the actor is a character (not an NPC without wound states)
+ *  - the user is the GM or owns the actor (avoid duplicate prompts)
+ */
+Hooks.on("updateActor", async (actor, changes, options, userId) => {
+  // Only the user who made the change fires the prompt (avoids duplicates)
+  if (userId !== game.user.id) return;
+  // Only fire if damage changed
+  const newDamage = foundry.utils.getProperty(changes, "system.damage");
+  if (newDamage === undefined) return;
+  // Only increase triggers saves (heals don't)
+  const oldDamage = actor._source?.system?.damage ?? 0;
+  if (newDamage <= oldDamage) return;
+  // Skip if this update came from our own DamageDialog/auto-apply
+  // (those already call postSavePrompts directly after writing HP)
+  if (options?.fromCyberpunkDamageSystem) return;
+
+  await postSavePrompts(actor);
 });

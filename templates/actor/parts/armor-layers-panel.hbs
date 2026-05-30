@@ -1,0 +1,70 @@
+{{!--
+  systems/cyberpunk2020/templates/actor/parts/armor-layers-panel.hbs
+  Layer labels (Inner/Middle/Outer) are pre-computed in actor-sheet.js getData.
+--}}
+<div class="armor-layers-panel">
+
+  <h4 class="inactive" style="margin:4px 0; font-size:0.85em; border-bottom:1px solid var(--color-border-dark-tertiary); padding-bottom:2px;">
+    Armor Layers
+    <span style="float:right; font-size:0.8em; font-weight:normal;">
+      <a class="cp-toggle-layer-overrides" style="cursor:pointer;"
+         title="{{#if showLayerOverrides}}Hide manual assignment{{else}}Show manual layer assignment{{/if}}">
+        {{#if showLayerOverrides}}▾ Manual{{else}}▸ Manual{{/if}}
+      </a>
+    </span>
+  </h4>
+
+  {{#if hasCyberArmorItems}}
+  <div class="field inactive" style="font-size:0.78em; padding:1px 2px; margin-bottom:2px;">
+    <span>⊙ Skinweave / subdermal — always innermost base</span>
+  </div>
+  {{/if}}
+
+  {{!-- Auto-ordered display: one row per location --}}
+  <div class="armor-layers-auto field-list one-col" style="gap:1px;">
+    {{#each autoLayerTable as |row|}}
+    <div class="field" style="gap:4px; align-items:baseline; font-size:0.82em;">
+      <span class="inactive" style="min-width:52px;">{{row.label}}</span>
+      <span class="flex-pad"></span>
+      {{#if row.layers.length}}
+        {{#each row.layers as |layer|}}
+          <span>{{layer.layerLabel}}: {{layer.name}} <span class="inactive">({{layer.sp}})</span></span>
+          {{#unless layer.isLast}}<span class="inactive">→</span>{{/unless}}
+        {{/each}}
+      {{else}}
+        <span class="inactive">—</span>
+      {{/if}}
+    </div>
+    {{/each}}
+  </div>
+
+  {{!-- Manual override panel --}}
+  {{#if showLayerOverrides}}
+  <div class="armor-layers-manual" style="margin-top:6px; border-top:1px solid var(--color-border-dark-tertiary); padding-top:4px;">
+    <div class="inactive" style="font-size:0.78em; margin-bottom:4px;">
+      Pin items to fixed slots (inside → out). Blank = auto-ordered.
+    </div>
+    {{#each armorLayerTable as |row|}}
+    <div class="field" style="gap:3px; flex-wrap:wrap; align-items:center; margin-bottom:2px; font-size:0.8em;">
+      <span class="inactive" style="min-width:52px;">{{row.label}}</span>
+      {{#each row.layers as |slot|}}
+      <select class="armor-layer-select nogrow"
+        data-location="{{../row.locationKey}}"
+        data-slot-index="{{slot.slotIndex}}"
+        style="font-size:0.78em; max-width:110px;"
+        title="Slot {{slot.slotIndex}} (0 = innermost)">
+        <option value="">—</option>
+        {{#each ../../../../equippedArmorOptions as |armor|}}
+        <option value="{{armor.id}}" {{#if (equals armor.id ../slot.itemId)}}selected{{/if}}>{{armor.name}}</option>
+        {{/each}}
+      </select>
+      {{/each}}
+      <a class="cp-clear-location-layers inactive"
+        data-location="{{row.locationKey}}"
+        style="font-size:0.75em; cursor:pointer;" title="Reset to auto">✕</a>
+    </div>
+    {{/each}}
+  </div>
+  {{/if}}
+
+</div>

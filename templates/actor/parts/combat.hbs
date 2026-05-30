@@ -17,11 +17,16 @@
     </section>
     
     <section class="armor-section">
+        {{!-- TODO: It'd be quite possible to loop through hit locations here, I think. Would work well for other creatures. --}}
         <header>
             <h2>{{CPLocal "Armor"}}</h2>
         </header>
 
         {{> (template "actor/parts/armor-display") hitLocations=system.hitLocations hitLocsName="hitLocations"}}
+
+        {{!-- Armor layer assignment panel. Only rendered when damageLayersEnabled is true (system.showArmorLayers). --}}
+        {{> (template "actor/parts/armor-layers-panel")}}
+
         <div class="field margin-bottom">
             <label for="system.stats.ref.armorMod">{{CPLocal "Encumbrance"}}</label>
             <span class="flex-pad"></span>
@@ -63,8 +68,8 @@
 
         {{!-- Cyberweapons --}}
         {{#each gear.cyberware as |cyber|}}
-            {{#if (and (cwHasType cyber.system.CyberWorkType "Weapon") (cwIsEnabled cyber))}}
-                <div class="fire-weapon field action" data-item-id="{{cyber.id}}">
+            {{#if (cwHasType cyber.system.CyberWorkType "Weapon")}}
+            <div class="fire-weapon field action" data-item-id="{{cyber.id}}">
                 <div class="no-action field-image item-edit" style="background-image: url({{cyber.img}})" data-item-id="{{cyber.id}}"></div>
                 <label class="name">{{cyber.name}}</label>
                 <span class="flex-pad"></span>

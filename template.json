@@ -738,6 +738,14 @@
 					"sum":     { "Head":0, "Torso":0, "lArm":0, "rArm":0, "lLeg":0, "rLeg":0 },
 					"current": { "Head":0, "Torso":0, "lArm":0, "rArm":0, "lLeg":0, "rLeg":0 },
 					"touched": { "Head":false, "Torso":false, "lArm":false, "rArm":false, "lLeg":false, "rLeg":false }
+				},
+				"armorLayers": {
+					"Head":  [],
+					"Torso": [],
+					"lArm":  [],
+					"rArm":  [],
+					"lLeg":  [],
+					"rLeg":  []
 				}
 			},
 			"gear": {
@@ -884,6 +892,7 @@
 		},
 		"armor": {
 			"templates": ["common"],
+			"armorType": "soft",
 			"coverage": {
 				"Head": {
 					"stoppingPower": 0,

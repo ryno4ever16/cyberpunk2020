@@ -338,7 +338,9 @@ export class CyberpunkActor extends Actor {
       }
     }
 
-    // After collecting all layers, we calculate the maximum SP by zone
+    // After collecting all layers, calculate the maximum SP by zone.
+    // maxLayeredSP already implements proportional armor (New Rule 2) as default
+    // behavior via the combineSP table — no additional layer resolution needed.
     for (const [areaKey, area] of Object.entries(system.hitLocations)) {
       const layers = armorLayersByArea[areaKey] || [];
       area.stoppingPower = maxLayeredSP(layers);

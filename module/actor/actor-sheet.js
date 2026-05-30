@@ -3,6 +3,8 @@ import { deleteFieldUpdate, localize, localizeParam, cwHasType, cwIsEnabled } fr
 import { ModifiersDialog } from "../dialog/modifiers.js"
 import { SortOrders, sortSkills } from "./skill-sort.js";
 import { getHtmlElement, getRichEditorHTML, itemFromDropData, saveRichEditorHTML } from "../compat.js";
+import { resolveAttackRange } from "../combat/rangefinding.js";
+import { getAutoLayerOrder } from "../combat/armor-layers.js";
 
 /** @extends {ActorSheet} */
 export class CyberpunkActorSheet extends ActorSheet {
@@ -238,6 +240,79 @@ export class CyberpunkActorSheet extends ActorSheet {
     );
 
     sheetData.gear.cyberwareActive = activeCyber;
+
+    // ── Armor layer panel ──────────────────────────────────────────────────
+    const equippedArmorOptions = (sortedItems.armor || [])
+      .filter(a => a.system.equipped)
+      .map(a => ({ id: a.id, name: a.name }));
+    sheetData.equippedArmorOptions = equippedArmorOptions;
+
+    const LOCATION_LABELS = {
+      Head:  "Head",
+      Torso: "Torso",
+      lArm:  "L. Arm",
+      rArm:  "R. Arm",
+      lLeg:  "L. Leg",
+      rLeg:  "R. Leg",
+    };
+
+    // Get all equipped armor items for auto-ordering
+    const allEquippedArmor = (sortedItems.armor || []).filter(a => a.system.equipped);
+
+    // Build auto-layer display table
+    sheetData.autoLayerTable = Object.entries(LOCATION_LABELS).map(([key, label]) => {
+      const coveringArmor = allEquippedArmor.filter(a =>
+        (Number(a.system?.coverage?.[key]?.stoppingPower) || 0) > 0
+      );
+      const ordered = getAutoLayerOrder(coveringArmor);
+      const manualSlots = sheetData.system.armorLayers?.[key] ?? [];
+      const hasManual = manualSlots.some(id => id && id !== "");
+      const rawLayers = hasManual
+        ? manualSlots.filter(Boolean).map(id => {
+            const item = allEquippedArmor.find(a => a.id === id);
+            const sp = item ? (Number(item.system?.coverage?.[key]?.stoppingPower) || 0) : 0;
+            return sp > 0 ? { name: item?.name ?? "?", sp, armorType: item?.system?.armorType ?? "soft" } : null;
+          }).filter(Boolean)
+        : ordered.map(item => ({
+            name: item.name,
+            sp:   Number(item.system?.coverage?.[key]?.stoppingPower) || 0,
+            armorType: item.system?.armorType ?? "soft",
+          }));
+
+      // Pre-compute contextual position label for the template
+      const n = rawLayers.length;
+      const layers = rawLayers.map((layer, i) => ({
+        ...layer,
+        layerLabel: n === 1 ? "Inner" :
+                    i === 0 ? "Inner" :
+                    i === n - 1 ? "Outer" :
+                    n === 3 && i === 1 ? "Middle" :
+                    `Layer ${i + 1}`,
+        isLast: i === n - 1,
+      }));
+      return { locationKey: key, label, layers, hasManual };
+    });
+
+    // Build manual override table (one empty slot past last assigned)
+    const armorLayers = sheetData.system.armorLayers || {};
+    const armorLayerTable = Object.entries(LOCATION_LABELS).map(([key, label]) => {
+      const assigned = Array.isArray(armorLayers[key]) ? armorLayers[key] : [];
+      const slots = [
+        ...assigned.map((itemId, i) => ({ slotIndex: i, itemId: itemId || "" })),
+        { slotIndex: assigned.length, itemId: "" },
+      ];
+      return { locationKey: key, label, layers: slots };
+    });
+    sheetData.armorLayerTable = armorLayerTable;
+
+    // Toggle state for manual override panel (stored as actor flag)
+    sheetData.showLayerOverrides = this.actor.getFlag("cyberpunk2020", "showLayerOverrides") ?? false;
+
+    sheetData.hasCyberArmorItems = (this.actor.items.contents || []).some(i => {
+      if (i.type !== "cyberware" || !i.system.equipped || !cwIsEnabled(i)) return false;
+      return cwHasType(i, "Armor");
+    });
+    // ──────────────────────────────────────────────────────────────────────
   }
 
   /** @override */
@@ -567,8 +642,61 @@ export class CyberpunkActorSheet extends ActorSheet {
           name: target.document.name, 
           id: target.id};
       });
+
       if(isRanged) {
         modifierGroups = rangedModifiers(item, targetTokens);
+
+        // ── Automated Rangefinding ──────────────────────────────────────────
+        // If enabled and exactly one target is selected, measure the token
+        // distance and pre-select the correct range category in the dialog.
+        const rangefindingEnabled = (() => {
+          try { return game.settings.get("cyberpunk2020", "autoRangefinding"); }
+          catch { return false; }
+        })();
+
+        if (rangefindingEnabled && targetTokens.length === 1) {
+          const attackerToken = canvas?.tokens?.placeables?.find(
+            t => t.actor?.id === this.actor.id
+          ) ?? null;
+          const targetTokenPlaceable = canvas?.tokens?.placeables?.find(
+            t => t.id === targetTokens[0].id
+          ) ?? null;
+
+          if (attackerToken && targetTokenPlaceable) {
+            const rangeResult = resolveAttackRange(item, attackerToken, targetTokenPlaceable);
+
+            // rangeResult.category is e.g. "pointBlank" — map to ranges key string
+            const CATEGORY_TO_RANGE_KEY = {
+              pointBlank:  "RangePointBlank",
+              close:       "RangeClose",
+              medium:      "RangeMedium",
+              long:        "RangeLong",
+              extreme:     "RangeExtreme",
+              outOfRange:  "RangeExtreme",   // still show dialog, GM can see it's extreme
+            };
+            const rangeKey = CATEGORY_TO_RANGE_KEY[rangeResult.category] ?? "RangeClose";
+
+            // modifierGroups[0] is the first row; [1] is the Range selector
+            if (modifierGroups?.[0]?.[1]?.dataPath === "range") {
+              modifierGroups[0][1].defaultValue = rangeKey;
+              // Add distance info to the label so the GM can see the measurement
+              modifierGroups[0][1]._rangefindingNote =
+                `Auto: ${rangeResult.label} (${rangeResult.distanceMeters}m, weapon max ${rangeResult.longRange}m)`;
+            }
+
+            // Notify in chat log so GM can see the auto-selected range
+            if (rangeResult.category === "outOfRange") {
+              ui.notifications.warn(
+                `${item.name}: target is beyond extreme range (${rangeResult.distanceMeters}m > ${rangeResult.longRange * 2}m)`
+              );
+            } else {
+              ui.notifications.info(
+                `Rangefinding: ${rangeResult.label} — ${rangeResult.distanceMeters}m (weapon long range ${rangeResult.longRange}m)`
+              );
+            }
+          }
+        }
+        // ───────────────────────────────────────────────────────────────────
       }
       else if ((item._getWeaponSystem?.().attackType) === meleeAttackTypes.martial) {
         modifierGroups = martialOptions(this.actor);
@@ -649,6 +777,42 @@ export class CyberpunkActorSheet extends ActorSheet {
 
       this.actor.update({ [path]: value });
     });
+
+    // ── Armor layer selects — per-location arrays ─────────────────────────
+    html.find("select.armor-layer-select").on("change", ev => {
+      const el         = ev.currentTarget;
+      const locationKey = el.dataset.location;
+      const slotIndex  = Number(el.dataset.slotIndex);
+      const newItemId  = el.value;
+
+      if (!locationKey) return;
+
+      const current = Array.isArray(this.actor.system.armorLayers?.[locationKey])
+        ? [...this.actor.system.armorLayers[locationKey]]
+        : [];
+
+      while (current.length <= slotIndex) current.push("");
+      current[slotIndex] = newItemId;
+      while (current.length > 0 && current[current.length - 1] === "") current.pop();
+
+      this.actor.update({ [`system.armorLayers.${locationKey}`]: current });
+    });
+
+    // Toggle manual layer override panel visibility
+    html.find(".cp-toggle-layer-overrides").on("click", async ev => {
+      ev.preventDefault();
+      const current = this.actor.getFlag("cyberpunk2020", "showLayerOverrides") ?? false;
+      await this.actor.setFlag("cyberpunk2020", "showLayerOverrides", !current);
+    });
+
+    // Clear manual layers for a specific location (revert to auto)
+    html.find(".cp-clear-location-layers").on("click", ev => {
+      ev.preventDefault();
+      const locationKey = ev.currentTarget.dataset.location;
+      if (!locationKey) return;
+      this.actor.update({ [`system.armorLayers.${locationKey}`]: [] });
+    });
+    // ─────────────────────────────────────────────────────────────────────
 
     const interfaceSkillElems = html.find('.interface-skill-roll');
 

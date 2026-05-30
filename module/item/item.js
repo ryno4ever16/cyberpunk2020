@@ -511,6 +511,20 @@ export class CyberpunkItem extends Item {
           };
           let roll = new Multiroll(`${localize("Autofire")}`, `${localize("Range")}: ${localizeParam(attackMods.range, {range: actualRangeBracket})}`);
           roll.execute(undefined, "systems/cyberpunk2020/templates/chat/multi-hit.hbs", templateData);
+          // ── Damage automation ──────────────────────────────────────────────
+          // Inner damage loop also uses 'i' but has exited; outer 'i' is valid.
+          if (areaDamages && Object.keys(areaDamages).length > 0) {
+              const tok = (targetTokens && targetTokens.length > i) ? targetTokens[i] : null;
+              Hooks.callAll("cyberpunk2020.weaponFired", {
+                  attackerId:    this.actor?.id ?? null,
+                  weaponName:    this.name,
+                  ap:            Boolean(system.ap),
+                  areaDamages,
+                  targetTokenId: tok?.id ?? null,
+                  targetActorId: tok ? (canvas.tokens?.get(tok.id)?.actor?.id ?? null) : null,
+              });
+          }
+          // ──────────────────────────────────────────────────────────────────
           rolls.push(roll);
       }
       return rolls;
@@ -577,6 +591,19 @@ export class CyberpunkItem extends Item {
       };
       let roll = new Multiroll(localize("ThreeRoundBurst"));
       roll.execute(undefined, "systems/cyberpunk2020/templates/chat/multi-hit.hbs", templateData);
+      // ── Damage automation ────────────────────────────────────────────────
+      // targetTokens not passed to __threeRoundBurst; resolved via chat button.
+      if (attackHits && areaDamages && Object.keys(areaDamages).length > 0) {
+          Hooks.callAll("cyberpunk2020.weaponFired", {
+              attackerId:    this.actor?.id ?? null,
+              weaponName:    this.name,
+              ap:            Boolean(system.ap),
+              areaDamages,
+              targetTokenId: null,
+              targetActorId: null,
+          });
+      }
+      // ────────────────────────────────────────────────────────────────────
       if (rangedFumble?.outcome?.discharge) {
         await this.__setWeaponField("shotsLeft", 0);
       } else {
@@ -677,6 +704,19 @@ export class CyberpunkItem extends Item {
 
       let roll = new Multiroll(localize("SemiAuto"));
       roll.execute(undefined, "systems/cyberpunk2020/templates/chat/multi-hit.hbs", templateData);
+      // ── Damage automation ────────────────────────────────────────────────
+      // targetTokens not passed to __semiAuto; resolved via chat button.
+      if (attackHits && areaDamages && Object.keys(areaDamages).length > 0) {
+          Hooks.callAll("cyberpunk2020.weaponFired", {
+              attackerId:    this.actor?.id ?? null,
+              weaponName:    this.name,
+              ap:            Boolean(system.ap),
+              areaDamages,
+              targetTokenId: null,
+              targetActorId: null,
+          });
+      }
+      // ────────────────────────────────────────────────────────────────────
 
       if (rangedFumble?.outcome?.discharge) {
         await this.__setWeaponField("shotsLeft", 0);

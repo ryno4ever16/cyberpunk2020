@@ -60,6 +60,12 @@ export const preloadHandlebarsTemplates = async function() {
         // Ammo parts
         "systems/cyberpunk2020/templates/item/parts/ammo/summary.hbs",
         "systems/cyberpunk2020/templates/item/parts/ammo/settings.hbs",
+
+        // Armor layer assignment panel (combat tab)
+        "systems/cyberpunk2020/templates/actor/parts/armor-layers-panel.hbs",
+
+        // Damage application dialog
+        "systems/cyberpunk2020/templates/dialog/damage-dialog.hbs",
     ]);
   };
   
