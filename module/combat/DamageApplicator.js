@@ -160,7 +160,7 @@ export async function applyAreaDamages({ target, areaDamages, ap, edged = false,
       }
 
       if (ablate && armorMode === ARMOR_MODES.FULL && penetrates && netDamage > 0) {
-        await _ablateLocation(target, location);
+        await ablateLocationOnce(target, location);
         liveSP[location] = _deriveLiveSP(target, location);
       }
 
@@ -256,7 +256,7 @@ export function resolveAreaDamagesSync({ target, areaDamages, ap, edged = false,
   return results;
 }
 
-async function _ablateLocation(target, location) {
+export async function ablateLocationOnce(target, location) {
   const contributors = getArmorContributors(target, location);
   const toAblate = [...contributors.orderedLayers, ...contributors.unassigned];
 

@@ -19,7 +19,7 @@
  */
 
 import { DamageDialog }                                       from "./DamageDialog.js";
-import { applyAreaDamages, ablateLocationByAmount, ARMOR_MODES } from "./DamageApplicator.js";
+import { applyAreaDamages, ablateLocationOnce, ablateLocationByAmount, ARMOR_MODES } from "./DamageApplicator.js";
 import { postStunSavePrompt, postDeathSavePrompt, updateTaserState, applyAcidDotState } from "./save-rolls.js";
 import { rollLocation }                                       from "../utils.js";
 
@@ -67,6 +67,7 @@ export function registerDamageHooks() {
   _hookGasCloud();
   _hookMultiActionPenalty();
   _hookAutomationMigrationNotice();
+  _hookSocketRelay();
 
   // Combat action button click handler
   document.addEventListener("click", async (ev) => {
@@ -231,7 +232,15 @@ export function registerDamageHooks() {
 
 function _hookWeaponFired() {
   Hooks.on("cyberpunk2020.weaponFired", async (payload) => {
-    if (!game.user.isGM) return;
+    // item.js uses "attackerId"; support legacy "actorId" for any third-party callers.
+    const attackerActorId = payload.attackerId ?? payload.actorId ?? null;
+    const attackerActor = attackerActorId ? game.actors.get(attackerActorId) : null;
+    // Player handles their own actor's shots; GM handles everything else (NPCs, offline-player PCs).
+    // hasPlayerOwner only returns true when an owning player is currently connected, so the GM
+    // automatically takes over if the player is offline or if the attacker is an NPC.
+    const isMyShot  = !game.user.isGM && (attackerActor?.isOwner ?? false);
+    const gmHandles = game.user.isGM  && !(attackerActor?.hasPlayerOwner ?? false);
+    if (!isMyShot && !gmHandles) return;
     if (!payload.areaDamages || Object.keys(payload.areaDamages).length === 0) return;
 
     // PATH A: we have a target — open dialog (or auto-apply) immediately
@@ -260,7 +269,8 @@ function _hookWeaponFired() {
 function _hookCreateChatMessage() {
   Hooks.on("createChatMessage", async (message) => {
     if (!_pendingPayload) return;
-    if (!game.user.isGM) return;
+    // Any user who owns the attacker can write the flag to their own message.
+    // _pendingPayload is client-local, so only the client that queued it will proceed.
 
     const payload = _pendingPayload;
     _pendingPayload = null;
@@ -275,10 +285,20 @@ function _hookCreateChatMessage() {
 
 function _hookRenderChatMessage() {
   Hooks.on("renderChatMessage", (message, html) => {
-    if (!game.user.isGM) return;
-
     const payload = message.getFlag?.("cyberpunk2020", "damagePayload");
     if (!payload?.areaDamages || Object.keys(payload.areaDamages).length === 0) return;
+
+    // Show button to GM always; show to players only if they own the attacker actor.
+    // Avoids any dependency on message.userId / message.author which can be undefined in v14.
+    const attackerActorId = payload.attackerId ?? payload.actorId ?? null;
+    const attackerActor = attackerActorId ? game.actors.get(attackerActorId) : null;
+    const canApply = game.user.isGM || (attackerActor?.isOwner ?? false);
+    if (!canApply) return;
+
+    // renderChatMessage fires again after setFlag and on any later re-render
+    // (edit, popout, scrollback). Without this guard each re-render stacks another button.
+    const root = html[0] ?? html;
+    if (root.querySelector?.(".cp2020-apply-damage-btn")) return;
 
     const btn = document.createElement("button");
     btn.classList.add("cp2020-apply-damage-btn");
@@ -766,7 +786,8 @@ function _hookAimTracking() {
     if (select) select.value = String(Math.min(3, savedAim));
   });
 
-  Hooks.on("cyberpunk2020.weaponFired", ({ actorId }) => {
+  Hooks.on("cyberpunk2020.weaponFired", (payload) => {
+    const actorId = payload.attackerId ?? payload.actorId;
     if (!isEnabled() || !actorId) return;
     const actor = game.actors.get(actorId);
     if (!actor) return;
@@ -1058,12 +1079,17 @@ function _hookGasCloud() {
 
   Hooks.on("cyberpunk2020.weaponFired", async (payload) => {
     if (!game.user.isGM) return;
+    // Only the primary GM places the cloud, else each connected GM creates a duplicate.
+    if (game.users.activeGM?.id !== game.user.id) return;
     if (!gasEnabled()) return;
     const types = payload.effectTypes ?? [];
     if (!types.includes("Gas")) return;
 
     const scene = canvas?.scene;
     if (!scene) return;
+
+    // item.js emits the attacker as "attackerId"; accept legacy aliases too.
+    const attackerId = payload.attackerId ?? payload.attackerActorId ?? payload.actorId ?? null;
 
     // Determine cloud center: target token position, or attacker position if none
     let cloudX = null, cloudY = null;
@@ -1072,10 +1098,12 @@ function _hookGasCloud() {
       if (tok) { cloudX = tok.center?.x ?? tok.x; cloudY = tok.center?.y ?? tok.y; }
     }
     if (cloudX === null) {
-      if (payload.attackerTokenId) {
-        const atk = canvas?.tokens?.placeables?.find(t => t.id === payload.attackerTokenId);
-        if (atk) { cloudX = atk.center?.x ?? atk.x; cloudY = atk.center?.y ?? atk.y; }
-      }
+      // No target token — fall back to the attacker's token, resolved by actor id.
+      // weaponFired payloads carry no attacker token id, so we look it up on the canvas.
+      const atk = attackerId
+        ? canvas?.tokens?.placeables?.find(t => t.actor?.id === attackerId)
+        : null;
+      if (atk) { cloudX = atk.center?.x ?? atk.x; cloudY = atk.center?.y ?? atk.y; }
     }
     if (cloudX === null) return; // can't place without a position
 
@@ -1121,13 +1149,15 @@ function _hookGasCloud() {
         <div>Gas cloud placed on canvas (radius ${radius}m). All tokens within the cloud must make Stun Saves each turn (penalty ${stunSaveMod}).</div>
         <div style="opacity:0.75; font-size:0.85em;">Cloud persists for ${duration} turns, then disperses automatically. GM may reposition the template to represent wind drift.</div>
       </div>`,
-      speaker: ChatMessage.getSpeaker({ actor: game.actors.get(payload.attackerActorId ?? "") }),
+      speaker: ChatMessage.getSpeaker({ actor: attackerId ? game.actors.get(attackerId) : undefined }),
     });
   });
 
   // Per-turn: prompt saves for tokens in gas cloud; decrement turns; delete when expired
   Hooks.on("updateCombat", async (combat, updateData) => {
     if (!game.user.isGM) return;
+    // Only the primary GM runs the per-turn cloud logic, else duplicate prompts/updates.
+    if (game.users.activeGM?.id !== game.user.id) return;
     if (updateData.turn === undefined && updateData.round === undefined) return;
     if (!gasEnabled()) return;
 
@@ -1264,7 +1294,8 @@ function _hookMultiActionPenalty() {
 
   Hooks.on("cyberpunk2020.weaponFired", (payload) => {
     if (!_isMultiActionEnabled() || !_isMultiActionAutoTrack()) return;
-    const actor = payload.actorId ? game.actors.get(payload.actorId) : null;
+    const actorId = payload.attackerId ?? payload.actorId;
+    const actor = actorId ? game.actors.get(actorId) : null;
     if (!actor) return;
     _incrementActionCount(actor).catch(() => {});
   });
@@ -1390,7 +1421,195 @@ function _hookAutomationMigrationNotice() {
   });
 }
 
+/**
+ * Socket relay for player-initiated damage application.
+ *
+ * Players cannot call actor.update() on unowned NPCs. Instead they emit a
+ * socket message; the GM's handler applies the damage with GM permissions,
+ * then emits a result notification back to the requesting player.
+ *
+ * Two modes:
+ *   "auto"     — player sends the raw payload; GM re-runs the full damage
+ *                pipeline (applyAreaDamages + side effects).
+ *   "resolved" — player pre-computed per-hit values in the damage dialog
+ *                (armorMode override, cover SP, manual afterSP edits); GM
+ *                applies the pre-resolved values directly.
+ */
+function _hookSocketRelay() {
+  game.socket.on("system.cyberpunk2020", async (data) => {
+    if (!game.user.isGM) {
+      if (data.type === "damageApplied" && data.requesterId === game.user.id) {
+        ui.notifications.info(`Applied ${data.totalApplied} damage to ${data.targetName}.`);
+      } else if (data.type === "damageError" && data.requesterId === game.user.id) {
+        ui.notifications.error(`Damage application failed: ${data.message ?? "Unknown error"}`);
+      }
+      return;
+    }
+
+    if (data.type !== "applyDamage") return;
+
+    // The socket fires on every connected GM client. Only the primary (active) GM
+    // applies the damage, otherwise N connected GMs would each apply it N times.
+    if (game.users.activeGM?.id !== game.user.id) return;
+
+    const target = game.actors.get(data.targetActorId);
+    if (!target) {
+      console.warn("CP2020 | Socket applyDamage: target actor not found:", data.targetActorId);
+      return;
+    }
+
+    let totalApplied = 0;
+
+    try {
+      if (data.mode === "auto") {
+        const hits = await applyAreaDamages({
+          target,
+          areaDamages:   data.areaDamages,
+          ap:            Boolean(data.ap),
+          edged:         Boolean(data.edged),
+          armorMultSoft: Number(data.armorMultSoft ?? 1.0),
+          armorMultHard: Number(data.armorMultHard ?? 1.0),
+          armorMode:     game.settings.get("cyberpunk2020", "damageArmorMode"),
+          ablate:        game.settings.get("cyberpunk2020", "damageAblation"),
+          dryRun:        false,
+        });
+        totalApplied = hits.reduce((s, h) => s + h.netDamage, 0);
+
+        const taserEnabled = (() => { try { return game.settings.get("cyberpunk2020", "taserCumPenaltyEnabled"); } catch { return true; } })();
+        if (taserEnabled && data.stunSaveOnHit && hits.some(h => h.penetrates)) {
+          await updateTaserState(target, data);
+        }
+
+        const acidEnabled = (() => { try { return game.settings.get("cyberpunk2020", "acidArmorDotEnabled"); } catch { return true; } })();
+        if (acidEnabled && data.dotEnabled && Number(data.dotTurns) > 0 && hits.length > 0) {
+          await applyAcidDotState(target, hits[0].location, Number(data.dotTurns), String(data.dotDamageFormula || "1d6"));
+        }
+
+        if (totalApplied > 0) {
+          const liveTarget = game.actors.get(target.id) ?? target;
+          const token = canvas?.tokens?.placeables?.find(t => t.actor?.id === liveTarget.id) ?? null;
+          const woundState = liveTarget.woundState?.() ?? 0;
+          if (woundState >= 4) await postDeathSavePrompt(liveTarget, token);
+          else if (woundState > 0) await postStunSavePrompt(liveTarget, token);
+        }
+
+      } else if (data.mode === "resolved") {
+        // Apply pre-computed per-hit values from the player's damage dialog
+        const limbLoss = (() => { try { return game.settings.get("cyberpunk2020", "limbLossEnabled"); } catch { return true; } })();
+        let currentDamage = Number(target.system.damage) || 0;
+
+        for (const hit of data.resolvedHits) {
+          if (hit.netDamage > 0) {
+            currentDamage += hit.netDamage;
+            totalApplied  += hit.netDamage;
+            await target.update(
+              { "system.damage": currentDamage },
+              { render: false, fromCyberpunkDamageSystem: true }
+            );
+            // New damage clears stabilization — death saves restart (CP2020 p.105)
+            if (target.getFlag?.("cyberpunk2020", "stabilized")) {
+              await target.unsetFlag("cyberpunk2020", "stabilized");
+              await ChatMessage.create({
+                content: `<div class="cyberpunk save-prompt">⚠ <b>${target.name}</b> was stabilized but has taken new damage — Death Saves are required again.</div>`,
+                speaker: ChatMessage.getSpeaker({ actor: target }),
+              });
+            }
+          }
+
+          // Ablation gates on the bullet penetrating, not on the doubled HP value
+          if (data.ablate && data.armorMode === ARMOR_MODES.FULL && hit.btmResult > 0) {
+            await ablateLocationOnce(target, hit.location);
+          }
+
+          // Limb loss / head wound threshold (CP2020 p.103)
+          if (limbLoss && hit.netDamage > 8) {
+            const LIMBS = new Set(["rArm", "lArm", "rLeg", "lLeg"]);
+            const liveToken = canvas?.tokens?.placeables?.find(t => t.actor?.id === target.id) ?? null;
+            if (hit.location === "Head") {
+              await ChatMessage.create({
+                content: `<div class="cyberpunk save-result death-save-result"><h3>☠ Head Wound — ${target.name}</h3><div>${hit.netDamage} net damage to the head.</div><div style="margin-top:4px;"><span style="color:red;font-weight:bold;">☠ AUTOMATIC DEATH</span> — A head wound of more than 8 points kills automatically (CP2020 p.103). ${target.name} dies. Call Trauma Team.</div></div>`,
+                speaker: ChatMessage.getSpeaker({ actor: target }),
+              });
+              const deadEffect = CONFIG.statusEffects.find(e => e.id === "dead");
+              if (deadEffect && liveToken?.document) {
+                await liveToken.document.toggleActiveEffect(deadEffect, { active: true });
+              }
+            } else if (LIMBS.has(hit.location)) {
+              const limbName = { rArm: "Right Arm", lArm: "Left Arm", rLeg: "Right Leg", lLeg: "Left Leg" }[hit.location] ?? hit.location;
+              await ChatMessage.create({
+                content: `<div class="cyberpunk save-prompt"><h3>⚠ Limb Loss — ${target.name}</h3><div><b>${hit.netDamage} net damage to ${limbName}</b> — severed or crushed beyond recognition (CP2020 p.103).</div><div style="margin-top:4px;">Immediate Death Save required at Mortal 0.</div></div>`,
+                speaker: ChatMessage.getSpeaker({ actor: target }),
+              });
+              await postDeathSavePrompt(target, liveToken, 0);
+            }
+          }
+        }
+
+        await target.sheet?.render(false);
+
+        const taserEnabled = (() => { try { return game.settings.get("cyberpunk2020", "taserCumPenaltyEnabled"); } catch { return true; } })();
+        if (taserEnabled && data.stunSaveOnHit && data.resolvedHits.some(h => h.penetrates)) {
+          await updateTaserState(target, data);
+        }
+
+        const acidEnabled = (() => { try { return game.settings.get("cyberpunk2020", "acidArmorDotEnabled"); } catch { return true; } })();
+        if (acidEnabled && data.dotEnabled && Number(data.dotTurns) > 0 && data.firstHitLocation) {
+          await applyAcidDotState(target, data.firstHitLocation, Number(data.dotTurns), String(data.dotDamageFormula || "1d6"));
+        }
+
+        if (totalApplied > 0) {
+          const liveTarget = game.actors.get(target.id) ?? target;
+          const token = canvas?.tokens?.placeables?.find(t => t.actor?.id === liveTarget.id) ?? null;
+          const woundState = liveTarget.woundState?.() ?? 0;
+          if (woundState >= 4) await postDeathSavePrompt(liveTarget, token);
+          else if (woundState > 0) await postStunSavePrompt(liveTarget, token);
+        }
+      }
+
+    } catch (err) {
+      console.error("CP2020 | Socket applyDamage handler failed:", err);
+      game.socket.emit("system.cyberpunk2020", {
+        type:        "damageError",
+        requesterId: data.requesterId,
+        message:     err.message ?? "Unknown error",
+      });
+      return;
+    }
+
+    game.socket.emit("system.cyberpunk2020", {
+      type:        "damageApplied",
+      requesterId: data.requesterId,
+      targetName:  target.name,
+      totalApplied,
+    });
+  });
+}
+
 async function _autoApply(payload, target) {
+  if (!game.user.isGM) {
+    // Route through GM socket relay — player cannot write to unowned actor documents
+    game.socket.emit("system.cyberpunk2020", {
+      type:             "applyDamage",
+      mode:             "auto",
+      requesterId:      game.user.id,
+      targetActorId:    target.id,
+      targetTokenId:    payload.targetTokenId ?? null,
+      areaDamages:      payload.areaDamages,
+      ap:               Boolean(payload.ap),
+      edged:            Boolean(payload.edged),
+      armorMultSoft:    Number(payload.armorMultSoft   ?? 1.0),
+      armorMultHard:    Number(payload.armorMultHard   ?? 1.0),
+      stunSaveOnHit:    Boolean(payload.stunSaveOnHit),
+      stunSaveMod:      Number(payload.stunSaveMod     ?? 0),
+      dotEnabled:       Boolean(payload.dotEnabled),
+      dotTurns:         Number(payload.dotTurns        ?? 0),
+      dotDamageFormula: String(payload.dotDamageFormula || "1d6"),
+      weaponName:       String(payload.weaponName      || ""),
+    });
+    ui.notifications.info("Damage sent — waiting for GM to apply.");
+    return;
+  }
+
   const armorMode = game.settings.get("cyberpunk2020", "damageArmorMode");
   const ablate    = game.settings.get("cyberpunk2020", "damageAblation");
 

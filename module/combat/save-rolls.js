@@ -32,6 +32,64 @@
  */
 
 /**
+ * A user can write to an actor's documents (status effects, flags) only if they
+ * are the GM or own the actor. Players do not own NPCs, so their save-roll clicks
+ * on NPC prompts must be relayed to the GM (see _relaySaveToGM).
+ */
+function _canModifyActor(actor) {
+  return game.user.isGM || (actor?.isOwner ?? false);
+}
+
+/**
+ * Relay a save resolution to the primary GM. Players cannot toggle status effects
+ * or set flags on unowned NPCs, so the GM resolves the save on their behalf. The
+ * roll result posts to chat (world-visible), so no result echo back is needed.
+ */
+function _relaySaveToGM(saveType, params) {
+  if (!game.users.activeGM) {
+    ui.notifications.warn("No GM is connected to resolve this save.");
+    return;
+  }
+  game.socket.emit("system.cyberpunk2020", { type: "saveRoll", saveType, requesterId: game.user.id, ...params });
+  ui.notifications.info("Save sent to the GM to resolve.");
+}
+
+/**
+ * GM-side socket handler for player-relayed save resolutions (see _relaySaveToGM).
+ * Shares the system.cyberpunk2020 channel with the damage relay; filters on
+ * data.type === "saveRoll". Only the primary GM responds, so multiple connected
+ * GMs do not each resolve the same save.
+ */
+function _registerSaveSocket() {
+  game.socket.on("system.cyberpunk2020", async (data) => {
+    if (data?.type !== "saveRoll") return;
+    if (!game.user.isGM) return;
+    if (game.users.activeGM?.id !== game.user.id) return;
+
+    const actor = game.actors.get(data.actorId);
+    if (!actor) return;
+
+    try {
+      switch (data.saveType) {
+        case "stun":
+          await executeStunSave({ actorId: data.actorId, tokenId: data.tokenId, sceneId: data.sceneId });
+          break;
+        case "death":
+          await executeDeathSave({ actorId: data.actorId, tokenId: data.tokenId, sceneId: data.sceneId, mortalLevel: data.mortalLevel });
+          break;
+        case "stabilized":
+          // The dialog and roll ran on the requesting client; only the privileged
+          // flag write is relayed here.
+          await actor.setFlag("cyberpunk2020", "stabilized", true);
+          break;
+      }
+    } catch (err) {
+      console.warn("cyberpunk2020 | Save relay handler failed:", data?.saveType, err);
+    }
+  });
+}
+
+/**
  * Cumulative taser save penalty: each successive hit within a 3-turn window
  * reduces stun threshold by stunSaveMod. Returns the total penalty (always ≥ 0).
  */
@@ -244,6 +302,13 @@ export async function executeStunSave({ actorId, tokenId, sceneId }) {
   const actor = game.actors.get(actorId);
   if (!actor) return;
 
+  // Player clicked a save prompt for an actor they don't own (e.g. an NPC):
+  // relay to the GM, who applies the unconscious status with their permissions.
+  if (!_canModifyActor(actor)) {
+    _relaySaveToGM("stun", { actorId, tokenId, sceneId });
+    return;
+  }
+
   const threshold = getStunThreshold(actor);
   const roll      = await new Roll("1d10").evaluate();
   const result    = roll.total;
@@ -274,6 +339,13 @@ export async function executeStunSave({ actorId, tokenId, sceneId }) {
 export async function executeDeathSave({ actorId, tokenId, sceneId, mortalLevel }) {
   const actor = game.actors.get(actorId);
   if (!actor) return;
+
+  // Player clicked a save prompt for an actor they don't own (e.g. an NPC):
+  // relay to the GM, who applies the dead status with their permissions.
+  if (!_canModifyActor(actor)) {
+    _relaySaveToGM("death", { actorId, tokenId, sceneId, mortalLevel });
+    return;
+  }
 
   const threshold = getDeathThreshold(actor);   // floored at 0
   mortalLevel     = Math.min(6, Math.max(0, (actor.woundState?.() ?? 4) - 4));
@@ -397,7 +469,13 @@ export async function executeStabilize({ actorId }) {
           });
 
           if (success) {
-            await actor.setFlag("cyberpunk2020", "stabilized", true);
+            // The medic may be a player stabilizing an NPC/ally they don't own.
+            // The roll happened locally; relay only the privileged flag write.
+            if (_canModifyActor(actor)) {
+              await actor.setFlag("cyberpunk2020", "stabilized", true);
+            } else {
+              _relaySaveToGM("stabilized", { actorId });
+            }
           }
         },
       },
@@ -442,6 +520,9 @@ async function _applyStatusEffect(actorId, tokenId, sceneId, statusId, restrictM
 }
 
 export function registerSaveRollHandlers() {
+  // GM-side listener for player-relayed save resolutions on unowned actors.
+  _registerSaveSocket();
+
   document.addEventListener("click", async (ev) => {
     const stunBtn      = ev.target.closest(".cp-stun-save-roll");
     const deathBtn     = ev.target.closest(".cp-death-save-roll");

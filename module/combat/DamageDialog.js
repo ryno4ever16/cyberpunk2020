@@ -13,8 +13,7 @@
  * layer via the proportional table (CP2020 p.99).
  */
 
-import { ARMOR_MODES, resolveAreaDamagesSync, applyBTM } from "./DamageApplicator.js";
-import { getArmorContributors } from "./armor-layers.js";
+import { ARMOR_MODES, resolveAreaDamagesSync, applyBTM, ablateLocationOnce } from "./DamageApplicator.js";
 import { postStunSavePrompt, postDeathSavePrompt, updateTaserState, applyAcidDotState } from "./save-rolls.js";
 
 export class DamageDialog extends FormApplication {
@@ -166,19 +165,46 @@ export class DamageDialog extends FormApplication {
     });
 
     const headDoubling = game.settings.get("cyberpunk2020", "headHitDoubling");
-    let totalApplied  = 0;
-    let currentDamage = Number(this.target.system.damage) || 0;
 
-    for (let i = 0; i < rawHits.length; i++) {
-      const hit       = rawHits[i];
+    // Pre-compute all per-hit final values (shared between socket relay and direct paths)
+    const resolvedHits = rawHits.map((hit, i) => {
       const afterSP   = this._overrides[i] !== undefined ? this._overrides[i] : hit.damageAfterSP;
-      // BTM applied at click time; head doubling then applied after BTM (see module header)
+      // BTM applied at click time; head doubling applied after BTM (see module header)
       const btmResult = applyBTM(afterSP, btm, hit.penetrates);
       const netDamage = (headDoubling && hit.location === "Head" && btmResult > 0) ? btmResult * 2 : btmResult;
+      return { location: hit.location, afterSP, penetrates: hit.penetrates, btmResult, netDamage };
+    });
+    const totalApplied = resolvedHits.reduce((s, h) => s + h.netDamage, 0);
 
-      if (netDamage > 0) {
-        currentDamage += netDamage;
-        totalApplied  += netDamage;
+    if (!game.user.isGM) {
+      // Route through GM socket relay — player cannot write to unowned actor documents
+      game.socket.emit("system.cyberpunk2020", {
+        type:             "applyDamage",
+        mode:             "resolved",
+        requesterId:      game.user.id,
+        targetActorId:    this.target.id,
+        resolvedHits,
+        totalApplied,
+        ablate,
+        armorMode,
+        stunSaveOnHit:    Boolean(this.payload.stunSaveOnHit),
+        stunSaveMod:      Number(this.payload.stunSaveMod     ?? 0),
+        dotEnabled:       Boolean(this.payload.dotEnabled),
+        dotTurns:         Number(this.payload.dotTurns        ?? 0),
+        dotDamageFormula: String(this.payload.dotDamageFormula || "1d6"),
+        weaponName:       String(this.payload.weaponName      || ""),
+        firstHitLocation: rawHits[0]?.location ?? null,
+      });
+      this.close();
+      return;
+    }
+
+    // GM direct path
+    let currentDamage = Number(this.target.system.damage) || 0;
+
+    for (const hit of resolvedHits) {
+      if (hit.netDamage > 0) {
+        currentDamage += hit.netDamage;
         await this.target.update(
           { "system.damage": currentDamage },
           { render: false, fromCyberpunkDamageSystem: true }
@@ -186,8 +212,8 @@ export class DamageDialog extends FormApplication {
       }
 
       // Ablation gates on the bullet penetrating, not on the doubled HP value
-      if (ablate && armorMode === ARMOR_MODES.FULL && btmResult > 0) {
-        await _ablateLocation(this.target, hit.location);
+      if (ablate && armorMode === ARMOR_MODES.FULL && hit.btmResult > 0) {
+        await ablateLocationOnce(this.target, hit.location);
       }
     }
 
@@ -195,7 +221,7 @@ export class DamageDialog extends FormApplication {
     ui.notifications.info(`Applied ${totalApplied} damage to ${this.target.name}.`);
 
     // Taser flag must be updated BEFORE the save prompt — threshold calculation reads it
-    if (this.payload.stunSaveOnHit && rawHits.some(h => h.penetrates)) {
+    if (this.payload.stunSaveOnHit && resolvedHits.some(h => h.penetrates)) {
       const taserEnabled = (() => { try { return game.settings.get("cyberpunk2020", "taserCumPenaltyEnabled"); } catch { return true; } })();
       if (taserEnabled) await updateTaserState(this.target, this.payload);
     }
@@ -226,23 +252,3 @@ async function _postSavePrompts(actor) {
   }
 }
 
-async function _ablateLocation(target, location) {
-  const contributors = getArmorContributors(target, location);
-  const toAblate = [...contributors.orderedLayers, ...contributors.unassigned];
-
-  const updates = [];
-  for (const item of toAblate) {
-    const liveItem = target.items.get(item.id);
-    if (!liveItem) continue;
-    const itemSP = Number(liveItem.system?.coverage?.[location]?.stoppingPower) || 0;
-    if (itemSP <= 0) continue;
-    const fullCoverage = foundry.utils.deepClone(liveItem.system.coverage || {});
-    if (!fullCoverage[location]) fullCoverage[location] = {};
-    fullCoverage[location].stoppingPower = Math.max(0, itemSP - 1);
-    updates.push({ _id: liveItem.id, "system.coverage": fullCoverage });
-  }
-
-  if (updates.length > 0) {
-    await target.updateEmbeddedDocuments("Item", updates, { render: false });
-  }
-}
