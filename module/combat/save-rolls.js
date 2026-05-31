@@ -32,59 +32,56 @@
  */
 
 /**
- * A user can write to an actor's documents (status effects, flags) only if they
- * are the GM or own the actor. Players do not own NPCs, so their save-roll clicks
- * on NPC prompts must be relayed to the GM (see _relaySaveToGM).
+ * Stun and death saves may only be resolved by the actor's owner or the GM. Players
+ * see every prompt (so the table can follow the action) but can only roll saves for
+ * characters they own. Returns true if the current user may proceed; otherwise shows
+ * a notice and returns false. Synchronous — runs before any roll/await.
+ *
+ * NOTE: this gate is deliberately NOT used for stabilization. Stabilizing is a medic
+ * action performed ON a patient, so any user may attempt it on any target (see
+ * executeStabilize); only the resulting flag write is owner-gated, via the relay below.
  */
+function _assertCanResolveSave(actor) {
+  if (game.user.isGM || (actor?.isOwner ?? false)) return true;
+  ui.notifications.warn(`You don't own ${actor?.name ?? "this character"} — only its owner or the GM can make this save.`);
+  return false;
+}
+
+/** A user can write an actor's documents (set its stabilized flag) only if GM or owner. */
 function _canModifyActor(actor) {
   return game.user.isGM || (actor?.isOwner ?? false);
 }
 
 /**
- * Relay a save resolution to the primary GM. Players cannot toggle status effects
- * or set flags on unowned NPCs, so the GM resolves the save on their behalf. The
- * roll result posts to chat (world-visible), so no result echo back is needed.
+ * A medic may stabilize a patient they don't own. The roll runs locally (world-visible
+ * chat), but writing the patient's `stabilized` flag needs ownership — so a non-owner's
+ * success is relayed to the primary GM, who performs the write. Only the GM listens.
  */
-function _relaySaveToGM(saveType, params) {
+function _relayStabilizedFlag(actorId) {
   if (!game.users.activeGM) {
-    ui.notifications.warn("No GM is connected to resolve this save.");
+    ui.notifications.warn("Stabilization succeeded, but no GM is connected to record it.");
     return;
   }
-  game.socket.emit("system.cyberpunk2020", { type: "saveRoll", saveType, requesterId: game.user.id, ...params });
-  ui.notifications.info("Save sent to the GM to resolve.");
+  game.socket.emit("system.cyberpunk2020", { type: "stabilizeFlag", actorId, requesterId: game.user.id });
+  ui.notifications.info("Stabilization recorded — the GM will confirm it.");
 }
 
 /**
- * GM-side socket handler for player-relayed save resolutions (see _relaySaveToGM).
+ * GM-side listener for relayed stabilization writes (see _relayStabilizedFlag).
  * Shares the system.cyberpunk2020 channel with the damage relay; filters on
- * data.type === "saveRoll". Only the primary GM responds, so multiple connected
- * GMs do not each resolve the same save.
+ * type === "stabilizeFlag". Only the primary GM responds (no double-write under 2+ GMs).
  */
-function _registerSaveSocket() {
+function _registerStabilizeSocket() {
   game.socket.on("system.cyberpunk2020", async (data) => {
-    if (data?.type !== "saveRoll") return;
+    if (data?.type !== "stabilizeFlag") return;
     if (!game.user.isGM) return;
     if (game.users.activeGM?.id !== game.user.id) return;
-
     const actor = game.actors.get(data.actorId);
     if (!actor) return;
-
     try {
-      switch (data.saveType) {
-        case "stun":
-          await executeStunSave({ actorId: data.actorId, tokenId: data.tokenId, sceneId: data.sceneId });
-          break;
-        case "death":
-          await executeDeathSave({ actorId: data.actorId, tokenId: data.tokenId, sceneId: data.sceneId, mortalLevel: data.mortalLevel });
-          break;
-        case "stabilized":
-          // The dialog and roll ran on the requesting client; only the privileged
-          // flag write is relayed here.
-          await actor.setFlag("cyberpunk2020", "stabilized", true);
-          break;
-      }
+      await actor.setFlag("cyberpunk2020", "stabilized", true);
     } catch (err) {
-      console.warn("cyberpunk2020 | Save relay handler failed:", data?.saveType, err);
+      console.warn("cyberpunk2020 | Stabilize flag relay failed:", err);
     }
   });
 }
@@ -302,12 +299,8 @@ export async function executeStunSave({ actorId, tokenId, sceneId }) {
   const actor = game.actors.get(actorId);
   if (!actor) return;
 
-  // Player clicked a save prompt for an actor they don't own (e.g. an NPC):
-  // relay to the GM, who applies the unconscious status with their permissions.
-  if (!_canModifyActor(actor)) {
-    _relaySaveToGM("stun", { actorId, tokenId, sceneId });
-    return;
-  }
+  // Only the actor's owner or the GM may resolve this save (see _assertCanResolveSave).
+  if (!_assertCanResolveSave(actor)) return;
 
   const threshold = getStunThreshold(actor);
   const roll      = await new Roll("1d10").evaluate();
@@ -340,12 +333,8 @@ export async function executeDeathSave({ actorId, tokenId, sceneId, mortalLevel 
   const actor = game.actors.get(actorId);
   if (!actor) return;
 
-  // Player clicked a save prompt for an actor they don't own (e.g. an NPC):
-  // relay to the GM, who applies the dead status with their permissions.
-  if (!_canModifyActor(actor)) {
-    _relaySaveToGM("death", { actorId, tokenId, sceneId, mortalLevel });
-    return;
-  }
+  // Only the actor's owner or the GM may resolve this save (see _assertCanResolveSave).
+  if (!_assertCanResolveSave(actor)) return;
 
   const threshold = getDeathThreshold(actor);   // floored at 0
   mortalLevel     = Math.min(6, Math.max(0, (actor.woundState?.() ?? 4) - 4));
@@ -405,7 +394,9 @@ export async function executeDeathSave({ actorId, tokenId, sceneId, mortalLevel 
  * TECH + Medical Skill + 1d10 ≥ total damage taken.
  * Bonuses: Hospital +5, Trauma Team +3, Life Suspension Tank +3.
  * Success: no more Death Saves until new damage is received.
- * Anyone except the patient may attempt — not enforced by the system.
+ * Any user may attempt stabilization on any target (a medic acting on a patient) —
+ * this is intentionally NOT owner-gated like stun/death saves. The roll runs locally;
+ * if the medic doesn't own the patient, the stabilized flag write is relayed to the GM.
  */
 export async function executeStabilize({ actorId }) {
   const actor = game.actors.get(actorId);
@@ -469,12 +460,12 @@ export async function executeStabilize({ actorId }) {
           });
 
           if (success) {
-            // The medic may be a player stabilizing an NPC/ally they don't own.
-            // The roll happened locally; relay only the privileged flag write.
+            // A medic may stabilize a patient they don't own: write the flag directly
+            // if we can, otherwise relay it to the GM (the roll already posted to chat).
             if (_canModifyActor(actor)) {
               await actor.setFlag("cyberpunk2020", "stabilized", true);
             } else {
-              _relaySaveToGM("stabilized", { actorId });
+              _relayStabilizedFlag(actorId);
             }
           }
         },
@@ -520,8 +511,8 @@ async function _applyStatusEffect(actorId, tokenId, sceneId, statusId, restrictM
 }
 
 export function registerSaveRollHandlers() {
-  // GM-side listener for player-relayed save resolutions on unowned actors.
-  _registerSaveSocket();
+  // GM-side listener for relayed stabilization writes (non-owner medics).
+  _registerStabilizeSocket();
 
   document.addEventListener("click", async (ev) => {
     const stunBtn      = ev.target.closest(".cp-stun-save-roll");
