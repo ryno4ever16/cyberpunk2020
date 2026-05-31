@@ -31,12 +31,9 @@
  *   We apply a movement speed override of 0 to stunned tokens.
  */
 
-// ── Threshold calculations ─────────────────────────────────────────────────
-
 /**
- * Taser cumulative save penalty (T4-F).
- * Each successive taser hit within a 3-turn window reduces stun threshold by stunSaveMod.
- * Returns the total penalty to subtract (always ≥ 0).
+ * Cumulative taser save penalty: each successive hit within a 3-turn window
+ * reduces stun threshold by stunSaveMod. Returns the total penalty (always ≥ 0).
  */
 function _getTaserPenalty(actor) {
   const enabled = (() => {
@@ -53,9 +50,9 @@ function _getTaserPenalty(actor) {
 }
 
 /**
- * Apply an acid DOT hit to a target, respecting the acidDotStackMode setting (T4-E, Q2).
- * Migrates legacy single-object dotState to array format transparently.
- * Modes: "stack" (extend turnsLeft at same location), "reset" (overwrite), "separate" (concurrent timers).
+ * Apply an acid DOT hit, respecting the acidDotStackMode setting.
+ * Modes: "stack" extends turnsLeft at same location, "reset" overwrites, "separate" adds concurrent timer.
+ * Legacy single-object dotState is transparently migrated to array format on read.
  */
 export async function applyAcidDotState(target, location, turnsLeft, formula) {
   const mode = (() => { try { return game.settings.get("cyberpunk2020", "acidDotStackMode"); } catch { return "stack"; } })();
@@ -83,10 +80,7 @@ export async function applyAcidDotState(target, location, turnsLeft, formula) {
   await target.setFlag("cyberpunk2020", "dotState", states);
 }
 
-/**
- * Update the taser cumulative-hit counter on a target actor (T4-F).
- * Call after a taser hit penetrates armor.
- */
+/** Update taser hit counter on target. Call only when the hit penetrates armor. */
 export async function updateTaserState(actor, payload) {
   const mod   = Number(payload.stunSaveMod ?? -2);
   const round = game?.combat?.round ?? 0;
@@ -97,9 +91,8 @@ export async function updateTaserState(actor, payload) {
 }
 
 /**
- * Stun Threshold: roll ≤ this to succeed.
- * Floored at 1 per general CP2020 floor rule.
- * Reduced by cumulative taser hits (T4-F).
+ * Stun Threshold: roll ≤ this to stay conscious.
+ * Floored at 1. Reduced by cumulative taser penalty.
  */
 export function getStunThreshold(actor) {
   const base = actor.stunThreshold
@@ -120,8 +113,6 @@ export function getDeathThreshold(actor) {
   return Math.max(0, bt - mortalLevel);
 }
 
-// ── Chat prompt helpers ────────────────────────────────────────────────────
-
 function getWoundStateLabel(woundState) {
   const labels = [
     "Uninjured", "Light", "Serious", "Critical",
@@ -135,9 +126,6 @@ function getTokenId(actor) {
   return canvas?.tokens?.placeables?.find(t => t.actor?.id === actor.id)?.id ?? "";
 }
 
-/**
- * Post stun save prompt to chat.
- */
 export async function postStunSavePrompt(actor, token = null) {
   const woundState   = actor.woundState?.() ?? 1;
   const threshold    = getStunThreshold(actor);
@@ -184,7 +172,6 @@ export async function postStunSavePrompt(actor, token = null) {
 export async function postDeathSavePrompt(actor, token = null, forcedMortalLevel = null) {
   const woundState  = actor.woundState?.() ?? 4;
   const bt          = Number(actor.system?.stats?.bt?.total) || 0;
-  // Allow caller to force a specific mortal level (e.g. limb loss: immediate save at Mortal 0)
   const mortalLevel = (forcedMortalLevel !== null)
     ? Math.min(6, Math.max(0, forcedMortalLevel))
     : Math.min(6, Math.max(0, woundState - 4));
@@ -242,20 +229,16 @@ export async function postSavePrompts(actor, token = null) {
   const liveToken = token ?? canvas?.tokens?.placeables?.find(t => t.actor?.id === liveActor.id) ?? null;
 
   if (woundState >= 4) {
-    // Mortal: Death Save first (most urgent), then Stun Save
-    // Skip Death Save if the character has been stabilized (no more saves required until new damage)
+    // Death Save before Stun Save at Mortal (p.99: both required, death is more urgent)
     const isStabilized = liveActor.getFlag?.("cyberpunk2020", "stabilized");
     if (!isStabilized) {
       await postDeathSavePrompt(liveActor, liveToken);
     }
     await postStunSavePrompt(liveActor, liveToken);
   } else {
-    // Light / Serious / Critical: Stun Save only
     await postStunSavePrompt(liveActor, liveToken);
   }
 }
-
-// ── Roll execution ─────────────────────────────────────────────────────────
 
 export async function executeStunSave({ actorId, tokenId, sceneId }) {
   const actor = game.actors.get(actorId);
@@ -345,16 +328,12 @@ export async function executeDeathSave({ actorId, tokenId, sceneId, mortalLevel 
   }
 }
 
-// ── Stabilization ──────────────────────────────────────────────────────────
-
 /**
- * Open the stabilization dialog, roll, and set the stabilized flag on success.
- * Anyone except the patient can stabilize — not enforced by the system.
- *
- * Rule (CP2020 p.105):
- *   TECH + Medical Skill + 1d10 ≥ total damage taken.
- *   Bonuses: Full Hospital +5, Trauma Team +3, Life Suspension Tank +3.
- *   Success = no more Death Saves required (until new damage taken).
+ * Stabilization dialog and roll (CP2020 p.105).
+ * TECH + Medical Skill + 1d10 ≥ total damage taken.
+ * Bonuses: Hospital +5, Trauma Team +3, Life Suspension Tank +3.
+ * Success: no more Death Saves until new damage is received.
+ * Anyone except the patient may attempt — not enforced by the system.
  */
 export async function executeStabilize({ actorId }) {
   const actor = game.actors.get(actorId);
@@ -428,8 +407,6 @@ export async function executeStabilize({ actorId }) {
   }).render(true);
 }
 
-// ── Status effect application ──────────────────────────────────────────────
-
 async function _applyStatusEffect(actorId, tokenId, sceneId, statusId, restrictMovement) {
   try {
     let tokenDoc = null;
@@ -447,20 +424,16 @@ async function _applyStatusEffect(actorId, tokenId, sceneId, statusId, restrictM
       await tokenDoc.toggleActiveEffect(effect, { active: true });
     }
 
-    // Restrict movement for stunned/unconscious characters
     if (restrictMovement && statusId === "unconscious") {
-      // Store the previous movement speed and set to 0
       const currentSpeed = tokenDoc.actor?.system?.movement?.walk
         ?? tokenDoc.actor?.system?.ma?.total
         ?? null;
       if (currentSpeed !== null) {
         await tokenDoc.actor?.setFlag("cyberpunk2020", "preStunMovement", currentSpeed);
       }
-      // Override token movement to 0 via active effect or direct update
-      // Foundry v13: use ATL or direct token document update
+      // Foundry v13+: direct TokenDocument movement update
       await tokenDoc.update({ "movement.walk": 0 }).catch(() => {
-        // Fallback: some versions don't support movement on TokenDocument directly
-        // The unconscious status effect overlay is still applied
+        // Older versions may not support this; status overlay still applies
       });
     }
   } catch (err) {
@@ -468,10 +441,7 @@ async function _applyStatusEffect(actorId, tokenId, sceneId, statusId, restrictM
   }
 }
 
-// ── Event registration ─────────────────────────────────────────────────────
-
 export function registerSaveRollHandlers() {
-  // ── Chat button handlers ──────────────────────────────────────────────────
   document.addEventListener("click", async (ev) => {
     const stunBtn      = ev.target.closest(".cp-stun-save-roll");
     const deathBtn     = ev.target.closest(".cp-death-save-roll");
@@ -504,24 +474,21 @@ export function registerSaveRollHandlers() {
     }
   });
 
-  // ── Combat tracker: per-turn save re-prompting (T2-B/D) ──────────────────
-  // Fires when the active turn advances. Only the GM processes this to avoid
-  // duplicate prompts. Checks the NEW active combatant for:
-  //   • Mortal + unstabilized → Death Save prompt (autoDeathSavePerTurn setting)
-  //   • Unconscious status  → Stun Save recovery prompt (autoSaveRePrompt setting)
+  // Only GM processes this — avoids duplicate prompts on each connected client
   Hooks.on("updateCombat", async (combat, updateData) => {
     if (!game.user.isGM) return;
     // Only fire on turn/round change, not on other combat updates
     if (updateData.turn === undefined && updateData.round === undefined) return;
 
-    const combatant = combat.combatant;   // currently active combatant after update
+    // combat.combatant is the NEW active combatant after the turn/round update
+    const combatant = combat.combatant;
     if (!combatant) return;
 
     const actor = combatant.actor;
     if (!actor) return;
 
     const woundState = actor.woundState?.() ?? 0;
-    if (woundState === 0) return;         // uninjured — nothing to prompt
+    if (woundState === 0) return;
 
     const token = canvas?.tokens?.placeables?.find(t => t.id === combatant.tokenId) ?? null;
 
@@ -543,8 +510,7 @@ export function registerSaveRollHandlers() {
       catch { return true; }
     })();
     if (stunRecovery) {
-      // actor.statuses is a Set<string> of active status IDs in Foundry v11+
-      const isUnconscious = actor.statuses?.has("unconscious") ?? false;
+      const isUnconscious = actor.statuses?.has("unconscious") ?? false;  // Set<string> in Foundry v11+
       if (isUnconscious) {
         await postStunSavePrompt(actor, token);
       }

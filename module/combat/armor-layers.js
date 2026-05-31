@@ -9,12 +9,9 @@
  *   2. Soft armor (Kevlar, flak, light jacket) — ordered by SP ascending
  *   3. Hard armor (Metal gear, body armor, rigid plates) — ordered by SP ascending
  *
- *   Within each tier, lower-SP pieces go inside higher-SP pieces because
- *   the proportional armor formula rewards layering similar-SP pieces
- *   (difference 0-4 gives +5 bonus). Auto-ordering maximises the bonus by
- *   pairing pieces of similar SP, soft inside hard.
- *
- *   This matches real-world practice: shirt under vest under plate carrier.
+ *   Within each tier, lower-SP pieces go inside higher-SP pieces — the proportional
+ *   armor formula rewards similar-SP layering (diff 0-4 = +5 bonus), so pairing
+ *   pieces of similar SP maximises the combined SP result.
  *
  * MANUAL MODE (optional):
  *   When any layer slot in system.armorLayers is populated for a location,
@@ -38,18 +35,12 @@
  *   Cyberware armor is never put in these slots.
  */
 
-// ---------------------------------------------------------------------------
-// Armor type and order classification
-// ---------------------------------------------------------------------------
-
 /**
  * Determine whether an armor item is "hard" (rigid) or "soft" (flexible).
- * Uses the armorType field if explicitly set on the item.
- * Falls back to name heuristics, then encumbrance.
+ * Checks armorType field first; falls back to name heuristics, then encumbrance.
  *
- * CP2020 soft examples: cloth, leather, Kevlar, t-shirt, flak vest, flak pants,
- *   light/medium/heavy jacket, body suit, nylon
- * CP2020 hard examples: metal gear, body armor, full body armor, plate
+ * Soft: cloth, leather, Kevlar, t-shirt, flak vest, flak pants, jackets, body suit, nylon
+ * Hard: metal gear, body armor, full body armor, plate
  */
 export function getArmorHardness(armorItem) {
   const explicit = armorItem.system?.armorType;
@@ -64,16 +55,9 @@ export function getArmorHardness(armorItem) {
 }
 
 /**
- * Within a hardness tier, determine a sub-ordering priority.
- * Lower number = closer to the body (inner).
- *
- * Naming conventions for common layering order (inside → outside):
- *   Shirt/T-shirt      → 0 (innermost of soft)
- *   Vest/Kevlar/Nylon  → 1
- *   Light jacket       → 2
- *   Medium/Heavy jacket→ 3 (outermost of soft before hard)
- *   Light plate/armor  → 4 (innermost hard)
- *   Metal gear/full    → 5 (outermost hard)
+ * Sub-ordering priority within a hardness tier. Lower = closer to the body.
+ * Shirt/T-shirt=0  Vest/Kevlar/Nylon=1  Light jacket=2  Med/Heavy jacket=3
+ * Light plate=4  Metal gear/full body=5
  */
 function getLayerPriority(armorItem) {
   const name = (armorItem.name ?? "").toLowerCase();
@@ -91,12 +75,9 @@ function getLayerPriority(armorItem) {
 }
 
 /**
- * Sort equipped armor items at a location into inside-out order.
- * Order: soft (by priority, then SP) → hard (by priority, then SP).
- * This matches real-world layering: thin/soft closest to body, rigid outermost.
- *
- * @param {Item[]} armorItems   Equipped armor items covering this location
- * @returns {Item[]}            Sorted inside-out
+ * Sort equipped armor items inside-out: soft (by priority, then SP) → hard (by priority, then SP).
+ * @param {Item[]} armorItems
+ * @returns {Item[]}  Sorted inside-out
  */
 export function getAutoLayerOrder(armorItems) {
   const sorted = [...armorItems].sort((a, b) => {
@@ -113,10 +94,6 @@ export function getAutoLayerOrder(armorItems) {
   });
   return sorted;
 }
-
-// ---------------------------------------------------------------------------
-// getArmorContributors — for ablation targeting
-// ---------------------------------------------------------------------------
 
 /**
  * Return armor items contributing SP at a location, in layer order.
@@ -149,7 +126,6 @@ export function getArmorContributors(actor, locationKey) {
 
   const coveringArmor = equippedArmor.filter(coversSP);
 
-  // Check for manual layer assignments at this location
   const manualSlots = actor.system.armorLayers?.[locationKey] ?? [];
   const hasManualAssignment = manualSlots.some(id => id && id !== "");
 

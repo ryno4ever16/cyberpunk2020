@@ -4,7 +4,6 @@ import {
   arrayField,
   booleanField,
   clone,
-  filePathField,
   htmlField,
   mergeDefaults,
   numberField,
@@ -58,7 +57,9 @@ class CyberpunkBaseActorData extends foundry.abstract.TypeDataModel {
       _cwChecks: objectField({ saveStun: 0 }),
 
       // Netrunning fields are top-level in the current templates and sheet code.
-      icon: filePathField(""),
+      // stringField rather than filePathField: stored values from old worlds may lack
+      // a file extension, and FilePathField validation would block actor loading entirely.
+      icon: stringField(""),
       deckModel: stringField(""),
       interface: numberField(0),
       cpu: numberField(0),

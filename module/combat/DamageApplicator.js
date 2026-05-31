@@ -1,28 +1,16 @@
 /**
  * DamageApplicator.js  —  module/combat/DamageApplicator.js
  *
- * Damage resolution per CP2020 p.98-99.
+ * Damage sequence (CP2020 p.98-99):
+ *   1. Subtract SP from raw damage (AP rounds halve SP first).
+ *      Cover SP is combined as the outermost layer via the proportional table.
+ *   2. If damage > SP: penetrated. Remainder is damageAfterSP.
+ *   3. BTM is subtracted only when HP is actually written — NOT during dialog preview.
+ *      It represents the character's toughness absorbing the hit, not a property of the armor.
+ *      Minimum 1 HP if the armor was penetrated (p.99).
  *
- * SEQUENCE (per rulebook):
- *   1. Subtract SP from raw damage (SP halved for AP rounds).
- *      Cover is combined with armor SP as the outermost layer first.
- *   2. If damage > SP: the bullet PENETRATED armor. (penetrates = true)
- *      The remaining damage after SP is passed to the dialog / apply step.
- *   3. BTM is applied ONLY at the moment HP is written to the character —
- *      NOT during the dialog preview. It is the character's toughness
- *      absorbing the impact, NOT a property of the armor.
- *      Min 1 HP if SP was penetrated (Swenson Rule, p.99).
- *
- * This module does NOT apply BTM. resolveHitMath returns damageAfterSP.
- * BTM is applied in DamageDialog._onApply (and in _autoApply).
- *
- * BTM TABLE (p.99/103): Very Weak=0  Weak=1  Avg=2  Strong=3  VStrong=4  Super=5
- * btmFromBT() in lookups.js returns positive integers. We SUBTRACT them.
- *
- * COVER SP:
- *   Combined with armor as the outermost layer via proportional table before
- *   AP halving. GM supplies it in DamageDialog; future canvas.walls automation
- *   will pre-fill it.
+ * This module returns damageAfterSP. BTM is applied in DamageDialog._onApply and _autoApply.
+ * BTM TABLE (p.99/103): Very Weak=0  Weak=1  Average=2  Strong=3  VStrong=4  Super=5
  */
 
 import { getArmorContributors, getArmorHardness } from "./armor-layers.js";
@@ -34,9 +22,7 @@ export const ARMOR_MODES = {
   NONE:   "none",
 };
 
-// ---------------------------------------------------------------------------
-// Proportional armor table (CP2020 p.99) — single definition used everywhere
-// ---------------------------------------------------------------------------
+// Proportional armor table (CP2020 p.99). Single definition — do not duplicate.
 function _combineSP(a, b) {
   a = Number(a) || 0;
   b = Number(b) || 0;
@@ -53,19 +39,12 @@ function _combineSP(a, b) {
   return Math.max(a, b) + mod;
 }
 
-// ---------------------------------------------------------------------------
-// Single-hit armor resolution (NO BTM — see module header)
-// ---------------------------------------------------------------------------
-
 /**
- * Resolve one hit against the current armor SP at a location.
- * Returns damageAfterSP — what remains after armor but BEFORE BTM.
- * BTM is applied separately at apply-time.
- *
- * @param {object}  p
+ * Resolve one hit against armor. Returns damageAfterSP (pre-BTM).
+ * BTM is applied at apply-time in DamageDialog._onApply / _autoApply.
  * @param {number}  p.currentSP   Effective armor SP at this location
  * @param {number}  p.rawDamage   Damage before any reduction
- * @param {boolean} p.ap          Armor-piercing (SP halved)
+ * @param {boolean} p.ap          Armor-piercing: halves spUsed
  * @param {string}  p.armorMode
  * @param {number}  p.coverSP     Outermost-layer cover SP (0 = none)
  * @returns {{ spFull, spUsed, damageAfterSP, penetrates }}
@@ -88,14 +67,10 @@ function resolveHitMath({ currentSP, rawDamage, ap, armorMode, coverSP = 0 }) {
   return { spFull, spUsed, damageAfterSP, penetrates };
 }
 
-// ---------------------------------------------------------------------------
-// Apply-time BTM calculation (called by DamageDialog and _autoApply)
-// ---------------------------------------------------------------------------
-
 /**
- * Apply BTM to after-SP damage. Called at apply-time, not during preview.
- * @param {number} damageAfterSP
- * @param {number} btm           Positive integer (0–5)
+ * Apply BTM to after-SP damage. Called at apply-time, not during dialog preview.
+ * @param {number}  damageAfterSP
+ * @param {number}  btm          Positive integer (0–5)
  * @param {boolean} penetrated   Whether the bullet got through armor
  * @returns {number}             Final HP damage
  */
@@ -104,24 +79,19 @@ export function applyBTM(damageAfterSP, btm, penetrated) {
   return Math.max(1, damageAfterSP - btm);
 }
 
-// ---------------------------------------------------------------------------
-// Full burst application
-// ---------------------------------------------------------------------------
-
 /**
- * Apply a full areaDamages object to a target sequentially.
- * @param {object}  p
+ * Apply all hits in an areaDamages object to a target sequentially.
  * @param {Actor}   p.target
  * @param {object}  p.areaDamages
- * @param {boolean} p.ap             Armor-piercing — halves combined armor SP via spUsed (all armor equally)
- * @param {boolean} p.edged          Edged weapon — equivalent to armorMultSoft: 0.5 (soft armor only)
- * @param {number}  p.armorMultSoft  SP multiplier for soft-only locations (1.0 = no change, 0.5 = halve)
- * @param {number}  p.armorMultHard  SP multiplier when hard armor is present (1.0 = no change)
+ * @param {boolean} p.ap             Armor-piercing: halves SP equally across all armor types
+ * @param {boolean} p.edged          Edged weapon: equivalent to armorMultSoft 0.5 (soft only)
+ * @param {number}  p.armorMultSoft  SP multiplier for soft armor (1.0 = no change)
+ * @param {number}  p.armorMultHard  SP multiplier for hard armor (1.0 = no change)
  * @param {string}  p.armorMode
  * @param {boolean} p.ablate
  * @param {number}  p.coverSP
- * @param {boolean} p.dryRun
- * @returns {Promise<object[]>}  Per-hit result objects (damageAfterSP NOT net HP)
+ * @param {boolean} p.dryRun        If true: runs math only, does not write HP or ablate
+ * @returns {Promise<object[]>}     Per-hit results (includes netDamage when dryRun=false)
  */
 export async function applyAreaDamages({ target, areaDamages, ap, edged = false, armorMultSoft = 1.0, armorMultHard = 1.0, armorMode, ablate, coverSP = 0, dryRun = false }) {
   const results = [];
@@ -146,8 +116,7 @@ export async function applyAreaDamages({ target, areaDamages, ap, edged = false,
   }
 
   for (const { location, rawDamage: baseRaw } of allHits) {
-    // Head hit doubles damage before armor resolution (CP2020 p.103)
-    const rawDamage = (headDoubling && location === "Head") ? baseRaw * 2 : baseRaw;
+    const rawDamage = baseRaw;
     let currentSP = getLiveSP(location);
 
     // Asymmetric armor multipliers: edged weapon (isEdged) and/or ammo armor mults.
@@ -167,8 +136,9 @@ export async function applyAreaDamages({ target, areaDamages, ap, edged = false,
       currentSP, rawDamage, ap, armorMode, coverSP,
     });
 
-    // BTM applied at this point — after SP, before HP track
-    const netDamage = applyBTM(damageAfterSP, btm, penetrates);
+    // Head hit doubling applied after BTM (CP2020 p.103) — never doubles 0 or negative
+    const btmDamage = applyBTM(damageAfterSP, btm, penetrates);
+    const netDamage = (headDoubling && location === "Head" && btmDamage > 0) ? btmDamage * 2 : btmDamage;
 
     results.push({ location, rawDamage, spFull, spUsed, damageAfterSP, btm, netDamage, penetrates });
 
@@ -194,15 +164,12 @@ export async function applyAreaDamages({ target, areaDamages, ap, edged = false,
         liveSP[location] = _deriveLiveSP(target, location);
       }
 
-      // Limb loss / head wound check (CP2020 p.103)
-      // >8 net damage to limb → severed/crushed → immediate Death Save at Mortal 0
-      // >8 net damage to head → automatic death (no save)
+      // Limb loss / head wound threshold: >8 net damage (CP2020 p.103)
       if (limbLoss && netDamage > 8) {
         const LIMBS = new Set(["rArm", "lArm", "rLeg", "lLeg"]);
         const liveTarget = game.actors.get(target.id) ?? target;
         const liveToken  = canvas?.tokens?.placeables?.find(t => t.actor?.id === liveTarget.id) ?? null;
         if (location === "Head") {
-          // Use the same save-result death-save-result format as executeDeathSave
           await ChatMessage.create({
             content: `
 <div class="cyberpunk save-result death-save-result">
@@ -236,18 +203,16 @@ export async function applyAreaDamages({ target, areaDamages, ap, edged = false,
   return results;
 }
 
-// ---------------------------------------------------------------------------
-// Dry-run paths — these return damageAfterSP (pre-BTM) for dialog display
-// ---------------------------------------------------------------------------
+// Dry-run variants return damageAfterSP (pre-BTM) without writing any data.
 
-/** Async dry-run for auto-apply path. */
 export async function resolveAreaDamages({ target, areaDamages, ap, edged = false, armorMultSoft = 1.0, armorMultHard = 1.0, armorMode, coverSP = 0 }) {
   return applyAreaDamages({ target, areaDamages, ap, edged, armorMultSoft, armorMultHard, armorMode, ablate: false, coverSP, dryRun: true });
 }
 
 /**
- * Synchronous dry-run. Returns per-hit results with damageAfterSP (pre-BTM).
- * The dialog displays damageAfterSP in the preview and applies BTM at click-time.
+ * Synchronous dry-run for dialog preview. Returns damageAfterSP per hit.
+ * BTM is not applied here — the dialog shows damageAfterSP so the GM can override it,
+ * then applies BTM at click time.
  */
 export function resolveAreaDamagesSync({ target, areaDamages, ap, edged = false, armorMultSoft = 1.0, armorMultHard = 1.0, armorMode, coverSP = 0 }) {
   const results = [];
@@ -259,15 +224,12 @@ export function resolveAreaDamagesSync({ target, areaDamages, ap, edged = false,
     return liveSP[key];
   };
 
-  const headDoublingSync = game.settings.get("cyberpunk2020", "headHitDoubling");
-
   for (const [location, hits] of Object.entries(areaDamages)) {
     for (const hit of hits) {
       const baseRaw    = Number(hit.damage ?? hit.dmg) || 0;
-      const rawDamage  = (headDoublingSync && location === "Head") ? baseRaw * 2 : baseRaw;
+      const rawDamage  = baseRaw;
       let currentSP    = getLiveSP(location);
 
-      // Unified asymmetric armor mult (same logic as applyAreaDamages)
       const effSoftSync = edged ? Math.min(0.5, armorMultSoft) : armorMultSoft;
       const effHardSync = armorMultHard;
       if ((effSoftSync !== 1.0 || effHardSync !== 1.0) && currentSP > 0 && armorMode !== ARMOR_MODES.NONE) {
@@ -294,10 +256,6 @@ export function resolveAreaDamagesSync({ target, areaDamages, ap, edged = false,
   return results;
 }
 
-// ---------------------------------------------------------------------------
-// Ablation helpers
-// ---------------------------------------------------------------------------
-
 async function _ablateLocation(target, location) {
   const contributors = getArmorContributors(target, location);
   const toAblate = [...contributors.orderedLayers, ...contributors.unassigned];
@@ -321,11 +279,11 @@ async function _ablateLocation(target, location) {
 }
 
 /**
- * Reduce armor SP at a location by a variable amount (T4-E acid DOT).
- * Distributes the reduction across equipped armor layers from outermost inward.
+ * Reduce armor SP at a location by a variable amount.
+ * Distributes the reduction from outermost layer inward (used by acid DOT).
  * @param {Actor}  target
  * @param {string} location
- * @param {number} amount   Total SP to remove (positive integer)
+ * @param {number} amount   Total SP to remove
  */
 export async function ablateLocationByAmount(target, location, amount) {
   if (amount <= 0) return;

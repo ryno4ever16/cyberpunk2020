@@ -26,10 +26,6 @@ import { rollLocation }                                       from "../utils.js"
 // Payload waiting to be attached to the next chat message created
 let _pendingPayload = null;
 
-// ---------------------------------------------------------------------------
-// T5-A: Multi-action penalty helpers
-// ---------------------------------------------------------------------------
-
 function _isMultiActionEnabled() {
   try { return game.settings.get("cyberpunk2020", "multiActionPenaltyEnabled"); } catch { return true; }
 }
@@ -70,6 +66,7 @@ export function registerDamageHooks() {
   _hookDotEffects();
   _hookGasCloud();
   _hookMultiActionPenalty();
+  _hookAutomationMigrationNotice();
 
   // Combat action button click handler
   document.addEventListener("click", async (ev) => {
@@ -108,7 +105,6 @@ export function registerDamageHooks() {
       });
     }
 
-    // Take Aim — increment aim counter on actor flag (0→1→2→3→0)
     if (takeAimBtn) {
       ev.preventDefault();
       const actor = game.actors.get(takeAimBtn.dataset.actorId);
@@ -119,13 +115,11 @@ export function registerDamageHooks() {
         await actor.unsetFlag("cyberpunk2020", "aimRounds");
       } else {
         await actor.setFlag("cyberpunk2020", "aimRounds", next);
-        // Each aim round spends an action (T5-A)
         if (_isMultiActionEnabled() && _isMultiActionAutoTrack()) await _incrementActionCount(actor);
       }
       ui.combat?.render();
     }
 
-    // Wait for Turn — skip current slot without touching initiative; pick who to follow
     if (waitBtn) {
       ev.preventDefault();
       const combat = game.combat;
@@ -133,11 +127,10 @@ export function registerDamageHooks() {
       const combatant = combat.combatants.get(waitBtn.dataset.combatantId);
       if (!combatant) return;
 
-      // Remaining combatants this round (after current slot, excluding self and already-waiting)
       const remaining = combat.turns.slice((combat.turn ?? 0) + 1)
         .filter(c => c.id !== combatant.id && !c.getFlag?.("cyberpunk2020", "waitingForTurn") && c.actor);
 
-      // Bug 1 fix: if already last, there is no one to wait after — block rather than advance the round
+      // Guard: if already last in order, there is no one to follow — don't advance the round
       if (remaining.length === 0) {
         ui.notifications.info(`${combatant.name} is already the last active combatant this round — there is no one to wait after.`);
         return;
@@ -169,7 +162,6 @@ export function registerDamageHooks() {
       });
     }
 
-    // Declare Dodge — toggle dodging flag on actor
     if (dodgeBtn) {
       ev.preventDefault();
       const actor = game.actors.get(dodgeBtn.dataset.actorId);
@@ -180,7 +172,6 @@ export function registerDamageHooks() {
         ui.notifications.info(`${actor.name} cancelled Dodge declaration.`);
       } else {
         await actor.setFlag("cyberpunk2020", "dodging", true);
-        // Dodge declaration spends an action (T5-A)
         if (_isMultiActionEnabled() && _isMultiActionAutoTrack()) await _incrementActionCount(actor);
         await ChatMessage.create({
           content: `<div class="cyberpunk save-prompt"><h3>🛡 ${actor.name} declares DODGE</h3><div class="save-info">All incoming melee attacks this round are at <b>−2</b> to the attacker's roll. Dodge clears at the start of ${actor.name}'s next turn. (CP2020 p.102)</div></div>`,
@@ -190,7 +181,6 @@ export function registerDamageHooks() {
       ui.combat?.render();
     }
 
-    // Declare Parry — toggle parrying flag on actor
     if (parryBtn) {
       ev.preventDefault();
       const actor = game.actors.get(parryBtn.dataset.actorId);
@@ -201,7 +191,6 @@ export function registerDamageHooks() {
         ui.notifications.info(`${actor.name} cancelled Parry declaration.`);
       } else {
         await actor.setFlag("cyberpunk2020", "parrying", true);
-        // Parry declaration spends an action (T5-A)
         if (_isMultiActionEnabled() && _isMultiActionAutoTrack()) await _incrementActionCount(actor);
         await ChatMessage.create({
           content: `<div class="cyberpunk save-prompt"><h3>⛨ ${actor.name} declares PARRY</h3><div class="save-info">The next incoming melee attack is <b>automatically blocked</b>. Parry is consumed on first use. The parrying character takes −3 to all other actions this turn. (CP2020 p.102)</div></div>`,
@@ -211,7 +200,6 @@ export function registerDamageHooks() {
       ui.combat?.render();
     }
 
-    // Take delayed action — announce and clear waiting flags
     if (actNowBtn) {
       ev.preventDefault();
       const combat = game.combat;
@@ -227,7 +215,6 @@ export function registerDamageHooks() {
       ui.combat?.render();
     }
 
-    // Manual Action button — increment action count for untracked actions (T5-A)
     if (addActionBtn) {
       ev.preventDefault();
       if (!_isMultiActionEnabled()) return;
@@ -241,10 +228,6 @@ export function registerDamageHooks() {
     }
   });
 }
-
-// ---------------------------------------------------------------------------
-// PATH A + B source: weapon fired hook
-// ---------------------------------------------------------------------------
 
 function _hookWeaponFired() {
   Hooks.on("cyberpunk2020.weaponFired", async (payload) => {
@@ -274,10 +257,6 @@ function _hookWeaponFired() {
   });
 }
 
-// ---------------------------------------------------------------------------
-// PATH B step 1: attach payload flag to the chat message
-// ---------------------------------------------------------------------------
-
 function _hookCreateChatMessage() {
   Hooks.on("createChatMessage", async (message) => {
     if (!_pendingPayload) return;
@@ -293,10 +272,6 @@ function _hookCreateChatMessage() {
     }
   });
 }
-
-// ---------------------------------------------------------------------------
-// PATH B step 2: inject "Apply Damage" button on flagged chat messages
-// ---------------------------------------------------------------------------
 
 function _hookRenderChatMessage() {
   Hooks.on("renderChatMessage", (message, html) => {
@@ -325,9 +300,8 @@ function _hookRenderChatMessage() {
       }
 
       if (!target) {
-        // No target selected or resolved — open a token-picker dialog
         target = await _pickTargetDialog();
-        if (!target) return;   // GM cancelled
+        if (!target) return;
       }
 
       if (game.settings.get("cyberpunk2020", "damageAutoApply")) {
@@ -337,41 +311,21 @@ function _hookRenderChatMessage() {
       }
     });
 
-    // Inject into the chat card
     const container = html[0].querySelector(".cyberpunk-card") ?? html[0];
     container.appendChild(btn);
   });
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Suppressive fire evasion prompts (T3-B)
-// ---------------------------------------------------------------------------
-
 /**
  * Suppressive fire flow:
+ *   1. Places a ray MeasuredTemplate (fire zone) at the attacker's token, aimed toward
+ *      any currently targeted tokens (or East if none). Posts a "Confirm Fire Zone" button.
+ *   2. GM aims the template, then clicks Confirm. All tokens inside receive evasion prompts.
+ *   3. Template persists with `isSuppressiveZone` flag for per-turn re-checks, then
+ *      auto-expires at the start of the next round (_hookSuppressiveFirePerTurn).
  *
- *  1. Creates a ray MeasuredTemplate (fire zone) on the canvas at the attacker's
- *     token position, facing the initial target direction (or East if none).
- *
- *  2. Posts a chat message with a "Confirm Fire Zone" button. The player/GM aims
- *     the template using Foundry's standard template controls (drag direction handle),
- *     then clicks Confirm to detect tokens and issue evasion prompts.
- *
- *  3. The template persists with the `isSuppressiveZone` flag so subsequent
- *     per-turn evasion checks (_hookSuppressiveFirePerTurn) can find it.
- *     It is automatically removed at the start of the next round (see that hook).
- *
- * Fire zone constraints enforced by _hookSuppressiveTemplateOriginLock:
- *   - Origin cannot be moved (only direction/angle changes are allowed).
- *   - Distance cannot exceed weaponRange.
- *   - Width cannot drop below the minimum zone width.
- *
- * Evasion check: Athletics + REF + 1d10 vs saveDC (CP2020 p.101).
- * Failure: 1d6 random hits with weapon damage formula via PATH A.
+ * Evasion: Athletics + REF + 1d10 vs saveDC (CP2020 p.101).
+ * Failure: 1d6 random hits with weapon damage formula, routed through PATH A.
  */
 function _hookSuppressiveFire() {
   Hooks.on("cyberpunk2020.suppressiveFire", async (payload) => {
@@ -403,7 +357,6 @@ function _hookSuppressiveFire() {
       angleDeg = Math.round((Math.atan2(dy, dx) * 180) / Math.PI);
     }
 
-    // Place the fire zone template
     const templateData = {
       t:           "ray",
       x:           attackerTok.center?.x ?? attackerTok.x,
@@ -438,7 +391,6 @@ function _hookSuppressiveFire() {
       return;
     }
 
-    // Post the "aim then confirm" chat message
     const content = `
 <div class="cyberpunk save-prompt">
   <h3>🔥 Suppressive Fire — ${weaponName}</h3>
@@ -587,7 +539,6 @@ function _hookSuppressiveFirePerTurn() {
       }
     }
 
-    // Re-check after deletion
     const activeZones = canvas.templates.placeables.filter(t =>
       t.document?.flags?.cyberpunk2020?.isSuppressiveZone
     );
@@ -607,7 +558,6 @@ function _hookSuppressiveFirePerTurn() {
       const ly = (tok.center?.y ?? tok.y) - zone.y;
       if (!zone.shape.contains(lx, ly)) continue;
 
-      // Token starts turn inside fire zone — prompt evasion
       await _postEvasionPrompts([tok], {
         saveDC:     zoneFlags.saveDC,
         dmgFormula: zoneFlags.dmgFormula,
@@ -653,7 +603,6 @@ async function _executeSuppressionEvasion({ actorId, tokenId, sceneId, saveDC, d
   });
 
   if (!evaded) {
-    // Roll 1d6 random hits with the weapon's damage formula
     const hitsRoll = await new Roll("1d6").evaluate();
     const hits = hitsRoll.total;
     const rollData = {};
@@ -769,19 +718,10 @@ function _pickTargetDialog() {
   });
 }
 
-// ---------------------------------------------------------------------------
-// T4-G: Aiming accumulation tracking (CP2020 p.99 — +1/round aiming, max +3)
-// ---------------------------------------------------------------------------
-
 /**
- * Tracks consecutive "Take Aim" actions across combat turns.
- *
- * A 🎯 button is injected into the combat tracker row of the active combatant.
- * Each click increments the aimRounds actor flag (cycles 0→1→2→3→0).
- * When the attack modifier dialog opens the aimRounds select is pre-filled from
- * the saved flag so the player doesn't have to re-enter it each turn.
- * The flag is cleared automatically when the actor fires (weaponFired hook).
- * Gated by the "aimTrackingEnabled" setting.
+ * Aim accumulation tracking (CP2020 p.99 — +1 per consecutive aim round, max +3).
+ * Persists aimRounds on the actor flag across turns; pre-fills the attack dialog on open;
+ * clears the flag when the actor fires.
  */
 function _hookAimTracking() {
   const isEnabled = () => {
@@ -789,7 +729,6 @@ function _hookAimTracking() {
     catch { return true; }
   };
 
-  // Inject 🎯 button into combat tracker for the active combatant
   Hooks.on("renderCombatTracker", (tracker, html) => {
     if (!isEnabled()) return;
     const combat = game.combat;
@@ -816,7 +755,6 @@ function _hookAimTracking() {
     controls.prepend(btn);
   });
 
-  // Pre-fill aimRounds select in attack modifier dialog from saved flag
   Hooks.on("renderModifiersDialog", (app, html) => {
     if (!isEnabled()) return;
     const actor = app.options.weapon?.actor;
@@ -828,7 +766,6 @@ function _hookAimTracking() {
     if (select) select.value = String(Math.min(3, savedAim));
   });
 
-  // Clear aim flag when the actor fires
   Hooks.on("cyberpunk2020.weaponFired", ({ actorId }) => {
     if (!isEnabled() || !actorId) return;
     const actor = game.actors.get(actorId);
@@ -839,19 +776,14 @@ function _hookAimTracking() {
   });
 }
 
-// ---------------------------------------------------------------------------
-// T4-H: Wait for Turn (CP2020 p.98 — delay action to after a specific combatant's turn)
-// ---------------------------------------------------------------------------
-
 /**
- * Initiative is NEVER modified. A combatant flag tracks "waiting" state.
+ * Wait for Turn system (CP2020 p.98). Initiative order is never modified.
+ * A combatant flag tracks waiting state instead.
  *
- * UI flow:
- *   1. Active combatant (not waiting): ⏸ button. Clicking opens a dialog to
- *      pick which combatant to follow, then skips their current turn slot.
- *   2. Waiting combatant: ⚡ button. Clicking announces the delayed action.
- *   3. When the chosen "wait-after" combatant's turn ends, a chat alert fires.
- *   4. New round: all waiting flags cleared automatically.
+ * ⏸ = active, not waiting → opens dialog to pick who to follow, then skips current slot
+ * ⚡ = currently waiting  → announces delayed action, clears flag
+ * "Your moment" alert fires when the followed combatant ends their turn.
+ * All waiting flags clear on round end.
  */
 function _hookWaitForTurn() {
   const isEnabled = () => {
@@ -897,11 +829,9 @@ function _hookWaitForTurn() {
     }
   });
 
-  // Fire "your moment" alert and clear waiting flags on round change
   Hooks.on("updateCombat", async (combat, updateData) => {
     if (!game.user.isGM) return;
 
-    // New round — clear all waiting flags
     if (updateData.round !== undefined) {
       for (const combatant of combat.combatants) {
         if (combatant.getFlag("cyberpunk2020", "waitingForTurn")) {
@@ -914,7 +844,7 @@ function _hookWaitForTurn() {
 
     if (updateData.turn === undefined) return;
 
-    // Find the combatant that JUST completed their turn (previous turn index)
+    // The combatant at turn-1 just completed their action
     const prevIdx = (combat.turn ?? 0) - 1;
     if (prevIdx < 0) return;
     const justActed = combat.turns[prevIdx];
@@ -933,24 +863,15 @@ function _hookWaitForTurn() {
   });
 }
 
-// ---------------------------------------------------------------------------
-// T4-C: Dodge / Parry active defense (CP2020 p.102)
-// ---------------------------------------------------------------------------
-
 /**
- * Declare Dodge / Parry buttons in the combat tracker.
+ * Active defense buttons (CP2020 p.102).
  *
- * Dodge (active combatant or any combatant during their turn):
- *   - Sets actor flag "dodging: true".
- *   - Incoming melee attacks this round are at +2 to the defender's effective total (−2 to attacker).
- *   - Flag clears at the start of the declaring character's next turn.
+ * Dodge (active combatant): sets "dodging" flag → +2 to defender's contested roll until next turn.
+ * Parry (any combatant): sets "parrying" flag → next incoming melee attack blocked; consumed on use.
+ *   Parry also costs an action (−3 to other rolls this turn); chat reminds the GM to enforce it.
  *
- * Parry (any combatant — reactive defense):
- *   - Sets actor flag "parrying: true".
- *   - Next incoming melee attack is blocked entirely; flag consumed on use.
- *   - Parrying character takes −3 to other actions (reminder in chat, GM enforces manually).
- *
- * The mechanical effects are applied in item.js __meleeBonk / __martialBonk.
+ * The mechanical effects are applied in item.js __meleeBonk / __martialBonk, which
+ * read these flags on the defending actor.
  */
 function _hookDodgeParry() {
   const isEnabled = () => {
@@ -979,7 +900,6 @@ function _hookDodgeParry() {
       const isParrying = actor.getFlag("cyberpunk2020", "parrying") ?? false;
       const isActive   = combatant.id === combat.current?.combatantId;
 
-      // Dodge: shown for the active combatant (declared on their turn)
       if (isActive) {
         const dodgeBtn = document.createElement("a");
         dodgeBtn.classList.add("cp-dodge-btn", "combatant-control");
@@ -992,7 +912,6 @@ function _hookDodgeParry() {
         controls.prepend(dodgeBtn);
       }
 
-      // Parry: shown for any combatant reactively (also active combatant)
       const parryBtn = document.createElement("a");
       parryBtn.classList.add("cp-parry-btn", "combatant-control");
       parryBtn.dataset.actorId = actor.id;
@@ -1005,7 +924,6 @@ function _hookDodgeParry() {
     }
   });
 
-  // Clear Dodge flag at the start of the declaring character's next turn
   Hooks.on("updateCombat", async (combat, updateData) => {
     if (!game.user.isGM) return;
     if (updateData.turn === undefined && updateData.round === undefined) return;
@@ -1017,17 +935,13 @@ function _hookDodgeParry() {
     if (actor.getFlag("cyberpunk2020", "dodging")) {
       await actor.unsetFlag("cyberpunk2020", "dodging").catch(() => {});
     }
-    // Parry is consumed on use (cleared in item.js), but also clear it here as a safety net
-    // in case it was never triggered during the round
+    // Parry is consumed in item.js on hit; clear it here on round end as a safety net
+    // in case it was declared but no melee attack ever came
     if (updateData.round !== undefined && actor.getFlag("cyberpunk2020", "parrying")) {
       await actor.unsetFlag("cyberpunk2020", "parrying").catch(() => {});
     }
   });
 }
-
-// ---------------------------------------------------------------------------
-// T4-E: Acid DOT + T4-B: Choke DOT + Hold/Grapple status reminders
-// ---------------------------------------------------------------------------
 
 function _hookDotEffects() {
   Hooks.on("updateCombat", async (combat, updateData) => {
@@ -1039,7 +953,7 @@ function _hookDotEffects() {
     const actor = combatant.actor;
     const token = canvas?.tokens?.placeables?.find(t => t.id === combatant.tokenId) ?? null;
 
-    // ── T4-E: Acid armor SP degradation (array format; handles stack/reset/separate modes) ──
+    // ── Acid armor DOT ────────────────────────────────────────────────────────
     const acidEnabled = (() => {
       try { return game.settings.get("cyberpunk2020", "acidArmorDotEnabled"); }
       catch { return true; }
@@ -1086,7 +1000,7 @@ function _hookDotEffects() {
       }
     }
 
-    // ── T4-B: Choke per-turn HP damage ───────────────────────────────────────
+    // ── Choke DOT ────────────────────────────────────────────────────────────
     const meleeEnabled = (() => {
       try { return game.settings.get("cyberpunk2020", "specialMeleeEffectsEnabled"); }
       catch { return true; }
@@ -1097,7 +1011,7 @@ function _hookDotEffects() {
       const chokeState = actor.getFlag?.("cyberpunk2020", "chokeState");
       if (chokeState) {
         if (isDead) {
-          // Bug 2 fix: clear choke flag on dead actors rather than dealing phantom damage
+          // Dead actor: clear the flag; don't apply damage they can't receive
           await actor.unsetFlag("cyberpunk2020", "chokeState").catch(() => {});
         } else {
           const formula = chokeState.formula || "1d6";
@@ -1114,7 +1028,7 @@ function _hookDotEffects() {
         }
       }
 
-      // ── Hold/Grapple reminder ─────────────────────────────────────────────
+      // ── Hold/Grapple turn reminders ──────────────────────────────────────
       if (!isDead) {
         const heldBy      = actor.getFlag?.("cyberpunk2020", "heldBy");
         const grappledBy  = actor.getFlag?.("cyberpunk2020", "grappledBy");
@@ -1136,17 +1050,12 @@ function _hookDotEffects() {
   });
 }
 
-// ---------------------------------------------------------------------------
-// T4-D: Gas grenade — persisting circle cloud, per-turn save prompts
-// ---------------------------------------------------------------------------
-
 function _hookGasCloud() {
   const gasEnabled = () => {
     try { return game.settings.get("cyberpunk2020", "gasGrenadeCloudEnabled"); }
     catch { return true; }
   };
 
-  // Create gas cloud when a gas grenade fires
   Hooks.on("cyberpunk2020.weaponFired", async (payload) => {
     if (!game.user.isGM) return;
     if (!gasEnabled()) return;
@@ -1240,7 +1149,6 @@ function _hookGasCloud() {
         continue;
       }
 
-      // Find tokens whose center falls within the cloud
       const shape    = tmpl.shape;
       const tmplPos  = { x: tmpl.document.x, y: tmpl.document.y };
       const tokensInCloud = canvas.tokens?.placeables?.filter(tok => {
@@ -1270,7 +1178,6 @@ function _hookGasCloud() {
         }
       }
 
-      // Decrement turns; auto-drift if setting is on
       const autoMove = (() => { try { return game.settings.get("cyberpunk2020", "gasCloudAutoMove"); } catch { return false; } })();
       const updates = { [`flags.cyberpunk2020.turnsLeft`]: turnsLeft - 1 };
 
@@ -1296,22 +1203,12 @@ function _hookGasCloud() {
   });
 }
 
-// ---------------------------------------------------------------------------
-// T5-A: Multi-action penalty tracker
-// ---------------------------------------------------------------------------
-
 /**
- * Tracks how many actions each combatant has taken this round and applies
- * a cumulative −3 penalty per additional action (CP2020 p.105 RAW).
- *
- * - Action count badge shown in combat tracker row.
- * - ➕ button for manual actions (reload, etc.) not auto-detected.
- * - Auto-tracks: weapon fire, Aim, Dodge, Parry declarations.
- * - Pre-fills extraMod in the attack modifier dialog with current penalty.
- * - Resets all counts at round change.
+ * Multi-action penalty tracker (CP2020 p.105 — −3 per additional action).
+ * Auto-tracks weapon fire, Aim, Dodge, and Parry; ➕ button for untracked actions.
+ * Pre-fills extraMod in the attack dialog. Resets all counts on round end.
  */
 function _hookMultiActionPenalty() {
-  // Inject badge + ➕ button into combat tracker
   Hooks.on("renderCombatTracker", (tracker, html) => {
     if (!_isMultiActionEnabled()) return;
     const combat = game.combat;
@@ -1331,7 +1228,6 @@ function _hookMultiActionPenalty() {
       const penalty = count <= 1 ? 0 : -(count - 1) * 3;
       const controls = li.querySelector(".combatant-controls") ?? li.querySelector("menu") ?? li;
 
-      // Badge: show action count and live penalty when at least one action taken
       if (count > 0) {
         const badge = document.createElement("span");
         badge.classList.add("cp-action-count-badge");
@@ -1341,7 +1237,6 @@ function _hookMultiActionPenalty() {
         controls.prepend(badge);
       }
 
-      // ➕ button: available for active combatant to mark untracked actions
       if (combatant.id === combat.current?.combatantId) {
         const addBtn = document.createElement("a");
         addBtn.classList.add("cp-add-action-btn", "combatant-control");
@@ -1354,7 +1249,6 @@ function _hookMultiActionPenalty() {
     }
   });
 
-  // Pre-fill extraMod in attack modifier dialog with current penalty
   Hooks.on("renderModifiersDialog", (app, html) => {
     if (!_isMultiActionEnabled()) return;
     const actor = app.options.weapon?.actor;
@@ -1368,7 +1262,6 @@ function _hookMultiActionPenalty() {
     input.value = String(existing + penalty);
   });
 
-  // Auto-increment count when a weapon fires (after the shot)
   Hooks.on("cyberpunk2020.weaponFired", (payload) => {
     if (!_isMultiActionEnabled() || !_isMultiActionAutoTrack()) return;
     const actor = payload.actorId ? game.actors.get(payload.actorId) : null;
@@ -1376,7 +1269,6 @@ function _hookMultiActionPenalty() {
     _incrementActionCount(actor).catch(() => {});
   });
 
-  // Clear all action counts at round change
   Hooks.on("updateCombat", async (combat, updateData) => {
     if (!game.user.isGM || updateData.round === undefined) return;
     for (const combatant of combat.combatants) {
@@ -1389,7 +1281,114 @@ function _hookMultiActionPenalty() {
   });
 }
 
-// ---------------------------------------------------------------------------
+/**
+ * Show a one-time first-run notice to the GM explaining new automation features
+ * and which settings are active by default. Sets a world flag so it only fires once.
+ */
+function _hookAutomationMigrationNotice() {
+  Hooks.on("ready", () => {
+    if (!game.user.isGM) return;
+    let shown = false;
+    try { shown = game.settings.get("cyberpunk2020", "automationMigrationShown"); } catch { return; }
+    if (shown) return;
+
+    game.settings.set("cyberpunk2020", "automationMigrationShown", true).catch(() => {});
+
+    const content = `
+<div style="padding:8px 4px; font-size:0.9em; line-height:1.5;">
+  <p style="margin:0 0 10px;">
+    This world now has the <b>Cyberpunk 2020 combat automation system</b> active.
+    Several features are <b>on by default</b>. Review the settings before your next session.
+  </p>
+
+  <div style="background:rgba(180,60,30,0.12); border:1px solid rgba(180,60,30,0.4); border-radius:4px; padding:8px 10px; margin-bottom:8px;">
+    <p style="font-weight:bold; margin:0 0 6px;">⚠ Active by default — check these before playing</p>
+    <table style="width:100%; border-collapse:collapse; font-size:0.87em;">
+      <tr>
+        <td style="padding:2px 10px 2px 0; white-space:nowrap; font-weight:bold;">Armor Ablation</td>
+        <td style="padding:2px 0;">Armor SP decreases by 1 per penetrating hit. <em>Permanently modifies armor items.</em></td>
+      </tr>
+      <tr>
+        <td style="padding:2px 10px 2px 0; white-space:nowrap; font-weight:bold;">Head Hit Doubling</td>
+        <td style="padding:2px 0;">Net HP damage to the head is doubled after armor and BTM resolve.</td>
+      </tr>
+      <tr>
+        <td style="padding:2px 10px 2px 0; white-space:nowrap; font-weight:bold;">Limb Loss</td>
+        <td style="padding:2px 0;">More than 8 net damage to a limb triggers an immediate Death Save.</td>
+      </tr>
+      <tr>
+        <td style="padding:2px 10px 2px 0; white-space:nowrap; font-weight:bold;">Death Save Each Turn</td>
+        <td style="padding:2px 0;">Mortal characters are prompted automatically on their turn.</td>
+      </tr>
+      <tr>
+        <td style="padding:2px 10px 2px 0; white-space:nowrap; font-weight:bold;">Stun Recovery</td>
+        <td style="padding:2px 0;">Unconscious characters are prompted to recover each turn.</td>
+      </tr>
+      <tr>
+        <td style="padding:2px 10px 2px 0; white-space:nowrap; font-weight:bold;">Multi-Action Penalty</td>
+        <td style="padding:2px 0;">Each action beyond the first pre-fills &minus;3 in the attack modifier dialog.</td>
+      </tr>
+      <tr>
+        <td style="padding:2px 10px 2px 0; white-space:nowrap; font-weight:bold;">Armor Layer EV</td>
+        <td style="padding:2px 0;">Wearing 2+ armor pieces at the same location reduces REF.</td>
+      </tr>
+    </table>
+  </div>
+
+  <div style="background:rgba(30,100,180,0.10); border:1px solid rgba(30,100,180,0.3); border-radius:4px; padding:8px 10px;">
+    <p style="font-weight:bold; margin:0 0 6px;">✦ New in this version</p>
+    <div style="font-size:0.87em; columns:2; column-gap:16px;">
+      <div style="margin-bottom:2px;">• Damage dialog with per-hit breakdown</div>
+      <div style="margin-bottom:2px;">• Cover SP field in damage dialog</div>
+      <div style="margin-bottom:2px;">• 🎯 Aim, ⏸ Wait, 🛡 Dodge, ⛨ Parry, ➕ Action buttons</div>
+      <div style="margin-bottom:2px;">• Stun and death save prompts after damage</div>
+      <div style="margin-bottom:2px;">• Melee Hold / Grapple / Choke tracking</div>
+      <div style="margin-bottom:2px;">• Suppressive fire zone on canvas</div>
+      <div style="margin-bottom:2px;">• Acid armor degradation (DOT)</div>
+      <div style="margin-bottom:2px;">• Gas grenade cloud effects</div>
+      <div style="margin-bottom:2px;">• Stabilization system</div>
+      <div style="margin-bottom:2px;">• Canvas or list target selection</div>
+    </div>
+  </div>
+
+  <p style="margin:8px 0 0; font-size:0.82em; color:var(--color-text-dark-inactive);">
+    All settings: <b>Game Settings → Configure Settings → System</b>
+  </p>
+</div>`;
+
+    new Dialog({
+      title: "Combat Automation — First-Time Setup",
+      content,
+      buttons: {
+        openSettings: {
+          icon: '<i class="fas fa-cog"></i>',
+          label: "Open System Settings",
+          callback: () => {
+            try {
+              if (typeof SettingsConfig !== "undefined") {
+                new SettingsConfig().render(true);
+              } else {
+                game.settings.sheet?.render(true);
+              }
+            } catch {
+              ui.notifications.info("Open Game Settings → Configure Settings → System to review combat options.");
+            }
+          },
+        },
+        dismiss: {
+          icon: '<i class="fas fa-check"></i>',
+          label: "Got It",
+          callback: () => {},
+        },
+      },
+      default: "dismiss",
+      render: (html) => {
+        // Make the dialog wide enough for the two-column layout
+        html.closest(".dialog").css("min-width", "480px");
+      },
+    }).render(true);
+  });
+}
 
 async function _autoApply(payload, target) {
   const armorMode = game.settings.get("cyberpunk2020", "damageArmorMode");
@@ -1410,13 +1409,12 @@ async function _autoApply(payload, target) {
   const total = hits.reduce((s, h) => s + h.netDamage, 0);
   ui.notifications.info(`Applied ${total} damage to ${target.name}.`);
 
-  // Taser cumulative penalty (T4-F): update flag BEFORE stun save prompt
+  // Taser flag must be set BEFORE the save prompt — threshold reads it
   if (payload.stunSaveOnHit && hits.some(h => h.penetrates)) {
     const taserEnabled = (() => { try { return game.settings.get("cyberpunk2020", "taserCumPenaltyEnabled"); } catch { return true; } })();
     if (taserEnabled) await updateTaserState(target, payload);
   }
 
-  // Acid armor DOT (T4-E): apply with stacking mode (stack/reset/separate)
   const acidEnabled = (() => { try { return game.settings.get("cyberpunk2020", "acidArmorDotEnabled"); } catch { return true; } })();
   if (acidEnabled && payload.dotEnabled && Number(payload.dotTurns) > 0 && hits.length > 0) {
     await applyAcidDotState(target, hits[0].location, Number(payload.dotTurns), String(payload.dotDamageFormula || "1d6"));

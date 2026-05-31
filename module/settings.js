@@ -58,6 +58,15 @@ export function registerSystemSettings() {
     default: false
   });
 
+  // --- Combat automation first-run notice (hidden) ---
+  game.settings.register("cyberpunk2020", "automationMigrationShown", {
+    name: "Combat Automation: Migration Notice Shown",
+    scope: "world",
+    config: false,
+    type: Boolean,
+    default: false,
+  });
+
   // --- Damage Automation ---
   game.settings.register("cyberpunk2020", "damageArmorMode", {
     name: "Damage: Armor Mode",
