@@ -20,7 +20,7 @@
 
 import { ARMOR_MODES, resolveAreaDamagesSync, applyBTM } from "./DamageApplicator.js";
 import { getArmorContributors } from "./armor-layers.js";
-import { postStunSavePrompt, postDeathSavePrompt } from "./save-rolls.js";
+import { postStunSavePrompt, postDeathSavePrompt, updateTaserState, applyAcidDotState } from "./save-rolls.js";
 
 export class DamageDialog extends FormApplication {
 
@@ -54,7 +54,10 @@ export class DamageDialog extends FormApplication {
     const rawHits = resolveAreaDamagesSync({
       target:      this.target,
       areaDamages: this.payload.areaDamages,
-      ap:          Boolean(this.payload.ap),
+      ap:            Boolean(this.payload.ap),
+      edged:         Boolean(this.payload.edged),
+      armorMultSoft: Number(this.payload.armorMultSoft ?? 1.0),
+      armorMultHard: Number(this.payload.armorMultHard ?? 1.0),
       armorMode,
       coverSP,
     });
@@ -129,7 +132,10 @@ export class DamageDialog extends FormApplication {
     const base = resolveAreaDamagesSync({
       target:      this.target,
       areaDamages: this.payload.areaDamages,
-      ap:          Boolean(this.payload.ap),
+      ap:            Boolean(this.payload.ap),
+      edged:         Boolean(this.payload.edged),
+      armorMultSoft: Number(this.payload.armorMultSoft ?? 1.0),
+      armorMultHard: Number(this.payload.armorMultHard ?? 1.0),
       armorMode,
       coverSP:     this._coverSP,
     });
@@ -155,7 +161,10 @@ export class DamageDialog extends FormApplication {
     const rawHits = resolveAreaDamagesSync({
       target:      this.target,
       areaDamages: this.payload.areaDamages,
-      ap:          Boolean(this.payload.ap),
+      ap:            Boolean(this.payload.ap),
+      edged:         Boolean(this.payload.edged),
+      armorMultSoft: Number(this.payload.armorMultSoft ?? 1.0),
+      armorMultHard: Number(this.payload.armorMultHard ?? 1.0),
       armorMode,
       coverSP,
     });
@@ -186,6 +195,18 @@ export class DamageDialog extends FormApplication {
 
     await this.target.sheet?.render(false);
     ui.notifications.info(`Applied ${totalApplied} damage to ${this.target.name}.`);
+
+    // Taser cumulative penalty (T4-F): update flag BEFORE save prompts
+    if (this.payload.stunSaveOnHit && rawHits.some(h => h.penetrates)) {
+      const taserEnabled = (() => { try { return game.settings.get("cyberpunk2020", "taserCumPenaltyEnabled"); } catch { return true; } })();
+      if (taserEnabled) await updateTaserState(this.target, this.payload);
+    }
+
+    // Acid armor DOT (T4-E): apply with stacking mode (stack/reset/separate)
+    const acidEnabled = (() => { try { return game.settings.get("cyberpunk2020", "acidArmorDotEnabled"); } catch { return true; } })();
+    if (acidEnabled && this.payload.dotEnabled && Number(this.payload.dotTurns) > 0 && rawHits.length > 0) {
+      await applyAcidDotState(this.target, rawHits[0].location, Number(this.payload.dotTurns), String(this.payload.dotDamageFormula || "1d6"));
+    }
 
     // Post stun/death save prompts if any HP damage was dealt
     if (totalApplied > 0) {

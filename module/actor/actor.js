@@ -308,10 +308,15 @@ export class CyberpunkActor extends Actor {
     // Equipped cyber-armor implants (only enabled)
     const cwArmorItems = (eqCyberEnabled || []).filter(i => cwHasType(i, "Armor"));
 
+    // Layer count per location for New Rule 1 EV penalty (non-skinweave layers only)
+    const armorLayerCountByArea = {};
+
     // Inventory armor: accumulate EV and layer SP
     equippedItems.filter(i => i.type === "armor").forEach(armor => {
       const armorData = armor.system;
       totalEncumbrance += Number(armorData.encumbrance || 0);
+
+      const isSkinweave = (armor.name ?? "").toLowerCase().includes("skinweave");
 
       for (const armorArea in armorData.coverage) {
         const location = system.hitLocations[armorArea];
@@ -322,6 +327,11 @@ export class CyberpunkActor extends Actor {
 
         if (!armorLayersByArea[armorArea]) armorLayersByArea[armorArea] = [];
         armorLayersByArea[armorArea].push(addSP);
+
+        // Track non-skinweave layers for New Rule 1 EV penalty
+        if (!isSkinweave) {
+          armorLayerCountByArea[armorArea] = (armorLayerCountByArea[armorArea] || 0) + 1;
+        }
       }
     });
 
@@ -346,11 +356,72 @@ export class CyberpunkActor extends Actor {
       area.stoppingPower = maxLayeredSP(layers);
     }
 
-    // Cyber-armor EV: add to total encumbrance
+    // Cyber-armor EV: add to total encumbrance, and track as layers for New Rule 1
     for (const cw of cwArmorItems) {
       const evImpl = Number(cw.system?.CyberWorkType?.Encumbrance ?? cw.system?.encumbrance ?? 0);
       totalEncumbrance += evImpl;
+
+      // Subdermal armor and bodyplating count as layers WITH EV penalty (p.99 errata)
+      // Skinweave cyberware should not count (no EV penalty)
+      const cwName = (cw.name ?? "").toLowerCase();
+      const isCwSkinweave = cwName.includes("skinweave");
+      if (!isCwSkinweave && evImpl > 0) {
+        const locs = cw.system?.CyberWorkType?.Locations || {};
+        for (const areaKey of Object.keys(locs)) {
+          if (system.hitLocations[areaKey]) {
+            armorLayerCountByArea[areaKey] = (armorLayerCountByArea[areaKey] || 0) + 1;
+          }
+        }
+      }
     }
+
+    // New Rule 1: layering EV penalties (CP2020 errata p.99)
+    // 2nd non-skinweave layer at any location: +1 EV
+    // 3rd non-skinweave layer at any location: +2 EV additional (total +3 for 3 layers)
+    // Controlled by the applyLayerEVPenalty setting.
+    let layerEVPenalty = 0;
+    const applyLayerEV = (() => {
+      try { return !!game.settings.get("cyberpunk2020", "applyLayerEVPenalty"); }
+      catch { return true; }
+    })();
+    if (applyLayerEV) {
+      for (const count of Object.values(armorLayerCountByArea)) {
+        if (count >= 2) layerEVPenalty += 1;
+        if (count >= 3) layerEVPenalty += 2;
+      }
+      totalEncumbrance += layerEVPenalty;
+    }
+    // CB4 override: Chromebook 4 clothing weight-based EV (p.67)
+    // Replace Core EV when the CB4 layer system is selected (applyLayerEV must also be ON).
+    const layerSystem = (() => {
+      try { return game.settings.get("cyberpunk2020", "layerRuleSystem"); }
+      catch { return "Core"; }
+    })();
+    if (applyLayerEV && layerSystem === "Chromebook 4") {
+      const TORSO_AREAS = new Set(["Torso", "Head", "rArm", "lArm"]);
+      const LEG_AREAS   = new Set(["rLeg", "lLeg"]);
+      const t = { Light: 0, Medium: 0, Heavy: 0 };
+      const l = { Light: 0, Medium: 0, Heavy: 0 };
+      equippedItems.filter(i => i.type === "armor").forEach(armor => {
+        const w = armor.system?.clothingWeight;
+        if (!w || !["Light", "Medium", "Heavy"].includes(w)) return;
+        const locs = Object.keys(armor.system?.coverage ?? {}).filter(k =>
+          Number(armor.system.coverage[k]?.stoppingPower) > 0
+        );
+        if (locs.some(k => TORSO_AREAS.has(k))) t[w]++;
+        if (locs.some(k => LEG_AREAS.has(k)))   l[w]++;
+      });
+      // Torso free: 1 Light + 1 Heavy. Legs free: 1 Medium + 1 Heavy.
+      const cb4EV = Math.max(0, t.Light  - 1) * 1 + t.Medium * 3             + Math.max(0, t.Heavy  - 1) * 4
+                  + l.Light * 1                    + Math.max(0, l.Medium - 1) * 2 + Math.max(0, l.Heavy  - 1) * 3;
+      totalEncumbrance -= layerEVPenalty;  // undo Core EV that was already added
+      layerEVPenalty = cb4EV;
+      totalEncumbrance += layerEVPenalty;
+      system.cb4Torso = t;
+      system.cb4Legs  = l;
+    }
+
+    system.layerEVPenalty = layerEVPenalty;   // exposed for actor sheet display
 
     // Final REF penalty: subtract full total EV
     stats.ref.armorMod -= totalEncumbrance;
@@ -400,7 +471,7 @@ export class CyberpunkActor extends Actor {
       [stats.ref, stats.int, stats.cool].forEach(stat => woundStat(stat, total => Math.ceil(total/2)));
     }
     else if(woundState == 2) {
-      woundStat(stats.ref, total => total - 2);
+      woundStat(stats.ref, total => Math.max(1, total - 2));
     }
 
     // SDP: current follows sum only when sum itself has changed

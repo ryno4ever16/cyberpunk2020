@@ -241,11 +241,8 @@ export class CyberpunkActorSheet extends ActorSheet {
 
     sheetData.gear.cyberwareActive = activeCyber;
 
-    // ── Armor layer panel ──────────────────────────────────────────────────
-    const equippedArmorOptions = (sortedItems.armor || [])
-      .filter(a => a.system.equipped)
-      .map(a => ({ id: a.id, name: a.name }));
-    sheetData.equippedArmorOptions = equippedArmorOptions;
+    // ── Armor layer compliance panel ───────────────────────────────────────
+    sheetData.showArmorLayers = game.settings.get("cyberpunk2020", "damageLayersEnabled") ?? false;
 
     const LOCATION_LABELS = {
       Head:  "Head",
@@ -256,62 +253,105 @@ export class CyberpunkActorSheet extends ActorSheet {
       rLeg:  "R. Leg",
     };
 
-    // Get all equipped armor items for auto-ordering
-    const allEquippedArmor = (sortedItems.armor || []).filter(a => a.system.equipped);
+    // Inline hard-armor check (mirrors getArmorHardness in armor-layers.js)
+    const _isHardArmor = (item) => {
+      if (item.system?.armorType === "hard") return true;
+      if (item.system?.armorType === "soft") return false;
+      const name = (item.name ?? "").toLowerCase();
+      return /metal gear|body armor|full body|plate|rigid|hard armor|bodyplating/.test(name);
+    };
 
-    // Build auto-layer display table
-    sheetData.autoLayerTable = Object.entries(LOCATION_LABELS).map(([key, label]) => {
-      const coveringArmor = allEquippedArmor.filter(a =>
-        (Number(a.system?.coverage?.[key]?.stoppingPower) || 0) > 0
+    const allEquippedArmor  = (sortedItems.armor    || []).filter(a => a.system.equipped);
+    const allEquippedCyber  = (sortedItems.cyberware || []).filter(c =>
+      c.system.equipped && cwIsEnabled(c) && cwHasType(c, "Armor")
+    );
+
+    sheetData.armorLayersSummary = Object.entries(LOCATION_LABELS).map(([key, label]) => {
+      // Inventory armor at this location, auto-ordered inside-out
+      const invItems = getAutoLayerOrder(
+        allEquippedArmor.filter(a => (Number(a.system?.coverage?.[key]?.stoppingPower) || 0) > 0)
       );
-      const ordered = getAutoLayerOrder(coveringArmor);
-      const manualSlots = sheetData.system.armorLayers?.[key] ?? [];
-      const hasManual = manualSlots.some(id => id && id !== "");
-      const rawLayers = hasManual
-        ? manualSlots.filter(Boolean).map(id => {
-            const item = allEquippedArmor.find(a => a.id === id);
-            const sp = item ? (Number(item.system?.coverage?.[key]?.stoppingPower) || 0) : 0;
-            return sp > 0 ? { name: item?.name ?? "?", sp, armorType: item?.system?.armorType ?? "soft" } : null;
-          }).filter(Boolean)
-        : ordered.map(item => ({
-            name: item.name,
-            sp:   Number(item.system?.coverage?.[key]?.stoppingPower) || 0,
-            armorType: item.system?.armorType ?? "soft",
-          }));
 
-      // Pre-compute contextual position label for the template
-      const n = rawLayers.length;
-      const layers = rawLayers.map((layer, i) => ({
+      // Cyberware armor at this location (always innermost per RAW)
+      const cwItems = allEquippedCyber
+        .filter(c => (Number(c.system?.CyberWorkType?.Locations?.[key]) || 0) > 0)
+        .map(c => {
+          const nameLower = (c.name ?? "").toLowerCase();
+          return {
+            name:        c.name,
+            sp:          Number(c.system?.CyberWorkType?.Locations?.[key]) || 0,
+            isHard:      /bodyplating|body plating/.test(nameLower),
+            isSkinweave: /skinweave/.test(nameLower),
+            isCyberware: true,
+          };
+        });
+
+      const invLayers = invItems.map(item => ({
+        name:        item.name,
+        sp:          Number(item.system?.coverage?.[key]?.stoppingPower) || 0,
+        isHard:      _isHardArmor(item),
+        isSkinweave: false,
+        isCyberware: false,
+      }));
+
+      const allLayers = [...cwItems, ...invLayers];
+      if (allLayers.length === 0) return null;
+
+      const layerCount  = allLayers.length;
+      const hardCount   = allLayers.filter(l => l.isHard).length;
+      // EV penalties apply to all non-Skinweave layers beyond the first
+      const penaltyCount = allLayers.filter(l => !l.isSkinweave).length;
+      const extraEV     = penaltyCount >= 3 ? 3 : penaltyCount >= 2 ? 1 : 0;
+
+      const violations = [];
+      if (layerCount > 3)  violations.push("MAX_LAYERS");
+      if (hardCount  > 1)  violations.push("MAX_HARD");
+
+      const n = allLayers.length;
+      const layers = allLayers.map((layer, i) => ({
         ...layer,
-        layerLabel: n === 1 ? "Inner" :
-                    i === 0 ? "Inner" :
-                    i === n - 1 ? "Outer" :
-                    n === 3 && i === 1 ? "Middle" :
-                    `Layer ${i + 1}`,
+        layerLabel: n <= 1 ? "" : i === 0 ? "I" : i === n - 1 ? "O" : "M",
+        layerTitle: n <= 1 ? "Only layer"
+          : i === 0       ? "Innermost"
+          : i === n - 1   ? "Outermost"
+          : `Layer ${i + 1}`,
         isLast: i === n - 1,
       }));
-      return { locationKey: key, label, layers, hasManual };
-    });
 
-    // Build manual override table (one empty slot past last assigned)
-    const armorLayers = sheetData.system.armorLayers || {};
-    const armorLayerTable = Object.entries(LOCATION_LABELS).map(([key, label]) => {
-      const assigned = Array.isArray(armorLayers[key]) ? armorLayers[key] : [];
-      const slots = [
-        ...assigned.map((itemId, i) => ({ slotIndex: i, itemId: itemId || "" })),
-        { slotIndex: assigned.length, itemId: "" },
-      ];
-      return { locationKey: key, label, layers: slots };
-    });
-    sheetData.armorLayerTable = armorLayerTable;
+      return { locationKey: key, label, layers, layerCount, hardCount, extraEV, violations,
+               layerCountText: layerCount === 1 ? "1 layer" : `${layerCount} layers` };
+    }).filter(Boolean);
 
-    // Toggle state for manual override panel (stored as actor flag)
-    sheetData.showLayerOverrides = this.actor.getFlag("cyberpunk2020", "showLayerOverrides") ?? false;
+    // CB4 clothing layer summary — only used when layerRuleSystem === "Chromebook 4"
+    const layerSystem = (() => {
+      try { return game.settings.get("cyberpunk2020", "layerRuleSystem"); }
+      catch { return "Core"; }
+    })();
+    sheetData.layerRuleSystem = layerSystem;
 
-    sheetData.hasCyberArmorItems = (this.actor.items.contents || []).some(i => {
-      if (i.type !== "cyberware" || !i.system.equipped || !cwIsEnabled(i)) return false;
-      return cwHasType(i, "Armor");
-    });
+    if (layerSystem === "Chromebook 4") {
+      const t = this.actor.system?.cb4Torso ?? { Light: 0, Medium: 0, Heavy: 0 };
+      const l = this.actor.system?.cb4Legs  ?? { Light: 0, Medium: 0, Heavy: 0 };
+      const rowIfAny = (label, count, freeCount, penEV) => {
+        if (count <= 0) return null;
+        const extra = Math.max(0, count - freeCount);
+        const pen   = extra * penEV;
+        return { label, count, freeCount, extra, pen,
+                 warn: extra > 0 };
+      };
+      sheetData.cb4TorsoRows = [
+        rowIfAny("Light",  t.Light,  1, 1),
+        rowIfAny("Medium", t.Medium, 0, 3),
+        rowIfAny("Heavy",  t.Heavy,  1, 4),
+      ].filter(Boolean);
+      sheetData.cb4LegsRows = [
+        rowIfAny("Light",  l.Light,  0, 1),
+        rowIfAny("Medium", l.Medium, 1, 2),
+        rowIfAny("Heavy",  l.Heavy,  1, 3),
+      ].filter(Boolean);
+      sheetData.cb4TorsoEV = sheetData.cb4TorsoRows.reduce((s, r) => s + r.pen, 0);
+      sheetData.cb4LegsEV  = sheetData.cb4LegsRows.reduce((s, r) => s + r.pen, 0);
+    }
     // ──────────────────────────────────────────────────────────────────────
   }
 
@@ -778,41 +818,7 @@ export class CyberpunkActorSheet extends ActorSheet {
       this.actor.update({ [path]: value });
     });
 
-    // ── Armor layer selects — per-location arrays ─────────────────────────
-    html.find("select.armor-layer-select").on("change", ev => {
-      const el         = ev.currentTarget;
-      const locationKey = el.dataset.location;
-      const slotIndex  = Number(el.dataset.slotIndex);
-      const newItemId  = el.value;
-
-      if (!locationKey) return;
-
-      const current = Array.isArray(this.actor.system.armorLayers?.[locationKey])
-        ? [...this.actor.system.armorLayers[locationKey]]
-        : [];
-
-      while (current.length <= slotIndex) current.push("");
-      current[slotIndex] = newItemId;
-      while (current.length > 0 && current[current.length - 1] === "") current.pop();
-
-      this.actor.update({ [`system.armorLayers.${locationKey}`]: current });
-    });
-
-    // Toggle manual layer override panel visibility
-    html.find(".cp-toggle-layer-overrides").on("click", async ev => {
-      ev.preventDefault();
-      const current = this.actor.getFlag("cyberpunk2020", "showLayerOverrides") ?? false;
-      await this.actor.setFlag("cyberpunk2020", "showLayerOverrides", !current);
-    });
-
-    // Clear manual layers for a specific location (revert to auto)
-    html.find(".cp-clear-location-layers").on("click", ev => {
-      ev.preventDefault();
-      const locationKey = ev.currentTarget.dataset.location;
-      if (!locationKey) return;
-      this.actor.update({ [`system.armorLayers.${locationKey}`]: [] });
-    });
-    // ─────────────────────────────────────────────────────────────────────
+    // (Armor layer manual-override handlers removed — panel is now read-only compliance display)
 
     const interfaceSkillElems = html.find('.interface-skill-roll');
 

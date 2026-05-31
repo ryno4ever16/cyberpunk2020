@@ -1,4 +1,4 @@
-import { weaponTypes, rangedAttackTypes, meleeAttackTypes, fireModes, ranges, rangeDCs, rangeResolve, strengthDamageBonus, getMartialActionBonus, martialActions, isFnff2Enabled, getFnff2DamageBonusSymbol, FNFF2_ONLY_MARTIAL_ART_IDS } from "../lookups.js"
+import { weaponTypes, rangedAttackTypes, meleeAttackTypes, fireModes, ranges, rangeDCs, rangeResolve, strengthDamageBonus, getMartialActionBonus, martialActions, isFnff2Enabled, getFnff2DamageBonusSymbol, FNFF2_ONLY_MARTIAL_ART_IDS, MARTIAL_ART_ID_BY_KEY } from "../lookups.js"
 import { Multiroll, makeD10Roll } from "../dice.js"
 import { localize, localizeParam, rollLocation, cwHasType, cwIsEnabled, isFumbleRoll, buildRangedCombatFumbleData, buildSkillFumbleData, clamp } from "../utils.js";
 import { createCyberpunkChatMessage } from "../compat.js";
@@ -91,6 +91,61 @@ export class CyberpunkItem extends Item {
       return await this.update({[`system.CyberWorkType.Weapon.${field}`]: value});
     }
     return null;
+  }
+
+  /** Returns just the payload-relevant subset of _getAmmoProps() for weaponFired hook emissions. */
+  _getAmmoPayload() {
+    const { ap, armorMultSoft, armorMultHard, stunSaveOnHit, stunSaveMod, dotEnabled, dotTurns, dotDamageFormula, effectTypes, blastRadius } = this._getAmmoProps();
+    return { ap, armorMultSoft, armorMultHard, stunSaveOnHit, stunSaveMod, dotEnabled, dotTurns, dotDamageFormula, effectTypes, blastRadius };
+  }
+
+  /**
+   * Read armor-interaction and secondary-effect properties from the linked ammo item (if any).
+   * Returns: { ap, armorMultSoft, armorMultHard, accuracyMod, rawDamageMult,
+   *            stunSaveOnHit, stunSaveMod, dotEnabled, dotTurns, dotDamageFormula }
+   * Falls back to weapon-level ap if no ammo item is linked.
+   *
+   * armorMultSoft/Hard < 1 means the armor's SP is reduced for that armor type.
+   * ap = true is a convenience alias for both mults ≤ 0.5 (standard AP rounds).
+   */
+  _getAmmoProps() {
+    const sys = this._getWeaponSystem ? this._getWeaponSystem() : this.system;
+    const ammoItemId = String(sys?.ammoItemId ?? "");
+    const weaponAP   = Boolean(sys?.ap);
+
+    const noEffects = { stunSaveOnHit: false, stunSaveMod: 0, dotEnabled: false, dotTurns: 0, dotDamageFormula: "", effectTypes: ["None"], blastRadius: 0 };
+
+    if (!ammoItemId || !this.actor) {
+      return { ap: weaponAP, armorMultSoft: weaponAP ? 0.5 : 1.0, armorMultHard: weaponAP ? 0.5 : 1.0, accuracyMod: 0, rawDamageMult: 1.0, ...noEffects };
+    }
+
+    const ammoItem = this.actor.items.get(ammoItemId);
+    if (!ammoItem || ammoItem.type !== "ammo") {
+      return { ap: weaponAP, armorMultSoft: weaponAP ? 0.5 : 1.0, armorMultHard: weaponAP ? 0.5 : 1.0, accuracyMod: 0, rawDamageMult: 1.0, ...noEffects };
+    }
+
+    const soft  = Number(ammoItem.system?.armorMultSoft  ?? 1.0);
+    const hard  = Number(ammoItem.system?.armorMultHard  ?? 1.0);
+    const acc   = Number(ammoItem.system?.accuracyMod    ?? 0);
+    const dmgM  = Number(ammoItem.system?.rawDamageMult  ?? 1.0);
+    const effects = {
+      stunSaveOnHit:    Boolean(ammoItem.system?.stunSaveOnHit),
+      stunSaveMod:      Number(ammoItem.system?.stunSaveMod       ?? 0),
+      dotEnabled:       Boolean(ammoItem.system?.dotEnabled),
+      dotTurns:         Number(ammoItem.system?.dotTurns          ?? 0),
+      dotDamageFormula: String(ammoItem.system?.dotDamageFormula  ?? ""),
+      effectTypes:      Array.isArray(ammoItem.system?.effectTypes) ? ammoItem.system.effectTypes : ["None"],
+      blastRadius:      Number(ammoItem.system?.blastRadius        ?? 0),
+    };
+
+    // If both mults are ≤ 0.5 (symmetric — standard AP rounds), use the ap flag path.
+    // This routes through resolveHitMath's spUsed halving and avoids double-halving
+    // when both ap=true and armorMultSoft < 1 are active.
+    if (soft <= 0.5 && hard <= 0.5) {
+      return { ap: true, armorMultSoft: 1.0, armorMultHard: 1.0, accuracyMod: acc, rawDamageMult: dmgM, ...effects };
+    }
+    // Asymmetric mults (e.g. hollow point: better vs soft, worse vs hard) — use mult path, ap=false
+    return { ap: false, armorMultSoft: soft, armorMultHard: hard, accuracyMod: acc, rawDamageMult: dmgM, ...effects };
   }
 
   isRanged() {
@@ -518,7 +573,7 @@ export class CyberpunkItem extends Item {
               Hooks.callAll("cyberpunk2020.weaponFired", {
                   attackerId:    this.actor?.id ?? null,
                   weaponName:    this.name,
-                  ap:            Boolean(system.ap),
+                  ...this._getAmmoPayload(),
                   areaDamages,
                   targetTokenId: tok?.id ?? null,
                   targetActorId: tok ? (canvas.tokens?.get(tok.id)?.actor?.id ?? null) : null,
@@ -655,6 +710,18 @@ export class CyberpunkItem extends Item {
       content: html,
       flags : { cyberpunk2020: { fireMode: "suppressive" } }
     }, { useDefaultRollMode: true });
+
+    // Emit hook so damage-hooks.js can draw the fire zone and prompt targets
+    const attackerToken = canvas?.tokens?.placeables?.find(t => t.actor?.id === this.actor?.id) ?? null;
+    Hooks.callAll("cyberpunk2020.suppressiveFire", {
+      saveDC,
+      dmgFormula,
+      weaponName:       this.name,
+      actorId:          this.actor?.id ?? null,
+      attackerTokenId:  attackerToken?.id ?? null,
+      zoneWidth:        width,
+      weaponRange:      Number(sys.range ?? 50),
+    });
   }
 
   async __semiAuto(attackMods) {
@@ -727,6 +794,92 @@ export class CyberpunkItem extends Item {
       return roll;
   }
 
+  /**
+  /**
+   * T4-B: Apply special martial arts status effects after a successful hit.
+   * Handles: Throw/SweepTrip (knockdown), Hold (restrained), Grapple, Choke (DOT), Escape.
+   */
+  static async _applyMartialHitEffects(action, targetActor, attackerActor) {
+    const enabled = (() => { try { return game.settings.get("cyberpunk2020", "specialMeleeEffectsEnabled"); } catch { return true; } })();
+    if (!enabled) return;
+    const tName = targetActor?.name ?? "Target";
+    const aName = attackerActor?.name ?? "Attacker";
+
+    if (action === martialActions.throw) {
+      await ChatMessage.create({
+        content: `<div class="cyberpunk save-prompt"><h3>⬇ Knockdown — ${tName}</h3><div><b>${tName}</b> is knocked prone by Throw. Must spend one action to stand up before acting normally. (CP2020 p.100)</div></div>`,
+        speaker: ChatMessage.getSpeaker({ actor: targetActor }),
+      });
+    }
+
+    if (action === martialActions.sweepTrip) {
+      await ChatMessage.create({
+        content: `<div class="cyberpunk save-prompt"><h3>⬇ Knockdown — ${tName}</h3><div><b>${tName}</b> is knocked prone by Sweep/Trip. Must spend one action to stand up before acting normally. (CP2020 p.100)</div></div>`,
+        speaker: ChatMessage.getSpeaker({ actor: targetActor }),
+      });
+    }
+
+    if (action === martialActions.hold) {
+      await targetActor.setFlag("cyberpunk2020", "heldBy", attackerActor?.id ?? "").catch(() => {});
+      await ChatMessage.create({
+        content: `<div class="cyberpunk save-prompt"><h3>🤜 Held — ${tName}</h3><div><b>${tName}</b> is held by <b>${aName}</b>. Target can only attempt Escape (contested roll). (CP2020 p.100)</div></div>`,
+        speaker: ChatMessage.getSpeaker({ actor: targetActor }),
+      });
+    }
+
+    if (action === martialActions.grapple) {
+      await targetActor.setFlag("cyberpunk2020", "grappledBy", attackerActor?.id ?? "").catch(() => {});
+      await ChatMessage.create({
+        content: `<div class="cyberpunk save-prompt"><h3>🤜 Grappled — ${tName}</h3><div><b>${tName}</b> is grappled by <b>${aName}</b>. Grapple: attacker can Hold, Choke, or Throw on subsequent turns as a free action. (CP2020 p.100–102)</div></div>`,
+        speaker: ChatMessage.getSpeaker({ actor: targetActor }),
+      });
+    }
+
+    if (action === martialActions.choke) {
+      await targetActor.setFlag("cyberpunk2020", "chokeState", { formula: "1d6" }).catch(() => {});
+      await ChatMessage.create({
+        content: `<div class="cyberpunk save-prompt"><h3>🫁 Choke — ${tName}</h3><div><b>${tName}</b> is being choked by <b>${aName}</b>. Takes 1d6 damage per turn and must pass Stun Save each turn or fall unconscious. (CP2020 p.100)</div></div>`,
+        speaker: ChatMessage.getSpeaker({ actor: targetActor }),
+      });
+    }
+
+    if (action === martialActions.escape) {
+      await targetActor.unsetFlag("cyberpunk2020", "heldBy").catch(() => {});
+      await targetActor.unsetFlag("cyberpunk2020", "grappledBy").catch(() => {});
+      await targetActor.unsetFlag("cyberpunk2020", "chokeState").catch(() => {});
+      await ChatMessage.create({
+        content: `<div class="cyberpunk save-prompt"><h3>🏃 Escaped — ${tName}</h3><div><b>${tName}</b> breaks free from the hold/grapple/choke.</div></div>`,
+        speaker: ChatMessage.getSpeaker({ actor: targetActor }),
+      });
+    }
+  }
+
+  /**
+   * Roll the defender's contested melee defense.
+   * RAW: defender uses the HIGHEST applicable skill — Melee, Fencing, Brawling, Dodge,
+   * Athletics, or any Martial Arts (CP2020 p.102).
+   * Returns { roll, total, skillName, ref }.
+   */
+  static async _rollMeleeDefense(targetActor) {
+    const ref = Number(targetActor.system?.stats?.ref?.total) || 0;
+
+    // Standard defense skills
+    const CANDIDATES = ["Melee", "Fencing", "Brawling", "Dodge", "Athletics"];
+    let best = { name: "No Skill", val: 0 };
+    for (const sk of CANDIDATES) {
+      const val = Number(targetActor.getSkillVal?.(sk) ?? 0);
+      if (val > best.val) best = { name: sk, val };
+    }
+    // Check all martial arts
+    for (const maKey of Object.keys(MARTIAL_ART_ID_BY_KEY)) {
+      const val = Number(targetActor.getSkillVal?.(maKey) ?? 0);
+      if (val > best.val) best = { name: maKey, val };
+    }
+
+    const roll = await new Roll("1d10 + @ref + @skill", { ref, skill: best.val }).evaluate();
+    return { roll, total: roll.total, skillName: best.name, skillVal: best.val, ref };
+  }
+
   async __meleeBonk(attackMods) {
       // Just doesn't have a DC - is contested instead
       let attackRoll = await this.attackRoll(attackMods);
@@ -768,6 +921,42 @@ export class CyberpunkItem extends Item {
         .addRoll(attackRoll, { name: localize("Attack") })
         .addRoll(damageRoll, { name: localize("Damage") })
         .addRoll(locationRoll.roll, { name: localize("Location"), flavor: locationRoll.areaHit });
+
+      // Contested melee resolution.
+      // Exactly one targeted token → roll defense, compare totals, emit damage hook only on attacker win.
+      // No target (or multiple) → PATH B always shows Apply Damage button (GM adjudicates the hit).
+      const _meleeSys  = this._getWeaponSystem ? this._getWeaponSystem() : this.system;
+      const _meleeAP   = Boolean(_meleeSys?.ap);
+      const _meleeEdge = Boolean(_meleeSys?.isEdged);
+      const _meleeTarget = (game.user?.targets?.size === 1) ? game.user.targets.first() : null;
+      const _meleeTargetActor = _meleeTarget?.actor ?? null;
+      if (_meleeTargetActor && locationRoll.areaHit) {
+        const defInfo = await CyberpunkItem._rollMeleeDefense(_meleeTargetActor);
+        // T4-C: Dodge adds +2 to effective defense total; Parry blocks the attack outright
+        const _meleeDodgeBonus = (_meleeTargetActor.getFlag("cyberpunk2020", "dodging") ? 2 : 0);
+        const _meleeIsParrying = !!_meleeTargetActor.getFlag("cyberpunk2020", "parrying");
+        const defLabel = `${defInfo.skillName} ${defInfo.skillVal} (REF ${defInfo.ref})`
+          + (_meleeDodgeBonus > 0 ? ` +${_meleeDodgeBonus} Dodge` : "")
+          + (_meleeIsParrying ? " [PARRY — blocked]" : "");
+        bigRoll.addRoll(defInfo.roll, { name: `${_meleeTargetActor.name} Defends`, flavor: defLabel });
+        const attackHits = !_meleeIsParrying && (attackRoll.total > defInfo.total + _meleeDodgeBonus);
+        if (_meleeIsParrying) _meleeTargetActor.unsetFlag("cyberpunk2020", "parrying").catch(() => {});
+        if (attackHits) {
+          Hooks.callAll("cyberpunk2020.weaponFired", {
+            areaDamages: { [locationRoll.areaHit]: [{ damage: damageRoll.total }] },
+            ap: _meleeAP,
+            edged: _meleeEdge,
+            targetTokenId: _meleeTarget.id,
+            targetActorId: _meleeTargetActor.id,
+          });
+        }
+      } else if (locationRoll.areaHit) {
+        Hooks.callAll("cyberpunk2020.weaponFired", {
+          areaDamages: { [locationRoll.areaHit]: [{ damage: damageRoll.total }] },
+          ap: _meleeAP,
+          edged: _meleeEdge,
+        });
+      }
 
       bigRoll.defaultExecute({ img: this.img, fumble });
       return bigRoll;
@@ -871,6 +1060,9 @@ export class CyberpunkItem extends Item {
     }
 
     if (damageFormula) {
+      // Evaluate attack roll now so we can compare totals for contested resolution
+      if (!attackRoll._evaluated) await attackRoll.evaluate();
+
       const loc = await rollLocation(attackMods.targetArea);
       results.addRoll(loc.roll, { name: localize("Location"), flavor: loc.areaHit });
       const damageRoll = await new Roll(damageFormula, {
@@ -882,9 +1074,61 @@ export class CyberpunkItem extends Item {
       damageRoll._total = CyberpunkItem._floorDamageTotal(damageRoll.total);
 
       results.addRoll(damageRoll, { name: localize("Damage") });
+
+      // Contested melee resolution (same logic as __meleeBonk).
+      const _maSys  = this._getWeaponSystem ? this._getWeaponSystem() : this.system;
+      const _maAP   = Boolean(_maSys?.ap);
+      const _maEdge = Boolean(_maSys?.isEdged);
+      const _maTarget = (game.user?.targets?.size === 1) ? game.user.targets.first() : null;
+      const _maTargetActor = _maTarget?.actor ?? null;
+      if (_maTargetActor && loc.areaHit) {
+        const defInfo = await CyberpunkItem._rollMeleeDefense(_maTargetActor);
+        // T4-C: Dodge adds +2 to effective defense total; Parry blocks the attack outright
+        const _maDodgeBonus = (_maTargetActor.getFlag("cyberpunk2020", "dodging") ? 2 : 0);
+        const _maIsParrying = !!_maTargetActor.getFlag("cyberpunk2020", "parrying");
+        const defLabel = `${defInfo.skillName} ${defInfo.skillVal} (REF ${defInfo.ref})`
+          + (_maDodgeBonus > 0 ? ` +${_maDodgeBonus} Dodge` : "")
+          + (_maIsParrying ? " [PARRY — blocked]" : "");
+        results.addRoll(defInfo.roll, { name: `${_maTargetActor.name} Defends`, flavor: defLabel });
+        const attackHits = !_maIsParrying && (attackRoll.total > defInfo.total + _maDodgeBonus);
+        if (_maIsParrying) _maTargetActor.unsetFlag("cyberpunk2020", "parrying").catch(() => {});
+        if (attackHits) {
+          Hooks.callAll("cyberpunk2020.weaponFired", {
+            areaDamages: { [loc.areaHit]: [{ damage: damageRoll.total }] },
+            ap: _maAP,
+            edged: _maEdge,
+            targetTokenId: _maTarget.id,
+            targetActorId: _maTargetActor.id,
+          });
+          // T4-B: special MA effects for damage actions that hit
+          await CyberpunkItem._applyMartialHitEffects(action, _maTargetActor, this.actor);
+        }
+      } else if (loc.areaHit) {
+        Hooks.callAll("cyberpunk2020.weaponFired", {
+          areaDamages: { [loc.areaHit]: [{ damage: damageRoll.total }] },
+          ap: _maAP,
+          edged: _maEdge,
+        });
+      }
     }
     if (!attackRoll._evaluated) {
       await attackRoll.evaluate();
+    }
+
+    // T4-B: non-damaging MA actions — add contested resolution and special effects
+    const _t4bSpecialNoDataActions = [martialActions.hold, martialActions.grapple, martialActions.sweepTrip, martialActions.escape];
+    const _t4bEnabled = (() => { try { return game.settings.get("cyberpunk2020", "specialMeleeEffectsEnabled"); } catch { return true; } })();
+    if (_t4bEnabled && _t4bSpecialNoDataActions.includes(action)) {
+      const _t4bTarget = (game.user?.targets?.size === 1) ? game.user.targets.first() : null;
+      const _t4bTargetActor = _t4bTarget?.actor ?? null;
+      if (_t4bTargetActor) {
+        const _t4bDef = await CyberpunkItem._rollMeleeDefense(_t4bTargetActor);
+        results.addRoll(_t4bDef.roll, { name: `${_t4bTargetActor.name} Defends`, flavor: `${_t4bDef.skillName} ${_t4bDef.skillVal} (REF ${_t4bDef.ref})` });
+        const _t4bHits = attackRoll.total > _t4bDef.total;
+        if (_t4bHits) {
+          await CyberpunkItem._applyMartialHitEffects(action, _t4bTargetActor, this.actor);
+        }
+      }
     }
 
     let fumble = null;

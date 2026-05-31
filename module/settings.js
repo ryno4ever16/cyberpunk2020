@@ -101,4 +101,198 @@ export function registerSystemSettings() {
     default: false,
   });
 
+  // --- Optional rules: Head Hit & Limb Loss ---
+  game.settings.register("cyberpunk2020", "headHitDoubling", {
+    name: "Combat: Head Hit Doubles Damage",
+    hint: "When enabled, any hit to the Head doubles the raw damage before armor resolution (CP2020 p.103 RAW). Disable for groups that skip this rule.",
+    scope:   "world",
+    config:  true,
+    type:    Boolean,
+    default: true,
+  });
+
+  game.settings.register("cyberpunk2020", "limbLossEnabled", {
+    name: "Combat: Limb Loss & Head Wound Checks",
+    hint: "When enabled, a single hit dealing more than 8 net damage to a limb triggers an immediate Death Save at Mortal 0 (severed/crushed). A head wound of the same severity kills automatically (CP2020 p.103 RAW).",
+    scope:   "world",
+    config:  true,
+    type:    Boolean,
+    default: true,
+  });
+
+  game.settings.register("cyberpunk2020", "suppressiveFireSaves", {
+    name: "Combat: Suppressive Fire Zone & Evasion",
+    hint: "When enabled, suppressive fire automatically places a ray template (fire zone) on the canvas and prompts all tokens within it to roll an Evasion check: Athletics + REF + 1d10 vs DC = rounds / zone width (CP2020 p.101 RAW). Failures take 1d6 random hits.",
+    scope:   "world",
+    config:  true,
+    type:    Boolean,
+    default: true,
+  });
+
+  // --- Combat Tracker: per-turn saves ---
+  game.settings.register("cyberpunk2020", "autoDeathSavePerTurn", {
+    name: "Combat: Death Save Each Turn (Mortal)",
+    hint: "When enabled, unstabilized Mortal characters are automatically prompted to make a Death Save at the start of each of their turns in the combat tracker (CP2020 p.105 RAW).",
+    scope:   "world",
+    config:  true,
+    type:    Boolean,
+    default: true,
+  });
+
+  game.settings.register("cyberpunk2020", "autoSaveRePrompt", {
+    name: "Combat: Stun Save Recovery Each Turn",
+    hint: "When enabled, unconscious/stunned characters are automatically prompted to roll a Stun Save recovery check at the start of each of their turns in the combat tracker (CP2020 p.104 RAW).",
+    scope:   "world",
+    config:  true,
+    type:    Boolean,
+    default: true,
+  });
+
+  // --- Optional rules: Layer rule system (Core vs Chromebook 4) ---
+  game.settings.register("cyberpunk2020", "layerRuleSystem", {
+    name: "Armor: Layer Rule System",
+    hint: "Core (CP2020 p.99 errata New Rule 1): max 3 layers, max 1 hard per location, EV +1/+2 for 2nd/3rd layer. Chromebook 4 (CB4 p.67): clothing weight categories (Light/Medium/Heavy) with separate EV penalties for over-layering by body area (Torso vs Legs). The two systems are mutually exclusive.",
+    scope: "world",
+    config: true,
+    type: String,
+    choices: {
+      "Core":          "Core (New Rule 1 per CP2020 errata)",
+      "Chromebook 4":  "Chromebook 4 Clothing Layers",
+    },
+    default: "Core",
+  });
+
+  // --- Optional rules: New Rule 1 EV enforcement ---
+  game.settings.register("cyberpunk2020", "applyLayerEVPenalty", {
+    name: "Armor: Apply Layer EV Penalties (New Rule 1)",
+    hint: "When enabled, the 2nd armor layer at any location adds +1 EV and the 3rd adds an additional +2 EV to the REF penalty (CP2020 errata New Rule 1). Skinweave receives no penalty.",
+    scope:   "world",
+    config:  true,
+    type:    Boolean,
+    default: true,
+  });
+
+  // --- Combat Automation: Dodge / Parry active defense ---
+  game.settings.register("cyberpunk2020", "activeDodgeParryEnabled", {
+    name: "Combat: Active Dodge & Parry Declarations",
+    hint: "When enabled, 🛡 Dodge and ⛨ Parry buttons appear in the combat tracker. Dodge (active combatant): −2 to attacker's melee roll this round; clears on next turn. Parry (any combatant, reactive): blocks the next incoming melee attack; consumed on use. (CP2020 p.102 RAW.)",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true,
+  });
+
+  // --- Combat Automation: Aim accumulation tracking ---
+  game.settings.register("cyberpunk2020", "aimTrackingEnabled", {
+    name: "Combat: Aim Accumulation Tracking",
+    hint: "When enabled, a Take Aim (🎯) button appears in the combat tracker for the active combatant. Each click accumulates +1 aim round (max 3) stored on the actor. The attack modifier dialog is automatically pre-filled with the saved aim count. Aim resets when the actor fires. (CP2020 p.99 RAW: +1 per consecutive aim round, max +3.)",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true,
+  });
+
+  // --- Combat Automation: Wait for Turn ---
+  game.settings.register("cyberpunk2020", "waitForTurnEnabled", {
+    name: "Combat: Wait for Turn Button",
+    hint: "When enabled, a Wait (⏸) button appears in the combat tracker for the active combatant. Clicking it sets their initiative just below the current minimum and advances to the next combatant, so they act last this round. Since CP2020 re-rolls initiative each round, this is a temporary deferral. (CP2020 p.98 RAW.)",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true,
+  });
+
+  // --- Combat Automation: Special martial arts hit effects ---
+  game.settings.register("cyberpunk2020", "specialMeleeEffectsEnabled", {
+    name: "Combat: Martial Arts Special Hit Effects",
+    hint: "When enabled, successful Hold/Grapple attacks set a status flag on the target with turn-start reminders; Choke deals 1d6 HP damage per turn + forces a Stun Save; Throw/Sweep post knockdown announcements; Escape removes all hold/grapple/choke flags. (CP2020 p.100–102 RAW.)",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true,
+  });
+
+  // --- Combat Automation: Gas grenade cloud ---
+  game.settings.register("cyberpunk2020", "gasGrenadeCloudEnabled", {
+    name: "Combat: Gas Grenade Cloud & Per-Turn Saves",
+    hint: "When enabled, weapons loaded with gas ammo (effectTypes: ['Gas'] on ammo item) place a green circle MeasuredTemplate on the canvas. All tokens within the cloud are prompted to make Stun Saves each turn. Cloud persists for dotTurns turns then auto-deletes. (CP2020 p.107 area weapon rules.)",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true,
+  });
+
+  game.settings.register("cyberpunk2020", "gasCloudAutoMove", {
+    name: "Combat: Gas Cloud Auto-Drift (Wind)",
+    hint: "When enabled, the gas cloud template drifts 2m in a random direction each turn to simulate wind movement (CP2020 p.107). When disabled, the GM may reposition the template manually.",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false,
+  });
+
+  // --- Combat Automation: Taser cumulative save penalty ---
+  game.settings.register("cyberpunk2020", "taserCumPenaltyEnabled", {
+    name: "Combat: Taser Cumulative Save Penalty",
+    hint: "When enabled, each successive taser hit within a 3-turn window reduces the target's Stun Save threshold by the ammo item's stunSaveMod value (default −2 per hit). The penalty accumulates: 2nd hit −2, 3rd hit −4, etc. (CP2020 p.101 RAW.)",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true,
+  });
+
+  // --- Combat Automation: Acid armor DOT ---
+  game.settings.register("cyberpunk2020", "acidArmorDotEnabled", {
+    name: "Combat: Acid Weapon Armor Degradation",
+    hint: "When enabled, weapons loaded with acid ammo (dotEnabled on ammo item) degrade the target's armor SP at the hit location by the dotDamageFormula roll (default 1d6) per turn for dotTurns turns. SP is reduced from the outermost layer inward. (CP2020 acid weapon rules.)",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true,
+  });
+
+  // --- Combat Automation: Acid DOT stacking behavior ---
+  game.settings.register("cyberpunk2020", "acidDotStackMode", {
+    name: "Combat: Acid DOT Multiple-Hit Behavior",
+    hint: "Controls what happens when a target is hit by acid while an acid effect is already active. Stack: extends the remaining turns at the same location. Reset: overwrites the previous effect (timer restarts). Separate: both effects run concurrently with independent timers.",
+    scope: "world",
+    config: true,
+    type: String,
+    choices: {
+      "stack":    "Stack (extend duration at same location)",
+      "reset":    "Reset (overwrite previous effect)",
+      "separate": "Separate (concurrent independent timers)",
+    },
+    default: "stack",
+  });
+
+  // --- Combat Automation: Multi-action penalty ---
+  game.settings.register("cyberpunk2020", "multiActionPenaltyEnabled", {
+    name: "Combat: Multi-Action Penalty",
+    hint: "When enabled, each action taken beyond the first in a round applies a cumulative −3 penalty to all rolls that round. A badge in the combat tracker shows the current action count and live penalty. (CP2020 p.105 RAW.)",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true,
+  });
+
+  game.settings.register("cyberpunk2020", "multiActionAutoTrack", {
+    name: "Combat: Multi-Action Auto-Tracking",
+    hint: "When enabled, weapon fire and tracker button clicks (Aim, Dodge, Parry) automatically increment the action counter. When disabled, only the manual ➕ button in the tracker changes the count — useful for tables that prefer full manual control.",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true,
+  });
+
+  // --- Optional rules: Armor Layers ---
+  game.settings.register("cyberpunk2020", "damageLayersEnabled", {
+    name: "Armor: Show Layer Compliance Panel",
+    hint: "Displays a per-location armor layer summary on the Combat tab, showing layer order, hard/soft classification, RAW limit warnings (max 3 layers, max 1 hard), and extra EV penalties per New Rule 1.",
+    scope:   "world",
+    config:  true,
+    type:    Boolean,
+    default: false,
+  });
+
 }

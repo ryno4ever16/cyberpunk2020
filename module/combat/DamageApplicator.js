@@ -25,7 +25,8 @@
  *   will pre-fill it.
  */
 
-import { getArmorContributors } from "./armor-layers.js";
+import { getArmorContributors, getArmorHardness } from "./armor-layers.js";
+import { postDeathSavePrompt } from "./save-rolls.js";
 
 export const ARMOR_MODES = {
   FULL:   "full",
@@ -112,14 +113,17 @@ export function applyBTM(damageAfterSP, btm, penetrated) {
  * @param {object}  p
  * @param {Actor}   p.target
  * @param {object}  p.areaDamages
- * @param {boolean} p.ap
+ * @param {boolean} p.ap             Armor-piercing — halves combined armor SP via spUsed (all armor equally)
+ * @param {boolean} p.edged          Edged weapon — equivalent to armorMultSoft: 0.5 (soft armor only)
+ * @param {number}  p.armorMultSoft  SP multiplier for soft-only locations (1.0 = no change, 0.5 = halve)
+ * @param {number}  p.armorMultHard  SP multiplier when hard armor is present (1.0 = no change)
  * @param {string}  p.armorMode
  * @param {boolean} p.ablate
  * @param {number}  p.coverSP
  * @param {boolean} p.dryRun
  * @returns {Promise<object[]>}  Per-hit result objects (damageAfterSP NOT net HP)
  */
-export async function applyAreaDamages({ target, areaDamages, ap, armorMode, ablate, coverSP = 0, dryRun = false }) {
+export async function applyAreaDamages({ target, areaDamages, ap, edged = false, armorMultSoft = 1.0, armorMultHard = 1.0, armorMode, ablate, coverSP = 0, dryRun = false }) {
   const results = [];
   const btm = Number(target.system.stats?.bt?.modifier) || 0;
 
@@ -130,15 +134,35 @@ export async function applyAreaDamages({ target, areaDamages, ap, armorMode, abl
     return liveSP[key];
   };
 
+  const headDoubling = game.settings.get("cyberpunk2020", "headHitDoubling");
+  const limbLoss     = game.settings.get("cyberpunk2020", "limbLossEnabled");
+
   const allHits = [];
   for (const [location, hits] of Object.entries(areaDamages)) {
     for (const hit of hits) {
-      allHits.push({ location, rawDamage: Number(hit.damage) || 0 });
+      // item.js __suppressiveFire uses { dmg } key; all other paths use { damage }
+      allHits.push({ location, rawDamage: Number(hit.damage ?? hit.dmg) || 0 });
     }
   }
 
-  for (const { location, rawDamage } of allHits) {
-    const currentSP = getLiveSP(location);
+  for (const { location, rawDamage: baseRaw } of allHits) {
+    // Head hit doubles damage before armor resolution (CP2020 p.103)
+    const rawDamage = (headDoubling && location === "Head") ? baseRaw * 2 : baseRaw;
+    let currentSP = getLiveSP(location);
+
+    // Asymmetric armor multipliers: edged weapon (isEdged) and/or ammo armor mults.
+    // edged flag = armorMultSoft: 0.5, armorMultHard: 1.0.
+    // Combined: take the minimum (most aggressive) of edged and ammo mults per type.
+    const effectiveSoftMult = edged ? Math.min(0.5, armorMultSoft) : armorMultSoft;
+    const effectiveHardMult = armorMultHard;
+    if ((effectiveSoftMult !== 1.0 || effectiveHardMult !== 1.0) && currentSP > 0 && armorMode !== ARMOR_MODES.NONE) {
+      const contributors = getArmorContributors(target, location);
+      const allItems = [...contributors.cwItems, ...contributors.orderedLayers, ...contributors.unassigned];
+      const hasHardArmor = allItems.some(item => getArmorHardness(item) === "hard");
+      const mult = hasHardArmor ? effectiveHardMult : effectiveSoftMult;
+      if (mult !== 1.0) currentSP = Math.max(0, Math.floor(currentSP * mult));
+    }
+
     const { spFull, spUsed, damageAfterSP, penetrates } = resolveHitMath({
       currentSP, rawDamage, ap, armorMode, coverSP,
     });
@@ -155,11 +179,55 @@ export async function applyAreaDamages({ target, areaDamages, ap, armorMode, abl
           { "system.damage": current + netDamage },
           { render: false, fromCyberpunkDamageSystem: true }
         );
+        // New damage clears stabilization — death saves restart (CP2020 p.105)
+        if (target.getFlag?.("cyberpunk2020", "stabilized")) {
+          await target.unsetFlag("cyberpunk2020", "stabilized");
+          await ChatMessage.create({
+            content: `<div class="cyberpunk save-prompt">⚠ <b>${target.name}</b> was stabilized but has taken new damage — Death Saves are required again.</div>`,
+            speaker: ChatMessage.getSpeaker({ actor: target }),
+          });
+        }
       }
 
       if (ablate && armorMode === ARMOR_MODES.FULL && penetrates && netDamage > 0) {
         await _ablateLocation(target, location);
         liveSP[location] = _deriveLiveSP(target, location);
+      }
+
+      // Limb loss / head wound check (CP2020 p.103)
+      // >8 net damage to limb → severed/crushed → immediate Death Save at Mortal 0
+      // >8 net damage to head → automatic death (no save)
+      if (limbLoss && netDamage > 8) {
+        const LIMBS = new Set(["rArm", "lArm", "rLeg", "lLeg"]);
+        const liveTarget = game.actors.get(target.id) ?? target;
+        const liveToken  = canvas?.tokens?.placeables?.find(t => t.actor?.id === liveTarget.id) ?? null;
+        if (location === "Head") {
+          // Use the same save-result death-save-result format as executeDeathSave
+          await ChatMessage.create({
+            content: `
+<div class="cyberpunk save-result death-save-result">
+  <h3>☠ Head Wound — ${liveTarget.name}</h3>
+  <div>${netDamage} net damage to the head.</div>
+  <div style="margin-top:4px;"><span style="color:red;font-weight:bold;">☠ AUTOMATIC DEATH</span> — A head wound of more than 8 points kills automatically (CP2020 p.103). ${liveTarget.name} dies. Call Trauma Team.</div>
+</div>`,
+            speaker: ChatMessage.getSpeaker({ actor: liveTarget }),
+          });
+          const deadEffect = CONFIG.statusEffects.find(e => e.id === "dead");
+          if (deadEffect && liveToken?.document) {
+            await liveToken.document.toggleActiveEffect(deadEffect, { active: true });
+          }
+        } else if (LIMBS.has(location)) {
+          const limbName = { rArm: "Right Arm", lArm: "Left Arm", rLeg: "Right Leg", lLeg: "Left Leg" }[location] ?? location;
+          await ChatMessage.create({
+            content: `<div class="cyberpunk save-prompt">
+              <h3>⚠ Limb Loss — ${liveTarget.name}</h3>
+              <div><b>${netDamage} net damage to ${limbName}</b> — severed or crushed beyond recognition (CP2020 p.103).</div>
+              <div style="margin-top:4px;">Immediate Death Save required at Mortal 0.</div>
+            </div>`,
+            speaker: ChatMessage.getSpeaker({ actor: liveTarget }),
+          });
+          await postDeathSavePrompt(liveTarget, liveToken, 0);
+        }
       }
     }
   }
@@ -173,15 +241,15 @@ export async function applyAreaDamages({ target, areaDamages, ap, armorMode, abl
 // ---------------------------------------------------------------------------
 
 /** Async dry-run for auto-apply path. */
-export async function resolveAreaDamages({ target, areaDamages, ap, armorMode, coverSP = 0 }) {
-  return applyAreaDamages({ target, areaDamages, ap, armorMode, ablate: false, coverSP, dryRun: true });
+export async function resolveAreaDamages({ target, areaDamages, ap, edged = false, armorMultSoft = 1.0, armorMultHard = 1.0, armorMode, coverSP = 0 }) {
+  return applyAreaDamages({ target, areaDamages, ap, edged, armorMultSoft, armorMultHard, armorMode, ablate: false, coverSP, dryRun: true });
 }
 
 /**
  * Synchronous dry-run. Returns per-hit results with damageAfterSP (pre-BTM).
  * The dialog displays damageAfterSP in the preview and applies BTM at click-time.
  */
-export function resolveAreaDamagesSync({ target, areaDamages, ap, armorMode, coverSP = 0 }) {
+export function resolveAreaDamagesSync({ target, areaDamages, ap, edged = false, armorMultSoft = 1.0, armorMultHard = 1.0, armorMode, coverSP = 0 }) {
   const results = [];
   const liveSP  = {};
 
@@ -191,10 +259,25 @@ export function resolveAreaDamagesSync({ target, areaDamages, ap, armorMode, cov
     return liveSP[key];
   };
 
+  const headDoublingSync = game.settings.get("cyberpunk2020", "headHitDoubling");
+
   for (const [location, hits] of Object.entries(areaDamages)) {
     for (const hit of hits) {
-      const rawDamage = Number(hit.damage) || 0;
-      const currentSP = getLiveSP(location);
+      const baseRaw    = Number(hit.damage ?? hit.dmg) || 0;
+      const rawDamage  = (headDoublingSync && location === "Head") ? baseRaw * 2 : baseRaw;
+      let currentSP    = getLiveSP(location);
+
+      // Unified asymmetric armor mult (same logic as applyAreaDamages)
+      const effSoftSync = edged ? Math.min(0.5, armorMultSoft) : armorMultSoft;
+      const effHardSync = armorMultHard;
+      if ((effSoftSync !== 1.0 || effHardSync !== 1.0) && currentSP > 0 && armorMode !== ARMOR_MODES.NONE) {
+        const contributors = getArmorContributors(target, location);
+        const allItems = [...contributors.cwItems, ...contributors.orderedLayers, ...contributors.unassigned];
+        const hasHardArmor = allItems.some(item => getArmorHardness(item) === "hard");
+        const mult = hasHardArmor ? effHardSync : effSoftSync;
+        if (mult !== 1.0) currentSP = Math.max(0, Math.floor(currentSP * mult));
+      }
+
       const { spFull, spUsed, damageAfterSP, penetrates } = resolveHitMath({
         currentSP, rawDamage, ap, armorMode, coverSP,
       });
@@ -229,6 +312,39 @@ async function _ablateLocation(target, location) {
     const fullCoverage = foundry.utils.deepClone(liveItem.system.coverage || {});
     if (!fullCoverage[location]) fullCoverage[location] = {};
     fullCoverage[location].stoppingPower = Math.max(0, itemSP - 1);
+    updates.push({ _id: liveItem.id, "system.coverage": fullCoverage });
+  }
+
+  if (updates.length > 0) {
+    await target.updateEmbeddedDocuments("Item", updates, { render: false });
+  }
+}
+
+/**
+ * Reduce armor SP at a location by a variable amount (T4-E acid DOT).
+ * Distributes the reduction across equipped armor layers from outermost inward.
+ * @param {Actor}  target
+ * @param {string} location
+ * @param {number} amount   Total SP to remove (positive integer)
+ */
+export async function ablateLocationByAmount(target, location, amount) {
+  if (amount <= 0) return;
+  const contributors = getArmorContributors(target, location);
+  const toAblate = [...contributors.orderedLayers, ...contributors.unassigned];
+
+  const updates = [];
+  let remaining = amount;
+  for (const item of toAblate) {
+    if (remaining <= 0) break;
+    const liveItem = target.items.get(item.id);
+    if (!liveItem) continue;
+    const itemSP = Number(liveItem.system?.coverage?.[location]?.stoppingPower) || 0;
+    if (itemSP <= 0) continue;
+    const reduction = Math.min(itemSP, remaining);
+    remaining -= reduction;
+    const fullCoverage = foundry.utils.deepClone(liveItem.system.coverage || {});
+    if (!fullCoverage[location]) fullCoverage[location] = {};
+    fullCoverage[location].stoppingPower = Math.max(0, itemSP - reduction);
     updates.push({ _id: liveItem.id, "system.coverage": fullCoverage });
   }
 

@@ -77,6 +77,7 @@ const DEFAULT_WEAPON = {
   damage: "2d6+1",
   rangeDamages: DEFAULT_RANGE_DAMAGES,
   ap: false,
+  isEdged: false,
   shotsLeft: 12,
   shots: 12,
   rof: 2,
@@ -243,6 +244,7 @@ export class CyberpunkWeaponData extends CyberpunkBaseItemData {
       damage: stringField(DEFAULT_WEAPON.damage),
       rangeDamages: objectField(DEFAULT_RANGE_DAMAGES),
       ap: booleanField(DEFAULT_WEAPON.ap),
+      isEdged: booleanField(DEFAULT_WEAPON.isEdged),
       shotsLeft: numberField(DEFAULT_WEAPON.shotsLeft),
       shots: numberField(DEFAULT_WEAPON.shots),
       rof: numberField(DEFAULT_WEAPON.rof),
@@ -262,6 +264,7 @@ export class CyberpunkWeaponData extends CyberpunkBaseItemData {
     }
     if (hasOwn(source, "rangeDamages")) source.rangeDamages = normalizeRangeDamages(source.rangeDamages);
     normalizeBooleanIfPresent(source, "ap", false);
+    normalizeBooleanIfPresent(source, "isEdged", false);
     return super.migrateData(source);
   }
 }
@@ -316,13 +319,17 @@ export class CyberpunkArmorData extends CyberpunkBaseItemData {
     return {
       ...commonSchema(),
       coverage: objectField(DEFAULT_COVERAGE),
-      encumbrance: numberField(0)
+      encumbrance: numberField(0),
+      armorType: stringField(""),
+      // Chromebook 4 clothing weight category (p.67). "Light", "Medium", "Heavy", or "" (pure armor, not clothing)
+      clothingWeight: stringField("")
     };
   }
 
   static migrateData(source) {
     source ??= {};
     if (hasOwn(source, "coverage")) source.coverage = mergeDefaults(source.coverage, DEFAULT_COVERAGE);
+    if (hasOwn(source, "clothingWeight")) source.clothingWeight ??= "";
     return super.migrateData(source);
   }
 }

@@ -24,8 +24,10 @@
 
         {{> (template "actor/parts/armor-display") hitLocations=system.hitLocations hitLocsName="hitLocations"}}
 
-        {{!-- Armor layer assignment panel. Only rendered when damageLayersEnabled is true (system.showArmorLayers). --}}
+        {{!-- Armor layer compliance panel. Only rendered when damageLayersEnabled setting is on. --}}
+        {{#if showArmorLayers}}
         {{> (template "actor/parts/armor-layers-panel")}}
+        {{/if}}
 
         <div class="field margin-bottom">
             <label for="system.stats.ref.armorMod">{{CPLocal "Encumbrance"}}</label>

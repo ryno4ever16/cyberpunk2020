@@ -51,7 +51,7 @@
  *   light/medium/heavy jacket, body suit, nylon
  * CP2020 hard examples: metal gear, body armor, full body armor, plate
  */
-function getArmorHardness(armorItem) {
+export function getArmorHardness(armorItem) {
   const explicit = armorItem.system?.armorType;
   if (explicit === "hard" || explicit === "soft") return explicit;
 
