@@ -12,3 +12,18 @@
     {{>(template "fields/select") label="Stat" edit="system.stat" choices=stats noTranslateOptions=true}}
     {{>(template "fields/boolean") label="IsRoleSkill" edit="system.isRoleSkill"}}
 </div>
+
+<div class="field-list">
+    {{>(template "fields/boolean") label="IsMartialArt" edit="system.isMartialArt"}}
+</div>
+
+{{#if system.isMartialArt}}
+<h3>{{CPLocal "MartialArtBonuses"}}</h3>
+<p class="notes" style="font-size:0.85em; opacity:0.75; margin:2px 0 6px;">{{CPLocal "MartialArtBonusesHint"}}</p>
+<div class="field-list">
+    {{#each martialBonusActions as |action|}}
+        {{!-- pass @root as context so the number field reads system.martialBonuses.* from the sheet data, not the loop's action string --}}
+        {{>(template "fields/number") @root label=action edit=(concat "system.martialBonuses." action)}}
+    {{/each}}
+</div>
+{{/if}}

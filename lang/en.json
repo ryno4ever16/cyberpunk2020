@@ -51,6 +51,9 @@
     "CYBERPUNK.DifficultyMod": "Difficulty Mod",
     "CYBERPUNK.ImprovementPointsShort": "IP",
     "CYBERPUNK.IsRoleSkill": "Is Role Skill",
+    "CYBERPUNK.IsMartialArt": "Is Martial Art",
+    "CYBERPUNK.MartialArtBonuses": "Martial Art Action Bonuses",
+    "CYBERPUNK.MartialArtBonusesHint": "Per-action bonuses for this style. Used when the skill is selected as the Martial Art for an attack.",
     "CYBERPUNK.Chipped": "Chipped",
 
     "CYBERPUNK.SkillAuthority": "Authority",

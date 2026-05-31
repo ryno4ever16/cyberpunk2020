@@ -7,8 +7,10 @@
         selected
         {{~/if}}>
 
-        {{~#if ../noTranslateOptions}}
-            {{~value}} 
+        {{~#if text}} {{!-- Pre-resolved literal label (e.g. a custom skill name) --}}
+            {{~text}}
+        {{~else if ../noTranslateOptions}}
+            {{~value}}
         {{~else if localData}} {{!-- If we have extra parameters for localization, use those --}}
             {{~CPLocalParam localKey localData}}
         {{~else}} {{!-- Regular localization - just a key --}}

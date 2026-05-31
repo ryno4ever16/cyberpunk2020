@@ -121,7 +121,10 @@ export function registerHandlebarsHelpers() {
             context = {
                 value: choice.value,
                 localKey: choice.localKey || choice.value,
-                localData: choice.localData
+                localData: choice.localData,
+                // `text` is a pre-resolved literal label rendered as-is (no localization),
+                // used for user-authored names like custom martial-art skills.
+                text: choice.text
             }
         }
         // Just ["one", "two"] etc
@@ -129,7 +132,8 @@ export function registerHandlebarsHelpers() {
             context = {
                 value: choice,
                 localKey: choice,
-                localData: undefined
+                localData: undefined,
+                text: undefined
             }
         }
 

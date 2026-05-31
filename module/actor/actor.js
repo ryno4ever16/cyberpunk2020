@@ -1,7 +1,7 @@
 import { makeD10Roll, Multiroll } from "../dice.js";
 import { isFumbleRoll, buildSkillFumbleData } from "../utils.js";
 import { SortOrders, sortSkills } from "./skill-sort.js";
-import { btmFromBT, MARTIAL_ART_KEY_BY_ID, MARTIAL_ART_ID_BY_KEY, FNFF2_ONLY_MARTIAL_ART_IDS, isFnff2Enabled } from "../lookups.js";
+import { btmFromBT, MARTIAL_ART_KEY_BY_ID, MARTIAL_ART_ID_BY_KEY, FNFF2_ONLY_MARTIAL_ART_IDS, FNFF2_ONLY_MARTIAL_ART_KEYS, isFnff2Enabled, isMartialArtSkillItem, martialArtDisplayName } from "../lookups.js";
 import { properCase, localize, getDefaultSkills, cwHasType, cwIsEnabled } from "../utils.js"
 
 /**
@@ -598,21 +598,60 @@ export class CyberpunkActor extends Actor {
     return this.stunThreshold() + 3;
   }
 
+  /**
+   * Martial-art skills the actor has trained, as { value, label } entries.
+   *
+   * Scans owned skills (rather than the hardcoded id table) so custom styles work:
+   * a skill counts as a martial art if it matches a built-in id, carries the
+   * `isMartialArt` flag, or is named with the "Martial Arts:" convention.
+   *
+   * - value: the built-in canonical key when known (so action-bonus tables, FNFF2
+   *   gating, and item.js string checks keep working); otherwise the skill's name.
+   * - label: a clean display name (prefix and "(N)" tag stripped).
+   *
+   * @returns {{value: string, label: string}[]}
+   */
   trainedMartials() {
     const fnff2 = isFnff2Enabled();
-    const trained = [];
+    const out = [];
 
-    for (const [martialKey, martialId] of Object.entries(MARTIAL_ART_ID_BY_KEY)) {
-      if (!fnff2 && FNFF2_ONLY_MARTIAL_ART_IDS.has(martialId)) continue;
+    for (const skill of this.itemTypes.skill) {
+      // Built-in style? Resolve its canonical key via any of the skill's stable ids.
+      let builtinKey = null;
+      for (const id of CyberpunkActor._getItemIdCandidates(skill)) {
+        if (MARTIAL_ART_KEY_BY_ID[id]) { builtinKey = MARTIAL_ART_KEY_BY_ID[id]; break; }
+      }
 
-      const skill = this._getSkillByStableId(martialId);
-      if (!skill) continue;
+      const isMartial = (builtinKey !== null) || isMartialArtSkillItem(skill);
+      if (!isMartial) continue;
       if (!CyberpunkActor._hasAnyPositiveSkillValue(skill)) continue;
 
-      trained.push(martialKey);
+      // Hide FNFF2-only built-in styles when FNFF2 is disabled (unchanged behavior).
+      if (builtinKey && !fnff2 && FNFF2_ONLY_MARTIAL_ART_KEYS.has(builtinKey)) continue;
+
+      const value = builtinKey ?? skill.name;
+      const label = martialArtDisplayName(skill.name) || skill.name;
+      out.push({ value, label });
     }
 
-    return trained;
+    return out;
+  }
+
+  /**
+   * Resolve the skill Item backing a martial-art selection (the value from trainedMartials()).
+   * Built-in keys resolve via the id table; custom values resolve by name.
+   * @param {string} value
+   * @returns {Item|null}
+   */
+  getMartialArtSkill(value) {
+    if (!value || value === "Brawling") return null;
+    const id = MARTIAL_ART_ID_BY_KEY[value];
+    if (id) {
+      const byId = this._getSkillByStableId(id);
+      if (byId) return byId;
+    }
+    const norm = CyberpunkActor._normalizeSkillName(value);
+    return this.itemTypes.skill.find(s => CyberpunkActor._normalizeSkillName(s.name) === norm) ?? null;
   }
 
   /**

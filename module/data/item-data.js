@@ -182,7 +182,11 @@ export class CyberpunkSkillData extends foundry.abstract.TypeDataModel {
       isRoleSkill: booleanField(false),
       trained: booleanField(false),
       stat: stringField("cool"),
-      askMods: booleanField(false)
+      askMods: booleanField(false),
+      // Martial arts: mark a skill as a martial art and give it per-action bonuses.
+      // Lets users create custom styles without editing core lookup tables.
+      isMartialArt: booleanField(false),
+      martialBonuses: objectField({})
     };
   }
 
@@ -214,6 +218,7 @@ export class CyberpunkSkillData extends foundry.abstract.TypeDataModel {
     normalizeBooleanIfPresent(source, "trained", false);
     normalizeBooleanIfPresent(source, "autoChipped", false);
     normalizeBooleanIfPresent(source, "askMods", false);
+    normalizeBooleanIfPresent(source, "isMartialArt", false);
     if (hasOwn(source, "stat")) source.stat ||= "cool";
     return super.migrateData(source);
   }

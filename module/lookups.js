@@ -188,6 +188,34 @@ export function isFnff2Enabled() {
   return Boolean(game?.settings?.get("cyberpunk2020", "fnff2Enabled"));
 }
 
+// A skill is treated as a martial art if it carries the explicit flag or is named with the
+// "Martial Arts:" convention. Built-in styles are additionally matched by stable id in
+// actor.trainedMartials() so localized packs (which may name them "Aikido(3)") still resolve.
+export const MARTIAL_ART_PREFIX_RE = /^\s*martial\s*arts\s*:/i;
+
+export function isMartialArtSkillItem(item) {
+  if (!item || item.type !== "skill") return false;
+  if (item.system?.isMartialArt === true) return true;
+  return MARTIAL_ART_PREFIX_RE.test(String(item.name ?? ""));
+}
+
+// Clean display label for a martial art: drop the "Martial Arts:" prefix, the trailing
+// "(N)" IP-difficulty tag (the real value lives in system.diffMod), and any "~" marker.
+export function martialArtDisplayName(name) {
+  return String(name ?? "")
+    .replace(MARTIAL_ART_PREFIX_RE, "")
+    .replace(/\s*\(\d+\)\s*$/g, "")
+    .replace(/~/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Actions that can carry a per-style bonus, shown in the skill sheet's martial-art editor.
+export const MARTIAL_BONUS_ACTIONS = [
+  "Strike", "Punch", "Kick", "Disarm", "SweepTrip", "BlockParry",
+  "Dodge", "Grapple", "Throw", "Hold", "Choke", "Escape", "Ram"
+];
+
 // CORE set rules martial action bonuses
 export const martialActionBonusesCore = {
   "Martial Arts: Karate": { Strike: 2, Kick: 2, BlockParry: 2 },
@@ -302,9 +330,19 @@ export function getFnff2DamageBonusSymbol(actionKey) {
   return fnff2DamageBonusSymbols[actionKey] ?? "*";
 }
 
-export function getMartialActionBonus(martialKey, actionKey) {
-  const fnff2 = isFnff2Enabled();
+/**
+ * Action bonus for a martial style.
+ * @param {string} martialKey  Built-in canonical key, or a custom skill name.
+ * @param {string} actionKey   Martial action (Strike, Kick, ...).
+ * @param {object|null} skillBonuses  Optional per-skill bonus map from skill.system.martialBonuses.
+ *   Used for custom styles (no built-in table) and to let any skill override a built-in bonus.
+ */
+export function getMartialActionBonus(martialKey, actionKey, skillBonuses = null) {
+  // Per-skill bonus takes priority — this is how custom styles (and overrides) work.
+  const perSkill = skillBonuses ? Number(skillBonuses[actionKey] || 0) : 0;
+  if (perSkill) return perSkill;
 
+  const fnff2 = isFnff2Enabled();
   if (!fnff2 && FNFF2_ONLY_MARTIAL_ART_KEYS.has(martialKey)) {
     return 0;
   }
@@ -453,8 +491,10 @@ export function martialOptions(actor) {
             choices: [
             { value: "Brawling", localKey: "SkillBrawling" },
 
-              ...(actor.trainedMartials().map(key => {
-                return { value: key, localKey: "Skill" + key };
+              // trainedMartials() returns { value, label } — value is the built-in key or a
+              // custom skill name; label is the skill's display name (rendered literally via `text`).
+              ...(actor.trainedMartials().map(m => {
+                return { value: m.value, text: m.label };
               }))
             ]
         },

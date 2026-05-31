@@ -1,4 +1,4 @@
-import { weaponTypes, meleeAttackTypes, rangedAttackTypes, attackSkills, concealability, availability, reliability, getStatNames } from "../lookups.js";
+import { weaponTypes, meleeAttackTypes, rangedAttackTypes, attackSkills, concealability, availability, reliability, getStatNames, MARTIAL_BONUS_ACTIONS } from "../lookups.js";
 import { formulaHasDice } from "../dice.js";
 import { deleteFieldUpdate, localize, cwHasType, getSkillIndex } from "../utils.js";
 import { createCyberpunkChatMessage, getHtmlElement, getPublicMessageMode, getRichEditorHTML, saveRichEditorHTML, rollToCyberpunkChatMessage } from "../compat.js";
@@ -60,6 +60,8 @@ export class CyberpunkItemSheet extends ItemSheet {
 
   _prepareSkill(sheet) {
     sheet.stats = getStatNames();
+    // Action keys for the per-style bonus editor (shown when the skill is a martial art).
+    sheet.martialBonusActions = MARTIAL_BONUS_ACTIONS;
   }
 
   _prepareAmmo(sheet) {
@@ -244,8 +246,8 @@ export class CyberpunkItemSheet extends ItemSheet {
     const wType = this.item.system.weaponType || weaponTypes.pistol;
     const baseKeys = attackSkills[wType] || [];
     const includeMartials = (wType === weaponTypes.melee) && (this.item.system.attackType === meleeAttackTypes.martial);
-    const martialKeys = includeMartials ? (actor?.trainedMartials?.() || []) : [];
-    sheet.attackSkills = [...baseKeys, ...martialKeys].map(k => localize("Skill"+k));
+    const martials = includeMartials ? (actor?.trainedMartials?.() || []) : [];
+    sheet.attackSkills = [...baseKeys.map(k => localize("Skill"+k)), ...martials.map(m => m.label)];
 
     if (!sheet.attackSkills.length && actor?.itemTypes?.skill) {
       sheet.attackSkills = actor.itemTypes.skill.map(skill => skill.name).sort();
@@ -445,8 +447,8 @@ async _prepareCyberware(sheet) {
   const actor = this.item?.parent;
   const baseKeys = attackSkills[cwW.weaponType || weaponTypes.pistol] || [];
   const includeMartials = isMelee && (cwW.attackType === meleeAttackTypes.martial);
-  const martialKeys = includeMartials ? (actor?.trainedMartials?.() || []) : [];
-  sheet.attackSkills = [...baseKeys, ...martialKeys].map(k => localize("Skill"+k));
+  const martials = includeMartials ? (actor?.trainedMartials?.() || []) : [];
+  sheet.attackSkills = [...baseKeys.map(k => localize("Skill"+k)), ...martials.map(m => m.label)];
   
   if (!sheet.attackSkills.length && this.actor) {
     sheet.attackSkills = (this.actor.itemTypes.skill || []).map(s => s.name).sort((a, b) => a.localeCompare(b));

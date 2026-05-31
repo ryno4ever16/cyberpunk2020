@@ -1,4 +1,4 @@
-import { weaponTypes, rangedAttackTypes, meleeAttackTypes, fireModes, ranges, rangeDCs, rangeResolve, strengthDamageBonus, getMartialActionBonus, martialActions, isFnff2Enabled, getFnff2DamageBonusSymbol, FNFF2_ONLY_MARTIAL_ART_IDS, MARTIAL_ART_ID_BY_KEY } from "../lookups.js"
+import { weaponTypes, rangedAttackTypes, meleeAttackTypes, fireModes, ranges, rangeDCs, rangeResolve, strengthDamageBonus, getMartialActionBonus, martialActions, isFnff2Enabled, getFnff2DamageBonusSymbol, FNFF2_ONLY_MARTIAL_ART_IDS, MARTIAL_ART_ID_BY_KEY, martialArtDisplayName } from "../lookups.js"
 import { Multiroll, makeD10Roll } from "../dice.js"
 import { localize, localizeParam, rollLocation, cwHasType, cwIsEnabled, isFumbleRoll, buildRangedCombatFumbleData, buildSkillFumbleData, clamp } from "../utils.js";
 import { createCyberpunkChatMessage } from "../compat.js";
@@ -870,10 +870,10 @@ export class CyberpunkItem extends Item {
       const val = Number(targetActor.getSkillVal?.(sk) ?? 0);
       if (val > best.val) best = { name: sk, val };
     }
-    // Check all martial arts
-    for (const maKey of Object.keys(MARTIAL_ART_ID_BY_KEY)) {
-      const val = Number(targetActor.getSkillVal?.(maKey) ?? 0);
-      if (val > best.val) best = { name: maKey, val };
+    // Check all martial arts the defender has trained (built-in and custom)
+    for (const m of (targetActor.trainedMartials?.() ?? [])) {
+      const val = Number(targetActor.getSkillVal?.(m.value) ?? 0);
+      if (val > best.val) best = { name: m.label, val };
     }
 
     const roll = await new Roll("1d10 + @ref + @skill", { ref, skill: best.val }).evaluate();
@@ -975,11 +975,19 @@ export class CyberpunkItem extends Item {
     let martialSkillLevel = actor.getSkillVal(martialArt);
     let flavor = game.i18n.has(`CYBERPUNK.${action + "Text"}`) ? localize(action + "Text") : "";
 
-    let results = new Multiroll(localizeParam("MartialTitle", {action: localize(action), martialArt: localize("Skill" + martialArt)}), flavor);
+    // Resolve the backing skill so custom styles can supply per-action bonuses and a clean title.
+    const maSkill = actor.getMartialArtSkill?.(martialArt) ?? null;
+    const skillBonuses = maSkill?.system?.martialBonuses ?? null;
+    const martialTitle = (martialArt === "Brawling")
+      ? localize("SkillBrawling")
+      : (maSkill ? martialArtDisplayName(maSkill.name)
+                 : (game.i18n.has(`CYBERPUNK.Skill${martialArt}`) ? localize("Skill" + martialArt) : martialArt));
+
+    let results = new Multiroll(localizeParam("MartialTitle", {action: localize(action), martialArt: martialTitle}), flavor);
 
     // All martial arts are contested
-    // Bonus for a specific action from the selected martial art
-    const actionBonus = getMartialActionBonus(martialArt, action);
+    // Bonus for a specific action from the selected martial art (per-skill bonuses override the table)
+    const actionBonus = getMartialActionBonus(martialArt, action, skillBonuses);
 
     // Additional modifier from the dialog
     const extraMod = Number(attackMods.extraMod || 0);
