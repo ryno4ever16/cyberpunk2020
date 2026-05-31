@@ -68,6 +68,7 @@ export function registerDamageHooks() {
   _hookMultiActionPenalty();
   _hookAutomationMigrationNotice();
   _hookSocketRelay();
+  _hookLiveSheetUpdate();
 
   // Combat action button click handler
   document.addEventListener("click", async (ev) => {
@@ -1435,6 +1436,31 @@ function _hookAutomationMigrationNotice() {
  *                (armorMode override, cover SP, manual afterSP edits); GM
  *                applies the pre-resolved values directly.
  */
+/**
+ * Live sheet refresh across all clients.
+ *
+ * Damage and ablation writes pass { render: false } so applying several hits in a row
+ * doesn't flicker the sheet, and the applying client re-renders once at the end. But the
+ * { render: false } option propagates with the update to every client and suppresses their
+ * automatic re-render too — so a player viewing the target's sheet (or the GM, when a player
+ * applied damage through the socket relay) would not see the change until reopening the sheet.
+ *
+ * These hooks fire on every client regardless of the render option. They re-render the open
+ * sheet wherever our damage system touched the actor. render(false) is a no-op on clients
+ * where the sheet isn't open, so there's no cost or unexpected pop-ups.
+ */
+function _hookLiveSheetUpdate() {
+  Hooks.on("updateActor", (actor, _changed, options) => {
+    if (!options?.fromCyberpunkDamageSystem) return;
+    actor.sheet?.render(false);
+  });
+  // Armor ablation edits embedded Item SP; refresh the owning actor's sheet too.
+  Hooks.on("updateItem", (item, _changed, options) => {
+    if (!options?.fromCyberpunkDamageSystem) return;
+    item.actor?.sheet?.render(false);
+  });
+}
+
 function _hookSocketRelay() {
   game.socket.on("system.cyberpunk2020", async (data) => {
     if (!game.user.isGM) {

@@ -274,7 +274,8 @@ export async function ablateLocationOnce(target, location) {
   }
 
   if (updates.length > 0) {
-    await target.updateEmbeddedDocuments("Item", updates, { render: false });
+    // fromCyberpunkDamageSystem lets the live-sheet hook refresh open sheets on every client.
+    await target.updateEmbeddedDocuments("Item", updates, { render: false, fromCyberpunkDamageSystem: true });
   }
 }
 
@@ -307,7 +308,8 @@ export async function ablateLocationByAmount(target, location, amount) {
   }
 
   if (updates.length > 0) {
-    await target.updateEmbeddedDocuments("Item", updates, { render: false });
+    // fromCyberpunkDamageSystem lets the live-sheet hook refresh open sheets on every client.
+    await target.updateEmbeddedDocuments("Item", updates, { render: false, fromCyberpunkDamageSystem: true });
   }
 }
 
