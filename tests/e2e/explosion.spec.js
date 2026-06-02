@@ -30,6 +30,7 @@ test("C2 explosion: blast damages tokens with distance falloff, spares the dista
 
   const ids = await evalGameOrThrow(page, async (arg) => {
     await game.settings.set("cyberpunk2020", "explosivesEnabled", true);
+    await game.settings.set("cyberpunk2020", "explosivesDetailed", false); // Core falloff, not HEP
     const flags = { cyberpunk2020: { __pwtest: true } };
     const sc = game.scenes.get(arg.sceneId);
     const mk = async (name, x, y) => {

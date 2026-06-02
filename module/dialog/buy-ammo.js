@@ -45,6 +45,7 @@ export function ammoModifierSystemFields(modifierId) {
     dotTurns: mech.dotTurns ?? 0,
     dotDamageFormula: mech.dotDamageFormula ?? "",
     dotType: mech.dotType ?? "acid",
+    spreadMode: mech.spreadMode ?? "single",
     effectTypes: (modifierId === "standard") ? ["None"] : fx
   };
 }

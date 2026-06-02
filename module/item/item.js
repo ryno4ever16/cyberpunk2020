@@ -244,10 +244,11 @@ export class CyberpunkItem extends Item {
       spreadDamageLong:   String(ammoSys?.spreadDamageLong   ?? ""),
     };
 
-    // If both mults are ≤ 0.5 (symmetric — standard AP rounds), use the ap flag path.
-    // This routes through resolveHitMath's spUsed halving and avoids double-halving
-    // when both ap=true and armorMultSoft < 1 are active.
-    if (soft <= 0.5 && hard <= 0.5) {
+    // If both mults are EXACTLY 0.5 (symmetric — standard AP rounds), use the ap flag path.
+    // This routes through resolveHitMath's spUsed halving and avoids double-halving when both
+    // ap=true and armorMultSoft 0.5 are active. Sub-half mults (e.g. flechette armor ×¼) must
+    // NOT use this shortcut — they take the mult path below so the true quarter is applied.
+    if (soft === 0.5 && hard === 0.5) {
       return { ap: true, armorMultSoft: 1.0, armorMultHard: 1.0, accuracyMod: acc, rawDamageMult: dmgM, penDamageMult: penM, ...effects };
     }
     // Asymmetric mults (e.g. hollow point: better vs soft, worse vs hard) — use mult path, ap=false

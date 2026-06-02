@@ -165,7 +165,7 @@ export const AMMO_MODIFIERS = {
   api:         { label: "Armor-Piercing Incendiary", costMult: 4, mech: { armorMultSoft: 0.5, armorMultHard: 0.5, penDamageMult: 0.5, dotEnabled: true, dotTurns: 2, dotDamageFormula: "1d6", dotType: "fire" } },
   dualPurpose: { label: "Dual-Purpose",      costMult: 4,     mech: { armorMultSoft: 0.5, armorMultHard: 0.5, penDamageMult: 0.5, bonusDamageFormula: "" } },
   rubber:      { label: "Rubber",            costMult: 0.333, mech: { armorMultSoft: 1,   armorMultHard: 1,   penDamageMult: 0.5, stunSaveOnHit: true } },
-  flechette:   { label: "Flechette",         costMult: 5,     mech: { armorMultSoft: 0.5, armorMultHard: 1,   penDamageMult: 1 } },
+  flechette:   { label: "Flechette",         costMult: 5,     mech: { armorMultSoft: 0.25, armorMultHard: 0.25, penDamageMult: 0.5, spreadMode: "flechette" } },
   safety:      { label: "Safety",            costMult: 6,     mech: { armorMultSoft: 2,   armorMultHard: 2,   penDamageMult: 3 } },
   brassCased:  { label: "Brass-cased",       costMult: 2, costMultBlackhands: 3, mech: {} }
 };

@@ -433,4 +433,24 @@ export function registerSystemSettings() {
     default: true,
   });
 
+  // --- Combat: Area-effect cover occlusion ---
+  game.settings.register("cyberpunk2020", "areaEffectOcclusion", {
+    name: "Combat: Area-Effect Cover Blocks (walls)",
+    hint: "When enabled, a token shielded by a wall between it and the blast center (or the shooter, for spread) is exempt from area-effect damage — intervening cover blocks the pattern/blast (CP2020 p.108). Requires walls placed on the scene; disable if your tables don't map cover with walls.",
+    scope:   "world",
+    config:  true,
+    type:    Boolean,
+    default: true,
+  });
+
+  // --- Combat: Detailed explosives / HEP concussion (Listen Up, optional) ---
+  game.settings.register("cyberpunk2020", "explosivesDetailed", {
+    name: "Combat: Detailed Explosives — HEP Concussion (Listen Up)",
+    hint: "Optional grittier blast model from Listen Up You Primitive Screwheads (p.105). Explosion concussion is treated as HEP: armor SP does NOT protect (BTM still applies), half the damage that gets through is permanent and half is stun (a Stun Save is always prompted), and soft armor at the hit location loses 2 SP. If the ammo also has blastShrapnel, each target additionally takes a normal-armor 1d10 shrapnel hit. Default OFF (Core blast = damage through normal armor).",
+    scope:   "world",
+    config:  true,
+    type:    Boolean,
+    default: false,
+  });
+
 }

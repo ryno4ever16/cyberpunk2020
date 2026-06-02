@@ -85,6 +85,13 @@ export function registerDamageHooks() {
     const parryBtn      = ev.target.closest(".cp-parry-btn");
     const addActionBtn  = ev.target.closest(".cp-add-action-btn");
 
+    const scatterBtn = ev.target.closest(".cp-confirm-explosion-scatter");
+    if (scatterBtn && !scatterBtn.disabled) {
+      ev.preventDefault();
+      scatterBtn.disabled = true;
+      await _scatterExplosion(scatterBtn.dataset.templateId);
+    }
+
     if (blastBtn && !blastBtn.disabled) {
       ev.preventDefault();
       blastBtn.disabled = true;
@@ -1374,6 +1381,55 @@ async function _applyAreaHitToToken(tok, dmg, { ap, edged, armorMultSoft, armorM
 }
 
 /**
+ * Is `tok` shielded from an area effect originating at (ox,oy) by a wall? (CP2020 p.108 — cover
+ * between the source and a target exempts it.) Gated by areaEffectOcclusion. Graceful: if the
+ * collision backend is unavailable, nothing is treated as occluded.
+ */
+function _isOccluded(ox, oy, tok) {
+  try { if (!game.settings.get("cyberpunk2020", "areaEffectOcclusion")) return false; } catch (e) { /* default on */ }
+  try {
+    const origin = { x: ox, y: oy };
+    const dest   = { x: tok.center?.x ?? tok.x, y: tok.center?.y ?? tok.y };
+    const backend = CONFIG?.Canvas?.polygonBackends?.move;
+    if (backend?.testCollision) return !!backend.testCollision(origin, dest, { type: "move", mode: "any" });
+  } catch (e) { /* no collision support → not occluded */ }
+  return false;
+}
+
+/**
+ * HEP concussion (Listen Up p.105): SP ignored, BTM applies, half of what gets through is
+ * permanent HP and half is stun (a Stun Save is always prompted). Soft armor at the torso loses
+ * 2 SP. Used by the explosion blast when Detailed Explosives is enabled.
+ */
+async function _applyConcussionToToken(tok, falloffDmg, { weaponName = "Explosion" } = {}) {
+  if (!tok?.actor || falloffDmg <= 0) return 0;
+  const actor = tok.actor;
+  const btm = Number(actor.system.stats?.bt?.modifier) || 0;
+  const gotThrough = Math.max(1, falloffDmg - btm);          // SP ignored; BTM applies
+  const permanent  = Math.max(1, Math.floor(gotThrough / 2)); // half permanent, half stun
+
+  const current = Number(actor.system.damage) || 0;
+  await actor.update({ "system.damage": current + permanent }, { render: false, fromCyberpunkDamageSystem: true });
+  if (actor.getFlag?.("cyberpunk2020", "stabilized")) {
+    await actor.unsetFlag("cyberpunk2020", "stabilized");
+    await ChatMessage.create({
+      content: `<div class="cyberpunk save-prompt">⚠ <b>${actor.name}</b> was stabilized but has taken new damage — Death Saves are required again.</div>`,
+      speaker: ChatMessage.getSpeaker({ actor }),
+    });
+  }
+  await ablateLocationByAmount(actor, "Torso", 2).catch(() => {}); // concussion wears soft armor −2 SP
+  await assessWoundSeverity(actor, "Torso", permanent, { token: tok });
+  await ChatMessage.create({
+    content: `<div class="cyberpunk save-prompt">💥 <b>${actor.name}</b> — concussion (${weaponName}): <b>${permanent}</b> permanent HP (half of ${gotThrough} after BTM); the other half is stun. Soft armor −2 SP. Stun Save required.</div>`,
+    speaker: ChatMessage.getSpeaker({ actor }),
+  });
+  const ws = actor.woundState?.() ?? 0;  // half is stun/blunt → always a consciousness check
+  if (ws >= 4) await postDeathSavePrompt(actor, tok);
+  else await postStunSavePrompt(actor, tok);
+  return permanent;
+}
+
+/**
  * Explosions & grenades (CP2020 p.108). Ammo whose effectTypes include "Explosive" detonates as an
  * area-effect blast: a circle of radius blastRadius centered on the target (or attacker), with
  * range-banded damage falloff outward (blastMultipliers). The GM repositions/confirms, then every
@@ -1423,7 +1479,8 @@ function _hookExplosion() {
         blastMultipliers: Array.isArray(payload.blastMultipliers) ? payload.blastMultipliers : [0.5, 0.25, 0.125, 0.0625],
         attackerId, ap: Boolean(payload.ap), edged: Boolean(payload.edged),
         armorMultSoft: Number(payload.armorMultSoft ?? 1), armorMultHard: Number(payload.armorMultHard ?? 1),
-        penDamageMult: Number(payload.penDamageMult ?? 1), weaponName, createdRound: game.combat?.round ?? 0,
+        penDamageMult: Number(payload.penDamageMult ?? 1), blastShrapnel: Boolean(payload.blastShrapnel),
+        weaponName, createdRound: game.combat?.round ?? 0,
       } },
     };
 
@@ -1435,8 +1492,9 @@ function _hookExplosion() {
       content: `<div class="cyberpunk save-prompt">
   <h3>💥 Explosion — ${weaponName}</h3>
   <div class="save-info"><span>Blast radius <b>${radius}m</b>, base damage <b>${baseDamage}</b>, full damage within <b>${fullWithin}m</b>.</span><br>
-  <span style="opacity:0.75; font-size:0.85em;">Reposition the blast template to set the true center (scatter, cover), then click Confirm. Damage falls off by distance.</span></div>
+  <span style="opacity:0.75; font-size:0.85em;">If the throw missed, click Scatter to roll where it really lands; otherwise reposition for cover and click Confirm. Damage falls off by distance.</span></div>
   <div class="save-buttons" style="margin-top:6px;">
+    <button class="cp-confirm-explosion-scatter" data-template-id="${created.id}">🎲 Scatter (miss)</button>
     <button class="cp-confirm-explosion" data-template-id="${created.id}">💥 Confirm Blast</button>
   </div>
 </div>`,
@@ -1464,13 +1522,16 @@ async function _confirmExplosion(templateId) {
   const mults    = Array.isArray(f.blastMultipliers) && f.blastMultipliers.length ? f.blastMultipliers : [0.5, 0.25, 0.125, 0.0625];
   const base     = Number(f.baseDamage) || 0;
 
+  const detailed = (() => { try { return game.settings.get("cyberpunk2020", "explosivesDetailed"); } catch { return false; } })();
+
   const tokens = canvas.tokens.placeables.filter(tok => {
     if (!tok.actor) return false;
     const lx = (tok.center?.x ?? tok.x) - tmplObj.x;
     const ly = (tok.center?.y ?? tok.y) - tmplObj.y;
-    return tmplObj.shape.contains(lx, ly);
+    if (!tmplObj.shape.contains(lx, ly)) return false;
+    return !_isOccluded(tmplObj.x, tmplObj.y, tok);   // cover between center and target exempts it
   });
-  if (!tokens.length) { ui.notifications.info("No tokens in the blast."); return; }
+  if (!tokens.length) { ui.notifications.info("No tokens in the blast (or all behind cover)."); return; }
 
   for (const tok of tokens) {
     const dxPx = (tok.center?.x ?? tok.x) - tmplObj.x;
@@ -1484,8 +1545,49 @@ async function _confirmExplosion(templateId) {
       mult = Number(mults[band]) || 0;
     }
     const dmg = Math.max(0, Math.floor(base * mult));
-    await _applyAreaHitToToken(tok, dmg, { ...f, weaponName: (f.weaponName ?? "Explosion") + " (blast)" });
+    if (dmg <= 0) continue;
+
+    if (detailed) {
+      // HEP concussion (SP ignored, ½ permanent + ½ stun, soft armor −2). Optional shrapnel on top.
+      await _applyConcussionToToken(tok, dmg, { weaponName: (f.weaponName ?? "Explosion") + " (concussion)" });
+      if (f.blastShrapnel) {
+        const shrap = await new Roll("1d10").evaluate();
+        await _applyAreaHitToToken(tok, Math.max(0, Math.floor(shrap.total)),
+          { ap: false, edged: false, armorMultSoft: 1, armorMultHard: 1, penDamageMult: 1, weaponName: (f.weaponName ?? "Explosion") + " (shrapnel)" });
+      }
+    } else {
+      // Core blast: range-banded damage through normal armor.
+      await _applyAreaHitToToken(tok, dmg, { ...f, weaponName: (f.weaponName ?? "Explosion") + " (blast)" });
+    }
   }
+}
+
+/** Scatter a missed grenade: Grenade Table (CP2020 p.108) — 1d10 direction + 1d10 metres. */
+async function _scatterExplosion(templateId) {
+  if (!canvas?.scene || !templateId) return;
+  const tmplDoc = canvas.scene.templates.get(templateId);
+  if (!tmplDoc?.flags?.cyberpunk2020?.isExplosion) { ui.notifications.warn("Blast template not found."); return; }
+
+  const scene = canvas.scene;
+  const gridSize = scene.grid?.size ?? canvas?.grid?.size ?? 100;
+  const gridDist = scene.grid?.distance ?? 1;
+
+  const dirRoll  = await new Roll("1d10").evaluate();
+  const distRoll = await new Roll("1d10").evaluate();
+  // Numpad layout around the target (5/10 = on-target). Screen coords: +y is down.
+  const DIRS    = { 1: [-1, 1], 2: [0, 1], 3: [1, 1], 4: [-1, 0], 5: [0, 0], 6: [1, 0], 7: [-1, -1], 8: [0, -1], 9: [1, -1], 10: [0, 0] };
+  const DIRNAME = { 1: "SW", 2: "S", 3: "SE", 4: "W", 5: "on-target", 6: "E", 7: "NW", 8: "N", 9: "NE", 10: "direct hit" };
+  const [vx, vy] = DIRS[dirRoll.total] ?? [0, 0];
+  const distM  = distRoll.total;
+  const distPx = (distM / gridDist) * gridSize;
+  const mag = Math.hypot(vx, vy) || 1;
+  const nx = tmplDoc.x + (vx / mag) * distPx;
+  const ny = tmplDoc.y + (vy / mag) * distPx;
+
+  await tmplDoc.update({ x: nx, y: ny });
+  await ChatMessage.create({
+    content: `<div class="cyberpunk save-prompt">🎲 <b>Scatter</b> — ${DIRNAME[dirRoll.total]}${(vx || vy) ? ` ${distM}m` : " (no drift)"}. Reposition if needed, then Confirm Blast.</div>`,
+  });
 }
 
 /**
@@ -1581,9 +1683,10 @@ async function _confirmSpreadZone(templateId) {
     if (tok.actor.id === f.attackerId) return false;   // never the shooter
     const lx = (tok.center?.x ?? tok.x) - tmplObj.x;
     const ly = (tok.center?.y ?? tok.y) - tmplObj.y;
-    return tmplObj.shape.contains(lx, ly);
+    if (!tmplObj.shape.contains(lx, ly)) return false;
+    return !_isOccluded(tmplObj.x, tmplObj.y, tok);    // intervening cover exempts spaces behind it
   });
-  if (!tokens.length) { ui.notifications.info("No tokens in the spread pattern."); return; }
+  if (!tokens.length) { ui.notifications.info("No tokens in the spread pattern (or all behind cover)."); return; }
 
   for (const tok of tokens) {
     const dmgRoll = await new Roll(f.dmgFormula || "3d6").evaluate();
