@@ -393,4 +393,44 @@ export function registerSystemSettings() {
     default: false,
   });
 
+  // --- Character: Cyberpsychosis tracking (CP2020 p.73) ---
+  game.settings.register("cyberpunk2020", "cyberpsychosisTracking", {
+    name: "Character: Cyberpsychosis Tracking",
+    hint: "Derives a cyberpsychosis state from the character's current Empathy (after humanity loss from cyberware): EMP 3 = cold, 2 = withdrawn, 1 = sociopathic, 0 or less = cyberpsycho (CP2020 p.73). Shown on the Cyberware tab. Humanity loss itself is always tracked; this only controls the derived state readout.",
+    scope:   "world",
+    config:  true,
+    type:    Boolean,
+    default: true,
+  });
+
+  // --- Combat: Detailed crippling injuries (Listen Up, optional) ---
+  game.settings.register("cyberpunk2020", "limbCripplingDetailed", {
+    name: "Combat: Detailed Crippling Injuries (Listen Up)",
+    hint: "Optional grittier limb rule from Listen Up You Primitive Screwheads. Limb damage is DOUBLED (post-armor, before BTM); 6–12 net to a limb cripples it (unusable), 13+ destroys it (needs replacement). Replaces the Core flat '>8 = severed' limb branch when on. Requires 'Limb Loss & Head Wound Checks' to be enabled. Default OFF (Core rules).",
+    scope:   "world",
+    config:  true,
+    type:    Boolean,
+    default: false,
+  });
+
+  // --- Combat: Shotgun / flechette spread (CP2020 p.108) ---
+  game.settings.register("cyberpunk2020", "shotgunSpreadEnabled", {
+    name: "Combat: Shotgun & Flechette Spread",
+    hint: "When enabled, ammo whose Spread Mode is not 'single' (buckshot, flechette) fires a widening pattern (Close 1m/Med 2m/Long 3m by default) with range-banded damage. Everyone in the straight path takes the hit. Only affects ammo explicitly configured for spread, so normal weapons are unchanged. (CP2020 p.108.)",
+    scope:   "world",
+    config:  true,
+    type:    Boolean,
+    default: true,
+  });
+
+  // --- Combat: Explosions & grenades (CP2020 p.108) ---
+  game.settings.register("cyberpunk2020", "explosivesEnabled", {
+    name: "Combat: Explosions & Grenades",
+    hint: "When enabled, ammo whose Effect Types include 'Explosive' detonates as an area-effect blast: a circular zone of radius blastRadius, with range-banded damage falloff (blastMultipliers) outward from the center. Every token in the blast takes damage through the normal pipeline. Only affects ammo configured as Explosive. (CP2020 p.108.)",
+    scope:   "world",
+    config:  true,
+    type:    Boolean,
+    default: true,
+  });
+
 }

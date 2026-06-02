@@ -88,6 +88,109 @@ export function applyBTM(damageAfterSP, btm, penetrated) {
   return Math.max(1, damageAfterSP - btm);
 }
 
+export const LIMB_LOCATIONS = new Set(["rArm", "lArm", "rLeg", "lLeg"]);
+const LIMB_NAMES = { rArm: "Right Arm", lArm: "Left Arm", rLeg: "Right Leg", lLeg: "Left Leg" };
+
+/**
+ * Final HP damage for one hit, including the location-doubling rules.
+ *   - Head (headHitDoubling, CP2020 p.103): damage doubled AFTER BTM.
+ *   - Limb (limbCripplingDetailed, Listen Up): post-armor damage doubled BEFORE BTM —
+ *     the grittier limb model where crippling thresholds are measured on the doubled value.
+ * Centralized so every apply path (auto-apply, damage dialog, socket relay) is identical.
+ * @param {number}  afterSP     Post-armor damage (may be a GM override)
+ * @param {number}  btm
+ * @param {boolean} penetrates
+ * @param {string}  location
+ */
+export function computeNetDamage(afterSP, btm, penetrates, location) {
+  let headDoubling = true, detailedLimb = false;
+  try { headDoubling = game.settings.get("cyberpunk2020", "headHitDoubling"); } catch (e) { /* default */ }
+  try { detailedLimb = game.settings.get("cyberpunk2020", "limbCripplingDetailed"); } catch (e) { /* default */ }
+
+  if (detailedLimb && LIMB_LOCATIONS.has(location) && penetrates) {
+    return applyBTM(afterSP * 2, btm, penetrates);   // Listen Up: double post-armor, then BTM
+  }
+  const btmDamage = applyBTM(afterSP, btm, penetrates);
+  if (headDoubling && location === "Head" && btmDamage > 0) return btmDamage * 2;
+  return btmDamage;
+}
+
+/**
+ * Limb / head wound severity check (CP2020 p.103, optional Listen Up crippling).
+ * Gated by limbLossEnabled; the granular variant by limbCripplingDetailed.
+ * Posts chat + applies status/death-save. Runs after netDamage is written, on every apply path.
+ * @param {Actor}  target
+ * @param {string} location
+ * @param {number} netDamage   Final HP applied (already includes any doubling)
+ * @param {{token?: object}} [opts]
+ */
+export async function assessWoundSeverity(target, location, netDamage, { token = null } = {}) {
+  let limbLoss = true, detailedLimb = false;
+  try { limbLoss = game.settings.get("cyberpunk2020", "limbLossEnabled"); } catch (e) { /* default */ }
+  if (!limbLoss) return;
+  try { detailedLimb = game.settings.get("cyberpunk2020", "limbCripplingDetailed"); } catch (e) { /* default */ }
+
+  const liveTarget = game.actors.get(target.id) ?? target;
+  const liveToken  = token ?? canvas?.tokens?.placeables?.find(t => t.actor?.id === liveTarget.id) ?? null;
+
+  // Head wound > 8 net = automatic death (Listen Up does not change the head; always Core here).
+  if (location === "Head") {
+    if (netDamage > 8) {
+      await ChatMessage.create({
+        content: `
+<div class="cyberpunk save-result death-save-result">
+  <h3>☠ Head Wound — ${liveTarget.name}</h3>
+  <div>${netDamage} net damage to the head.</div>
+  <div style="margin-top:4px;"><span style="color:red;font-weight:bold;">☠ AUTOMATIC DEATH</span> — A head wound of more than 8 points kills automatically (CP2020 p.103). ${liveTarget.name} dies. Call Trauma Team.</div>
+</div>`,
+        speaker: ChatMessage.getSpeaker({ actor: liveTarget }),
+      });
+      const deadEffect = CONFIG.statusEffects.find(e => e.id === "dead");
+      if (deadEffect && liveToken?.document) {
+        await liveToken.document.toggleActiveEffect(deadEffect, { active: true });
+      }
+    }
+    return;
+  }
+
+  if (!LIMB_LOCATIONS.has(location)) return;
+  const limbName = LIMB_NAMES[location] ?? location;
+
+  if (detailedLimb) {
+    // Listen Up crippling bands (measured on the doubled netDamage).
+    if (netDamage >= 13 || netDamage >= 6) {
+      const destroyed = netDamage >= 13;
+      const status = destroyed ? "destroyed" : "crippled";
+      const cur = foundry.utils.duplicate(liveTarget.getFlag("cyberpunk2020", "limbStatus") ?? {});
+      cur[location] = status;
+      await liveTarget.setFlag("cyberpunk2020", "limbStatus", cur).catch(() => {});
+      await ChatMessage.create({
+        content: `<div class="cyberpunk save-prompt">
+          <h3>⚠ ${destroyed ? "Limb Destroyed" : "Limb Crippled"} — ${liveTarget.name}</h3>
+          <div><b>${netDamage} net damage to ${limbName}</b> — ${destroyed
+            ? "useless, blown off or shredded; needs replacement"
+            : "crippled and cannot be used until repaired/healed"} (Listen Up, Crippling Injuries).</div>
+        </div>`,
+        speaker: ChatMessage.getSpeaker({ actor: liveTarget }),
+      });
+    }
+    return;
+  }
+
+  // Core: a single hit of > 8 net to a limb severs/crushes it → immediate Death Save at Mortal 0.
+  if (netDamage > 8) {
+    await ChatMessage.create({
+      content: `<div class="cyberpunk save-prompt">
+        <h3>⚠ Limb Loss — ${liveTarget.name}</h3>
+        <div><b>${netDamage} net damage to ${limbName}</b> — severed or crushed beyond recognition (CP2020 p.103).</div>
+        <div style="margin-top:4px;">Immediate Death Save required at Mortal 0.</div>
+      </div>`,
+      speaker: ChatMessage.getSpeaker({ actor: liveTarget }),
+    });
+    await postDeathSavePrompt(liveTarget, liveToken, 0);
+  }
+}
+
 /**
  * Apply all hits in an areaDamages object to a target sequentially.
  * @param {Actor}   p.target
@@ -112,9 +215,6 @@ export async function applyAreaDamages({ target, areaDamages, ap, edged = false,
     liveSP[key] = Number(target.system.hitLocations?.[key]?.stoppingPower) || 0;
     return liveSP[key];
   };
-
-  const headDoubling = game.settings.get("cyberpunk2020", "headHitDoubling");
-  const limbLoss     = game.settings.get("cyberpunk2020", "limbLossEnabled");
 
   const allHits = [];
   for (const [location, hits] of Object.entries(areaDamages)) {
@@ -145,9 +245,8 @@ export async function applyAreaDamages({ target, areaDamages, ap, edged = false,
       currentSP, rawDamage, ap, armorMode, coverSP, penDamageMult,
     });
 
-    // Head hit doubling applied after BTM (CP2020 p.103) — never doubles 0 or negative
-    const btmDamage = applyBTM(damageAfterSP, btm, penetrates);
-    const netDamage = (headDoubling && location === "Head" && btmDamage > 0) ? btmDamage * 2 : btmDamage;
+    // netDamage centralizes head doubling (p.103) and the optional Listen Up limb model.
+    const netDamage = computeNetDamage(damageAfterSP, btm, penetrates, location);
 
     results.push({ location, rawDamage, spFull, spUsed, damageAfterSP, btm, netDamage, penetrates });
 
@@ -173,38 +272,9 @@ export async function applyAreaDamages({ target, areaDamages, ap, edged = false,
         liveSP[location] = _deriveLiveSP(target, location);
       }
 
-      // Limb loss / head wound threshold: >8 net damage (CP2020 p.103)
-      if (limbLoss && netDamage > 8) {
-        const LIMBS = new Set(["rArm", "lArm", "rLeg", "lLeg"]);
-        const liveTarget = game.actors.get(target.id) ?? target;
-        const liveToken  = canvas?.tokens?.placeables?.find(t => t.actor?.id === liveTarget.id) ?? null;
-        if (location === "Head") {
-          await ChatMessage.create({
-            content: `
-<div class="cyberpunk save-result death-save-result">
-  <h3>☠ Head Wound — ${liveTarget.name}</h3>
-  <div>${netDamage} net damage to the head.</div>
-  <div style="margin-top:4px;"><span style="color:red;font-weight:bold;">☠ AUTOMATIC DEATH</span> — A head wound of more than 8 points kills automatically (CP2020 p.103). ${liveTarget.name} dies. Call Trauma Team.</div>
-</div>`,
-            speaker: ChatMessage.getSpeaker({ actor: liveTarget }),
-          });
-          const deadEffect = CONFIG.statusEffects.find(e => e.id === "dead");
-          if (deadEffect && liveToken?.document) {
-            await liveToken.document.toggleActiveEffect(deadEffect, { active: true });
-          }
-        } else if (LIMBS.has(location)) {
-          const limbName = { rArm: "Right Arm", lArm: "Left Arm", rLeg: "Right Leg", lLeg: "Left Leg" }[location] ?? location;
-          await ChatMessage.create({
-            content: `<div class="cyberpunk save-prompt">
-              <h3>⚠ Limb Loss — ${liveTarget.name}</h3>
-              <div><b>${netDamage} net damage to ${limbName}</b> — severed or crushed beyond recognition (CP2020 p.103).</div>
-              <div style="margin-top:4px;">Immediate Death Save required at Mortal 0.</div>
-            </div>`,
-            speaker: ChatMessage.getSpeaker({ actor: liveTarget }),
-          });
-          await postDeathSavePrompt(liveTarget, liveToken, 0);
-        }
-      }
+      // Limb / head wound severity (CP2020 p.103 + optional Listen Up crippling) — centralized.
+      const liveToken = canvas?.tokens?.placeables?.find(t => t.actor?.id === target.id) ?? null;
+      await assessWoundSeverity(target, location, netDamage, { token: liveToken });
     }
   }
 

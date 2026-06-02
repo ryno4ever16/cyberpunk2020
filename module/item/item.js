@@ -153,8 +153,21 @@ export class CyberpunkItem extends Item {
 
   /** Returns just the payload-relevant subset of _getAmmoProps() for weaponFired hook emissions. */
   _getAmmoPayload() {
-    const { ap, armorMultSoft, armorMultHard, penDamageMult, stunSaveOnHit, stunSaveMod, dotEnabled, dotTurns, dotDamageFormula, dotType, effectTypes, blastRadius } = this._getAmmoProps();
-    return { ap, armorMultSoft, armorMultHard, penDamageMult, stunSaveOnHit, stunSaveMod, dotEnabled, dotTurns, dotDamageFormula, dotType, effectTypes, blastRadius };
+    const p = this._getAmmoProps();
+    const {
+      ap, armorMultSoft, armorMultHard, penDamageMult, stunSaveOnHit, stunSaveMod,
+      dotEnabled, dotTurns, dotDamageFormula, dotType, effectTypes, blastRadius,
+      blastFullDamageWithin, blastZones, blastMultipliers, blastShrapnel,
+      spreadMode, spreadWidthShort, spreadWidthMedium, spreadWidthLong,
+      spreadDamageShort, spreadDamageMedium, spreadDamageLong,
+    } = p;
+    return {
+      ap, armorMultSoft, armorMultHard, penDamageMult, stunSaveOnHit, stunSaveMod,
+      dotEnabled, dotTurns, dotDamageFormula, dotType, effectTypes, blastRadius,
+      blastFullDamageWithin, blastZones, blastMultipliers, blastShrapnel,
+      spreadMode, spreadWidthShort, spreadWidthMedium, spreadWidthLong,
+      spreadDamageShort, spreadDamageMedium, spreadDamageLong,
+    };
   }
 
   /**
@@ -170,7 +183,13 @@ export class CyberpunkItem extends Item {
     const sys = this._getWeaponSystem ? this._getWeaponSystem() : this.system;
     const weaponAP   = Boolean(sys?.ap);
 
-    const noEffects = { stunSaveOnHit: false, stunSaveMod: 0, dotEnabled: false, dotTurns: 0, dotDamageFormula: "", dotType: "acid", effectTypes: ["None"], blastRadius: 0 };
+    const noEffects = {
+      stunSaveOnHit: false, stunSaveMod: 0, dotEnabled: false, dotTurns: 0, dotDamageFormula: "", dotType: "acid",
+      effectTypes: ["None"], blastRadius: 0,
+      blastFullDamageWithin: 1, blastZones: 4, blastMultipliers: [0.5, 0.25, 0.125, 0.0625], blastShrapnel: false,
+      spreadMode: "single", spreadWidthShort: 1, spreadWidthMedium: 2, spreadWidthLong: 3,
+      spreadDamageShort: "", spreadDamageMedium: "", spreadDamageLong: "",
+    };
     const fallback = () => ({ ap: weaponAP, armorMultSoft: weaponAP ? 0.5 : 1.0, armorMultHard: weaponAP ? 0.5 : 1.0, accuracyMod: 0, rawDamageMult: 1.0, penDamageMult: 1.0, ...noEffects });
 
     // Resolve the rounds actually IN the magazine. Priority:
@@ -212,6 +231,17 @@ export class CyberpunkItem extends Item {
       dotType:          String(ammoSys?.dotType           ?? "acid"),
       effectTypes:      Array.isArray(ammoSys?.effectTypes) ? ammoSys.effectTypes : ["None"],
       blastRadius:      Number(ammoSys?.blastRadius        ?? 0),
+      blastFullDamageWithin: Number(ammoSys?.blastFullDamageWithin ?? 1),
+      blastZones:       Number(ammoSys?.blastZones        ?? 4),
+      blastMultipliers: Array.isArray(ammoSys?.blastMultipliers) ? ammoSys.blastMultipliers : [0.5, 0.25, 0.125, 0.0625],
+      blastShrapnel:    Boolean(ammoSys?.blastShrapnel),
+      spreadMode:       String(ammoSys?.spreadMode        ?? "single"),
+      spreadWidthShort:  Number(ammoSys?.spreadWidthShort  ?? 1),
+      spreadWidthMedium: Number(ammoSys?.spreadWidthMedium ?? 2),
+      spreadWidthLong:   Number(ammoSys?.spreadWidthLong   ?? 3),
+      spreadDamageShort:  String(ammoSys?.spreadDamageShort  ?? ""),
+      spreadDamageMedium: String(ammoSys?.spreadDamageMedium ?? ""),
+      spreadDamageLong:   String(ammoSys?.spreadDamageLong   ?? ""),
     };
 
     // If both mults are ≤ 0.5 (symmetric — standard AP rounds), use the ap flag path.

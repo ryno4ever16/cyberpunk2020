@@ -13,7 +13,7 @@
  * layer via the proportional table (CP2020 p.99).
  */
 
-import { ARMOR_MODES, resolveAreaDamagesSync, applyBTM, ablateLocationOnce } from "./DamageApplicator.js";
+import { ARMOR_MODES, resolveAreaDamagesSync, applyBTM, computeNetDamage, assessWoundSeverity, ablateLocationOnce } from "./DamageApplicator.js";
 import { postStunSavePrompt, postDeathSavePrompt, updateTaserState, applyAcidDotState, applyDotFromPayload } from "./save-rolls.js";
 
 export class DamageDialog extends FormApplication {
@@ -64,11 +64,9 @@ export class DamageDialog extends FormApplication {
       overridden: this._overrides[i] !== undefined,
     }));
 
-    const headDoubling = game.settings.get("cyberpunk2020", "headHitDoubling");
-    const totalNet = resolvedHits.reduce((s, h) => {
-      const btmResult = applyBTM(h.afterSP, btm, h.penetrates);
-      return s + ((headDoubling && h.location === "Head" && btmResult > 0) ? btmResult * 2 : btmResult);
-    }, 0);
+    const totalNet = resolvedHits.reduce(
+      (s, h) => s + computeNetDamage(h.afterSP, btm, h.penetrates, h.location), 0
+    );
 
     return {
       weaponName:   this.payload.weaponName,
@@ -134,12 +132,10 @@ export class DamageDialog extends FormApplication {
       armorMode,
       coverSP:     this._coverSP,
     });
-    const headDoublingLive = game.settings.get("cyberpunk2020", "headHitDoubling");
     let total = 0;
     base.forEach((hit, i) => {
-      const afterSP   = this._overrides[i] !== undefined ? this._overrides[i] : hit.damageAfterSP;
-      const btmResult = applyBTM(afterSP, btm, hit.penetrates);
-      total += (headDoublingLive && hit.location === "Head" && btmResult > 0) ? btmResult * 2 : btmResult;
+      const afterSP = this._overrides[i] !== undefined ? this._overrides[i] : hit.damageAfterSP;
+      total += computeNetDamage(afterSP, btm, hit.penetrates, hit.location);
     });
     html.find(".damage-total-value").text(total);
   }
@@ -167,14 +163,13 @@ export class DamageDialog extends FormApplication {
       coverSP,
     });
 
-    const headDoubling = game.settings.get("cyberpunk2020", "headHitDoubling");
-
-    // Pre-compute all per-hit final values (shared between socket relay and direct paths)
+    // Pre-compute all per-hit final values (shared between socket relay and direct paths).
+    // computeNetDamage centralizes head doubling (p.103) + the optional Listen Up limb model,
+    // so the player-side resolved values match the GM/auto-apply paths exactly.
     const resolvedHits = rawHits.map((hit, i) => {
       const afterSP   = this._overrides[i] !== undefined ? this._overrides[i] : hit.damageAfterSP;
-      // BTM applied at click time; head doubling applied after BTM (see module header)
       const btmResult = applyBTM(afterSP, btm, hit.penetrates);
-      const netDamage = (headDoubling && hit.location === "Head" && btmResult > 0) ? btmResult * 2 : btmResult;
+      const netDamage = computeNetDamage(afterSP, btm, hit.penetrates, hit.location);
       return { location: hit.location, afterSP, penetrates: hit.penetrates, btmResult, netDamage };
     });
     const totalApplied = resolvedHits.reduce((s, h) => s + h.netDamage, 0);
@@ -218,6 +213,12 @@ export class DamageDialog extends FormApplication {
       // Ablation gates on the bullet penetrating, not on the doubled HP value
       if (ablate && armorMode === ARMOR_MODES.FULL && hit.btmResult > 0) {
         await ablateLocationOnce(this.target, hit.location);
+      }
+
+      // Limb / head wound severity (CP2020 p.103 + optional crippling). Previously this only
+      // ran on the auto-apply / socket paths, so the GM dialog silently skipped it — fixed here.
+      if (hit.netDamage > 0) {
+        await assessWoundSeverity(this.target, hit.location, hit.netDamage);
       }
     }
 

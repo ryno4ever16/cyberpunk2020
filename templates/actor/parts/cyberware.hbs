@@ -7,6 +7,14 @@
         <label for="system.stats.emp.humanity.loss">{{CPLocal "HumanityLoss"}}</label>
         <input class="not-editable" name="system.stats.emp.humanity.loss" type="number" value="{{system.stats.emp.humanity.loss}}" readonly>
     </div>
+    {{#if system.stats.emp.cyberpsychosis}}
+    <div class="field" title="{{system.stats.emp.cyberpsychosis.label}}">
+        <label>{{CPLocal "Cyberpsychosis"}}</label>
+        <input class="not-editable cp-cyberpsychosis-state" data-state="{{system.stats.emp.cyberpsychosis.state}}" type="text"
+               value="{{system.stats.emp.cyberpsychosis.label}}"
+               style="{{#if system.stats.emp.cyberpsychosis.lost}}color:#ff4040;font-weight:bold;{{else if system.stats.emp.cyberpsychosis.atRisk}}color:#ffaa33;{{/if}}" readonly>
+    </div>
+    {{/if}}
 </div>
 
 <header class="cyberware-header">

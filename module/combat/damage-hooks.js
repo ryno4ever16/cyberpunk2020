@@ -19,7 +19,7 @@
  */
 
 import { DamageDialog }                                       from "./DamageDialog.js";
-import { applyAreaDamages, ablateLocationOnce, ablateLocationByAmount, ARMOR_MODES } from "./DamageApplicator.js";
+import { applyAreaDamages, ablateLocationOnce, ablateLocationByAmount, assessWoundSeverity, ARMOR_MODES } from "./DamageApplicator.js";
 import { postStunSavePrompt, postDeathSavePrompt, updateTaserState, applyAcidDotState, applyDotFromPayload } from "./save-rolls.js";
 import { rollLocation }                                       from "../utils.js";
 
@@ -65,6 +65,8 @@ export function registerDamageHooks() {
   _hookDodgeParry();
   _hookDotEffects();
   _hookGasCloud();
+  _hookExplosion();
+  _hookSpread();
   _hookMultiActionPenalty();
   _hookAutomationMigrationNotice();
   _hookSocketRelay();
@@ -74,12 +76,26 @@ export function registerDamageHooks() {
   document.addEventListener("click", async (ev) => {
     const evasionBtn    = ev.target.closest(".cp-suppression-evasion-roll");
     const confirmBtn    = ev.target.closest(".cp-confirm-fire-zone");
+    const blastBtn      = ev.target.closest(".cp-confirm-explosion");
+    const spreadBtn     = ev.target.closest(".cp-confirm-spread-zone");
     const takeAimBtn    = ev.target.closest(".cp-take-aim-btn");
     const waitBtn       = ev.target.closest(".cp-wait-for-turn-btn");
     const actNowBtn     = ev.target.closest(".cp-wait-act-btn");
     const dodgeBtn      = ev.target.closest(".cp-dodge-btn");
     const parryBtn      = ev.target.closest(".cp-parry-btn");
     const addActionBtn  = ev.target.closest(".cp-add-action-btn");
+
+    if (blastBtn && !blastBtn.disabled) {
+      ev.preventDefault();
+      blastBtn.disabled = true;
+      await _confirmExplosion(blastBtn.dataset.templateId);
+    }
+
+    if (spreadBtn && !spreadBtn.disabled) {
+      ev.preventDefault();
+      spreadBtn.disabled = true;
+      await _confirmSpreadZone(spreadBtn.dataset.templateId);
+    }
 
     if (evasionBtn && !evasionBtn.disabled) {
       ev.preventDefault();
@@ -233,6 +249,12 @@ export function registerDamageHooks() {
 
 function _hookWeaponFired() {
   Hooks.on("cyberpunk2020.weaponFired", async (payload) => {
+    // Area-effect ammo is owned by the dedicated explosion/spread hooks. Skip the single-target
+    // apply path here so the primary target isn't damaged twice. The per-token blast/pattern
+    // re-emits plain weaponFired payloads (no effectTypes/spreadMode), which fall through normally.
+    if ((payload.effectTypes ?? []).includes("Explosive")) return;
+    if (payload.spreadMode && payload.spreadMode !== "single") return;
+
     // item.js uses "attackerId"; support legacy "actorId" for any third-party callers.
     const attackerActorId = payload.attackerId ?? payload.actorId ?? null;
     const attackerActor = attackerActorId ? game.actors.get(attackerActorId) : null;
@@ -1326,6 +1348,250 @@ function _hookGasCloud() {
   });
 }
 
+/** Apply one area-effect hit to a token's actor through the normal pipeline (GM-side, direct). */
+async function _applyAreaHitToToken(tok, dmg, { ap, edged, armorMultSoft, armorMultHard, penDamageMult, weaponName }) {
+  if (!tok?.actor || dmg <= 0) return 0;
+  const loc = (await rollLocation(tok.actor, null)).areaHit;
+  const hits = await applyAreaDamages({
+    target:        tok.actor,
+    areaDamages:   { [loc]: [{ damage: dmg }] },
+    ap:            Boolean(ap),
+    edged:         Boolean(edged),
+    armorMultSoft: Number(armorMultSoft ?? 1),
+    armorMultHard: Number(armorMultHard ?? 1),
+    penDamageMult: Number(penDamageMult ?? 1),
+    armorMode:     game.settings.get("cyberpunk2020", "damageArmorMode"),
+    ablate:        game.settings.get("cyberpunk2020", "damageAblation"),
+    dryRun:        false,
+  });
+  const total = hits.reduce((s, h) => s + h.netDamage, 0);
+  if (total > 0) {
+    const ws = tok.actor.woundState?.() ?? 0;
+    if (ws >= 4) await postDeathSavePrompt(tok.actor, tok);
+    else if (ws > 0) await postStunSavePrompt(tok.actor, tok);
+  }
+  return total;
+}
+
+/**
+ * Explosions & grenades (CP2020 p.108). Ammo whose effectTypes include "Explosive" detonates as an
+ * area-effect blast: a circle of radius blastRadius centered on the target (or attacker), with
+ * range-banded damage falloff outward (blastMultipliers). The GM repositions/confirms, then every
+ * token in the blast takes damage through the normal pipeline. Mirrors gas-cloud + suppressive-confirm.
+ */
+function _hookExplosion() {
+  const enabled = () => { try { return game.settings.get("cyberpunk2020", "explosivesEnabled"); } catch { return true; } };
+
+  Hooks.on("cyberpunk2020.weaponFired", async (payload) => {
+    if (!game.user.isGM) return;
+    if (game.users.activeGM?.id !== game.user.id) return;   // only the primary GM places it
+    if (!enabled()) return;
+    if (!(payload.effectTypes ?? []).includes("Explosive")) return;
+
+    const scene = canvas?.scene;
+    if (!scene) return;
+
+    const attackerId = payload.attackerId ?? payload.attackerActorId ?? payload.actorId ?? null;
+
+    // Blast center: target token position, else attacker token.
+    let cx = null, cy = null;
+    if (payload.targetTokenId) {
+      const tok = canvas?.tokens?.placeables?.find(t => t.id === payload.targetTokenId);
+      if (tok) { cx = tok.center?.x ?? tok.x; cy = tok.center?.y ?? tok.y; }
+    }
+    if (cx === null && attackerId) {
+      const atk = canvas?.tokens?.placeables?.find(t => t.actor?.id === attackerId);
+      if (atk) { cx = atk.center?.x ?? atk.x; cy = atk.center?.y ?? atk.y; }
+    }
+    if (cx === null) return;
+
+    // Base blast damage = the rolled weapon damage carried in areaDamages.
+    let baseDamage = 0;
+    for (const hits of Object.values(payload.areaDamages ?? {})) {
+      for (const h of (hits ?? [])) baseDamage += Number(h.damage ?? h.dmg) || 0;
+    }
+    const radius = Number(payload.blastRadius) || 0;
+    if (baseDamage <= 0 || radius <= 0) return;
+
+    const weaponName = payload.weaponName ?? "Explosion";
+    const fullWithin = Number(payload.blastFullDamageWithin ?? 1);
+    const templateData = {
+      t: "circle", x: cx, y: cy, direction: 0, distance: radius,
+      fillColor: "#ff8800", borderColor: "#cc4400",
+      flags: { cyberpunk2020: {
+        isExplosion: true, baseDamage, blastRadius: radius, blastFullDamageWithin: fullWithin,
+        blastMultipliers: Array.isArray(payload.blastMultipliers) ? payload.blastMultipliers : [0.5, 0.25, 0.125, 0.0625],
+        attackerId, ap: Boolean(payload.ap), edged: Boolean(payload.edged),
+        armorMultSoft: Number(payload.armorMultSoft ?? 1), armorMultHard: Number(payload.armorMultHard ?? 1),
+        penDamageMult: Number(payload.penDamageMult ?? 1), weaponName, createdRound: game.combat?.round ?? 0,
+      } },
+    };
+
+    let created;
+    try { [created] = await scene.createEmbeddedDocuments("MeasuredTemplate", [templateData]); }
+    catch (err) { console.warn("CP2020 | Explosion template creation failed:", err); return; }
+
+    await ChatMessage.create({
+      content: `<div class="cyberpunk save-prompt">
+  <h3>💥 Explosion — ${weaponName}</h3>
+  <div class="save-info"><span>Blast radius <b>${radius}m</b>, base damage <b>${baseDamage}</b>, full damage within <b>${fullWithin}m</b>.</span><br>
+  <span style="opacity:0.75; font-size:0.85em;">Reposition the blast template to set the true center (scatter, cover), then click Confirm. Damage falls off by distance.</span></div>
+  <div class="save-buttons" style="margin-top:6px;">
+    <button class="cp-confirm-explosion" data-template-id="${created.id}">💥 Confirm Blast</button>
+  </div>
+</div>`,
+      speaker: ChatMessage.getSpeaker({ actor: attackerId ? (game.actors.get(attackerId) ?? undefined) : undefined }),
+    });
+  });
+}
+
+/** Detonate a confirmed blast: damage every token in the template with range-banded falloff. */
+async function _confirmExplosion(templateId) {
+  if (!canvas?.scene || !templateId) return;
+  const tmplDoc = canvas.scene.templates.get(templateId);
+  if (!tmplDoc) { ui.notifications.warn("Explosion template not found — it may have been removed."); return; }
+  const f = tmplDoc.flags?.cyberpunk2020;
+  if (!f?.isExplosion) return;
+
+  const tmplObj = tmplDoc.object ?? canvas.templates.placeables.find(t => t.document.id === templateId);
+  if (!tmplObj?.shape) { ui.notifications.warn("Blast shape not ready — try again in a moment."); return; }
+
+  const scene    = canvas.scene;
+  const gridSize = scene.grid?.size ?? canvas?.grid?.size ?? 100;
+  const gridDist = scene.grid?.distance ?? 1;
+  const fullR    = Number(f.blastFullDamageWithin) || 1;
+  const radius   = Number(f.blastRadius) || 1;
+  const mults    = Array.isArray(f.blastMultipliers) && f.blastMultipliers.length ? f.blastMultipliers : [0.5, 0.25, 0.125, 0.0625];
+  const base     = Number(f.baseDamage) || 0;
+
+  const tokens = canvas.tokens.placeables.filter(tok => {
+    if (!tok.actor) return false;
+    const lx = (tok.center?.x ?? tok.x) - tmplObj.x;
+    const ly = (tok.center?.y ?? tok.y) - tmplObj.y;
+    return tmplObj.shape.contains(lx, ly);
+  });
+  if (!tokens.length) { ui.notifications.info("No tokens in the blast."); return; }
+
+  for (const tok of tokens) {
+    const dxPx = (tok.center?.x ?? tok.x) - tmplObj.x;
+    const dyPx = (tok.center?.y ?? tok.y) - tmplObj.y;
+    const distM = (Math.hypot(dxPx, dyPx) / gridSize) * gridDist;
+
+    let mult = 1;
+    if (distM > fullR) {
+      const span = Math.max(0.0001, radius - fullR);
+      const band = Math.min(mults.length - 1, Math.max(0, Math.floor(((distM - fullR) / span) * mults.length)));
+      mult = Number(mults[band]) || 0;
+    }
+    const dmg = Math.max(0, Math.floor(base * mult));
+    await _applyAreaHitToToken(tok, dmg, { ...f, weaponName: (f.weaponName ?? "Explosion") + " (blast)" });
+  }
+}
+
+/**
+ * Shotgun / flechette spread (CP2020 p.108). Ammo whose spreadMode is not "single" fires a widening
+ * pattern: a ray from the attacker toward the target, width by range band (Close/Med/Long), with
+ * range-banded damage (ammo override, else Core 4d6/3d6/2d6). Everyone in the straight path is hit
+ * (no evasion). The GM aims and confirms, mirroring suppressive fire.
+ */
+function _hookSpread() {
+  const enabled = () => { try { return game.settings.get("cyberpunk2020", "shotgunSpreadEnabled"); } catch { return true; } };
+
+  Hooks.on("cyberpunk2020.weaponFired", async (payload) => {
+    if (!game.user.isGM) return;
+    if (game.users.activeGM?.id !== game.user.id) return;
+    if (!enabled()) return;
+    const mode = payload.spreadMode;
+    if (!mode || mode === "single") return;
+
+    const scene = canvas?.scene;
+    if (!scene) return;
+
+    const attackerId = payload.attackerId ?? payload.attackerActorId ?? payload.actorId ?? null;
+    const atk = attackerId ? canvas?.tokens?.placeables?.find(t => t.actor?.id === attackerId) : null;
+    if (!atk) {
+      ui.notifications.warn("Spread fire: the attacker's token isn't on the active scene, so the pattern can't be placed.");
+      return;
+    }
+    const ox = atk.center?.x ?? atk.x, oy = atk.center?.y ?? atk.y;
+    const gridSize = scene.grid?.size ?? canvas?.grid?.size ?? 100;
+    const gridDist = scene.grid?.distance ?? 1;
+
+    // Direction + range band toward the target (East + Medium if no target).
+    let angleDeg = 0, band = "Medium", lengthM = 10;
+    const tgt = payload.targetTokenId ? canvas?.tokens?.placeables?.find(t => t.id === payload.targetTokenId) : null;
+    if (tgt) {
+      const tx = tgt.center?.x ?? tgt.x, ty = tgt.center?.y ?? tgt.y;
+      angleDeg = Math.round(Math.atan2(ty - oy, tx - ox) * 180 / Math.PI);
+      const distM = (Math.hypot(tx - ox, ty - oy) / gridSize) * gridDist;
+      band = distM <= 6 ? "Short" : (distM <= 25 ? "Medium" : "Long");   // CP2020 close / medium / long
+      lengthM = Math.max(2, distM);
+    }
+
+    const widthM = band === "Short" ? Number(payload.spreadWidthShort ?? 1)
+                 : band === "Long"  ? Number(payload.spreadWidthLong  ?? 3)
+                 :                     Number(payload.spreadWidthMedium ?? 2);
+    const dmgFormula =
+      (band === "Short" ? payload.spreadDamageShort : band === "Long" ? payload.spreadDamageLong : payload.spreadDamageMedium)
+      || (band === "Short" ? "4d6" : band === "Long" ? "2d6" : "3d6");   // Core defaults
+
+    const weaponName = payload.weaponName ?? "Shotgun";
+    const templateData = {
+      t: "ray", x: ox, y: oy, direction: angleDeg, distance: lengthM, width: widthM,
+      fillColor: "#ffaa00", borderColor: "#cc6600",
+      flags: { cyberpunk2020: {
+        isSpreadZone: true, dmgFormula, band, attackerId,
+        ap: Boolean(payload.ap), edged: Boolean(payload.edged),
+        armorMultSoft: Number(payload.armorMultSoft ?? 1), armorMultHard: Number(payload.armorMultHard ?? 1),
+        penDamageMult: Number(payload.penDamageMult ?? 1), weaponName, createdRound: game.combat?.round ?? 0,
+      } },
+    };
+
+    let created;
+    try { [created] = await scene.createEmbeddedDocuments("MeasuredTemplate", [templateData]); }
+    catch (err) { console.warn("CP2020 | Spread template creation failed:", err); return; }
+
+    await ChatMessage.create({
+      content: `<div class="cyberpunk save-prompt">
+  <h3>🔫 Spread Pattern — ${weaponName}</h3>
+  <div class="save-info"><span>Range band <b>${band}</b>: width <b>${widthM}m</b>, damage <b>${dmgFormula}</b>.</span><br>
+  <span style="opacity:0.75; font-size:0.85em;">Aim the pattern, then click Confirm. Everyone in the straight path is hit (CP2020 p.108).</span></div>
+  <div class="save-buttons" style="margin-top:6px;">
+    <button class="cp-confirm-spread-zone" data-template-id="${created.id}">🔫 Confirm Spread Pattern</button>
+  </div>
+</div>`,
+      speaker: ChatMessage.getSpeaker({ actor: attackerId ? (game.actors.get(attackerId) ?? undefined) : undefined }),
+    });
+  });
+}
+
+/** Apply spread damage to every token in the confirmed pattern (no evasion — buckshot just hits). */
+async function _confirmSpreadZone(templateId) {
+  if (!canvas?.scene || !templateId) return;
+  const tmplDoc = canvas.scene.templates.get(templateId);
+  if (!tmplDoc) { ui.notifications.warn("Spread template not found — it may have been removed."); return; }
+  const f = tmplDoc.flags?.cyberpunk2020;
+  if (!f?.isSpreadZone) return;
+
+  const tmplObj = tmplDoc.object ?? canvas.templates.placeables.find(t => t.document.id === templateId);
+  if (!tmplObj?.shape) { ui.notifications.warn("Spread shape not ready — try again in a moment."); return; }
+
+  const tokens = canvas.tokens.placeables.filter(tok => {
+    if (!tok.actor) return false;
+    if (tok.actor.id === f.attackerId) return false;   // never the shooter
+    const lx = (tok.center?.x ?? tok.x) - tmplObj.x;
+    const ly = (tok.center?.y ?? tok.y) - tmplObj.y;
+    return tmplObj.shape.contains(lx, ly);
+  });
+  if (!tokens.length) { ui.notifications.info("No tokens in the spread pattern."); return; }
+
+  for (const tok of tokens) {
+    const dmgRoll = await new Roll(f.dmgFormula || "3d6").evaluate();
+    const dmg = Math.max(0, Math.floor(dmgRoll.total));
+    await _applyAreaHitToToken(tok, dmg, { ...f, weaponName: (f.weaponName ?? "Shotgun") + " (spread)" });
+  }
+}
+
 /**
  * Multi-action penalty tracker (CP2020 p.105 — −3 per additional action).
  * Auto-tracks weapon fire, Aim, Dodge, and Parry; ➕ button for untracked actions.
@@ -1621,7 +1887,6 @@ function _hookSocketRelay() {
 
       } else if (data.mode === "resolved") {
         // Apply pre-computed per-hit values from the player's damage dialog
-        const limbLoss = (() => { try { return game.settings.get("cyberpunk2020", "limbLossEnabled"); } catch { return true; } })();
         let currentDamage = Number(target.system.damage) || 0;
 
         for (const hit of data.resolvedHits) {
@@ -1647,27 +1912,10 @@ function _hookSocketRelay() {
             await ablateLocationOnce(target, hit.location);
           }
 
-          // Limb loss / head wound threshold (CP2020 p.103)
-          if (limbLoss && hit.netDamage > 8) {
-            const LIMBS = new Set(["rArm", "lArm", "rLeg", "lLeg"]);
+          // Limb / head wound severity (CP2020 p.103 + optional Listen Up crippling) — centralized.
+          if (hit.netDamage > 0) {
             const liveToken = canvas?.tokens?.placeables?.find(t => t.actor?.id === target.id) ?? null;
-            if (hit.location === "Head") {
-              await ChatMessage.create({
-                content: `<div class="cyberpunk save-result death-save-result"><h3>☠ Head Wound — ${target.name}</h3><div>${hit.netDamage} net damage to the head.</div><div style="margin-top:4px;"><span style="color:red;font-weight:bold;">☠ AUTOMATIC DEATH</span> — A head wound of more than 8 points kills automatically (CP2020 p.103). ${target.name} dies. Call Trauma Team.</div></div>`,
-                speaker: ChatMessage.getSpeaker({ actor: target }),
-              });
-              const deadEffect = CONFIG.statusEffects.find(e => e.id === "dead");
-              if (deadEffect && liveToken?.document) {
-                await liveToken.document.toggleActiveEffect(deadEffect, { active: true });
-              }
-            } else if (LIMBS.has(hit.location)) {
-              const limbName = { rArm: "Right Arm", lArm: "Left Arm", rLeg: "Right Leg", lLeg: "Left Leg" }[hit.location] ?? hit.location;
-              await ChatMessage.create({
-                content: `<div class="cyberpunk save-prompt"><h3>⚠ Limb Loss — ${target.name}</h3><div><b>${hit.netDamage} net damage to ${limbName}</b> — severed or crushed beyond recognition (CP2020 p.103).</div><div style="margin-top:4px;">Immediate Death Save required at Mortal 0.</div></div>`,
-                speaker: ChatMessage.getSpeaker({ actor: target }),
-              });
-              await postDeathSavePrompt(target, liveToken, 0);
-            }
+            await assessWoundSeverity(target, hit.location, hit.netDamage, { token: liveToken });
           }
         }
 
