@@ -1,0 +1,101 @@
+<form class="{{cssClass}} flexcol" autocomplete="off">
+    {{!-- Header --}}
+    <header class="cyberheader">
+        <div class="flexrow">
+            <img class="profile-img" src="{{actor.img}}" data-edit="img" title="{{actor.name}}" height="64" width="64"/>
+            <div class="flexcol" style="flex:1; margin-left:8px;">
+                <h1 class="title"><input type="text" class="field-value" name="name" value="{{actor.name}}"/></h1>
+                <div class="fieldrow">
+                    <div class="field">
+                        <label>Type</label>
+                        <select name="system.vehicleType">
+                            {{#each vehicleTypes}}<option value="{{this}}" {{#if (equals ../system.vehicleType this)}}selected{{/if}}>{{this}}</option>{{/each}}
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>ACPA (Powered Armor)</label>
+                        <input type="checkbox" name="system.isACPA" {{#if system.isACPA}}checked{{/if}}/>
+                    </div>
+                    <div class="field" title="Active vehicle ruleset (world setting)">
+                        <label>Ruleset</label>
+                        <input type="text" class="not-editable" value="{{ruleSystem}}" readonly/>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="sheet-body flexcol" style="overflow-y:auto;">
+
+        {{!-- Armor & Structure --}}
+        <h2 class="cyber-section-header">Armor &amp; Structure</h2>
+        <div class="field-list">
+            <div class="field">
+                <label>{{#if isMM}}Front SP{{else}}Stopping Power (SP){{/if}}</label>
+                <input type="number" name="system.sp.front" value="{{system.sp.front}}"/>
+            </div>
+            <div class="field" title="Armor Value = SP / 20 (Maximum Metal)">
+                <label>AV (front)</label>
+                <input type="number" class="not-editable" value="{{system.armorValue.front}}" readonly/>
+            </div>
+        </div>
+        {{#if isMM}}
+        <div class="field-list">
+            <div class="field"><label>Side SP</label><input type="number" name="system.sp.side" value="{{system.sp.side}}"/></div>
+            <div class="field"><label>AV side</label><input type="number" class="not-editable" value="{{system.armorValue.side}}" readonly/></div>
+            <div class="field"><label>Rear SP</label><input type="number" name="system.sp.rear" value="{{system.sp.rear}}"/></div>
+            <div class="field"><label>AV rear</label><input type="number" class="not-editable" value="{{system.armorValue.rear}}" readonly/></div>
+        </div>
+        <div class="field-list">
+            <div class="field"><label>Top SP</label><input type="number" name="system.sp.top" value="{{system.sp.top}}"/></div>
+            <div class="field"><label>AV top</label><input type="number" class="not-editable" value="{{system.armorValue.top}}" readonly/></div>
+            <div class="field"><label>Bottom SP</label><input type="number" name="system.sp.bottom" value="{{system.sp.bottom}}"/></div>
+            <div class="field"><label>AV bottom</label><input type="number" class="not-editable" value="{{system.armorValue.bottom}}" readonly/></div>
+        </div>
+        {{/if}}
+        <div class="field-list">
+            <div class="field"><label>SDP (current)</label><input type="number" name="system.sdp.value" value="{{system.sdp.value}}"/></div>
+            <div class="field"><label>SDP (max)</label><input type="number" name="system.sdp.max" value="{{system.sdp.max}}"/></div>
+            <div class="field" title="Body Value = SDP / 20 (or STR / 20 for ACPA)">
+                <label>Body Value</label>
+                <input type="number" class="not-editable" value="{{system.bodyValue}}" readonly/>
+            </div>
+            {{#if system.destroyed}}<div class="field"><label style="color:#ff4040;font-weight:bold;">DESTROYED</label></div>{{/if}}
+        </div>
+        {{#if system.isACPA}}
+        <div class="field-list">
+            <div class="field" title="Chassis STR drives Body Value for ACPA"><label>Chassis STR</label><input type="number" name="system.str" value="{{system.str}}"/></div>
+        </div>
+        {{/if}}
+
+        {{!-- Movement --}}
+        <h2 class="cyber-section-header">Movement</h2>
+        <div class="field-list">
+            <div class="field"><label>Top Speed</label><input type="number" name="system.topSpeed" value="{{system.topSpeed}}"/></div>
+            <div class="field"><label>Safe Speed</label><input type="number" name="system.safeSpeed" value="{{system.safeSpeed}}"/></div>
+        </div>
+        <div class="field-list">
+            <div class="field"><label>Acceleration</label><input type="number" name="system.acc" value="{{system.acc}}"/></div>
+            <div class="field"><label>Deceleration</label><input type="number" name="system.dec" value="{{system.dec}}"/></div>
+            <div class="field"><label>Control Mod</label><input type="number" name="system.controlMod" value="{{system.controlMod}}"/></div>
+        </div>
+
+        {{!-- Crew & Systems --}}
+        <h2 class="cyber-section-header">Crew &amp; Systems</h2>
+        <div class="field-list">
+            <div class="field"><label>Crew Slots</label><input type="number" name="system.crewSlots" value="{{system.crewSlots}}"/></div>
+            <div class="field"><label>Passenger Slots</label><input type="number" name="system.passengerSlots" value="{{system.passengerSlots}}"/></div>
+        </div>
+        <div class="field-list">
+            <div class="field"><label>Vehicle Link</label><input type="checkbox" name="system.vehicleLink" {{#if system.vehicleLink}}checked{{/if}}/></div>
+            <div class="field"><label>Damage Control</label><input type="checkbox" name="system.damageControl" {{#if system.damageControl}}checked{{/if}}/></div>
+            <div class="field"><label>Fire Control</label><input type="number" name="system.fireControl" value="{{system.fireControl}}"/></div>
+        </div>
+
+        {{!-- Notes --}}
+        <h2 class="cyber-section-header">Notes</h2>
+        <textarea name="system.notes" rows="4" style="width:100%;">{{system.notes}}</textarea>
+
+        <p style="opacity:0.6; font-size:0.8em; margin-top:6px;">Weapon mounts, control rolls, and the damage resolver arrive in later phases. Place this vehicle on the canvas as a scalable tile in Phase 2.</p>
+    </div>
+</form>

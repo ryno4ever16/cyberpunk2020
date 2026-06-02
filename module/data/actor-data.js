@@ -132,3 +132,75 @@ class CyberpunkBaseActorData extends foundry.abstract.TypeDataModel {
 
 export class CyberpunkCharacterData extends CyberpunkBaseActorData {}
 export class CyberpunkNpcData extends CyberpunkBaseActorData {}
+
+/**
+ * Vehicle / ACPA actor (CP2020 Core "Vehicles in FNFF" p.112 + Maximum Metal).
+ * Standalone schema — vehicles have no stats/skills/hitLocations. Armor is stored per
+ * facing (Core uses `front` as its single SP); Maximum Metal needs all five for flank rules.
+ * Derived Armor Value (SP/20) and Body Value (SDP/20, or STR/20 for ACPA) are recomputed
+ * in prepareDerivedData. Canvas link to the art Tile lives in flags, not the schema.
+ */
+export class CyberpunkVehicleActorData extends foundry.abstract.TypeDataModel {
+  static defineSchema() {
+    return {
+      vehicleType: stringField("car"),   // car/sportscar/limo/AV-4/AV-6/AV-7/cycle/truck/rotor/osprey/boat/tank/APC/acpa
+      isACPA:      booleanField(false),
+      str:         numberField(0),        // ACPA chassis STR — drives Body Value when isACPA
+
+      // Armor SP per facing. Core mode edits only `front` (its single SP).
+      sp:  objectField({ front: 0, side: 0, rear: 0, top: 0, bottom: 0 }),
+      // Structure (no hit locations in the simple system).
+      sdp: objectField({ value: 0, max: 0 }),
+
+      // Movement
+      topSpeed:   numberField(0),
+      safeSpeed:  numberField(0),
+      acc:        numberField(0),
+      dec:        numberField(0),
+      controlMod: numberField(0),
+
+      // Crew
+      crewSlots:      numberField(1),
+      passengerSlots: numberField(0),
+
+      // Systems
+      vehicleLink:   booleanField(false),
+      damageControl: booleanField(false),
+      fireControl:   numberField(0),
+      countermeasures: arrayField(stringField(), []),
+      weaponMounts:    arrayField(null, []),   // [{ name, penetration, rof, shots, range, arc, ammoType }]
+
+      // Status (set by the damage resolver in later phases)
+      onFire:         booleanField(false),
+      immobilized:    booleanField(false),
+      damagedSystems: arrayField(stringField(), []),
+
+      // Derived (recomputed each prepare; stored so they're available to templates/rolls)
+      armorValue: objectField({ front: 0, side: 0, rear: 0, top: 0, bottom: 0 }),
+      bodyValue:  numberField(0),
+      destroyed:  booleanField(false),
+
+      notes: htmlField("")
+    };
+  }
+
+  static migrateData(source) {
+    source ??= {};
+    if (hasOwn(source, "sp"))  source.sp  = mergeDefaults(source.sp,  { front: 0, side: 0, rear: 0, top: 0, bottom: 0 });
+    if (hasOwn(source, "sdp")) source.sdp = mergeDefaults(source.sdp, { value: 0, max: 0 });
+    return super.migrateData(source);
+  }
+
+  prepareDerivedData() {
+    super.prepareDerivedData();
+    const av = (sp) => Math.round((Number(sp) || 0) / 20);   // Armor Value = SP/20 (MM p.4)
+    const sp = this.sp ?? {};
+    this.armorValue = {
+      front: av(sp.front), side: av(sp.side), rear: av(sp.rear), top: av(sp.top), bottom: av(sp.bottom)
+    };
+    // Body Value = SDP/20; ACPA uses chassis STR as its SDP source.
+    const sdpMax = this.isACPA ? (Number(this.str) || 0) : (Number(this.sdp?.max) || 0);
+    this.bodyValue = Math.round(sdpMax / 20);
+    this.destroyed = sdpMax > 0 && (Number(this.sdp?.value) || 0) <= 0;
+  }
+}

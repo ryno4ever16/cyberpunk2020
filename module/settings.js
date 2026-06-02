@@ -443,6 +443,20 @@ export function registerSystemSettings() {
     default: true,
   });
 
+  // --- Vehicles: which ruleset the vehicle resolver uses ---
+  game.settings.register("cyberpunk2020", "vehicleRuleSystem", {
+    name: "Vehicles: Rule System",
+    hint: "Core = the simple Vehicles-in-FNFF rules (Control Roll vs DV 15/20/25, SP−SDP damage, crash = speed/20 × weight). Maximum Metal = the detailed military system (Penetration vs Armor Value, Surface/Minor/Major/Catastrophic damage, hit-location & crit tables, ACPA). The vehicle sheet shows a single SP in Core mode and all five facings under Maximum Metal.",
+    scope:   "world",
+    config:  true,
+    type:    String,
+    choices: {
+      "Core":         "Core (simple — Vehicles in FNFF, p.112)",
+      "MaximumMetal": "Maximum Metal (detailed — Penetration/Armor Value)",
+    },
+    default: "Core",
+  });
+
   // --- Combat: Detailed explosives / HEP concussion (Listen Up, optional) ---
   game.settings.register("cyberpunk2020", "explosivesDetailed", {
     name: "Combat: Detailed Explosives — HEP Concussion (Listen Up)",

@@ -1,8 +1,9 @@
 import { CyberpunkActor } from "./actor/actor.js";
 import { CyberpunkActorSheet } from "./actor/actor-sheet.js";
+import { CyberpunkVehicleSheet } from "./actor/vehicle-sheet.js";
 import { CyberpunkItem } from "./item/item.js";
 import { CyberpunkItemSheet } from "./item/item-sheet.js";
-import { CyberpunkCharacterData, CyberpunkNpcData } from "./data/actor-data.js";
+import { CyberpunkCharacterData, CyberpunkNpcData, CyberpunkVehicleActorData } from "./data/actor-data.js";
 import {
     CyberpunkAmmoData,
     CyberpunkArmorData,
@@ -42,6 +43,7 @@ Hooks.once('init', async function () {
     // These replace legacy system-template initialization for Actor/Item system data.
     CONFIG.Actor.dataModels.character = CyberpunkCharacterData;
     CONFIG.Actor.dataModels.npc = CyberpunkNpcData;
+    CONFIG.Actor.dataModels.vehicle = CyberpunkVehicleActorData;
 
     CONFIG.Item.dataModels.skill = CyberpunkSkillData;
     CONFIG.Item.dataModels.program = CyberpunkProgramData;
@@ -54,7 +56,8 @@ Hooks.once('init', async function () {
 
     // Register sheets, unregister original core sheets
     Actors.unregisterSheet("core", ActorSheet);
-    Actors.registerSheet("cyberpunk2020", CyberpunkActorSheet, { makeDefault: true });
+    Actors.registerSheet("cyberpunk2020", CyberpunkActorSheet, { types: ["character", "npc"], makeDefault: true });
+    Actors.registerSheet("cyberpunk2020", CyberpunkVehicleSheet, { types: ["vehicle"], makeDefault: true });
     Items.unregisterSheet("core", ItemSheet);
     Items.registerSheet("cyberpunk2020", CyberpunkItemSheet, { makeDefault: true });
 
