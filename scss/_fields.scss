@@ -120,5 +120,29 @@
         font-size: larger;
         font-style: italic;
     }
+
+    // Compact inline icon button (e.g. the ammo quantity lock). Strips default button chrome
+    // so it reads as a small toggle aligned with the field it sits beside.
+    button.cp-ammo-qty-lock {
+        flex: 0 0 auto;
+        width: auto;
+        min-width: 0;
+        align-self: stretch;
+        margin: 0;
+        padding: 0 5px;
+        border: none;
+        background-color: $text-colour;
+        color: $text-colour-inverted;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        line-height: 1;
+
+        i {
+            font-size: small;
+            color: $text-colour-inverted;
+            padding: 0;
+        }
+    }
     // Do I do a thing for divs here? when it's just displaying and isn't visible
 }

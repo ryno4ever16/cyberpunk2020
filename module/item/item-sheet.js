@@ -1,4 +1,5 @@
-import { weaponTypes, meleeAttackTypes, rangedAttackTypes, attackSkills, concealability, availability, reliability, getStatNames, MARTIAL_BONUS_ACTIONS } from "../lookups.js";
+import { weaponTypes, meleeAttackTypes, rangedAttackTypes, attackSkills, concealability, availability, reliability, getStatNames, MARTIAL_BONUS_ACTIONS, getCalibers, AMMO_MODIFIERS, caliberMatches, normalizeCaliber, getCaliberBox, getAmmoBoxPrice } from "../lookups.js";
+import { canBuyAmmo, applyAmmoModifierUpdate, openBuyAmmoDialog, ammoLockerEnabled } from "../dialog/buy-ammo.js";
 import { formulaHasDice } from "../dice.js";
 import { deleteFieldUpdate, localize, cwHasType, getSkillIndex } from "../utils.js";
 import { createCyberpunkChatMessage, getHtmlElement, getPublicMessageMode, getRichEditorHTML, saveRichEditorHTML, rollToCyberpunkChatMessage } from "../compat.js";
@@ -30,6 +31,8 @@ export class CyberpunkItemSheet extends ItemSheet {
     data.owner = this.item.isOwner;
     data.editable = this.isEditable ?? this.options?.editable ?? false;
     data.isGM = game.user.isGM;
+    data.ammoLockerFeature = ammoLockerEnabled();
+    data.isAmmoLocker = data.ammoLockerFeature && !!this.item.getFlag?.("cyberpunk2020", "ammoLocker");
 
     switch (this.item.type) {
       case "weapon":
@@ -71,6 +74,9 @@ export class CyberpunkItemSheet extends ItemSheet {
       if (sys[key] === null || sys[key] === undefined) updates[`system.${key}`] = value;
     };
     setIfMissing("quantity", 0);
+    setIfMissing("boxSize", 0);
+    setIfMissing("boxCost", 0);
+    setIfMissing("qtyLocked", true);
 
     setIfMissing("armorMultSoft", 1);
     setIfMissing("armorMultHard", 1);
@@ -188,6 +194,14 @@ export class CyberpunkItemSheet extends ItemSheet {
       (_, i) => i
     );
 
+    // Two-axis ammo: caliber (what weapons accept) + modifier (load). Built-in + custom calibers.
+    const calibers = getCalibers();
+    sheet.caliberChoices = Object.entries(calibers)
+      .map(([id, c]) => ({ value: id, label: (c && c.label) ? c.label : id }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    sheet.modifierChoices = Object.entries(AMMO_MODIFIERS)
+      .map(([id, m]) => ({ value: id, label: (m && m.label) ? m.label : id }));
+
     // Spread mode selector (Single / Spread)
     sheet.ammoSpreadModes = [
       { value: "single", localKey: "AmmoSpreadModeSingle" },
@@ -230,14 +244,19 @@ export class CyberpunkItemSheet extends ItemSheet {
     const ammoOwner = this.item?.parent;
 
     if (ammoOwner) {
+      // The weapon's caliber. ammoType holds the caliber id (e.g. "9mm"); normalize known typos.
+      const weaponCaliber = normalizeCaliber(this.item.system?.ammoType ?? "");
       const ammoItemsRaw = ammoOwner.itemTypes?.ammo ?? ammoOwner.items.filter(i => i.type === "ammo");
-      const ammoItems = ammoItemsRaw.filter(a => a.system?.equipped !== false);
+      const ammoItems = ammoItemsRaw
+        .filter(a => a.system?.equipped !== false)
+        // Only show ammo of a matching caliber (blank ammo caliber = wildcard, back-compat).
+        .filter(a => caliberMatches(weaponCaliber, a.system?.caliber ?? ""));
       sheet.ammoChoices = [...ammoItems]
         .sort((a, b) => String(a.name).localeCompare(String(b.name)))
         .map(a => {
-          const ammoType = String(a.system?.ammoType ?? "");
-          const typeLabel = ammoType ? ammoType : "";
-          const label = typeLabel ? `${a.name} (${typeLabel})` : a.name;
+          const cal = String(a.system?.caliber ?? "");
+          const tag = cal || String(a.system?.ammoType ?? "");
+          const label = tag ? `${a.name} (${tag})` : a.name;
           return { value: a.id, localKey: label };
         });
     }
@@ -793,6 +812,75 @@ async _prepareCyberware(sheet) {
 
       await this.item.update({ "system.blastMultipliers": cur }, { render: false });
       this.render(false);
+    });
+
+    // Ammo quantity manual-edit lock toggle.
+    html.on("click", ".cp-ammo-qty-lock", async (ev) => {
+      if (this.item.type !== "ammo") return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      const locked = !(this.item.system?.qtyLocked ?? true);
+      await this.item.update({ "system.qtyLocked": locked });
+    });
+
+    // Ammo "Buy box": restock THIS exact ammo item by one box. Box size/price come from the
+    // caliber+modifier registry, with the item's own boxSize/boxCost as optional overrides.
+    html.on("click", ".cp-ammo-buy-box", async (ev) => {
+      if (this.item.type !== "ammo") return;
+      ev.preventDefault();
+      ev.stopPropagation();
+
+      const sys = this.item.system ?? {};
+      const registryBox = getCaliberBox(sys.caliber ?? "");
+      const boxSize = Math.max(0, Math.floor(Number(sys.boxSize) > 0 ? Number(sys.boxSize) : registryBox.box));
+      const boxCost = Math.max(0, Number(sys.boxCost) > 0 ? Number(sys.boxCost) : getAmmoBoxPrice(sys.caliber ?? "", sys.modifier ?? "standard"));
+
+      if (boxSize <= 0) {
+        ui.notifications.warn(game.i18n.localize("CYBERPUNK.AmmoBuyNoBoxSize"));
+        return;
+      }
+
+      const actor = this.item.actor;
+      const qty = Number(sys.quantity ?? 0);
+
+      // Unowned (world/compendium) ammo has no one to charge — just stock the box.
+      if (!actor) {
+        await this.item.update({ "system.quantity": qty + boxSize });
+        ui.notifications.info(game.i18n.format("CYBERPUNK.AmmoBoughtNoCharge", { count: boxSize }));
+        return;
+      }
+
+      // Access gate: players may be restricted from buying (GM-only / "buy at a shop").
+      const gate = canBuyAmmo();
+      if (!gate.ok) { ui.notifications.warn(gate.reason); return; }
+
+      const funds = Number(actor.system?.eurobucks ?? 0);
+      if (funds < boxCost) {
+        ui.notifications.warn(game.i18n.format("CYBERPUNK.AmmoBuyInsufficientFunds", { cost: boxCost, funds }));
+        return;
+      }
+
+      await actor.update({ "system.eurobucks": funds - boxCost });
+      await this.item.update({ "system.quantity": qty + boxSize });
+      ui.notifications.info(game.i18n.format("CYBERPUNK.AmmoBought", { count: boxSize, cost: boxCost }));
+    });
+
+    // Ammo modifier (load) change: seed the mechanical fields from the modifier definition.
+    // Fields remain editable afterward (this only fires when the user picks a new modifier).
+    html.on("change", "select.cp-ammo-modifier", async (ev) => {
+      if (this.item.type !== "ammo") return;
+      ev.preventDefault();
+      const modId = String(ev.currentTarget.value ?? "standard");
+      await this.item.update(applyAmmoModifierUpdate(modId));
+    });
+
+    // Ammo Locker (misc item): toggle the flag, and open the Buy-Ammo dialog from the item.
+    html.on("change", ".cp-locker-toggle", async (ev) => {
+      await this.item.setFlag("cyberpunk2020", "ammoLocker", !!ev.currentTarget.checked);
+    });
+    html.on("click", ".cp-locker-buy", async (ev) => {
+      ev.preventDefault();
+      await openBuyAmmoDialog(this.item.actor ?? null);
     });
 
     html.on("mousedown", "input[name='cw-skill-search'], input[name='cw-chip-skill-search']", ev => {

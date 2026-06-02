@@ -1,5 +1,78 @@
 import { deleteFieldUpdate, getDefaultSkills, localize, cwHasType } from "./utils.js";
 
+/* -------------------------------------------- */
+/*  Ammo Caliber Cleanup (focused, self-gating) */
+/* -------------------------------------------- */
+
+// Bump this string if the remap table below changes, to re-run the cleanup once.
+const AMMO_CALIBER_MIGRATION_VERSION = "1";
+// Core rulebook shorthand/typos -> canonical caliber ids (see Reference Book: 7.62 vs 7.62 Soviet).
+const AMMO_CALIBER_REMAP = { "7.56": "7.62", "7.565": "7.62sov" };
+
+/**
+ * Tidy weapon caliber labels on EXISTING data (world items, actor weapons, scene-token actors).
+ *
+ * This is intentionally separate from {@link migrateWorld}: it must apply to the current world
+ * WITHOUT a version bump or re-running the heavier migrations, and it must be safe to fire on
+ * every load. It is fully idempotent (only changes the two known typo values), wraps every
+ * document update in try/catch, and only records itself as "done" when there were zero errors
+ * (so a transient failure simply retries next load). Weapons already function correctly without
+ * this thanks to runtime caliber normalization — this only cleans the stored label.
+ *
+ * @returns {Promise<{fixed:number, errors:number, skipped:boolean}>}
+ */
+export async function migrateAmmoCalibers() {
+  let done = "";
+  try { done = game.settings.get("cyberpunk2020", "ammoCaliberMigration") || ""; } catch (e) { /* setting not ready */ }
+  if (done === AMMO_CALIBER_MIGRATION_VERSION) return { fixed: 0, errors: 0, skipped: true };
+
+  let fixed = 0;
+  let errors = 0;
+
+  const fixWeapon = async (item) => {
+    try {
+      if (!item || item.type !== "weapon") return;
+      const cal = item.system?.ammoType;
+      const next = AMMO_CALIBER_REMAP[cal];
+      if (next !== undefined && cal !== next) {
+        await item.update({ "system.ammoType": next });
+        fixed++;
+      }
+    } catch (err) {
+      errors++;
+      console.error("Cyberpunk2020 | ammo caliber cleanup: weapon update failed for", item?.name, err);
+    }
+  };
+
+  try {
+    for (const item of game.items?.contents ?? []) await fixWeapon(item);
+
+    for (const actor of game.actors?.contents ?? []) {
+      for (const item of actor.items?.contents ?? []) await fixWeapon(item);
+    }
+
+    for (const scene of game.scenes?.contents ?? []) {
+      for (const token of scene.tokens?.contents ?? []) {
+        const a = token.actor;
+        if (!a) continue;
+        for (const item of a.items?.contents ?? []) await fixWeapon(item);
+      }
+    }
+  } catch (err) {
+    errors++;
+    console.error("Cyberpunk2020 | ammo caliber cleanup: traversal failed", err);
+  }
+
+  // Only mark complete when nothing errored, so failures retry rather than silently skip.
+  if (errors === 0) {
+    try { await game.settings.set("cyberpunk2020", "ammoCaliberMigration", AMMO_CALIBER_MIGRATION_VERSION); } catch (e) { /* ignore */ }
+  }
+  if (fixed > 0) {
+    console.log(`Cyberpunk2020 | Ammo caliber cleanup: tidied ${fixed} weapon caliber label(s)${errors ? `, ${errors} skipped (see console)` : ""}.`);
+  }
+  return { fixed, errors, skipped: false };
+}
+
 /**
  * Migration entrypoint.
  */

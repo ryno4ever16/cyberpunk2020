@@ -14,6 +14,9 @@
     {{> (template "fields/number") label="Shots" edit="system.shots"}}
     {{> (template "fields/number") label="RoF" edit="system.rof"}}
     {{> (template "fields/select") label="Ammo" edit="system.ammoItemId" choices=ammoChoices allowBlank=true}}
+    {{!-- Fire-mode capability. Full auto also grants Suppressive; burst is separate (e.g. M16A4). --}}
+    {{> (template "fields/boolean") label="FullAutoCapable" edit="system.fullAutoCapable"}}
+    {{> (template "fields/boolean") label="BurstCapable" edit="system.burstCapable"}}
 </div>
 {{/unless}}
 

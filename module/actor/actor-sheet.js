@@ -5,6 +5,7 @@ import { SortOrders, sortSkills } from "./skill-sort.js";
 import { getHtmlElement, getRichEditorHTML, itemFromDropData, saveRichEditorHTML } from "../compat.js";
 import { resolveAttackRange } from "../combat/rangefinding.js";
 import { getAutoLayerOrder } from "../combat/armor-layers.js";
+import { openBuyAmmoDialog, ammoBuyButtonEnabled } from "../dialog/buy-ammo.js";
 
 /** @extends {ActorSheet} */
 export class CyberpunkActorSheet extends ActorSheet {
@@ -50,6 +51,11 @@ export class CyberpunkActorSheet extends ActorSheet {
 
       const StunDeathMod = foundry.utils.getProperty(system, "StunDeathMod") || 0;
       sheetData.StunDeathMod = StunDeathMod;
+
+      // Per-actor ammo tracking (default ON). Off = "Free Fire" (weapons ignore ammo).
+      sheetData.ammoTracking = this.actor.getFlag("cyberpunk2020", "ammoTracking") ?? true;
+      // Whether to show the "Buy Ammo" button (world setting; default on).
+      sheetData.showBuyAmmo = ammoBuyButtonEnabled();
     }
 
     sheetData.cyberwareSegmentsRight = [
@@ -620,6 +626,17 @@ export class CyberpunkActorSheet extends ActorSheet {
     html.find(".roll-initiative-modificator").change(ev => {
       const value = ev.target.value;
       this.actor.update({"system.initiativeMod": Number(value)});
+    });
+
+    // Ammo tracking / Free Fire toggle (per-actor flag, default ON)
+    html.find(".cp-ammo-tracking").on("change", async ev => {
+      await this.actor.setFlag("cyberpunk2020", "ammoTracking", ev.target.checked);
+    });
+
+    // Buy Ammo button -> opens the purchasing dialog (gated by the playersCanBuyAmmo setting).
+    html.find(".cp-buy-ammo").on("click", async ev => {
+      ev.preventDefault();
+      await openBuyAmmoDialog(this.actor);
     });
 
     // Stun/Death save

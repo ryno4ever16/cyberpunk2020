@@ -1,0 +1,197 @@
+import { getCalibers, AMMO_MODIFIERS, getCaliberBox, getAmmoBoxPrice, normalizeCaliber } from "../lookups.js";
+import { localize } from "../utils.js";
+
+/**
+ * Whether the current user may purchase ammunition.
+ * GMs always may. Players may only when the "playersCanBuyAmmo" world setting is on; otherwise
+ * they are told ammo must be bought at a shop (the GM buys on their behalf).
+ * @returns {{ ok: boolean, reason: string }}
+ */
+export function canBuyAmmo() {
+  if (game.user?.isGM) return { ok: true, reason: "" };
+  let allowed = true;
+  try { allowed = game.settings.get("cyberpunk2020", "playersCanBuyAmmo") !== false; } catch (e) { /* default allow */ }
+  return allowed ? { ok: true, reason: "" } : { ok: false, reason: game.i18n.localize("CYBERPUNK.AmmoBuyAtShop") };
+}
+
+/** Whether the on-sheet "Buy Ammo" button should be shown at all. */
+export function ammoBuyButtonEnabled() {
+  try { return game.settings.get("cyberpunk2020", "ammoBuyButtonEnabled") !== false; } catch (e) { return true; }
+}
+
+/** Whether the optional "Ammo Locker" item feature is enabled (off by default). */
+export function ammoLockerEnabled() {
+  try { return game.settings.get("cyberpunk2020", "ammoLockerEnabled") === true; } catch (e) { return false; }
+}
+
+/** The system-data fields (un-dotted) that a given modifier seeds onto an ammo item. */
+export function ammoModifierSystemFields(modifierId) {
+  const mod = AMMO_MODIFIERS[modifierId] ?? AMMO_MODIFIERS.standard;
+  const mech = mod.mech ?? {};
+  const fx = ["CoreMods"];
+  if (mech.stunSaveOnHit) fx.push("Stun");
+  if (mech.dotEnabled) fx.push("DoT");
+  return {
+    modifier: AMMO_MODIFIERS[modifierId] ? modifierId : "standard",
+    armorMultSoft: mech.armorMultSoft ?? 1,
+    armorMultHard: mech.armorMultHard ?? 1,
+    penDamageMult: mech.penDamageMult ?? 1,
+    rawDamageMult: mech.rawDamageMult ?? 1,
+    bonusDamageFormula: mech.bonusDamageFormula ?? "",
+    accuracyMod: mech.accuracyMod ?? 0,
+    stunSaveOnHit: mech.stunSaveOnHit ?? false,
+    stunSaveMod: mech.stunSaveMod ?? 0,
+    dotEnabled: mech.dotEnabled ?? false,
+    dotTurns: mech.dotTurns ?? 0,
+    dotDamageFormula: mech.dotDamageFormula ?? "",
+    dotType: mech.dotType ?? "acid",
+    effectTypes: (modifierId === "standard") ? ["None"] : fx
+  };
+}
+
+/** Dotted-key form of {@link ammoModifierSystemFields} for document.update(). */
+export function applyAmmoModifierUpdate(modifierId) {
+  const out = {};
+  for (const [k, v] of Object.entries(ammoModifierSystemFields(modifierId))) out[`system.${k}`] = v;
+  return out;
+}
+
+/** Sorted [{id,label}] caliber + modifier option lists for the buy UI. */
+function _ammoOptions() {
+  const calibers = getCalibers();
+  const caliberOpts = Object.entries(calibers)
+    .map(([id, c]) => ({ id, label: (c && c.label) ? c.label : id }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  const modifierOpts = Object.entries(AMMO_MODIFIERS).map(([id, m]) => ({ id, label: (m && m.label) ? m.label : id }));
+  return { caliberOpts, modifierOpts };
+}
+
+/**
+ * Open the Buy-Ammo dialog for an actor. Pick caliber + modifier + number of boxes; on confirm,
+ * deducts eurobucks and creates/restocks a matching ammo Item.
+ * @param {Actor} actor
+ */
+export async function openBuyAmmoDialog(actor) {
+  if (!actor) { ui.notifications.warn(localize("AmmoBuyNoActor")); return; }
+
+  const gate = canBuyAmmo();
+  if (!gate.ok) { ui.notifications.warn(gate.reason); return; }
+
+  const { caliberOpts, modifierOpts } = _ammoOptions();
+  const esc = foundry.utils.escapeHTML ?? ((s) => String(s));
+
+  const content = `
+<form class="cyberpunk buy-ammo">
+  <div class="form-group">
+    <label>${localize("AmmoCaliber")}</label>
+    <select name="caliber">${caliberOpts.map(o => `<option value="${esc(o.id)}">${esc(o.label)}</option>`).join("")}</select>
+  </div>
+  <div class="form-group">
+    <label>${localize("AmmoModifier")}</label>
+    <select name="modifier">${modifierOpts.map(o => `<option value="${esc(o.id)}">${esc(o.label)}</option>`).join("")}</select>
+  </div>
+  <div class="form-group">
+    <label>${localize("AmmoBuyBoxes")}</label>
+    <input type="number" name="boxes" value="1" min="1" step="1"/>
+  </div>
+  <p class="cp-buy-ammo-preview" style="margin-top:6px; font-weight:bold;"></p>
+</form>`;
+
+  return new Promise((resolve) => {
+    const dlg = new Dialog({
+      title: localize("AmmoBuyTitle"),
+      content,
+      buttons: {
+        buy:    { icon: '<i class="fas fa-cart-plus"></i>', label: localize("AmmoBuyConfirm"), callback: async (html) => { await _doPurchase(actor, html); resolve(true); } },
+        cancel: { icon: '<i class="fas fa-times"></i>',     label: localize("Cancel"), callback: () => resolve(false) }
+      },
+      default: "buy",
+      render: (html) => {
+        const root = html[0] ?? html;
+        const preview = root.querySelector(".cp-buy-ammo-preview");
+        const update = () => {
+          const cal = String(root.querySelector('[name="caliber"]')?.value ?? "");
+          const mod = String(root.querySelector('[name="modifier"]')?.value ?? "standard");
+          const boxes = Math.max(1, Math.floor(Number(root.querySelector('[name="boxes"]')?.value) || 1));
+          const box = getCaliberBox(cal);
+          const unit = getAmmoBoxPrice(cal, mod);
+          if (preview) preview.textContent = game.i18n.format("CYBERPUNK.AmmoBuyPreview", {
+            boxes, per: box.box, rounds: box.box * boxes, cost: unit * boxes
+          });
+        };
+        root.querySelectorAll("select, input").forEach(el => el.addEventListener("change", update));
+        update();
+      }
+    });
+    dlg.render(true);
+  });
+}
+
+async function _doPurchase(actor, html) {
+  const root = html[0] ?? html;
+  const caliber = String(root.querySelector('[name="caliber"]')?.value ?? "").trim();
+  const modifier = String(root.querySelector('[name="modifier"]')?.value ?? "standard");
+  const boxes = Math.max(1, Math.floor(Number(root.querySelector('[name="boxes"]')?.value) || 1));
+
+  if (!caliber) { ui.notifications.warn(localize("AmmoBuyNoCaliber")); return; }
+
+  // Re-validate access at execution time (settings could have changed while the dialog was open).
+  const gate = canBuyAmmo();
+  if (!gate.ok) { ui.notifications.warn(gate.reason); return; }
+
+  const box = getCaliberBox(caliber);
+  const unitPrice = getAmmoBoxPrice(caliber, modifier);
+  const totalCost = unitPrice * boxes;
+  const totalRounds = (Number(box.box) || 1) * boxes;
+
+  const funds = Number(actor.system?.eurobucks ?? 0);
+  if (funds < totalCost) {
+    ui.notifications.warn(game.i18n.format("CYBERPUNK.AmmoBuyInsufficientFunds", { cost: totalCost, funds }));
+    return;
+  }
+
+  // Stack onto an existing matching (same caliber + modifier) ammo item if present.
+  const existing = (actor.itemTypes?.ammo ?? []).find(
+    a => normalizeCaliber(a.system?.caliber) === normalizeCaliber(caliber)
+      && (a.system?.modifier ?? "standard") === modifier
+  );
+
+  // Charge first, then stock. (update before create so a failed create doesn't leave free ammo.)
+  await actor.update({ "system.eurobucks": funds - totalCost });
+
+  try {
+    if (existing) {
+      await existing.update({ "system.quantity": Number(existing.system?.quantity ?? 0) + totalRounds });
+    } else {
+      const calLabel = (getCalibers()[caliber]?.label) ?? caliber;
+      const modLabel = AMMO_MODIFIERS[modifier]?.label ?? "Standard";
+      const system = foundry.utils.mergeObject(
+        {
+          caliber,
+          ammoType: caliber,
+          quantity: totalRounds,
+          boxSize: Number(box.box) || 1,
+          boxCost: unitPrice
+        },
+        ammoModifierSystemFields(modifier),
+        { inplace: false }
+      );
+      await actor.createEmbeddedDocuments("Item", [{
+        name: `${calLabel} ${modLabel}`,
+        type: "ammo",
+        img: "systems/cyberpunk2020/img/weapon-icon.svg",
+        system
+      }]);
+    }
+  } catch (err) {
+    // Refund if stocking failed, so the player isn't charged for nothing.
+    console.error("Cyberpunk2020 | Buy ammo: failed to stock, refunding.", err);
+    await actor.update({ "system.eurobucks": funds });
+    ui.notifications.error(localize("AmmoBuyFailed"));
+    return;
+  }
+
+  ui.notifications.info(game.i18n.format("CYBERPUNK.AmmoBoughtFull", {
+    rounds: totalRounds, cal: caliber, mod: (AMMO_MODIFIERS[modifier]?.label ?? "Standard"), cost: totalCost
+  }));
+}

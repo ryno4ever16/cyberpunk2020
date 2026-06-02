@@ -14,7 +14,7 @@
  */
 
 import { ARMOR_MODES, resolveAreaDamagesSync, applyBTM, ablateLocationOnce } from "./DamageApplicator.js";
-import { postStunSavePrompt, postDeathSavePrompt, updateTaserState, applyAcidDotState } from "./save-rolls.js";
+import { postStunSavePrompt, postDeathSavePrompt, updateTaserState, applyAcidDotState, applyDotFromPayload } from "./save-rolls.js";
 
 export class DamageDialog extends FormApplication {
 
@@ -51,6 +51,7 @@ export class DamageDialog extends FormApplication {
       edged:         Boolean(this.payload.edged),
       armorMultSoft: Number(this.payload.armorMultSoft ?? 1.0),
       armorMultHard: Number(this.payload.armorMultHard ?? 1.0),
+      penDamageMult: Number(this.payload.penDamageMult ?? 1.0),
       armorMode,
       coverSP,
     });
@@ -129,6 +130,7 @@ export class DamageDialog extends FormApplication {
       edged:         Boolean(this.payload.edged),
       armorMultSoft: Number(this.payload.armorMultSoft ?? 1.0),
       armorMultHard: Number(this.payload.armorMultHard ?? 1.0),
+      penDamageMult: Number(this.payload.penDamageMult ?? 1.0),
       armorMode,
       coverSP:     this._coverSP,
     });
@@ -160,6 +162,7 @@ export class DamageDialog extends FormApplication {
       edged:         Boolean(this.payload.edged),
       armorMultSoft: Number(this.payload.armorMultSoft ?? 1.0),
       armorMultHard: Number(this.payload.armorMultHard ?? 1.0),
+      penDamageMult: Number(this.payload.penDamageMult ?? 1.0),
       armorMode,
       coverSP,
     });
@@ -192,6 +195,7 @@ export class DamageDialog extends FormApplication {
         dotEnabled:       Boolean(this.payload.dotEnabled),
         dotTurns:         Number(this.payload.dotTurns        ?? 0),
         dotDamageFormula: String(this.payload.dotDamageFormula || "1d6"),
+        dotType:          String(this.payload.dotType         || "acid"),
         weaponName:       String(this.payload.weaponName      || ""),
         firstHitLocation: rawHits[0]?.location ?? null,
       });
@@ -226,10 +230,8 @@ export class DamageDialog extends FormApplication {
       if (taserEnabled) await updateTaserState(this.target, this.payload);
     }
 
-    const acidEnabled = (() => { try { return game.settings.get("cyberpunk2020", "acidArmorDotEnabled"); } catch { return true; } })();
-    if (acidEnabled && this.payload.dotEnabled && Number(this.payload.dotTurns) > 0 && rawHits.length > 0) {
-      await applyAcidDotState(this.target, rawHits[0].location, Number(this.payload.dotTurns), String(this.payload.dotDamageFormula || "1d6"));
-    }
+    // DOT routes by dotType (fire -> HP burn, acid -> armor degradation); see save-rolls.js.
+    await applyDotFromPayload(this.target, rawHits[0]?.location ?? null, this.payload, resolvedHits.some(h => h.penetrates));
 
     if (totalApplied > 0) {
       await _postSavePrompts(this.target);

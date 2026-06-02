@@ -97,6 +97,143 @@ export let fireModes = {
     semiAuto: "SemiAuto"
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+ * AMMUNITION: types (calibers) + modifiers (loads)
+ *
+ * CP2020 ammo has two axes:
+ *   - TYPE (caliber): what a weapon accepts (weapon.system.ammoType), e.g. "9mm".
+ *   - MODIFIER (load): how the round behaves and what it costs, e.g. AP / Hollow-Point.
+ *
+ * Box size & price come from the caliber's COST CLASS (CP2020 Core "Reloads & Options");
+ * the modifier applies a cost multiplier. Two optional settings switch firearm pricing to
+ * Blackhand's Guide conventions (uniform box-of-100; brass ×3).
+ * Sources: CP2020 Core; Reference Book (7.62 NATO vs 7.62 Soviet); Blackhand's Guide
+ * (consolidating Cyberpunk 2020 + Chromebook 1 & 2) for modifier cost multipliers.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+// Per-class box size / price. Core defaults; Blackhand's Guide alternative.
+export const AMMO_COST_CLASSES = {
+  lightPistol:     { label: "Light Pistol / Lt. SMG",  core: { box: 100, price: 15 }, blackhands: { box: 100, price: 15 } },
+  mediumPistol:    { label: "Medium Pistol / SMG",     core: { box: 50,  price: 15 }, blackhands: { box: 100, price: 30 } },
+  heavyPistol:     { label: "Heavy Pistol / Hvy. SMG", core: { box: 50,  price: 18 }, blackhands: { box: 100, price: 36 } },
+  veryHeavyPistol: { label: "Very Heavy Pistol",       core: { box: 50,  price: 20 }, blackhands: { box: 100, price: 40 } },
+  assaultRifle:    { label: "Assault Rifle",           core: { box: 100, price: 40 }, blackhands: { box: 100, price: 40 } },
+  shotgun:         { label: "Shotgun",                 core: { box: 12,  price: 15 }, blackhands: { box: 12,  price: 15 } },
+  airgun:          { label: "Airgun",                  core: { box: 100, price: 6  }, blackhands: { box: 100, price: 6  } },
+  needlegun:       { label: "Needlegun",               core: { box: 50,  price: 25 }, blackhands: { box: 100, price: 50 } },
+  cannon20mm:      { label: "20mm Cannon",             core: { box: 1,   price: 25 }, blackhands: { box: 1,   price: 25 } },
+  arrows:          { label: "Arrows",                  core: { box: 12,  price: 24 }, blackhands: { box: 12,  price: 24 } },
+  crossbow:        { label: "Crossbow Bolts",          core: { box: 12,  price: 30 }, blackhands: { box: 12,  price: 30 } },
+  flamethrower:    { label: "Flamethrower Fuel",       core: { box: 1,   price: 50 }, blackhands: { box: 1,   price: 50 } },
+  none:            { label: "—",                       core: { box: 1,   price: 0  }, blackhands: { box: 1,   price: 0  } }
+};
+
+// Built-in calibers. costClass keys into AMMO_COST_CLASSES.
+// 7.62 is split into NATO ("7.62") and Soviet ("7.62sov") per the Reference Book rifle table.
+export const CALIBERS = {
+  ".22":     { label: ".22",            costClass: "lightPistol" },
+  ".25":     { label: ".25",            costClass: "lightPistol" },
+  ".38":     { label: ".38",            costClass: "lightPistol" },
+  "5mm":     { label: "5mm",            costClass: "lightPistol" },
+  "6mm":     { label: "6mm",            costClass: "lightPistol" },
+  "9mm":     { label: "9mm",            costClass: "mediumPistol" },
+  ".45":     { label: ".45",            costClass: "mediumPistol" },
+  ".357":    { label: ".357",           costClass: "heavyPistol" },
+  "10mm":    { label: "10mm",           costClass: "heavyPistol" },
+  "11mm":    { label: "11mm",           costClass: "heavyPistol" },
+  ".44":     { label: ".44",            costClass: "veryHeavyPistol" },
+  "12mm":    { label: "12mm",           costClass: "veryHeavyPistol" },
+  "5.56":    { label: "5.56",           costClass: "assaultRifle" },
+  "7.62":    { label: "7.62 (NATO)",    costClass: "assaultRifle" },
+  "7.62sov": { label: "7.62 Soviet",    costClass: "assaultRifle" },
+  "30-06":   { label: "30-06",          costClass: "assaultRifle" },
+  "00":      { label: "00 Buck / Slug", costClass: "shotgun" },
+  "20mm":    { label: "20mm",           costClass: "cannon20mm" },
+  "Arrow":   { label: "Arrow",          costClass: "arrows" },
+  "Bolt":    { label: "Crossbow Bolt",  costClass: "crossbow" },
+  "Airgun":  { label: "Airgun Pellet",  costClass: "airgun" },
+  "Needle":  { label: "Needlegun Round",costClass: "needlegun" },
+  "Napalm":  { label: "Flamethrower Fuel", costClass: "flamethrower" }
+};
+
+// Ammo modifiers (loads). costMult = ×basic ammo cost. mech values are applied as DEFAULTS
+// to an ammo item when its modifier is chosen, and remain editable on the item afterward.
+export const AMMO_MODIFIERS = {
+  standard:    { label: "Standard",          costMult: 1,     mech: { armorMultSoft: 1,   armorMultHard: 1,   penDamageMult: 1,   bonusDamageFormula: "" } },
+  ap:          { label: "Armor-Piercing",    costMult: 3,     mech: { armorMultSoft: 0.5, armorMultHard: 0.5, penDamageMult: 0.5, bonusDamageFormula: "" } },
+  hollowPoint: { label: "Hollow-Point",      costMult: 1.125, mech: { armorMultSoft: 2,   armorMultHard: 2,   penDamageMult: 1.5, bonusDamageFormula: "" } },
+  api:         { label: "Armor-Piercing Incendiary", costMult: 4, mech: { armorMultSoft: 0.5, armorMultHard: 0.5, penDamageMult: 0.5, dotEnabled: true, dotTurns: 2, dotDamageFormula: "1d6", dotType: "fire" } },
+  dualPurpose: { label: "Dual-Purpose",      costMult: 4,     mech: { armorMultSoft: 0.5, armorMultHard: 0.5, penDamageMult: 0.5, bonusDamageFormula: "" } },
+  rubber:      { label: "Rubber",            costMult: 0.333, mech: { armorMultSoft: 1,   armorMultHard: 1,   penDamageMult: 0.5, stunSaveOnHit: true } },
+  flechette:   { label: "Flechette",         costMult: 5,     mech: { armorMultSoft: 0.5, armorMultHard: 1,   penDamageMult: 1 } },
+  safety:      { label: "Safety",            costMult: 6,     mech: { armorMultSoft: 2,   armorMultHard: 2,   penDamageMult: 3 } },
+  brassCased:  { label: "Brass-cased",       costMult: 2, costMultBlackhands: 3, mech: {} }
+};
+
+/** Merge built-in CALIBERS with any GM-registered custom calibers (world setting). */
+export function getCalibers() {
+  let custom = {};
+  try {
+    const raw = game.settings.get("cyberpunk2020", "customCalibers");
+    if (raw && typeof raw === "object") custom = raw;
+  } catch (e) { /* settings not ready */ }
+  return { ...CALIBERS, ...custom };
+}
+
+function _ammoSetting(key, fallback = false) {
+  try { return game.settings.get("cyberpunk2020", key) === true; } catch (e) { return fallback; }
+}
+
+/** Box size + price for a caliber, honoring the Blackhand's box-size setting. */
+export function getCaliberBox(caliberId) {
+  const cal = getCalibers()[caliberId];
+  const cls = AMMO_COST_CLASSES[cal?.costClass] ?? AMMO_COST_CLASSES.none;
+  const conv = _ammoSetting("ammoUseBlackhandsBoxes") ? cls.blackhands : cls.core;
+  return { box: Number(conv.box) || 1, price: Number(conv.price) || 0 };
+}
+
+/** Cost multiplier for a modifier, honoring the Blackhand's brass setting. */
+export function getModifierCostMult(modifierId) {
+  const mod = AMMO_MODIFIERS[modifierId] ?? AMMO_MODIFIERS.standard;
+  if (mod.costMultBlackhands !== undefined && _ammoSetting("ammoUseBlackhandsBrass")) {
+    return Number(mod.costMultBlackhands) || 1;
+  }
+  return Number(mod.costMult) || 1;
+}
+
+/** Price for one box of (caliber + modifier). */
+export function getAmmoBoxPrice(caliberId, modifierId) {
+  return Math.round(getCaliberBox(caliberId).price * getModifierCostMult(modifierId));
+}
+
+// Known data aliases/typos -> canonical caliber id. The Core rulebook prints the FN-FAL as
+// "7.56" (a typo for 7.62) and the AK family as "7.62S" (Soviet), which the system data stored
+// as "7.56"/"7.565". We normalize these at read-time so matching works WITHOUT mutating data.
+const CALIBER_ALIASES = {
+  "7.56":  "7.62",
+  "7.565": "7.62sov",
+  "7.62s": "7.62sov",
+  "7.62S": "7.62sov"
+};
+
+/** Canonical caliber id for a stored value (resolves known typos/aliases). Never throws. */
+export function normalizeCaliber(id) {
+  const s = String(id ?? "").trim();
+  if (!s) return "";
+  return CALIBER_ALIASES[s] ?? s;
+}
+
+/**
+ * True if ammo of `ammoCaliber` can be loaded into a weapon chambered for `weaponCaliber`.
+ * A blank ammo caliber is treated as a WILDCARD (loads into any weapon) so that pre-existing
+ * ammo items — which have no caliber yet — are never broken by the hard-block rule.
+ */
+export function caliberMatches(weaponCaliber, ammoCaliber) {
+  const a = normalizeCaliber(ammoCaliber);
+  if (a === "") return true;
+  return normalizeCaliber(weaponCaliber) === a;
+}
+
 export let martialActions = {
   dodge: "Dodge",
   blockParry: "BlockParry",
@@ -437,6 +574,8 @@ export function rangedModifiers(weapon, targetTokens=[]) {
         {localKey:"Ricochet", dataPath:"ricochet",defaultValue: false},
         {localKey:"Running", dataPath:"running",defaultValue: false},
         {localKey:"TurnFace", dataPath:"turningToFace",defaultValue: false},
+        // Full-auto only: how many rounds of the burst to fire (1..ROF). Shown for fullAuto, hidden otherwise.
+        {localKey:"AutofireRounds", dataPath:"autoRounds", dtype:"Number", defaultValue: weapon.system.rof},
         {localKey:"FireZoneWidth",  dataPath:"zoneWidth",  dtype:"Number", defaultValue: 2},
         {localKey:"RoundsFiredLbl", dataPath:"roundsFired", dtype:"Number", defaultValue: weapon.system.rof},
         {

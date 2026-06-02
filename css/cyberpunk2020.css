@@ -1376,6 +1376,29 @@ div.statderive .value.rightborder {
   min-width: 0;
 }
 
+/* Compact inline icon button for the ammo quantity lock (and similar). Strips the default
+   button chrome so it reads as a small lock toggle aligned with the number it guards. */
+.cyberpunk .field button.cp-ammo-qty-lock {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  align-self: stretch;
+  margin: 0;
+  padding: 0 5px;
+  border: none;
+  background-color: black;
+  color: whitesmoke;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  line-height: 1;
+}
+.cyberpunk .field button.cp-ammo-qty-lock i {
+  font-size: small;
+  color: whitesmoke;
+  padding: 0;
+}
+
 /* Trigger button */
 .cyberpunk .field .ammo-ms-trigger {
   display: flex;

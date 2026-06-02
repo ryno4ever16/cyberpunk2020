@@ -10,6 +10,15 @@ export function registerSystemSettings() {
     default: ""
   });
 
+  // Tracks the focused ammo-caliber cleanup (see migrate.js migrateAmmoCalibers). Self-gating,
+  // separate from the main migration so it can run without a version bump. Not shown in the menu.
+  game.settings.register("cyberpunk2020", "ammoCaliberMigration", {
+    scope: "world",
+    config: false,
+    type: String,
+    default: ""
+  });
+
   game.settings.register("cyberpunk2020", "trainedSkillsFirst", {
     name: "SETTINGS.TrainedSkillsFirst",
     hint: "SETTINGS.TrainedSkillsFirstHint",
@@ -17,6 +26,61 @@ export function registerSystemSettings() {
     config: true,
     type: Boolean,
     default: true
+  });
+
+    // --- Ammunition: purchasing access ---
+  game.settings.register("cyberpunk2020", "ammoBuyButtonEnabled", {
+    name: "SETTINGS.AmmoBuyButtonEnabled",
+    hint: "SETTINGS.AmmoBuyButtonEnabledHint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+
+  game.settings.register("cyberpunk2020", "playersCanBuyAmmo", {
+    name: "SETTINGS.PlayersCanBuyAmmo",
+    hint: "SETTINGS.PlayersCanBuyAmmoHint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+
+  game.settings.register("cyberpunk2020", "ammoLockerEnabled", {
+    name: "SETTINGS.AmmoLockerEnabled",
+    hint: "SETTINGS.AmmoLockerEnabledHint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false
+  });
+
+    // --- Ammunition: optional Blackhand's Guide pricing ---
+  game.settings.register("cyberpunk2020", "ammoUseBlackhandsBoxes", {
+    name: "SETTINGS.AmmoBlackhandsBoxes",
+    hint: "SETTINGS.AmmoBlackhandsBoxesHint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false
+  });
+
+  game.settings.register("cyberpunk2020", "ammoUseBlackhandsBrass", {
+    name: "SETTINGS.AmmoBlackhandsBrass",
+    hint: "SETTINGS.AmmoBlackhandsBrassHint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false
+  });
+
+    // GM-defined custom calibers: { id: { label, costClass } }. Not shown in the menu.
+  game.settings.register("cyberpunk2020", "customCalibers", {
+    scope: "world",
+    config: false,
+    type: Object,
+    default: {}
   });
 
     // --- Optional rules: Fumble Table ---
@@ -270,6 +334,31 @@ export function registerSystemSettings() {
     choices: {
       "stack":    "Stack (extend duration at same location)",
       "reset":    "Reset (overwrite previous effect)",
+      "separate": "Separate (concurrent independent timers)",
+    },
+    default: "stack",
+  });
+
+  // --- Combat Automation: Fire / Incendiary DOT ---
+  game.settings.register("cyberpunk2020", "fireDotEnabled", {
+    name: "Combat: Incendiary Burn Damage",
+    hint: "When enabled, weapons loaded with incendiary/API ammo set the target on fire: the dotDamageFormula roll (default 1d6) is applied as HP damage at the hit location each turn for dotTurns turns, with a Stun Save each turn. Unlike acid, fire burns the target, not their armor.",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true,
+  });
+
+  // --- Combat Automation: Fire DOT stacking behavior ---
+  game.settings.register("cyberpunk2020", "fireDotStackMode", {
+    name: "Combat: Fire DOT Multiple-Hit Behavior",
+    hint: "Controls what happens when a target is set on fire while already burning. Stack: extends the remaining turns at the same location. Reset: overwrites the previous fire (timer restarts). Separate: both fires run concurrently with independent timers.",
+    scope: "world",
+    config: true,
+    type: String,
+    choices: {
+      "stack":    "Stack (extend duration at same location)",
+      "reset":    "Reset (overwrite previous fire)",
       "separate": "Separate (concurrent independent timers)",
     },
     default: "stack",

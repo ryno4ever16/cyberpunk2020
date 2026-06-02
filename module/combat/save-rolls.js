@@ -135,6 +135,66 @@ export async function applyAcidDotState(target, location, turnsLeft, formula) {
   await target.setFlag("cyberpunk2020", "dotState", states);
 }
 
+/**
+ * Apply a FIRE (incendiary) DOT hit, respecting the fireDotStackMode setting.
+ * Mirrors {@link applyAcidDotState} but writes the separate `fireDotState` flag — fire burns HP
+ * each turn (handled by the combat tick in damage-hooks.js), whereas acid degrades armor SP.
+ * Modes: "stack" extends turnsLeft at same location, "reset" overwrites, "separate" adds a
+ * concurrent timer. Legacy single-object state is transparently migrated to array form on read.
+ */
+export async function applyFireDotState(target, location, turnsLeft, formula) {
+  const mode = (() => { try { return game.settings.get("cyberpunk2020", "fireDotStackMode"); } catch { return "stack"; } })();
+  // mult halves each surviving turn so a burn diminishes: RAW API is 1d6 then 1d6/2 (Chromebook 2).
+  const newEntry = { location, turnsLeft: Number(turnsLeft), formula: String(formula || "1d6"), mult: 1 };
+
+  if (mode === "reset") {
+    await target.setFlag("cyberpunk2020", "fireDotState", [newEntry]);
+    return;
+  }
+
+  const raw = target.getFlag?.("cyberpunk2020", "fireDotState");
+  const states = Array.isArray(raw) ? [...raw] : (raw ? [raw] : []);
+
+  if (mode === "stack") {
+    const idx = states.findIndex(s => s.location === location);
+    if (idx >= 0) {
+      // Re-ignite: extend duration and restore full intensity at this location.
+      states[idx] = { location, turnsLeft: states[idx].turnsLeft + Number(turnsLeft), formula: String(formula || "1d6"), mult: 1 };
+    } else {
+      states.push(newEntry);
+    }
+  } else {
+    states.push(newEntry);
+  }
+  await target.setFlag("cyberpunk2020", "fireDotState", states);
+}
+
+/**
+ * Route a DOT-bearing payload to the correct mechanic by its dotType ("fire" -> HP burn,
+ * anything else -> acid armor degradation). Honors each mechanic's enable setting. Safe no-op
+ * when the payload has no active DOT or no hit location. Centralizes the per-site routing so
+ * every damage-application path behaves identically.
+ */
+export async function applyDotFromPayload(target, location, src, penetrated = true) {
+  if (!target || !location || !src) return;
+  if (!src.dotEnabled || Number(src.dotTurns) <= 0) return;
+
+  const turns   = Number(src.dotTurns);
+  const formula = String(src.dotDamageFormula || "1d6");
+  const dotType = String(src.dotType || "acid");
+
+  if (dotType === "fire") {
+    // Incendiary only ignites the target when the round gets through armor (RAW: "if the bullet
+    // penetrates"). An unarmored target always counts as penetrated, so they always catch fire.
+    if (!penetrated) return;
+    const on = (() => { try { return game.settings.get("cyberpunk2020", "fireDotEnabled"); } catch { return true; } })();
+    if (on) await applyFireDotState(target, location, turns, formula);
+  } else {
+    const on = (() => { try { return game.settings.get("cyberpunk2020", "acidArmorDotEnabled"); } catch { return true; } })();
+    if (on) await applyAcidDotState(target, location, turns, formula);
+  }
+}
+
 /** Update taser hit counter on target. Call only when the hit penetrates armor. */
 export async function updateTaserState(actor, payload) {
   const mod   = Number(payload.stunSaveMod ?? -2);

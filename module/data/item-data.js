@@ -67,6 +67,29 @@ function normalizeArrayIfPresent(source, key, fallback = []) {
   if (hasOwn(source, key)) source[key] = normalizeArray(source[key], fallback);
 }
 
+// Attack types that imply full-auto capability in the existing data.
+const AUTO_ATTACK_TYPES = new Set(["Auto", "Autoshotgun", "Autofire"]);
+
+/**
+ * Derive fire-mode capability flags from a weapon's attackType when they aren't set yet.
+ * Existing data already encodes auto capability via attackType, so this gives every legacy
+ * weapon a sensible default. Pure semi-auto weapons that should burst (e.g. M16A4) default to
+ * non-burst and must be flagged per item. Once set, the stored flags are respected.
+ */
+function deriveFireCapability(source) {
+  if (!source || typeof source !== "object") return;
+  if (!hasOwn(source, "fullAutoCapable") || source.fullAutoCapable === null) {
+    source.fullAutoCapable = AUTO_ATTACK_TYPES.has(source.attackType);
+  } else {
+    source.fullAutoCapable = normalizeBoolean(source.fullAutoCapable, false);
+  }
+  if (!hasOwn(source, "burstCapable") || source.burstCapable === null) {
+    source.burstCapable = source.fullAutoCapable === true;
+  } else {
+    source.burstCapable = normalizeBoolean(source.burstCapable, false);
+  }
+}
+
 const DEFAULT_WEAPON = {
   weaponType: "Pistol",
   accuracy: 0,
@@ -74,6 +97,8 @@ const DEFAULT_WEAPON = {
   availability: "common",
   ammoType: "9mm",
   ammoItemId: "",
+  loadedAmmoId: "",
+  loadedAmmo: {},
   damage: "2d6+1",
   rangeDamages: DEFAULT_RANGE_DAMAGES,
   ap: false,
@@ -81,6 +106,10 @@ const DEFAULT_WEAPON = {
   shotsLeft: 12,
   shots: 12,
   rof: 2,
+  // Fire-mode capability. fullAutoCapable enables Full Auto + Suppressive; burstCapable enables
+  // 3-Round Burst. Semi-auto is always available. Some weapons burst but can't full-auto (M16A4).
+  fullAutoCapable: false,
+  burstCapable: false,
   reliability: "ST",
   range: 50,
   attackType: "",
@@ -246,6 +275,11 @@ export class CyberpunkWeaponData extends CyberpunkBaseItemData {
       availability: stringField(DEFAULT_WEAPON.availability),
       ammoType: stringField(DEFAULT_WEAPON.ammoType),
       ammoItemId: stringField(DEFAULT_WEAPON.ammoItemId),
+      // The ammo Item currently loaded in the magazine ("where it came from"), set on reload.
+      // loadedAmmo is a snapshot of that item ({name, img, system}) so the loaded rounds keep
+      // their damage profile and can be re-created on Unload even if the source item is deleted.
+      loadedAmmoId: stringField(""),
+      loadedAmmo: objectField({}),
       damage: stringField(DEFAULT_WEAPON.damage),
       rangeDamages: objectField(DEFAULT_RANGE_DAMAGES),
       ap: booleanField(DEFAULT_WEAPON.ap),
@@ -253,6 +287,8 @@ export class CyberpunkWeaponData extends CyberpunkBaseItemData {
       shotsLeft: numberField(DEFAULT_WEAPON.shotsLeft),
       shots: numberField(DEFAULT_WEAPON.shots),
       rof: numberField(DEFAULT_WEAPON.rof),
+      fullAutoCapable: booleanField(DEFAULT_WEAPON.fullAutoCapable),
+      burstCapable: booleanField(DEFAULT_WEAPON.burstCapable),
       reliability: stringField(DEFAULT_WEAPON.reliability),
       range: numberField(DEFAULT_WEAPON.range),
       attackType: stringField(DEFAULT_WEAPON.attackType),
@@ -270,6 +306,7 @@ export class CyberpunkWeaponData extends CyberpunkBaseItemData {
     if (hasOwn(source, "rangeDamages")) source.rangeDamages = normalizeRangeDamages(source.rangeDamages);
     normalizeBooleanIfPresent(source, "ap", false);
     normalizeBooleanIfPresent(source, "isEdged", false);
+    deriveFireCapability(source);
     return super.migrateData(source);
   }
 }
@@ -279,7 +316,17 @@ export class CyberpunkAmmoData extends CyberpunkBaseItemData {
     return {
       ...commonSchema(),
       ammoType: stringField(""),
+      // Two-axis ammo: caliber (what a weapon accepts) + modifier (load: standard/AP/HP/...).
+      // The modifier seeds the mechanical fields below (editable per item); see lookups.js.
+      caliber: stringField(""),
+      modifier: stringField("standard"),
       quantity: numberField(0),
+      // Economy: a "box" of ammo bought with eurobucks. boxSize rounds for boxCost eb.
+      // qtyLocked guards manual quantity edits (the field is the magazine economy's ledger);
+      // unlock with the lock toggle on the sheet to override by hand.
+      boxSize: numberField(0),
+      boxCost: numberField(0),
+      qtyLocked: booleanField(true),
       armorMultSoft: numberField(1),
       armorMultHard: numberField(1),
       rawDamageMult: numberField(1),
@@ -291,6 +338,9 @@ export class CyberpunkAmmoData extends CyberpunkBaseItemData {
       dotEnabled: booleanField(false),
       dotTurns: numberField(0),
       dotDamageFormula: stringField(""),
+      // Which damage-over-time mechanic this round triggers: "acid" degrades armor SP,
+      // "fire" burns HP (incendiary). Default "acid" preserves prior behavior of dotEnabled.
+      dotType: stringField("acid"),
       blastRadius: numberField(0),
       blastFullDamageWithin: numberField(1),
       blastZones: numberField(4),
@@ -315,6 +365,12 @@ export class CyberpunkAmmoData extends CyberpunkBaseItemData {
     normalizeBooleanIfPresent(source, "stunSaveOnHit", false);
     normalizeBooleanIfPresent(source, "dotEnabled", false);
     normalizeBooleanIfPresent(source, "blastShrapnel", false);
+    normalizeNumberIfPresent(source, "boxSize", 0);
+    normalizeNumberIfPresent(source, "boxCost", 0);
+    normalizeBooleanIfPresent(source, "qtyLocked", true);
+    if (hasOwn(source, "modifier")) source.modifier ||= "standard";
+    if (hasOwn(source, "caliber")) source.caliber ??= "";
+    if (hasOwn(source, "dotType")) source.dotType ||= "acid";
     return super.migrateData(source);
   }
 }
@@ -392,6 +448,7 @@ export class CyberpunkCyberwareData extends CyberpunkBaseItemData {
         }
         if (hasOwn(weapon, "rangeDamages")) weapon.rangeDamages = normalizeRangeDamages(weapon.rangeDamages);
         normalizeBooleanIfPresent(weapon, "ap", false);
+        deriveFireCapability(weapon);
         cwt.Weapon = weapon;
       }
 

@@ -165,6 +165,15 @@ Hooks.once("ready", async function () {
 
   if (!game.user.isGM) return;
 
+  // Focused, self-gating ammo-caliber cleanup. Runs on the current world without a version bump
+  // and never touches the heavier migrations. Safe to fail — weapons still work via runtime
+  // caliber normalization, so a hiccup here can never make a user think they've lost data.
+  try {
+    await migrations.migrateAmmoCalibers();
+  } catch (err) {
+    console.error("Cyberpunk2020 | ammo caliber cleanup failed (weapons still function normally)", err);
+  }
+
   const TARGET_VERSION = game.system.version;
 
   const stored = game.settings.get("cyberpunk2020", "systemMigrationVersion") || "";

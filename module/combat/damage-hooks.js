@@ -20,7 +20,7 @@
 
 import { DamageDialog }                                       from "./DamageDialog.js";
 import { applyAreaDamages, ablateLocationOnce, ablateLocationByAmount, ARMOR_MODES } from "./DamageApplicator.js";
-import { postStunSavePrompt, postDeathSavePrompt, updateTaserState, applyAcidDotState } from "./save-rolls.js";
+import { postStunSavePrompt, postDeathSavePrompt, updateTaserState, applyAcidDotState, applyDotFromPayload } from "./save-rolls.js";
 import { rollLocation }                                       from "../utils.js";
 
 // Payload waiting to be attached to the next chat message created
@@ -236,11 +236,16 @@ function _hookWeaponFired() {
     // item.js uses "attackerId"; support legacy "actorId" for any third-party callers.
     const attackerActorId = payload.attackerId ?? payload.actorId ?? null;
     const attackerActor = attackerActorId ? game.actors.get(attackerActorId) : null;
-    // Player handles their own actor's shots; GM handles everything else (NPCs, offline-player PCs).
-    // hasPlayerOwner only returns true when an owning player is currently connected, so the GM
-    // automatically takes over if the player is offline or if the attacker is an NPC.
+    // Player handles their own actor's shots; the GM handles everything else (NPCs, and PCs
+    // whose owning player is currently offline). NOTE: actor.hasPlayerOwner is permission-based
+    // and stays true even when the player is disconnected — so we must check for a *connected*
+    // owner here, otherwise the GM never takes over an offline player's shots and the Apply
+    // Damage button appears for nobody.
+    const ownerOnline = !!attackerActor && game.users.players.some(
+      u => u.active && attackerActor.testUserPermission(u, "OWNER")
+    );
     const isMyShot  = !game.user.isGM && (attackerActor?.isOwner ?? false);
-    const gmHandles = game.user.isGM  && !(attackerActor?.hasPlayerOwner ?? false);
+    const gmHandles = game.user.isGM  && !ownerOnline;
     if (!isMyShot && !gmHandles) return;
     if (!payload.areaDamages || Object.keys(payload.areaDamages).length === 0) return;
 
@@ -350,23 +355,36 @@ function _hookRenderChatMessage() {
  */
 function _hookSuppressiveFire() {
   Hooks.on("cyberpunk2020.suppressiveFire", async (payload) => {
-    if (!game.user.isGM) return;
-
     const suppressiveSaves = (() => {
       try { return game.settings.get("cyberpunk2020", "suppressiveFireSaves"); }
       catch { return true; }
     })();
     if (!suppressiveSaves) return;
 
-    const { saveDC, dmgFormula, weaponName, actorId, attackerTokenId, zoneWidth, weaponRange } = payload;
-    const scene       = canvas?.scene;
-    const attackerTok = attackerTokenId ? canvas?.tokens?.placeables?.find(t => t.id === attackerTokenId) : null;
-
-    if (!attackerTok || !scene) {
-      ui.notifications.warn("Suppressive fire: attacker token not found on canvas. Target tokens manually and use existing evasion prompts.");
-      return;
+    // Hooks.callAll is LOCAL to the firing client. Placing the fire-zone template requires the GM,
+    // so if we're the active GM place it directly; otherwise relay to the GM over the socket
+    // (mirrors the damage relay). Without this, a player firing suppressive produced no template.
+    if (game.users.activeGM?.id === game.user.id) {
+      await _placeSuppressiveZone(payload);
+    } else {
+      game.socket.emit("system.cyberpunk2020", { type: "suppressiveFire", payload });
     }
+  });
+}
 
+/** Place the suppressive-fire ray template + post the Confirm prompt. Runs on the GM's client. */
+async function _placeSuppressiveZone(payload) {
+  if (!payload) return;
+  const { saveDC, dmgFormula, weaponName, actorId, attackerTokenId, zoneWidth, weaponRange } = payload;
+  const scene       = canvas?.scene;
+  const attackerTok = attackerTokenId ? canvas?.tokens?.placeables?.find(t => t.id === attackerTokenId) : null;
+
+  if (!attackerTok || !scene) {
+    ui.notifications.warn("Suppressive fire: the attacker's token isn't on the active scene, so the fire zone can't be placed. Drop the attacker's token on the canvas (or target tokens manually and use the evasion prompts).");
+    return;
+  }
+
+  {
     // Initial direction: toward centroid of currently-targeted tokens, or East (0°)
     let angleDeg = 0;
     const targetedTokens = Array.from(game.user.targets ?? []);
@@ -436,7 +454,7 @@ function _hookSuppressiveFire() {
       content,
       speaker: ChatMessage.getSpeaker({ actor: game.actors.get(actorId) ?? undefined }),
     });
-  });
+  }
 }
 
 /**
@@ -542,6 +560,9 @@ function _hookSuppressiveTemplateOriginLock() {
 function _hookSuppressiveFirePerTurn() {
   Hooks.on("updateCombat", async (combat, updateData) => {
     if (!game.user.isGM) return;
+    // Active GM only — otherwise every connected GM posts a duplicate per-turn
+    // evasion prompt and races on template deletion.
+    if (game.users.activeGM?.id !== game.user.id) return;
     if (updateData.turn === undefined && updateData.round === undefined) return;
     if (!canvas?.scene) return;
 
@@ -853,6 +874,8 @@ function _hookWaitForTurn() {
 
   Hooks.on("updateCombat", async (combat, updateData) => {
     if (!game.user.isGM) return;
+    // Active GM only — otherwise each connected GM posts a duplicate "your moment" alert.
+    if (game.users.activeGM?.id !== game.user.id) return;
 
     if (updateData.round !== undefined) {
       for (const combatant of combat.combatants) {
@@ -948,6 +971,9 @@ function _hookDodgeParry() {
 
   Hooks.on("updateCombat", async (combat, updateData) => {
     if (!game.user.isGM) return;
+    // Active GM only — keeps multi-GM tables from double-clearing dodge/parry flags
+    // (idempotent, but consistent with the other per-turn handlers).
+    if (game.users.activeGM?.id !== game.user.id) return;
     if (updateData.turn === undefined && updateData.round === undefined) return;
 
     const combatant = combat.combatant;
@@ -968,6 +994,10 @@ function _hookDodgeParry() {
 function _hookDotEffects() {
   Hooks.on("updateCombat", async (combat, updateData) => {
     if (!game.user.isGM) return;
+    // Only the primary GM applies DOT damage/ablation. updateCombat fires on EVERY
+    // connected GM client; without this guard, N connected GMs each apply the tick,
+    // multiplying HP loss / armor degradation by N (matches the gas-cloud guard below).
+    if (game.users.activeGM?.id !== game.user.id) return;
     if (updateData.turn === undefined && updateData.round === undefined) return;
 
     const combatant = combat.combatant;
@@ -1022,6 +1052,66 @@ function _hookDotEffects() {
       }
     }
 
+    // ── Fire / Incendiary DOT (burns HP at the hit location, not armor) ───────
+    const fireEnabled = (() => {
+      try { return game.settings.get("cyberpunk2020", "fireDotEnabled"); }
+      catch { return true; }
+    })();
+    if (fireEnabled && !actor.statuses?.has("dead")) {
+      const rawFire = actor.getFlag?.("cyberpunk2020", "fireDotState");
+      const fireStates = Array.isArray(rawFire) ? rawFire : (rawFire ? [rawFire] : []);
+      if (fireStates.length > 0) {
+        const surviving = [];
+        // BTM reduces ALL damage that reaches the target — fire bypasses armor SP, not body toughness.
+        const fireBtm = Number(actor.system?.stats?.bt?.modifier) || 0;
+        // Fire also chars worn armor: one ablation per turn at the location (optional-rule gated).
+        const fireAblate = (() => { try { return game.settings.get("cyberpunk2020", "damageAblation"); } catch { return false; } })();
+        for (const fs of fireStates) {
+          const { location, turnsLeft, formula } = fs;
+          const mult = Number(fs.mult ?? 1);   // halves each turn (burn diminishes: 1d6, then 1d6/2…)
+          if (!location || turnsLeft <= 0) continue;
+          let rolled = 0;
+          let roll = null;
+          try {
+            roll = await new Roll(formula || "1d6").evaluate();
+            rolled = Math.floor((Number(roll.total) || 0) * mult);
+          } catch {
+            rolled = Math.max(1, Math.floor(mult));
+          }
+          // Floored at 1 like a penetrating hit (applyBTM semantics): a burn still stings.
+          const dmg = Math.max(1, rolled - fireBtm);
+          if (roll) {
+            await roll.toMessage({
+              speaker: ChatMessage.getSpeaker({ actor }),
+              flavor: `🔥 Fire DOT — ${actor.name} burns at ${location}: ${dmg} dmg (after BTM ${fireBtm}; ${turnsLeft} turn${turnsLeft !== 1 ? "s" : ""} left)`,
+            });
+          }
+          const current = Number(actor.system?.damage) || 0;
+          await actor.update({ "system.damage": current + dmg }, { render: false, fromCyberpunkDamageSystem: true });
+          if (fireAblate) {
+            try { await ablateLocationOnce(actor, location); } catch (e) { /* no ablatable armor here */ }
+          }
+          actor.sheet?.render(false);
+          await postStunSavePrompt(actor, token);
+
+          const newTurnsLeft = turnsLeft - 1;
+          if (newTurnsLeft <= 0) {
+            await ChatMessage.create({
+              content: `<div class="cyberpunk save-prompt">🔥 <b>${actor.name}</b> — the fire at <b>${location}</b> burns out.</div>`,
+              speaker: ChatMessage.getSpeaker({ actor }),
+            });
+          } else {
+            surviving.push({ location, turnsLeft: newTurnsLeft, formula, mult: mult / 2 });
+          }
+        }
+        if (surviving.length > 0) {
+          await actor.setFlag("cyberpunk2020", "fireDotState", surviving);
+        } else {
+          await actor.unsetFlag("cyberpunk2020", "fireDotState");
+        }
+      }
+    }
+
     // ── Choke DOT ────────────────────────────────────────────────────────────
     const meleeEnabled = (() => {
       try { return game.settings.get("cyberpunk2020", "specialMeleeEffectsEnabled"); }
@@ -1038,12 +1128,14 @@ function _hookDotEffects() {
         } else {
           const formula = chokeState.formula || "1d6";
           const roll = await new Roll(formula).evaluate();
-          const damage = roll.total;
+          // BTM reduces ALL damage that reaches the target (CP2020 p.99) — choke included.
+          const chokeBtm = Number(actor.system?.stats?.bt?.modifier) || 0;
+          const damage = Math.max(1, (Number(roll.total) || 0) - chokeBtm);
           const current = Number(actor.system?.damage) || 0;
           await actor.update({ "system.damage": current + damage }, { render: false, fromCyberpunkDamageSystem: true });
           await roll.toMessage({
             speaker: ChatMessage.getSpeaker({ actor }),
-            flavor: `Choke — ${actor.name} takes ${damage} damage. Must make Stun Save.`,
+            flavor: `Choke — ${actor.name} takes ${damage} damage (after BTM ${chokeBtm}). Must make Stun Save.`,
           });
           actor.sheet?.render(false);
           await postStunSavePrompt(actor, token);
@@ -1303,6 +1395,8 @@ function _hookMultiActionPenalty() {
 
   Hooks.on("updateCombat", async (combat, updateData) => {
     if (!game.user.isGM || updateData.round === undefined) return;
+    // Active GM only — consistent with the other per-turn handlers (idempotent flag clears).
+    if (game.users.activeGM?.id !== game.user.id) return;
     for (const combatant of combat.combatants) {
       if (!combatant.actor) continue;
       if ((combatant.actor.getFlag?.("cyberpunk2020", "actionCount") ?? 0) > 0) {
@@ -1472,6 +1566,13 @@ function _hookSocketRelay() {
       return;
     }
 
+    // Suppressive fire relayed from a player: only the active GM places the fire-zone template.
+    if (data.type === "suppressiveFire") {
+      if (game.users.activeGM?.id !== game.user.id) return;
+      await _placeSuppressiveZone(data.payload);
+      return;
+    }
+
     if (data.type !== "applyDamage") return;
 
     // The socket fires on every connected GM client. Only the primary (active) GM
@@ -1495,6 +1596,7 @@ function _hookSocketRelay() {
           edged:         Boolean(data.edged),
           armorMultSoft: Number(data.armorMultSoft ?? 1.0),
           armorMultHard: Number(data.armorMultHard ?? 1.0),
+          penDamageMult: Number(data.penDamageMult ?? 1.0),
           armorMode:     game.settings.get("cyberpunk2020", "damageArmorMode"),
           ablate:        game.settings.get("cyberpunk2020", "damageAblation"),
           dryRun:        false,
@@ -1506,10 +1608,8 @@ function _hookSocketRelay() {
           await updateTaserState(target, data);
         }
 
-        const acidEnabled = (() => { try { return game.settings.get("cyberpunk2020", "acidArmorDotEnabled"); } catch { return true; } })();
-        if (acidEnabled && data.dotEnabled && Number(data.dotTurns) > 0 && hits.length > 0) {
-          await applyAcidDotState(target, hits[0].location, Number(data.dotTurns), String(data.dotDamageFormula || "1d6"));
-        }
+        // DOT routes by dotType (fire -> HP burn, acid -> armor degradation); see save-rolls.js.
+        await applyDotFromPayload(target, hits[0]?.location ?? null, data, hits.some(h => h.penetrates));
 
         if (totalApplied > 0) {
           const liveTarget = game.actors.get(target.id) ?? target;
@@ -1578,10 +1678,8 @@ function _hookSocketRelay() {
           await updateTaserState(target, data);
         }
 
-        const acidEnabled = (() => { try { return game.settings.get("cyberpunk2020", "acidArmorDotEnabled"); } catch { return true; } })();
-        if (acidEnabled && data.dotEnabled && Number(data.dotTurns) > 0 && data.firstHitLocation) {
-          await applyAcidDotState(target, data.firstHitLocation, Number(data.dotTurns), String(data.dotDamageFormula || "1d6"));
-        }
+        // DOT routes by dotType (fire -> HP burn, acid -> armor degradation); see save-rolls.js.
+        await applyDotFromPayload(target, data.firstHitLocation ?? null, data, (data.resolvedHits ?? []).some(h => h.penetrates));
 
         if (totalApplied > 0) {
           const liveTarget = game.actors.get(target.id) ?? target;
@@ -1625,11 +1723,13 @@ async function _autoApply(payload, target) {
       edged:            Boolean(payload.edged),
       armorMultSoft:    Number(payload.armorMultSoft   ?? 1.0),
       armorMultHard:    Number(payload.armorMultHard   ?? 1.0),
+      penDamageMult:    Number(payload.penDamageMult   ?? 1.0),
       stunSaveOnHit:    Boolean(payload.stunSaveOnHit),
       stunSaveMod:      Number(payload.stunSaveMod     ?? 0),
       dotEnabled:       Boolean(payload.dotEnabled),
       dotTurns:         Number(payload.dotTurns        ?? 0),
       dotDamageFormula: String(payload.dotDamageFormula || "1d6"),
+      dotType:          String(payload.dotType         || "acid"),
       weaponName:       String(payload.weaponName      || ""),
     });
     ui.notifications.info("Damage sent — waiting for GM to apply.");
@@ -1646,6 +1746,7 @@ async function _autoApply(payload, target) {
     edged:         Boolean(payload.edged),
     armorMultSoft: Number(payload.armorMultSoft ?? 1.0),
     armorMultHard: Number(payload.armorMultHard ?? 1.0),
+    penDamageMult: Number(payload.penDamageMult ?? 1.0),
     armorMode,
     ablate,
     dryRun: false,
@@ -1660,10 +1761,8 @@ async function _autoApply(payload, target) {
     if (taserEnabled) await updateTaserState(target, payload);
   }
 
-  const acidEnabled = (() => { try { return game.settings.get("cyberpunk2020", "acidArmorDotEnabled"); } catch { return true; } })();
-  if (acidEnabled && payload.dotEnabled && Number(payload.dotTurns) > 0 && hits.length > 0) {
-    await applyAcidDotState(target, hits[0].location, Number(payload.dotTurns), String(payload.dotDamageFormula || "1d6"));
-  }
+  // DOT routes by dotType (fire -> HP burn, acid -> armor degradation); see save-rolls.js.
+  await applyDotFromPayload(target, hits[0]?.location ?? null, payload, hits.some(h => h.penetrates));
 
   if (total > 0) {
     const token = canvas?.tokens?.placeables?.find(t => t.actor?.id === target.id) ?? null;

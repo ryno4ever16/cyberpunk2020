@@ -93,10 +93,68 @@ export class CyberpunkItem extends Item {
     return null;
   }
 
+  /**
+   * Apply linked-ammo damage modifiers to one shot's base damage.
+   * rawDamageMult scales the base weapon damage (e.g. AP/Rubber = ×0.5); bonusDamageFormula
+   * adds extra dice (e.g. Incendiary +1d6). Result is floored per CP2020 (min 1 if > 0).
+   * No-op (returns the input, floored) when no ammo is linked or mults are neutral.
+   * @param {number} baseDamage  Already-rolled base weapon damage for this shot
+   * @param {object} rollData
+   * @returns {Promise<number>}
+   */
+  async _applyAmmoDamage(baseDamage, rollData = {}) {
+    const { rawDamageMult, bonusDamageFormula } = this._getAmmoProps();
+    let total = (Number(baseDamage) || 0) * (Number(rawDamageMult) || 1);
+    const bonus = String(bonusDamageFormula || "").trim();
+    if (bonus) {
+      try {
+        const bonusRoll = await new Roll(bonus, rollData).evaluate();
+        total += Number(bonusRoll.total) || 0;
+      } catch (err) {
+        console.warn("CP2020 | Invalid ammo bonusDamageFormula:", bonus, err);
+      }
+    }
+    return CyberpunkItem._floorDamageTotal(total);
+  }
+
+  // ── Magazine "round pool" ─────────────────────────────────────────────────
+  // A weapon fires from its MAGAZINE (system.shotsLeft). The magazine is filled
+  // from a linked ammo Item in inventory by reloading (see modifiers.js). The fire
+  // modes read the magazine via _roundPool() and write the remainder via
+  // _setRoundPool(). With ammo tracking ON, an empty magazine blocks firing; with
+  // tracking OFF ("Free Fire") reloads are free.
+
+  /** True when the owning actor tracks ammo (default ON when the flag is unset). */
+  _ammoTrackingOn() {
+    return (this.actor?.getFlag?.("cyberpunk2020", "ammoTracking") ?? true) === true;
+  }
+
+  /** The linked ammo Item owned by the actor, or null. */
+  _linkedAmmoItem() {
+    if (!this.actor) return null;
+    const sys = this._getWeaponSystem ? this._getWeaponSystem() : this.system;
+    const id = String(sys?.ammoItemId ?? "");
+    if (!id) return null;
+    const it = this.actor.items.get(id);
+    return (it && it.type === "ammo") ? it : null;
+  }
+
+  /** Rounds currently in the magazine. */
+  _roundPool() {
+    const sys = this._getWeaponSystem ? this._getWeaponSystem() : this.system;
+    return Number(sys?.shotsLeft) || 0;
+  }
+
+  /** Write the remaining rounds back to the magazine. */
+  async _setRoundPool(remaining) {
+    const n = Math.max(0, Math.floor(Number(remaining) || 0));
+    await this.__setWeaponField("shotsLeft", n);
+  }
+
   /** Returns just the payload-relevant subset of _getAmmoProps() for weaponFired hook emissions. */
   _getAmmoPayload() {
-    const { ap, armorMultSoft, armorMultHard, stunSaveOnHit, stunSaveMod, dotEnabled, dotTurns, dotDamageFormula, effectTypes, blastRadius } = this._getAmmoProps();
-    return { ap, armorMultSoft, armorMultHard, stunSaveOnHit, stunSaveMod, dotEnabled, dotTurns, dotDamageFormula, effectTypes, blastRadius };
+    const { ap, armorMultSoft, armorMultHard, penDamageMult, stunSaveOnHit, stunSaveMod, dotEnabled, dotTurns, dotDamageFormula, dotType, effectTypes, blastRadius } = this._getAmmoProps();
+    return { ap, armorMultSoft, armorMultHard, penDamageMult, stunSaveOnHit, stunSaveMod, dotEnabled, dotTurns, dotDamageFormula, dotType, effectTypes, blastRadius };
   }
 
   /**
@@ -110,42 +168,60 @@ export class CyberpunkItem extends Item {
    */
   _getAmmoProps() {
     const sys = this._getWeaponSystem ? this._getWeaponSystem() : this.system;
-    const ammoItemId = String(sys?.ammoItemId ?? "");
     const weaponAP   = Boolean(sys?.ap);
 
-    const noEffects = { stunSaveOnHit: false, stunSaveMod: 0, dotEnabled: false, dotTurns: 0, dotDamageFormula: "", effectTypes: ["None"], blastRadius: 0 };
+    const noEffects = { stunSaveOnHit: false, stunSaveMod: 0, dotEnabled: false, dotTurns: 0, dotDamageFormula: "", dotType: "acid", effectTypes: ["None"], blastRadius: 0 };
+    const fallback = () => ({ ap: weaponAP, armorMultSoft: weaponAP ? 0.5 : 1.0, armorMultHard: weaponAP ? 0.5 : 1.0, accuracyMod: 0, rawDamageMult: 1.0, penDamageMult: 1.0, ...noEffects });
 
-    if (!ammoItemId || !this.actor) {
-      return { ap: weaponAP, armorMultSoft: weaponAP ? 0.5 : 1.0, armorMultHard: weaponAP ? 0.5 : 1.0, accuracyMod: 0, rawDamageMult: 1.0, ...noEffects };
+    // Resolve the rounds actually IN the magazine. Priority:
+    //   1. live loaded item (loadedAmmoId)   — reflects current edits to that item
+    //   2. loaded snapshot (loadedAmmo)      — preserves the profile if the source was deleted
+    //   3. selected ammo item (ammoItemId)   — free fire / legacy weapons not yet reloaded
+    let ammoSys = null;
+    const loadedId   = String(sys?.loadedAmmoId ?? "");
+    const selectedId = String(sys?.ammoItemId  ?? "");
+    const loadedSnap = sys?.loadedAmmo;
+
+    if (this.actor && loadedId) {
+      const it = this.actor.items.get(loadedId);
+      if (it && it.type === "ammo") ammoSys = it.system;
+    }
+    // Snapshot is only a fallback for a loaded-but-deleted source — never used once unloaded
+    // (loadedAmmoId cleared), so an orphaned snapshot can't drive damage on an empty magazine.
+    if (!ammoSys && loadedId && loadedSnap && typeof loadedSnap === "object" && loadedSnap.system && Object.keys(loadedSnap).length) {
+      ammoSys = loadedSnap.system;
+    }
+    if (!ammoSys && this.actor && selectedId) {
+      const it = this.actor.items.get(selectedId);
+      if (it && it.type === "ammo") ammoSys = it.system;
     }
 
-    const ammoItem = this.actor.items.get(ammoItemId);
-    if (!ammoItem || ammoItem.type !== "ammo") {
-      return { ap: weaponAP, armorMultSoft: weaponAP ? 0.5 : 1.0, armorMultHard: weaponAP ? 0.5 : 1.0, accuracyMod: 0, rawDamageMult: 1.0, ...noEffects };
-    }
+    if (!ammoSys) return fallback();
 
-    const soft  = Number(ammoItem.system?.armorMultSoft  ?? 1.0);
-    const hard  = Number(ammoItem.system?.armorMultHard  ?? 1.0);
-    const acc   = Number(ammoItem.system?.accuracyMod    ?? 0);
-    const dmgM  = Number(ammoItem.system?.rawDamageMult  ?? 1.0);
+    const soft  = Number(ammoSys?.armorMultSoft  ?? 1.0);
+    const hard  = Number(ammoSys?.armorMultHard  ?? 1.0);
+    const acc   = Number(ammoSys?.accuracyMod    ?? 0);
+    const dmgM  = Number(ammoSys?.rawDamageMult  ?? 1.0);
+    const penM  = Number(ammoSys?.penDamageMult  ?? 1.0);
     const effects = {
-      stunSaveOnHit:    Boolean(ammoItem.system?.stunSaveOnHit),
-      stunSaveMod:      Number(ammoItem.system?.stunSaveMod       ?? 0),
-      dotEnabled:       Boolean(ammoItem.system?.dotEnabled),
-      dotTurns:         Number(ammoItem.system?.dotTurns          ?? 0),
-      dotDamageFormula: String(ammoItem.system?.dotDamageFormula  ?? ""),
-      effectTypes:      Array.isArray(ammoItem.system?.effectTypes) ? ammoItem.system.effectTypes : ["None"],
-      blastRadius:      Number(ammoItem.system?.blastRadius        ?? 0),
+      stunSaveOnHit:    Boolean(ammoSys?.stunSaveOnHit),
+      stunSaveMod:      Number(ammoSys?.stunSaveMod       ?? 0),
+      dotEnabled:       Boolean(ammoSys?.dotEnabled),
+      dotTurns:         Number(ammoSys?.dotTurns          ?? 0),
+      dotDamageFormula: String(ammoSys?.dotDamageFormula  ?? ""),
+      dotType:          String(ammoSys?.dotType           ?? "acid"),
+      effectTypes:      Array.isArray(ammoSys?.effectTypes) ? ammoSys.effectTypes : ["None"],
+      blastRadius:      Number(ammoSys?.blastRadius        ?? 0),
     };
 
     // If both mults are ≤ 0.5 (symmetric — standard AP rounds), use the ap flag path.
     // This routes through resolveHitMath's spUsed halving and avoids double-halving
     // when both ap=true and armorMultSoft < 1 are active.
     if (soft <= 0.5 && hard <= 0.5) {
-      return { ap: true, armorMultSoft: 1.0, armorMultHard: 1.0, accuracyMod: acc, rawDamageMult: dmgM, ...effects };
+      return { ap: true, armorMultSoft: 1.0, armorMultHard: 1.0, accuracyMod: acc, rawDamageMult: dmgM, penDamageMult: penM, ...effects };
     }
     // Asymmetric mults (e.g. hollow point: better vs soft, worse vs hard) — use mult path, ap=false
-    return { ap: false, armorMultSoft: soft, armorMultHard: hard, accuracyMod: acc, rawDamageMult: dmgM, ...effects };
+    return { ap: false, armorMultSoft: soft, armorMultHard: hard, accuracyMod: acc, rawDamageMult: dmgM, penDamageMult: penM, ...effects };
   }
 
   isRanged() {
@@ -293,6 +369,7 @@ export class CyberpunkItem extends Item {
     turningToFace,
     range,
     fireMode,
+    autoRounds,
     extraMod
   }) {
     const sys = this._getWeaponSystem ? this._getWeaponSystem() : this.system;
@@ -334,9 +411,12 @@ export class CyberpunkItem extends Item {
     // +1/-1 per 10 bullets fired. + if close, - if medium onwards.
     // Friend's copy of the rulebook states penalties/bonus for all except point blank
     if(fireMode === fireModes.fullAuto) {
-      const shotsLeft = Number(sys.shotsLeft) || 0;
+      const available = this._roundPool();
       const rof = Number(sys.rof) || 0;
-      const bullets = Math.min(shotsLeft, rof);
+      // Player may choose to fire fewer than the full ROF; recoil scales with rounds actually fired.
+      const requested = Number(autoRounds);
+      const cap = (Number.isFinite(requested) && requested > 0) ? Math.min(requested, rof) : rof;
+      const bullets = Math.min(available, cap);
       // If close range, add, else subtract
       let multiplier = 
           (range === ranges.close) ? 1 
@@ -398,8 +478,18 @@ export class CyberpunkItem extends Item {
 
     const isRanged = this.isRanged();
 
-    if (isRanged && Number(system?.shotsLeft ?? 0) <= 0) {
+    // Per-actor ammo tracking (default ON). When ON, a ranged weapon can't fire with an
+    // empty magazine — the player must reload (which draws from linked ammo inventory).
+    // When OFF ("Free Fire"), ammo is ignored and the weapon always fires.
+    if (this._ammoTrackingOn() && isRanged && this._roundPool() <= 0) {
       ui.notifications.warn(localize("NoAmmo"));
+      return false;
+    }
+
+    // Defense in depth: refuse fire modes this weapon isn't capable of. The dialog dropdown
+    // already hides them, but this guards against macros / stale dialogs.
+    if (isRanged && attackMods?.fireMode && !this.__getFireModes().includes(attackMods.fireMode)) {
+      ui.notifications.warn(localize("FireModeNotCapable"));
       return false;
     }
 
@@ -428,6 +518,26 @@ export class CyberpunkItem extends Item {
     }
   }
 
+  /**
+   * True when this weapon can fire fully automatic (also enables Suppressive Fire).
+   * attackType is the capability FLOOR: any weapon authored as Auto/Autoshotgun keeps full-auto
+   * regardless of the stored flag (so pre-existing items never silently lose auto on upgrade).
+   * The fullAutoCapable flag can additionally GRANT auto to a weapon whose attackType doesn't.
+   * To make an auto weapon non-auto, change its attackType (the flag only adds capability).
+   */
+  _isFullAutoCapable(sys) {
+    sys = sys ?? (this._getWeaponSystem ? this._getWeaponSystem() : this.system);
+    if (sys?.attackType === rangedAttackTypes.auto || sys?.attackType === rangedAttackTypes.autoshotgun) return true;
+    return sys?.fullAutoCapable === true;
+  }
+
+  /** True when this weapon can fire a 3-Round Burst. Full-auto weapons can always burst. */
+  _isBurstCapable(sys) {
+    sys = sys ?? (this._getWeaponSystem ? this._getWeaponSystem() : this.system);
+    if (this._isFullAutoCapable(sys)) return true;
+    return sys?.burstCapable === true;
+  }
+
   __getFireModes() {
     const isWeaponDoc = this.type === "weapon" || (this.type === "cyberware" && cwHasType(this, "Weapon"));
     if (!isWeaponDoc) {
@@ -435,10 +545,17 @@ export class CyberpunkItem extends Item {
       return [];
     }
     const sys = this._getWeaponSystem ? this._getWeaponSystem() : this.system;
-    if (sys.attackType === rangedAttackTypes.auto || sys.attackType === rangedAttackTypes.autoshotgun) {
-      return [fireModes.fullAuto, fireModes.suppressive, fireModes.threeRoundBurst, fireModes.semiAuto];
+    const modes = [];
+    // Full Auto + Suppressive require full-auto capability; 3-Round Burst requires burst (or auto).
+    // Semi-auto is always available. Non-automatic weapons are therefore limited to semi-auto.
+    if (this._isFullAutoCapable(sys)) {
+      modes.push(fireModes.fullAuto, fireModes.suppressive);
     }
-    return [fireModes.semiAuto];
+    if (this._isBurstCapable(sys)) {
+      modes.push(fireModes.threeRoundBurst);
+    }
+    modes.push(fireModes.semiAuto);
+    return modes;
   }
 
   // Roll just the attack roll of a weapon, return it
@@ -466,6 +583,12 @@ export class CyberpunkItem extends Item {
       attackTerms.push("@weaponAccuracy");
     }
 
+    // Linked-ammo accuracy modifier (ranged only).
+    const ammoAccuracy = isRanged ? (Number(this._getAmmoProps?.().accuracyMod ?? 0) || 0) : 0;
+    if (ammoAccuracy !== 0) {
+      attackTerms.push("@ammoAccuracy");
+    }
+
     const attackSkillKey = (system?.attackSkill ?? this.system?.attackSkill) || "";
     const attackSkillValRaw = this.actor?.getSkillVal?.(attackSkillKey);
     const attackSkillVal = Number.isFinite(Number(attackSkillValRaw)) ? Number(attackSkillValRaw) : 0;
@@ -473,7 +596,8 @@ export class CyberpunkItem extends Item {
     return await makeD10Roll(attackTerms, {
       stats: this.actor.system.stats,
       attackSkill: attackSkillVal,
-      weaponAccuracy
+      weaponAccuracy,
+      ammoAccuracy
     }).evaluate();
   }
 
@@ -499,12 +623,17 @@ export class CyberpunkItem extends Item {
       
       // This is a somewhat flawed multi-target thing - given target tokens, we could calculate distance (& therefore penalty) for each, and apply damage to them
       let rolls = [];
-      let shotsLeft = Number(system.shotsLeft) || 0;
-      const perTarget = Math.max(1, Math.floor((Number(system.rof) || 0) / targetCount));
+      // Round pool: ammo inventory when tracking, else the magazine (Free Fire).
+      let shotsLeft = this._roundPool();
+      // Player may fire fewer than the full ROF. Cap the burst at the chosen rounds (1..rof).
+      const maxRof = Number(system.rof) || 0;
+      const requestedRounds = Number(attackMods.autoRounds);
+      const effectiveRof = (Number.isFinite(requestedRounds) && requestedRounds > 0)
+        ? Math.min(requestedRounds, maxRof)
+        : maxRof;
+      const perTarget = Math.max(1, Math.floor(effectiveRof / targetCount));
       for (let i = 0; i < targetCount; i++) {
           let attackRoll = await this.attackRoll(attackMods);
-
-          const perTarget = Math.max(1, Math.floor((Number(system.rof) || 0) / targetCount));
 
           const rangedFumble = await this._maybeApplyRangedFumble(attackRoll);
 
@@ -520,7 +649,7 @@ export class CyberpunkItem extends Item {
             shotsLeft = Math.max(0, shotsLeft - roundsFired);
           }
 
-          await this.__setWeaponField("shotsLeft", shotsLeft);
+          await this._setRoundPool(shotsLeft);
 
           let roundsHit = Math.min(roundsFired, attackRoll.total - DC);
           
@@ -541,9 +670,10 @@ export class CyberpunkItem extends Item {
                 ? maxDamageRoll
                 : await new Roll(system.damage, rollData).evaluate();
 
-              const dmg = maximizeDamage
+              const baseDmg = maximizeDamage
                 ? maxDamage
                 : CyberpunkItem._floorDamageTotal(dmgRoll.total);
+              const dmg = await this._applyAmmoDamage(baseDmg, rollData);
 
               areaDamages[location].push({
                 damage: dmg,
@@ -601,9 +731,10 @@ export class CyberpunkItem extends Item {
         ? CyberpunkItem._floorDamageTotal(maxDamageRoll.total)
         : null;
 
-      let roundsFired = Math.min(system.shotsLeft, system.rof, 3);
+      const roundPool = this._roundPool();
+      let roundsFired = Math.min(roundPool, system.rof, 3);
       if (rangedFumble) {
-        roundsFired = Math.min(system.shotsLeft, 1);
+        roundsFired = Math.min(roundPool, 1);
       }
       let attackHits = attackRoll.total >= DC;
       if (rangedFumble?.forceMiss) {
@@ -623,9 +754,10 @@ export class CyberpunkItem extends Item {
                 ? maxDamageRoll
                 : await new Roll(system.damage, rollData).evaluate();
 
-              const dmg = maximizeDamage
+              const baseDmg = maximizeDamage
                 ? maxDamage
                 : CyberpunkItem._floorDamageTotal(dmgRoll.total);
+              const dmg = await this._applyAmmoDamage(baseDmg, rollData);
 
               areaDamages[location].push({
                 damage: dmg,
@@ -660,20 +792,21 @@ export class CyberpunkItem extends Item {
       }
       // ────────────────────────────────────────────────────────────────────
       if (rangedFumble?.outcome?.discharge) {
-        await this.__setWeaponField("shotsLeft", 0);
+        await this._setRoundPool(0);
       } else {
-        await this.__setWeaponField("shotsLeft", system.shotsLeft - roundsFired);
+        await this._setRoundPool(roundPool - roundsFired);
       }
       return roll;
   }
 
   async __suppressiveFire(mods = {}) {
     const sys = this._getWeaponSystem();
-    const rounds = clamp(Number(mods.roundsFired) || Number(sys.rof) || 0, 1, Number(sys.shotsLeft) || 0);
+    const roundPool = this._roundPool();
+    const rounds = clamp(Number(mods.roundsFired) || Number(sys.rof) || 0, 1, roundPool || 0);
     const width = Math.max(2, Number(mods.zoneWidth ?? 2));
     const targets = Math.max(1, Number(mods.targetsCount ?? 1));
 
-    await this.__setWeaponField("shotsLeft", sys.shotsLeft - rounds);
+    await this._setRoundPool(roundPool - rounds);
 
     const saveDC = Math.ceil(rounds / width);
     const dmgFormula = sys.damage || "1d6";
@@ -687,7 +820,7 @@ export class CyberpunkItem extends Item {
       for (let i = 0; i < hitsRoll.total; i++) {
         const loc = (await rollLocation(mods.targetActor, mods.targetArea)).areaHit;
         const dmgRoll = await new Roll(dmgFormula, rollData).evaluate();
-        const dmg = CyberpunkItem._floorDamageTotal(dmgRoll.total);
+        const dmg = await this._applyAmmoDamage(CyberpunkItem._floorDamageTotal(dmgRoll.total), rollData);
 
         if (!areaDamages[loc]) areaDamages[loc] = [];
 
@@ -734,14 +867,15 @@ export class CyberpunkItem extends Item {
       const rollData = this.actor?.getRollData?.() ?? {};
       const maximizeDamage = this._shouldMaximizePointBlankDamage(attackMods);
       const damageRoll = await new Roll(system.damage, rollData).evaluate({ maximize: maximizeDamage });
-      const dmg = CyberpunkItem._floorDamageTotal(damageRoll.total);
+      const dmg = await this._applyAmmoDamage(CyberpunkItem._floorDamageTotal(damageRoll.total), rollData);
       let locationRoll = await rollLocation(attackMods.targetActor, attackMods.targetArea);
       let actualRangeBracket = rangeResolve[attackMods.range](system.range);
       let attackHits = attackRoll.total >= DC;
       if (rangedFumble?.forceMiss) {
         attackHits = false;
       }
-      const roundsFired = Math.min(system.shotsLeft, 1);
+      const roundPool = this._roundPool();
+      const roundsFired = Math.min(roundPool, 1);
       let location = locationRoll.areaHit;
       let areaDamages = {};
       
@@ -786,11 +920,11 @@ export class CyberpunkItem extends Item {
       // ────────────────────────────────────────────────────────────────────
 
       if (rangedFumble?.outcome?.discharge) {
-        await this.__setWeaponField("shotsLeft", 0);
+        await this._setRoundPool(0);
       } else {
-        await this.__setWeaponField("shotsLeft", system.shotsLeft - roundsFired);
+        await this._setRoundPool(roundPool - roundsFired);
       }
-      
+
       return roll;
   }
 

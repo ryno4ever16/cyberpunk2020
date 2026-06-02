@@ -52,6 +52,14 @@
     <section class="weapons-list">
         <header>
             <h2>{{CPLocal "Weapons"}}</h2>
+            <span class="flex-pad"></span>
+            <label class="cp-ammo-tracking-toggle" title="{{CPLocal 'AmmoTrackingHint'}}">
+                <input type="checkbox" class="cp-ammo-tracking" {{#if ammoTracking}}checked{{/if}}>
+                <span>{{#if ammoTracking}}{{CPLocal "AmmoTracking"}}{{else}}{{CPLocal "FreeFire"}}{{/if}}</span>
+            </label>
+            {{#if showBuyAmmo}}
+            <button type="button" class="cp-buy-ammo" title="{{CPLocal 'AmmoBuyBoxHint'}}">{{CPLocal "AmmoBuyTitle"}}</button>
+            {{/if}}
         </header>
 
         {{!-- Normal weapons --}}

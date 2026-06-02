@@ -109,6 +109,13 @@
       "type": "Item"
     },
     {
+      "name": "ammo",
+      "label": "Ammo",
+      "path": "./packs/ammo.db",
+      "system": "cyberpunk2020",
+      "type": "Item"
+    },
+    {
       "name": "pistols",
       "label": "Pistols",
       "path": "./packs/pistols.db",
@@ -357,7 +364,8 @@
               "rifles",
               "heavy",
               "melee",
-              "exotics"
+              "exotics",
+              "ammo"
             ]
           },
           {

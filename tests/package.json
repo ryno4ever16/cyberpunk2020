@@ -1,0 +1,15 @@
+{
+  "name": "cyberpunk2020-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Playwright E2E tests driving a live Foundry VTT world to verify the CP2020 combat automation system.",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

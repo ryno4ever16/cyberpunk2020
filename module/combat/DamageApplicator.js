@@ -46,10 +46,12 @@ function _combineSP(a, b) {
  * @param {number}  p.rawDamage   Damage before any reduction
  * @param {boolean} p.ap          Armor-piercing: halves spUsed
  * @param {string}  p.armorMode
- * @param {number}  p.coverSP     Outermost-layer cover SP (0 = none)
+ * @param {number}  p.coverSP        Outermost-layer cover SP (0 = none)
+ * @param {number}  p.penDamageMult  Multiplier on penetrating damage (AP ×0.5, Hollow-Point ×1.5).
+ *                                   Applied to the post-armor remainder, before BTM (CP2020/Chromebook).
  * @returns {{ spFull, spUsed, damageAfterSP, penetrates }}
  */
-function resolveHitMath({ currentSP, rawDamage, ap, armorMode, coverSP = 0 }) {
+function resolveHitMath({ currentSP, rawDamage, ap, armorMode, coverSP = 0, penDamageMult = 1 }) {
   let effectiveSP = currentSP;
   if (coverSP > 0 && armorMode !== ARMOR_MODES.NONE) {
     // Cover is the outermost layer — combined last (inside-out rule, p.99)
@@ -61,8 +63,15 @@ function resolveHitMath({ currentSP, rawDamage, ap, armorMode, coverSP = 0 }) {
     ? Math.floor(spFull / 2)
     : spFull;
 
-  const damageAfterSP = rawDamage - spUsed;
-  const penetrates    = damageAfterSP > 0;
+  let damageAfterSP = rawDamage - spUsed;
+  const penetrates  = damageAfterSP > 0;
+
+  // Penetrating-damage multiplier applies only to the portion that got through armor.
+  // penetrated→min handled later by applyBTM (min 1 when penetrated), so floor at 0 here.
+  const pen = Number(penDamageMult) || 1;
+  if (penetrates && pen !== 1) {
+    damageAfterSP = Math.max(0, Math.floor(damageAfterSP * pen));
+  }
 
   return { spFull, spUsed, damageAfterSP, penetrates };
 }
@@ -93,7 +102,7 @@ export function applyBTM(damageAfterSP, btm, penetrated) {
  * @param {boolean} p.dryRun        If true: runs math only, does not write HP or ablate
  * @returns {Promise<object[]>}     Per-hit results (includes netDamage when dryRun=false)
  */
-export async function applyAreaDamages({ target, areaDamages, ap, edged = false, armorMultSoft = 1.0, armorMultHard = 1.0, armorMode, ablate, coverSP = 0, dryRun = false }) {
+export async function applyAreaDamages({ target, areaDamages, ap, edged = false, armorMultSoft = 1.0, armorMultHard = 1.0, penDamageMult = 1.0, armorMode, ablate, coverSP = 0, dryRun = false }) {
   const results = [];
   const btm = Number(target.system.stats?.bt?.modifier) || 0;
 
@@ -133,7 +142,7 @@ export async function applyAreaDamages({ target, areaDamages, ap, edged = false,
     }
 
     const { spFull, spUsed, damageAfterSP, penetrates } = resolveHitMath({
-      currentSP, rawDamage, ap, armorMode, coverSP,
+      currentSP, rawDamage, ap, armorMode, coverSP, penDamageMult,
     });
 
     // Head hit doubling applied after BTM (CP2020 p.103) — never doubles 0 or negative
@@ -205,8 +214,8 @@ export async function applyAreaDamages({ target, areaDamages, ap, edged = false,
 
 // Dry-run variants return damageAfterSP (pre-BTM) without writing any data.
 
-export async function resolveAreaDamages({ target, areaDamages, ap, edged = false, armorMultSoft = 1.0, armorMultHard = 1.0, armorMode, coverSP = 0 }) {
-  return applyAreaDamages({ target, areaDamages, ap, edged, armorMultSoft, armorMultHard, armorMode, ablate: false, coverSP, dryRun: true });
+export async function resolveAreaDamages({ target, areaDamages, ap, edged = false, armorMultSoft = 1.0, armorMultHard = 1.0, penDamageMult = 1.0, armorMode, coverSP = 0 }) {
+  return applyAreaDamages({ target, areaDamages, ap, edged, armorMultSoft, armorMultHard, penDamageMult, armorMode, ablate: false, coverSP, dryRun: true });
 }
 
 /**
@@ -214,7 +223,7 @@ export async function resolveAreaDamages({ target, areaDamages, ap, edged = fals
  * BTM is not applied here — the dialog shows damageAfterSP so the GM can override it,
  * then applies BTM at click time.
  */
-export function resolveAreaDamagesSync({ target, areaDamages, ap, edged = false, armorMultSoft = 1.0, armorMultHard = 1.0, armorMode, coverSP = 0 }) {
+export function resolveAreaDamagesSync({ target, areaDamages, ap, edged = false, armorMultSoft = 1.0, armorMultHard = 1.0, penDamageMult = 1.0, armorMode, coverSP = 0 }) {
   const results = [];
   const liveSP  = {};
 
@@ -241,7 +250,7 @@ export function resolveAreaDamagesSync({ target, areaDamages, ap, edged = false,
       }
 
       const { spFull, spUsed, damageAfterSP, penetrates } = resolveHitMath({
-        currentSP, rawDamage, ap, armorMode, coverSP,
+        currentSP, rawDamage, ap, armorMode, coverSP, penDamageMult,
       });
 
       results.push({ location, rawDamage, spFull, spUsed, damageAfterSP, penetrates });

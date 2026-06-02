@@ -3,4 +3,20 @@
     {{> (template "fields/number") label="Cost" edit="system.cost"}}
     {{> (template "fields/number") label="Weight" edit="system.weight"}}
     {{> (template "fields/string") label="Source" edit="system.source"}}
+
+    {{!-- Ammo Locker: optional feature (GM setting, off by default). Turns this item into an
+         in-inventory ammunition-buying interface. --}}
+    {{#if ammoLockerFeature}}
+    <div class="field full-width">
+        <label>{{CPLocal "AmmoLockerToggle"}}</label>
+        <span class="flex-pad"></span>
+        <input type="checkbox" class="cp-locker-toggle" {{#if isAmmoLocker}}checked{{/if}}>
+    </div>
+    {{#if isAmmoLocker}}
+    <div class="field full-width">
+        <span class="flex-pad"></span>
+        <button type="button" class="cp-locker-buy" title="{{CPLocal "AmmoLockerHint"}}">{{CPLocal "AmmoBuyTitle"}}</button>
+    </div>
+    {{/if}}
+    {{/if}}
 </div>
