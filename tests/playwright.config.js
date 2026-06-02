@@ -19,7 +19,8 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
-  retries: 0,
+  // One retry: these run against a live remote world, so absorb transient network blips.
+  retries: 1,
   timeout: 90_000,
   expect: { timeout: 20_000 },
   reporter: [["list"], ["html", { open: "never" }]],
@@ -36,7 +37,8 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      // Viewport AFTER the device spread: Foundry warns below 1366x768.
+      use: { ...devices["Desktop Chrome"], viewport: { width: 1600, height: 900 } },
     },
   ],
 });
