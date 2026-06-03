@@ -1,5 +1,6 @@
 import { openControlRollDialog } from "../vehicle/vehicle-control.js";
 import { openVehicleDamageDialog } from "../vehicle/vehicle-damage.js";
+import { openVehicleFireDialog } from "../vehicle/vehicle-weapons.js";
 
 /**
  * Vehicle / ACPA actor sheet (Phase 1-3).
@@ -54,5 +55,34 @@ export class CyberpunkVehicleSheet extends ActorSheet {
       ev.preventDefault();
       openVehicleDamageDialog(this.actor);
     });
+
+    // ── Weapon mounts ──────────────────────────────────────────────────────
+    // The mount array is edited by rebuilding it from the DOM and writing the whole array (this
+    // sidesteps Foundry's flaky per-index array form coercion). Each mount is a plain object.
+    const readMounts = () => Array.from(root?.querySelectorAll?.(".cp-mount-row") ?? []).map(row => {
+      const get = (f) => row.querySelector(`.cp-mount-field[data-field="${f}"]`)?.value ?? "";
+      return { name: get("name"), penetration: Number(get("penetration")) || 0, rof: Number(get("rof")) || 1, arc: get("arc") || "fixed-fwd" };
+    });
+    const writeMounts = (mounts) => this.actor.update({ "system.weaponMounts": mounts });
+
+    root?.querySelector?.(".cp-mount-add")?.addEventListener("click", async (ev) => {
+      ev.preventDefault();
+      const mounts = [...(this.actor.system.weaponMounts ?? [])];
+      mounts.push({ name: "Weapon", penetration: 0, rof: 1, arc: "fixed-fwd" });
+      await writeMounts(mounts);
+    });
+    root?.querySelectorAll?.(".cp-mount-field").forEach(el => el.addEventListener("change", () => writeMounts(readMounts())));
+    root?.querySelectorAll?.(".cp-mount-remove").forEach(btn => btn.addEventListener("click", async (ev) => {
+      ev.preventDefault();
+      const idx = Number(ev.currentTarget.dataset.mountIndex);
+      const mounts = [...(this.actor.system.weaponMounts ?? [])];
+      if (idx >= 0 && idx < mounts.length) { mounts.splice(idx, 1); await writeMounts(mounts); }
+    }));
+    root?.querySelectorAll?.(".cp-mount-fire").forEach(btn => btn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      const idx = Number(ev.currentTarget.dataset.mountIndex);
+      const mount = (this.actor.system.weaponMounts ?? [])[idx];
+      if (mount) openVehicleFireDialog(this.actor, mount);
+    }));
   }
 }

@@ -160,11 +160,13 @@ test("Phase 5: live bridge — firing a normal weapon at a vehicle token routes 
     await gunner.createEmbeddedDocuments("Item", [
       { name: "__PW__RailCannon", type: "weapon", flags, system: { damage: "6d10", ap: true, attackType: "" } },  // Pen 6
     ]);
-    const tank = await Actor.create({ name: "__PW__BridgeTank", type: "vehicle", flags, system: { sp: { front: 40 }, sdp: { value: 200, max: 200 } } }); // AV 2
+    // Light vehicle (AV 2, Body 2): Pen 6 → score = 1d10 + (6−2) − 2 ≥ 3, always at least Minor, so
+    // a damaged system / status is always recorded — a deterministic "the resolver did something".
+    const tank = await Actor.create({ name: "__PW__BridgeTank", type: "vehicle", flags, system: { sp: { front: 40 }, sdp: { value: 40, max: 40 } } });
     const mm = await VW.routeWeaponFiredToVehicle(
       { attackerId: gunner.id, weaponName: "__PW__RailCannon", areaDamages: { Torso: [{ damage: 18 }] }, ap: true }, tank);
     out.mmHandled = mm;                                  // true
-    out.tankChanged = tank._source.system.destroyed === true || (tank._source.system.damagedSystems?.length ?? 0) > 0 || tank._source.system.sdp.value < 200 || tank._source.system.onFire === true || tank._source.system.immobilized === true;
+    out.tankChanged = tank._source.system.destroyed === true || (tank._source.system.damagedSystems?.length ?? 0) > 0 || tank._source.system.sdp.value < 40 || tank._source.system.onFire === true || tank._source.system.immobilized === true;
 
     // --- live: emit weaponFired at the vehicle token; the _hookWeaponFired divert handles it (Core) ---
     await game.settings.set("cyberpunk2020", "vehicleRuleSystem", "Core");
@@ -192,4 +194,61 @@ test("Phase 5: live bridge — firing a normal weapon at a vehicle token routes 
   expect(R.mmHandled, "MM bridge handled the hit").toBe(true);
   expect(R.tankChanged, "MM bridge applied an effect to the tank (Pen 6 vs AV 2 penetrates)").toBe(true);
   expect(R.liveSDP, "live weaponFired at a vehicle token → 200 − 20 = 180").toBe(180);
+});
+
+test("Phase 5 polish: mount to-hit + Good Shot, mount storage, and the fire dialog gate", async ({ page }) => {
+  await login(page, ACCOUNTS.gm);
+  await cleanupTestData(page).catch(() => {});
+
+  const R = await evalGameOrThrow(page, async () => {
+    const VW = await import("/systems/cyberpunk2020/module/vehicle/vehicle-weapons.js");
+    const flags = { cyberpunk2020: { __pwtest: true } };
+    const out = {};
+
+    // --- resolveVehicleToHit: hit/miss + Good Shot steps ---
+    const a = VW.resolveVehicleToHit({ d10: 8, ref: 7, skill: 5, mods: 4, targetNumber: 15 }); // 24 ≥ 15, over 9 → 0
+    out.aHit = a.hit; out.aGS = a.goodShotSteps;
+    const b = VW.resolveVehicleToHit({ d10: 8, ref: 10, skill: 5, mods: 4, targetNumber: 15 }); // 27, over 12 → 1
+    out.bGS = b.goodShotSteps;
+    const c = VW.resolveVehicleToHit({ d10: 1, ref: 0, skill: 0, mods: 0, targetNumber: 15 }); // miss
+    out.cHit = c.hit; out.cGS = c.goodShotSteps;
+
+    // --- mount storage round-trips (AnyField array of plain objects) ---
+    const veh = await Actor.create({ name: "__PW__MountVeh", type: "vehicle", flags,
+      system: { sp: { front: 40 }, sdp: { value: 100, max: 100 } } });
+    await veh.update({ "system.weaponMounts": [{ name: "20mm", penetration: 6, rof: 30, arc: "turret" }] });
+    const m = veh.system.weaponMounts?.[0] ?? {};
+    out.mountName = m.name; out.mountPen = m.penetration; out.mountRof = m.rof; out.mountArc = m.arc;
+
+    // --- fire dialog gate ---
+    const orig = game.settings.get("cyberpunk2020", "vehicleDamageEnabled");
+    await game.settings.set("cyberpunk2020", "vehicleDamageEnabled", false);
+    out.disabled = await VW.openVehicleFireDialog(veh, m);              // null
+    await game.settings.set("cyberpunk2020", "vehicleDamageEnabled", true);
+    const dlg = await VW.openVehicleFireDialog(veh, m);
+    out.enabledDialog = !!(dlg && typeof dlg.close === "function");
+    if (dlg?.close) await dlg.close();
+    const charActor = await Actor.create({ name: "__PW__NotVehFire", type: "character", flags });
+    out.nonVehicle = await VW.openVehicleFireDialog(charActor, m);      // null
+    await game.settings.set("cyberpunk2020", "vehicleDamageEnabled", orig);
+
+    for (const x of [veh, charActor]) await x.delete().catch(() => {});
+    return out;
+  });
+
+  console.log("Vehicle Phase 5 fire:", JSON.stringify(R));
+  expect(R.aHit).toBe(true);
+  expect(R.aGS, "24 vs 15 → over by 9 → 0 Good Shot steps").toBe(0);
+  expect(R.bGS, "27 vs 15 → over by 12 → 1 Good Shot step").toBe(1);
+  expect(R.cHit).toBe(false);
+  expect(R.cGS).toBe(0);
+
+  expect(R.mountName).toBe("20mm");
+  expect(R.mountPen).toBe(6);
+  expect(R.mountRof).toBe(30);
+  expect(R.mountArc).toBe("turret");
+
+  expect(R.disabled, "fire dialog gated off → null").toBeNull();
+  expect(R.enabledDialog, "fire dialog opens for a vehicle").toBe(true);
+  expect(R.nonVehicle, "non-vehicle → null").toBeNull();
 });
