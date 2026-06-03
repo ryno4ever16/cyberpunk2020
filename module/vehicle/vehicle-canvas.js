@@ -1,29 +1,35 @@
 /**
- * Vehicle canvas representation — Idea A (Phase 2).
+ * Vehicle canvas representation (Phase 2, corrected).
  *
- * A vehicle is shown on the canvas as a scalable **Tile** (the art) locked over a near-invisible
- * **handle Token** (alpha 0) linked to the vehicle Actor. The token is the combat object —
- * targetable, carries the SDP bar, and is caught by the area-effect token sweeps. The TILE is the
- * single control surface: dragging / rotating / scaling the tile drives the handle token and any
- * "boarded" crew tokens (one-directional, so there are no sync loops).
+ * A vehicle is a single **visible Token** showing the vehicle's image, sized to its footprint
+ * (the art scales to the box — `texture.fit:"contain"`; resize the token to fit any image). It is
+ * the natural movable/selectable/targetable object, and it is AoE-detected like any token. A low
+ * `sort` makes crew tokens render on top of it. Crew flagged as "boarded" ride along when the
+ * vehicle moves.
  *
- *   tile.flags.cyberpunk2020 = { vehicleTokenId, vehicleActorId }
- *   token.flags.cyberpunk2020 = { vehicleHandle: true, vehicleTileId }
- *   crewToken.flags.cyberpunk2020.boardedVehicle = <vehicleActorId>
+ *   vehicleToken.flags.cyberpunk2020.vehicleHandle = true
+ *   crewToken.flags.cyberpunk2020.boardedVehicle  = <vehicleActorId>
  */
 
 const SCOPE = "cyberpunk2020";
+const VEHICLE_SORT = -100;            // render below crew tokens
+/** token.id → {dx,dy} captured in preUpdateToken, consumed in updateToken (same client). */
+const _moveDeltas = new Map();
 
 /**
- * Place a vehicle on a scene: create the handle token + the art tile, link them.
- * @param {Actor} actor  a `vehicle`-type actor
- * @param {{scene?:Scene, x?:number, y?:number, gw?:number, gh?:number}} [opts]
- *        gw/gh = footprint in grid units (default 4×2). x/y = top-left in px (default scene centre).
- * @returns {Promise<{tokenId:string, tileId:string}|null>}
+ * Place a vehicle on a scene as a single visible, scalable handle token.
+ * Idempotent per (actor, scene): if one already exists it is reused, not stacked.
+ * @returns {Promise<{tokenId:string, existing:boolean}|null>}
  */
 export async function deployVehicleToScene(actor, opts = {}) {
   const scene = opts.scene ?? canvas?.scene;
   if (!actor || actor.type !== "vehicle" || !scene) return null;
+
+  const existing = scene.tokens.find(t => t.actorId === actor.id && t.flags?.[SCOPE]?.vehicleHandle);
+  if (existing) {
+    ui.notifications?.info?.(`${actor.name} is already on this scene — resize/move that token.`);
+    return { tokenId: existing.id, existing: true };
+  }
 
   const gridSize = scene.grid?.size ?? canvas?.grid?.size ?? 100;
   const gw = Math.max(1, Number(opts.gw) || 4);
@@ -32,25 +38,17 @@ export async function deployVehicleToScene(actor, opts = {}) {
   const px = opts.x ?? Math.round(((scene.width ?? 2000) - wpx) / 2);
   const py = opts.y ?? Math.round(((scene.height ?? 2000) - hpx) / 2);
 
-  // Handle token: invisible, footprint gw×gh, linked to the vehicle actor (combat handle).
   const [tokenDoc] = await scene.createEmbeddedDocuments("Token", [{
     name: actor.name, actorId: actor.id, actorLink: true,
-    x: px, y: py, width: gw, height: gh, alpha: 0, disposition: 0,
+    x: px, y: py, width: gw, height: gh,
+    sort: VEHICLE_SORT,                              // crew tokens render on top
+    texture: { src: actor.img, fit: "contain" },     // art scales to the footprint
     flags: { [SCOPE]: { vehicleHandle: true } },
   }]);
-
-  // Art tile: same position/footprint, the vehicle's image.
-  const [tileDoc] = await scene.createEmbeddedDocuments("Tile", [{
-    texture: { src: actor.img },
-    x: px, y: py, width: wpx, height: hpx,
-    flags: { [SCOPE]: { vehicleTokenId: tokenDoc.id, vehicleActorId: actor.id } },
-  }]);
-
-  await tokenDoc.update({ [`flags.${SCOPE}.vehicleTileId`]: tileDoc.id });
-  return { tokenId: tokenDoc.id, tileId: tileDoc.id };
+  return { tokenId: tokenDoc.id, existing: false };
 }
 
-/** Mark a crew token as riding a vehicle (so it moves with the vehicle). */
+/** Mark a crew token as riding a vehicle (it will move with the vehicle). */
 export async function boardVehicle(crewTokenDoc, vehicleActor) {
   if (!crewTokenDoc || !vehicleActor) return;
   await crewTokenDoc.update({ [`flags.${SCOPE}.boardedVehicle`]: vehicleActor.id });
@@ -63,45 +61,40 @@ export async function disembark(crewTokenDoc) {
 }
 
 /**
- * Register the tile→token+crew movement coupling. The tile is the control surface; the handle
- * token mirrors its position/rotation/size, and boarded crew translate by the same delta.
- * Gated on the active GM so only one client applies the coupled moves.
+ * Register the crew-follow coupling: when a vehicle handle token moves, boarded crew translate by
+ * the same delta. Gated to the client that made the move (so preUpdate and update share state and
+ * only one client applies it). No tiles, no reverse coupling — nothing to loop on.
  */
 export function registerVehicleCanvasHooks() {
-  Hooks.on("updateTile", async (tileDoc, change, options) => {
-    if (options?.cp2020VehicleSync) return;                    // ignore our own echo
-    if (game.users.activeGM?.id !== game.user.id) return;      // one client applies the coupling
-    const f = tileDoc.flags?.[SCOPE];
-    if (!f?.vehicleTokenId) return;
-
-    const scene = tileDoc.parent;
-    const token = scene?.tokens?.get(f.vehicleTokenId);
-    if (!token) return;
-    const gridSize = scene.grid?.size ?? canvas?.grid?.size ?? 100;
-
-    // Token and tile share a top-left, so the token's current x/y is the tile's OLD x/y.
-    const upd = {};
-    let dx = 0, dy = 0;
-    if (change.x !== undefined)        { dx = change.x - token.x; upd.x = change.x; }
-    if (change.y !== undefined)        { dy = change.y - token.y; upd.y = change.y; }
-    if (change.rotation !== undefined) upd.rotation = change.rotation;
-    if (change.width !== undefined)    upd.width  = Math.max(1, Math.round(change.width  / gridSize));
-    if (change.height !== undefined)   upd.height = Math.max(1, Math.round(change.height / gridSize));
-    if (Object.keys(upd).length) await token.update(upd, { cp2020VehicleSync: true });
-
-    // Translate boarded crew by the same delta.
-    if (dx || dy) {
-      const crew = scene.tokens.filter(t => t.flags?.[SCOPE]?.boardedVehicle === f.vehicleActorId);
-      const crewUpd = crew.map(t => ({ _id: t.id, x: t.x + dx, y: t.y + dy }));
-      if (crewUpd.length) await scene.updateEmbeddedDocuments("Token", crewUpd, { cp2020VehicleSync: true });
-    }
+  Hooks.on("preUpdateToken", (doc, change, options) => {
+    if (options?.cp2020VehicleSync) return;
+    if (!doc.flags?.[SCOPE]?.vehicleHandle) return;
+    const dx = (change.x ?? doc.x) - doc.x;
+    const dy = (change.y ?? doc.y) - doc.y;
+    if (dx || dy) _moveDeltas.set(doc.id, { dx, dy });
   });
 
-  // When the linked tile/token is deleted, clean up the partner so no orphan remains.
-  Hooks.on("deleteTile", async (tileDoc) => {
-    if (game.users.activeGM?.id !== game.user.id) return;
-    const tid = tileDoc.flags?.[SCOPE]?.vehicleTokenId;
-    const tok = tid ? tileDoc.parent?.tokens?.get(tid) : null;
-    if (tok) await tok.delete().catch(() => {});
+  Hooks.on("updateToken", async (doc, change, options, userId) => {
+    const delta = _moveDeltas.get(doc.id);
+    if (delta) _moveDeltas.delete(doc.id);
+    if (options?.cp2020VehicleSync) return;
+    if (userId !== game.user.id) return;             // only the client that performed the move
+    if (!doc.flags?.[SCOPE]?.vehicleHandle || !delta || (!delta.dx && !delta.dy)) return;
+
+    const scene = doc.parent;
+    const crew = scene.tokens.filter(t => t.flags?.[SCOPE]?.boardedVehicle === doc.actorId);
+    const upd = crew.map(t => ({ _id: t.id, x: t.x + delta.dx, y: t.y + delta.dy }));
+    if (upd.length) await scene.updateEmbeddedDocuments("Token", upd, { cp2020VehicleSync: true });
+  });
+
+  // Sensible prototype-token defaults so dragging a vehicle actor to the canvas also works well.
+  Hooks.on("preCreateActor", (actor, data) => {
+    if (data?.type !== "vehicle") return;
+    try {
+      const base = actor.prototypeToken?.toObject?.() ?? {};
+      actor.updateSource({ prototypeToken: foundry.utils.mergeObject(base, {
+        actorLink: true, width: 4, height: 2, sort: VEHICLE_SORT, texture: { fit: "contain" }
+      }, { inplace: false }) });
+    } catch (e) { /* non-fatal */ }
   });
 }

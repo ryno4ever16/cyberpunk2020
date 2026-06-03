@@ -44,7 +44,7 @@ export class CyberpunkVehicleSheet extends ActorSheet {
       ev.preventDefault();
       if (!canvas?.scene) { ui.notifications.warn("Activate a scene first to deploy the vehicle."); return; }
       const res = await deployVehicleToScene(this.actor);
-      if (res) ui.notifications.info(`${this.actor.name} deployed to the canvas. Scale/rotate the tile to taste.`);
+      if (res && !res.existing) ui.notifications.info(`${this.actor.name} deployed. Resize the token to fit your image; crew tokens render on top.`);
     });
   }
 }

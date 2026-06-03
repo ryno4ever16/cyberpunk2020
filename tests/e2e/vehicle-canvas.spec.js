@@ -3,10 +3,17 @@ import { ACCOUNTS } from "../helpers/accounts.js";
 import { login, evalGameOrThrow, setupSceneWithToken, waitForCanvasScene, cleanupTestData } from "../helpers/foundry.js";
 
 /**
- * Vehicle — Phase 2: Idea-A canvas representation.
- * Deploying a vehicle creates a scalable art Tile locked over an invisible handle Token (the
- * combat object), linked both ways. The Tile is the control surface: moving it drags the handle
- * token + any boarded crew by the same delta; resizing it resizes the token footprint.
+ * Vehicle — Phase 2 (corrected): a vehicle is a single VISIBLE, scalable token.
+ *
+ * Asserts the things a GM actually does:
+ *   - the handle token is VISIBLE (alpha > 0) and selectable,
+ *   - it is sized to a footprint and is resizable (scalable to fit any image),
+ *   - it sorts BELOW crew so passengers render on top,
+ *   - MOVING THE TOKEN drags boarded crew by the same delta (disembarked crew don't follow),
+ *   - redeploy is idempotent (no stacking), and no orphan tile is created.
+ *
+ * NOTE: in v13 a token's `.x`/`.width` getters reflect the in-progress ANIMATION; the committed
+ * value is on `._source`. We assert `_source` (and poll the async crew-follow update).
  */
 
 test.describe.configure({ mode: "serial" });
@@ -18,7 +25,7 @@ test.afterAll(async ({ browser }) => {
   await ctx.close();
 });
 
-test("Phase 2: deploy links tile+token; moving the tile drags the token & boarded crew; resize syncs footprint", async ({ page }) => {
+test("Phase 2: visible scalable vehicle token; moving it drags crew; redeploy idempotent", async ({ page }) => {
   await login(page, ACCOUNTS.gm, { canvas: true });
   await cleanupTestData(page).catch(() => {});
   const scene = await setupSceneWithToken(page, { activate: true, actorName: "__PW__SceneSeed" });
@@ -28,59 +35,72 @@ test("Phase 2: deploy links tile+token; moving the tile drags the token & boarde
     const VC = await import("/systems/cyberpunk2020/module/vehicle/vehicle-canvas.js");
     const flags = { cyberpunk2020: { __pwtest: true } };
     const sc = game.scenes.get(arg.sceneId);
+    const src = (id) => sc.tokens.get(id)?._source;     // committed (non-animated) values
 
-    const vehicle = await Actor.create({ name: "__PW__DeployTank", type: "vehicle", flags, system: { sdp: { value: 100, max: 100 } } });
+    const vehicle = await Actor.create({ name: "__PW__Rig", type: "vehicle", flags, system: { sdp: { value: 100, max: 100 } } });
     const dep = await VC.deployVehicleToScene(vehicle, { x: 500, y: 500, gw: 4, gh: 2 });
+    const s0 = src(dep.tokenId);
 
-    let token = sc.tokens.get(dep.tokenId);
-    const tile = sc.tiles.get(dep.tileId);
     const out = {
-      tokenHandle:   token?.flags?.cyberpunk2020?.vehicleHandle === true,
-      tokenTileLink: token?.flags?.cyberpunk2020?.vehicleTileId === dep.tileId,
-      tileTokenLink: tile?.flags?.cyberpunk2020?.vehicleTokenId === dep.tokenId,
-      aligned:       token?.x === tile?.x && token?.y === tile?.y,
-      tokenAlpha:    token?.alpha,
+      visible:     s0.alpha > 0,
+      handleFlag:  s0.flags?.cyberpunk2020?.vehicleHandle === true,
+      footprintW:  s0.width, footprintH: s0.height,
+      belowCrew:   s0.sort < 0,
+      linkedActor: s0.actorId === vehicle.id,
+      tileCount:   sc.tiles.filter(t => t.flags?.cyberpunk2020?.vehicleActorId === vehicle.id).length,
     };
 
-    // A crew member boards the vehicle.
+    // Scalable: resizing the footprint commits (art scales to it).
+    await sc.tokens.get(dep.tokenId).update({ width: 6, height: 3 });
+    out.resizedW = src(dep.tokenId).width;
+    out.resizedH = src(dep.tokenId).height;
+
+    // Crew boards, then the vehicle moves → crew follows by the same delta.
     const crewActor = await Actor.create({ name: "__PW__Crew", type: "character", flags, system: { stats: { bt: { base: 2 } } } });
     const [crew] = await sc.createEmbeddedDocuments("Token", [{ name: "__PW__Crew", x: 520, y: 520, actorId: crewActor.id, actorLink: true, width: 1, height: 1, flags }]);
     await VC.boardVehicle(crew, vehicle);
 
-    // Move the tile (+300, +200) → handle token + crew follow (activeGM coupling hook).
-    const t0 = { tokenX: token.x, tokenY: token.y, crewX: crew.x, crewY: crew.y };
-    await tile.update({ x: tile.x + 300, y: tile.y + 200 });
+    const vBefore = src(dep.tokenId).x;
+    const cBefore = src(crew.id).x, cBeforeY = src(crew.id).y;
+    await sc.tokens.get(dep.tokenId).update({ x: vBefore + 300, y: src(dep.tokenId).y + 150 });
+    out.tokenMoved = src(dep.tokenId).x === vBefore + 300;          // committed immediately
+
+    // Crew-follow runs in the async updateToken hook — poll the committed crew position.
+    const expCrewX = cBefore + 300, expCrewY = cBeforeY + 150;
     const dl = Date.now() + 8000;
-    let tok = sc.tokens.get(dep.tokenId), cr = sc.tokens.get(crew.id);
-    while (Date.now() < dl && !(tok.x === t0.tokenX + 300 && cr.x === t0.crewX + 300)) {
-      await new Promise(r => setTimeout(r, 150));
-      tok = sc.tokens.get(dep.tokenId); cr = sc.tokens.get(crew.id);
-    }
-    out.tokenMoved = { x: tok.x, y: tok.y }; out.expToken = { x: t0.tokenX + 300, y: t0.tokenY + 200 };
-    out.crewMoved  = { x: cr.x, y: cr.y };   out.expCrew  = { x: t0.crewX + 300, y: t0.crewY + 200 };
+    while (Date.now() < dl && src(crew.id).x !== expCrewX) await new Promise(r => setTimeout(r, 150));
+    out.crewFollowed = { x: src(crew.id).x, y: src(crew.id).y };
+    out.crewExpected = { x: expCrewX, y: expCrewY };
 
-    // Resize the tile → token footprint (grid units) follows.
-    const gridSize = sc.grid?.size ?? 100;
-    await tile.update({ width: 6 * gridSize, height: 3 * gridSize });
-    const dl2 = Date.now() + 8000;
-    let tok2 = sc.tokens.get(dep.tokenId);
-    while (Date.now() < dl2 && tok2.width !== 6) { await new Promise(r => setTimeout(r, 150)); tok2 = sc.tokens.get(dep.tokenId); }
-    out.tokenW = tok2.width; out.tokenH = tok2.height;
+    // Disembarked crew should NOT follow.
+    await VC.disembark(sc.tokens.get(crew.id));
+    const cStay = src(crew.id).x;
+    await sc.tokens.get(dep.tokenId).update({ x: src(dep.tokenId).x + 100 });
+    await new Promise(r => setTimeout(r, 1200));
+    out.disembarkedStaysPut = src(crew.id).x === cStay;
 
+    // Redeploy is idempotent.
+    const dep2 = await VC.deployVehicleToScene(vehicle, { x: 900, y: 900 });
+    out.redeployExisting = dep2.existing === true;
+    out.handleCount = sc.tokens.filter(t => t.actorId === vehicle.id && t.flags?.cyberpunk2020?.vehicleHandle).length;
     return out;
   }, { sceneId: scene.sceneId });
 
-  console.log("Vehicle Phase 2:", JSON.stringify(R));
+  console.log("Vehicle Phase 2 (corrected):", JSON.stringify(R));
 
-  expect(R.tokenHandle, "handle token flagged").toBe(true);
-  expect(R.tokenTileLink, "token → tile link").toBe(true);
-  expect(R.tileTokenLink, "tile → token link").toBe(true);
-  expect(R.aligned, "tile and token share a top-left").toBe(true);
-  expect(R.tokenAlpha, "handle token is invisible").toBe(0);
+  expect(R.visible, "handle token is visible (alpha > 0)").toBe(true);
+  expect(R.handleFlag, "flagged as a vehicle handle").toBe(true);
+  expect(R.linkedActor, "token linked to the vehicle actor").toBe(true);
+  expect(R.belowCrew, "vehicle sorts below crew").toBe(true);
+  expect(R.tileCount, "no orphan tile created").toBe(0);
+  expect(R.footprintW, "initial footprint width").toBe(4);
+  expect(R.resizedW, "token is resizable/scalable — width").toBe(6);
+  expect(R.resizedH, "token is resizable/scalable — height").toBe(3);
 
-  expect(R.tokenMoved, "handle token followed the tile").toEqual(R.expToken);
-  expect(R.crewMoved, "boarded crew followed the tile").toEqual(R.expCrew);
+  expect(R.tokenMoved, "the token committed its move").toBe(true);
+  expect(R.crewFollowed, "boarded crew followed the move").toEqual(R.crewExpected);
+  expect(R.disembarkedStaysPut, "disembarked crew does NOT follow").toBe(true);
 
-  expect(R.tokenW, "tile resize → token width 6").toBe(6);
-  expect(R.tokenH, "tile resize → token height 3").toBe(3);
+  expect(R.redeployExisting, "redeploy reuses the existing token").toBe(true);
+  expect(R.handleCount, "still exactly one vehicle handle token").toBe(1);
 });
