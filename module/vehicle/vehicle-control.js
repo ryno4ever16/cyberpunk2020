@@ -255,11 +255,12 @@ function _skillOptions(selected) {
 /**
  * Open the Control / Maneuver Roll dialog for a vehicle actor, roll it, and post a result card.
  * Honors the `vehicleControlEnabled` and `vehicleRuleSystem` settings.
+ * @returns {Promise<Dialog|null>} the opened Dialog, or null when gated off / not a vehicle.
  */
 export async function openControlRollDialog(actor, opts = {}) {
-  if (!actor || actor.type !== "vehicle") return;
+  if (!actor || actor.type !== "vehicle") return null;
   const enabled = (() => { try { return game.settings.get(SCOPE, "vehicleControlEnabled"); } catch { return true; } })();
-  if (!enabled) { ui.notifications?.warn?.("Vehicle control rolls are disabled in the system settings."); return; }
+  if (!enabled) { ui.notifications?.warn?.("Vehicle control rolls are disabled in the system settings."); return null; }
   const ruleSystem = (() => { try { return game.settings.get(SCOPE, "vehicleRuleSystem"); } catch { return "Core"; } })();
   const isMM = ruleSystem === "MaximumMetal";
 
@@ -317,7 +318,7 @@ export async function openControlRollDialog(actor, opts = {}) {
 
   const driversById = Object.fromEntries(drivers.map(a => [a.id, a]));
 
-  new Dialog({
+  const dialog = new Dialog({
     title: `🎲 ${isMM ? "Maneuver" : "Control"} Roll — ${actor.name}`,
     content,
     buttons: {
@@ -373,7 +374,9 @@ export async function openControlRollDialog(actor, opts = {}) {
       skillKey?.addEventListener("change", refreshSkill);
       diffSel?.addEventListener("change", () => { if (hint) hint.textContent = MANEUVER_EXAMPLES[diffSel.value] ?? ""; });
     },
-  }).render(true);
+  });
+  dialog.render(true);
+  return dialog;
 }
 
 /** Roll the dice, run the pure resolver + loss tables, and post the result card. */

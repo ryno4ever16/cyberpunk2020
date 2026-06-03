@@ -104,3 +104,87 @@ test("Phase 2: visible scalable vehicle token; moving it drags crew; redeploy id
   expect(R.redeployExisting, "redeploy reuses the existing token").toBe(true);
   expect(R.handleCount, "still exactly one vehicle handle token").toBe(1);
 });
+
+/**
+ * Real multi-vehicle GM interactions the single-vehicle happy path never exercised:
+ *   - deploy() refuses bad input (null / non-vehicle actor) instead of throwing,
+ *   - with TWO vehicles on the scene, moving vehicle A drags ONLY A's boarded crew (not B's),
+ *   - re-boarding crew from A to B switches allegiance: they follow B and no longer follow A.
+ * These guard against the same class of bug as the original canvas failure: coupling that looks
+ * right for one object but leaks or mis-targets once a second one exists.
+ */
+test("Phase 2: deploy guards + two-vehicle crew isolation + re-board switches allegiance", async ({ page }) => {
+  await login(page, ACCOUNTS.gm);
+  await cleanupTestData(page).catch(() => {});
+
+  // The crew-follow coupling lives in the updateToken DOCUMENT hook, which fires on any scene
+  // regardless of whether the canvas is drawn — so this test deliberately uses a NON-active scene
+  // and drives token updates through the document API. That isolates the coupling logic and avoids
+  // the flaky canvas-draw wait that a second activating test in this file would race on.
+  const R = await evalGameOrThrow(page, async () => {
+    const VC = await import("/systems/cyberpunk2020/module/vehicle/vehicle-canvas.js");
+    const flags = { cyberpunk2020: { __pwtest: true } };
+    const sc = await Scene.create({
+      name: "__PW__scene", width: 2000, height: 2000,
+      grid: { type: 1, size: 100, distance: 2, units: "m" }, padding: 0, flags,
+    });
+    const srcX = (id) => sc.tokens.get(id)?._source?.x;          // committed (non-animated) x
+    const pollX = async (id, want) => {
+      const dl = Date.now() + 8000;
+      while (Date.now() < dl && srcX(id) !== want) await new Promise(r => setTimeout(r, 150));
+      return srcX(id);
+    };
+    const out = {};
+
+    // --- deploy guards: bad input returns null, no throw ---
+    out.deployNull = await VC.deployVehicleToScene(null);                       // null
+    const charActor = await Actor.create({ name: "__PW__NotAVehicle", type: "character", flags });
+    out.deployNonVehicle = await VC.deployVehicleToScene(charActor);            // null (wrong type)
+
+    // --- two vehicles, two crew ---
+    const vA = await Actor.create({ name: "__PW__VehA", type: "vehicle", flags, system: { sdp: { value: 50, max: 50 } } });
+    const vB = await Actor.create({ name: "__PW__VehB", type: "vehicle", flags, system: { sdp: { value: 50, max: 50 } } });
+    const depA = await VC.deployVehicleToScene(vA, { scene: sc, x: 200, y: 200, gw: 4, gh: 2 });
+    const depB = await VC.deployVehicleToScene(vB, { scene: sc, x: 1000, y: 1000, gw: 4, gh: 2 });
+
+    const crewActor = await Actor.create({ name: "__PW__C1", type: "character", flags });
+    const crew2Actor = await Actor.create({ name: "__PW__C2", type: "character", flags });
+    const [c1] = await sc.createEmbeddedDocuments("Token", [{ name: "__PW__C1", x: 220, y: 220, actorId: crewActor.id, actorLink: true, width: 1, height: 1, flags }]);
+    const [c2] = await sc.createEmbeddedDocuments("Token", [{ name: "__PW__C2", x: 1020, y: 1020, actorId: crew2Actor.id, actorLink: true, width: 1, height: 1, flags }]);
+    await VC.boardVehicle(c1, vA);   // c1 rides A
+    await VC.boardVehicle(c2, vB);   // c2 rides B
+
+    // Move A by +300. c1 (on A) should follow; c2 (on B) must NOT move.
+    const c1Start = srcX(c1.id), c2Start = srcX(c2.id);
+    await sc.tokens.get(depA.tokenId).update({ x: srcX(depA.tokenId) + 300 });
+    out.c1Followed = await pollX(c1.id, c1Start + 300) === c1Start + 300;
+    await new Promise(r => setTimeout(r, 600));                 // give any stray hook time to fire
+    out.c2StayedOnAMove = srcX(c2.id) === c2Start;              // B's crew untouched by A's move
+
+    // Re-board c1 from A to B, then move B by +200. c1 must now follow B...
+    await VC.disembark(sc.tokens.get(c1.id));
+    await VC.boardVehicle(sc.tokens.get(c1.id), vB);
+    const c1AfterReboard = srcX(c1.id), c2BeforeBMove = srcX(c2.id);
+    await sc.tokens.get(depB.tokenId).update({ x: srcX(depB.tokenId) + 200 });
+    out.c1FollowsBNow = await pollX(c1.id, c1AfterReboard + 200) === c1AfterReboard + 200;
+    out.c2AlsoFollowsB = await pollX(c2.id, c2BeforeBMove + 200) === c2BeforeBMove + 200;
+
+    // ...and c1 must NO LONGER follow A.
+    const c1Parked = srcX(c1.id);
+    await sc.tokens.get(depA.tokenId).update({ x: srcX(depA.tokenId) + 150 });
+    await new Promise(r => setTimeout(r, 1000));
+    out.c1IgnoresOldVehicle = srcX(c1.id) === c1Parked;
+
+    return out;
+  });
+
+  console.log("Vehicle multi:", JSON.stringify(R));
+
+  expect(R.deployNull, "deploy(null) returns null, no throw").toBeNull();
+  expect(R.deployNonVehicle, "deploy(non-vehicle) returns null").toBeNull();
+  expect(R.c1Followed, "A's crew follows A").toBe(true);
+  expect(R.c2StayedOnAMove, "B's crew does NOT move when A moves").toBe(true);
+  expect(R.c1FollowsBNow, "re-boarded crew follows its new vehicle B").toBe(true);
+  expect(R.c2AlsoFollowsB, "B's own crew still follows B").toBe(true);
+  expect(R.c1IgnoresOldVehicle, "re-boarded crew no longer follows the old vehicle A").toBe(true);
+});

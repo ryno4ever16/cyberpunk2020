@@ -254,3 +254,50 @@ test("Phase 3: a real control roll posts a result card (live dice path)", async 
   expect(R.totalIsNum).toBe(true);
   expect(R.failHasOutcome, "a failed roll always yields a banded loss outcome").toBe(true);
 });
+
+test("Phase 3: the vehicleControlEnabled setting actually gates the dialog (real GM toggle)", async ({ page }) => {
+  await login(page, ACCOUNTS.gm);
+  await cleanupTestData(page).catch(() => {});
+
+  // openControlRollDialog returns the Dialog instance when it opens, or null when gated off /
+  // given a non-vehicle — a deterministic signal that doesn't depend on polling the window manager.
+  const R = await evalGameOrThrow(page, async () => {
+    const VC = await import("/systems/cyberpunk2020/module/vehicle/vehicle-control.js");
+    const flags = { cyberpunk2020: { __pwtest: true } };
+    const veh = await Actor.create({ name: "__PW__GateCar", type: "vehicle", flags, system: { vehicleType: "car", safeSpeed: 50 } });
+    const out = {};
+    const orig = game.settings.get("cyberpunk2020", "vehicleControlEnabled");
+
+    // OFF → returns null, no throw.
+    await game.settings.set("cyberpunk2020", "vehicleControlEnabled", false);
+    let threw = false, disabled;
+    try { disabled = await VC.openControlRollDialog(veh); } catch (e) { threw = true; }
+    out.disabledThrew = threw;
+    out.disabledReturnedNull = disabled === null;
+
+    // ON → returns a closeable Dialog instance.
+    await game.settings.set("cyberpunk2020", "vehicleControlEnabled", true);
+    const dlg = await VC.openControlRollDialog(veh);
+    out.enabledReturnedDialog = !!(dlg && typeof dlg.close === "function");
+    if (dlg?.close) await dlg.close();
+
+    // Non-vehicle actor → null, no throw.
+    const charActor = await Actor.create({ name: "__PW__NotVeh", type: "character", flags });
+    let threw2 = false, nonVeh;
+    try { nonVeh = await VC.openControlRollDialog(charActor); } catch (e) { threw2 = true; }
+    out.nonVehicleThrew = threw2;
+    out.nonVehicleReturnedNull = nonVeh === null;
+
+    await game.settings.set("cyberpunk2020", "vehicleControlEnabled", orig);
+    await veh.delete().catch(() => {});
+    await charActor.delete().catch(() => {});
+    return out;
+  });
+
+  console.log("Vehicle Phase 3 gate:", JSON.stringify(R));
+  expect(R.disabledThrew, "disabled gate does not throw").toBe(false);
+  expect(R.disabledReturnedNull, "setting OFF → returns null (no dialog)").toBe(true);
+  expect(R.enabledReturnedDialog, "setting ON → returns a Dialog").toBe(true);
+  expect(R.nonVehicleThrew, "non-vehicle actor does not throw").toBe(false);
+  expect(R.nonVehicleReturnedNull, "non-vehicle actor → returns null").toBe(true);
+});
