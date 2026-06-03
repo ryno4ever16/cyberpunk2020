@@ -1,4 +1,5 @@
 import { deployVehicleToScene } from "../vehicle/vehicle-canvas.js";
+import { openControlRollDialog } from "../vehicle/vehicle-control.js";
 
 /**
  * Vehicle / ACPA actor sheet (Phase 1-2).
@@ -31,6 +32,7 @@ export class CyberpunkVehicleSheet extends ActorSheet {
     try { rule = game.settings.get("cyberpunk2020", "vehicleRuleSystem"); } catch (e) { /* settings not ready */ }
     data.ruleSystem = rule;
     data.isMM = rule === "MaximumMetal";
+    try { data.controlEnabled = game.settings.get("cyberpunk2020", "vehicleControlEnabled"); } catch (e) { data.controlEnabled = true; }
 
     data.vehicleTypes = ["car", "sportscar", "limo", "AV-4", "AV-6", "AV-7", "cycle", "truck", "rotor", "osprey", "boat", "tank", "APC", "acpa"];
     return data;
@@ -45,6 +47,10 @@ export class CyberpunkVehicleSheet extends ActorSheet {
       if (!canvas?.scene) { ui.notifications.warn("Activate a scene first to deploy the vehicle."); return; }
       const res = await deployVehicleToScene(this.actor);
       if (res && !res.existing) ui.notifications.info(`${this.actor.name} deployed. Resize the token to fit your image; crew tokens render on top.`);
+    });
+    root?.querySelector?.(".cp-control-roll")?.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      openControlRollDialog(this.actor);
     });
   }
 }

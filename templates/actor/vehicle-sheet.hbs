@@ -23,6 +23,11 @@
                     <div class="field">
                         <button type="button" class="cp-deploy-vehicle" title="Place this vehicle as a scalable token on the active scene (resize it to fit your image; crew tokens render on top)">🚗 Deploy to Canvas</button>
                     </div>
+                    {{#if controlEnabled}}
+                    <div class="field">
+                        <button type="button" class="cp-control-roll" title="Roll a Control / Maneuver check (REF + Driving/Pilot + 1d10 vs Difficulty Value). On failure, rolls the Control Loss / Failure table for the active ruleset.">🎲 Control Roll</button>
+                    </div>
+                    {{/if}}
                 </div>
             </div>
         </div>

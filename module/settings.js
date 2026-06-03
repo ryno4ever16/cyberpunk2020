@@ -457,6 +457,16 @@ export function registerSystemSettings() {
     default: "Core",
   });
 
+  // --- Vehicles: Movement & Control rolls (Phase 3) ---
+  game.settings.register("cyberpunk2020", "vehicleControlEnabled", {
+    name: "Vehicles: Movement & Control Rolls",
+    hint: "When enabled, vehicles get a 🎲 Control Roll button (sheet header) and the game.cyberpunk.vehicles.controlRoll API. It opens a dialog to roll REF + Driving/Pilot + 1d10 vs a Difficulty Value (Simple 15 / Difficult 20 / Very Difficult 25), and on failure rolls the Control Loss (Core p.112) or Failure (Maximum Metal p.10) table — whichever the Vehicles Rule System setting selects. Default ON.",
+    scope:   "world",
+    config:  true,
+    type:    Boolean,
+    default: true,
+  });
+
   // --- Combat: Detailed explosives / HEP concussion (Listen Up, optional) ---
   game.settings.register("cyberpunk2020", "explosivesDetailed", {
     name: "Combat: Detailed Explosives — HEP Concussion (Listen Up)",
