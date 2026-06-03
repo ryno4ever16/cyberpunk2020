@@ -67,7 +67,16 @@
     </div>
 
     <div class="anatomy-container" style="background-image: url('systems/cyberpunk2020/img/black_gray_grid.png');">
-        <object type="image/svg+xml" data="systems/cyberpunk2020/img/male-anatomy-unsegmented.svg" id="anatomy-img"></object>
+        <select class="anatomy-select" title="Body type shown for cyberware placement">
+            {{#each anatomyOptions as |opt|}}
+            <option value="{{opt.key}}" {{#if opt.selected}}selected{{/if}}>{{opt.label}}</option>
+            {{/each}}
+        </select>
+        {{#if anatomy.svg}}
+        <object type="image/svg+xml" data="{{anatomy.src}}" id="anatomy-img"></object>
+        {{else}}
+        <img src="{{anatomy.src}}" id="anatomy-img" alt="anatomy"/>
+        {{/if}}
     </div>
     <div class="active-cyberware-left">
         {{#each cyberwareSegmentsLeft}}

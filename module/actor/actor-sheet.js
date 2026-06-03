@@ -1,4 +1,4 @@
-import { martialOptions, martialActionGroups, meleeAttackTypes, meleeBonkOptions, rangedModifiers, weaponTypes, FNFF2_ONLY_MARTIAL_ART_IDS, isFnff2Enabled } from "../lookups.js"
+import { martialOptions, martialActionGroups, meleeAttackTypes, meleeBonkOptions, rangedModifiers, weaponTypes, FNFF2_ONLY_MARTIAL_ART_IDS, isFnff2Enabled, ANATOMY_IMAGES, DEFAULT_ANATOMY_KEY } from "../lookups.js"
 import { deleteFieldUpdate, localize, localizeParam, cwHasType, cwIsEnabled } from "../utils.js"
 import { ModifiersDialog } from "../dialog/modifiers.js"
 import { SortOrders, sortSkills } from "./skill-sort.js";
@@ -260,6 +260,12 @@ export class CyberpunkActorSheet extends ActorSheet {
     );
 
     sheetData.gear.cyberwareActive = activeCyber;
+
+    // ── Cyberware-tab anatomy image (player-chosen body type; see ANATOMY_IMAGES) ──
+    const anatomyKey = this.actor.getFlag?.("cyberpunk2020", "anatomyImage") || DEFAULT_ANATOMY_KEY;
+    const anatomyDef = ANATOMY_IMAGES[anatomyKey] ?? ANATOMY_IMAGES[DEFAULT_ANATOMY_KEY];
+    sheetData.anatomy = { key: anatomyKey, src: anatomyDef.src, svg: anatomyDef.svg };
+    sheetData.anatomyOptions = Object.entries(ANATOMY_IMAGES).map(([key, v]) => ({ key, label: v.label, selected: key === anatomyKey }));
 
     // ── Armor layer compliance panel ───────────────────────────────────────
     sheetData.showArmorLayers = game.settings.get("cyberpunk2020", "damageLayersEnabled") ?? false;
@@ -816,6 +822,13 @@ export class CyberpunkActorSheet extends ActorSheet {
         onConfirm: (fireOptions) => item.__weaponRoll({ ...fireOptions, action }, targetTokens),
       });
       dialog.render(true);
+    });
+
+    // Cyberware-tab body-type picker: store the choice; the sheet re-renders with the new image.
+    html.find('.anatomy-select').on('change', async (ev) => {
+      const key = ev.currentTarget.value;
+      const valid = Object.prototype.hasOwnProperty.call(ANATOMY_IMAGES, key) ? key : DEFAULT_ANATOMY_KEY;
+      await this.actor.setFlag("cyberpunk2020", "anatomyImage", valid);
     });
 
     function getNetrunProgramItem(sheet, ev) {

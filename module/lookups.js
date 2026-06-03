@@ -511,6 +511,20 @@ rangeResolve[ranges.long] = range => range;
 rangeResolve[ranges.extreme] = range => range*2;
 export { rangeDCs, rangeResolve }
 
+/**
+ * Cyberware-tab anatomy images the player can pick between. DEVELOPER-SIDE registry: add a new body
+ * type by adding an entry here (players only choose from what's registered; they can't add images).
+ *   - `svg: true`  → rendered via <object type="image/svg+xml"> (vector, scales to the box).
+ *   - `svg: false` → a raster image rendered via <img object-fit:contain>.
+ * Keep new art sized to the same proportions as the existing anatomy so the cyberware zone panels
+ * stay aligned. The chosen key is stored per-actor in flags.cyberpunk2020.anatomyImage.
+ */
+export const ANATOMY_IMAGES = {
+  male:   { label: "Male",   src: "systems/cyberpunk2020/img/male-anatomy-unsegmented.svg", svg: true  },
+  female: { label: "Female", src: "systems/cyberpunk2020/img/female-anatomy.png",            svg: false },
+};
+export const DEFAULT_ANATOMY_KEY = "male";
+
 export let defaultTargetLocations = ["Head", "Torso", "lArm", "rArm", "lLeg", "rLeg"]
 export let defaultAreaLookup = {
     1: "Head",

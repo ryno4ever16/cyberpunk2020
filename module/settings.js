@@ -416,7 +416,7 @@ export function registerSystemSettings() {
   // --- Combat: Hit-location chat display (Core table) ---
   game.settings.register("cyberpunk2020", "hitLocationCoreDisplay", {
     name: "Combat: Show Hit Location (Core Table)",
-    hint: "When enabled (default), hit-location results are shown in chat using the CP2020 Core rulebook hit-location table (1 Head · 2-4 Torso · 5 R.Arm · 6 L.Arm · 7-8 R.Leg · 9-0 L.Leg). Turn off to honor a per-actor custom hit-location lookup instead. Cannot be used with W4RST4R's Limb Rules, which define their own location table — enabling that model turns this off automatically.",
+    hint: "When on (default), the chat shows which body part each hit struck, using the standard Core rulebook chart (head, torso, arms, legs). Can't be combined with W4RST4R's Limb Rules, which has its own chart — turning that model on switches this off.",
     scope:   "world",
     config:  true,
     type:    Boolean,
@@ -435,7 +435,7 @@ export function registerSystemSettings() {
   // --- Combat: W4RST4R's Limb Rules (alternate limb model) ---
   game.settings.register("cyberpunk2020", "w4rst4rLimbRules", {
     name: "Combat: W4RST4R's Limb Rules (alternate limb model)",
-    hint: "Alternate limb model with its own hit-location table (1 Head · 2 R.Arm · 3 L.Arm · 4-7 Torso · 8 R.Leg · 9 L.Leg · 0 Groin). Limb damage is NOT doubled: more than 8 net to a limb DISABLES it, more than 12 SEVERS it — either way the character makes an immediate Death Save at Mortal 0. A head wound of more than 8 kills automatically. While on, this overrides the Core / Listen Up limb rules and forces the Core hit-location display off. Requires 'Limb Loss & Head Wound Checks'. Default OFF.",
+    hint: "An alternate set of limb-injury rules. When a single hit deals more than 8 damage to an arm or leg the limb is disabled; more than 12 severs it — in either case the character must make a Death Save to survive. A head hit over 8 is instantly fatal. It also uses its own hit-location chart that adds the groin. Turning this on replaces the standard limb rules. Default OFF.",
     scope:   "world",
     config:  true,
     type:    Boolean,
