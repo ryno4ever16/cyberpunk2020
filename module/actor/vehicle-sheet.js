@@ -1,9 +1,12 @@
+import { deployVehicleToScene } from "../vehicle/vehicle-canvas.js";
+
 /**
- * Vehicle / ACPA actor sheet (Phase 1).
+ * Vehicle / ACPA actor sheet (Phase 1-2).
  *
  * Deliberately separate from CyberpunkActorSheet — vehicles have no skills/wound-track/
  * cyberware tabs. Shows a single SP in Core mode and all five facings under Maximum Metal
- * (the vehicleRuleSystem toggle). Derived Armor Value / Body Value are read-only.
+ * (the vehicleRuleSystem toggle). Derived Armor Value / Body Value are read-only. The
+ * "Deploy to Canvas" button places the art tile + handle token (Idea A).
  */
 export class CyberpunkVehicleSheet extends ActorSheet {
 
@@ -31,5 +34,17 @@ export class CyberpunkVehicleSheet extends ActorSheet {
 
     data.vehicleTypes = ["car", "sportscar", "limo", "AV-4", "AV-6", "AV-7", "cycle", "truck", "rotor", "osprey", "boat", "tank", "APC", "acpa"];
     return data;
+  }
+
+  /** @override */
+  activateListeners(html) {
+    super.activateListeners(html);
+    const root = html instanceof jQuery ? html[0] : html;
+    root?.querySelector?.(".cp-deploy-vehicle")?.addEventListener("click", async (ev) => {
+      ev.preventDefault();
+      if (!canvas?.scene) { ui.notifications.warn("Activate a scene first to deploy the vehicle."); return; }
+      const res = await deployVehicleToScene(this.actor);
+      if (res) ui.notifications.info(`${this.actor.name} deployed to the canvas. Scale/rotate the tile to taste.`);
+    });
   }
 }

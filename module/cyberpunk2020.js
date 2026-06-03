@@ -22,6 +22,7 @@ import { registerSystemSettings } from "./settings.js"
 import { getHtmlElement } from "./compat.js";
 import { registerDamageHooks } from "./combat/damage-hooks.js";
 import { registerSaveRollHandlers, postSavePrompts } from "./combat/save-rolls.js";
+import { registerVehicleCanvasHooks, deployVehicleToScene, boardVehicle, disembark } from "./vehicle/vehicle-canvas.js";
 
 Hooks.once('init', async function () {
 
@@ -32,7 +33,9 @@ Hooks.once('init', async function () {
             CyberpunkItem,
         },
         // A manual migrateworld.
-        migrateWorld: migrations.migrateWorld
+        migrateWorld: migrations.migrateWorld,
+        // Vehicle canvas API (deploy art-tile + handle-token, board/disembark crew).
+        vehicles: { deploy: deployVehicleToScene, board: boardVehicle, disembark }
     };
 
     // Define custom Document classes
@@ -65,6 +68,9 @@ Hooks.once('init', async function () {
     registerSystemSettings();
 
     registerHandlebarsHelpers();
+
+    // Vehicle canvas: tile→token+crew movement coupling (Idea A).
+    registerVehicleCanvasHooks();
 
     // Register and preload templates with Foundry. See templates.js for usage
     preloadHandlebarsTemplates();
