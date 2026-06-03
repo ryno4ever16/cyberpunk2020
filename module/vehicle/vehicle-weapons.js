@@ -113,3 +113,55 @@ export function roundsPerHit(rof) {
   if (r >= 30) return 5;
   return 1;
 }
+
+/* ------------------------------------------------------------------ *
+ *  Live bridge — a personnel weapon fired at a vehicle token routes   *
+ *  to the Phase 4 vehicle resolver instead of the personnel pipeline. *
+ * ------------------------------------------------------------------ */
+
+const SCOPE = "cyberpunk2020";
+
+/**
+ * Resolve the firing weapon's vehicle Penetration for a weaponFired payload (Maximum Metal).
+ * Ranged shots carry `weaponName`, so we resolve the actual weapon Item and use its exact
+ * (average-based, small-arms-aware) Penetration. If the weapon can't be found (e.g. a melee/martial
+ * payload with no weaponName), fall back to treating the rolled total as the damage sample.
+ */
+function _payloadPenetration(payload, totalRolled, ap) {
+  const attacker = game.actors?.get(payload.attackerId ?? payload.actorId ?? "");
+  if (attacker && payload.weaponName) {
+    const w = attacker.items.find(i => i.type === "weapon" && i.name === payload.weaponName)
+           ?? attacker.items.find(i => i.type === "cyberware" && i.name === payload.weaponName);
+    if (w) return weaponToPenetration(w, { apOverride: ap });
+  }
+  return penetrationFactor({ avgDamage: totalRolled, ap, smallArms: false });
+}
+
+/**
+ * Route a `cyberpunk2020.weaponFired` payload aimed at a vehicle actor to the vehicle resolver.
+ * Core: the summed rolled damage goes through SP→SDP. Maximum Metal: the firing weapon's
+ * Penetration is compared to Armor Value (front facing). Honors `vehicleDamageEnabled`.
+ * @returns {Promise<boolean>} whether it handled the hit.
+ */
+export async function routeWeaponFiredToVehicle(payload, vehicleActor) {
+  if (!vehicleActor || vehicleActor.type !== "vehicle") return false;
+  const enabled = (() => { try { return game.settings.get(SCOPE, "vehicleDamageEnabled"); } catch { return true; } })();
+  if (!enabled) return false;
+
+  let total = 0;
+  for (const hits of Object.values(payload?.areaDamages ?? {})) {
+    for (const h of (hits ?? [])) total += Number(h.damage ?? h.dmg) || 0;
+  }
+  const ap = !!payload?.ap;
+
+  const ruleSystem = (() => { try { return game.settings.get(SCOPE, "vehicleRuleSystem"); } catch { return "Core"; } })();
+  // Imported lazily to keep the pure-math top of this module free of Phase 4 UI deps in tests.
+  const VD = await import("./vehicle-damage.js");
+  if (ruleSystem === "MaximumMetal") {
+    const pen = _payloadPenetration(payload, total, ap);
+    await VD.applyVehicleDamageMM(vehicleActor, { basePen: pen, facing: "front" });
+  } else {
+    await VD.applyVehicleDamageCore(vehicleActor, { rawDamage: total, ap, facing: "front" });
+  }
+  return true;
+}

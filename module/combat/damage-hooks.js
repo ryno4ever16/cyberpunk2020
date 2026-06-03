@@ -288,6 +288,14 @@ function _hookWeaponFired() {
         return;
       }
 
+      // Bridge: a vehicle target uses the vehicle damage resolver (SP→SDP / Penetration vs Armor
+      // Value), not the personnel pipeline. Routes both Core and Maximum Metal.
+      if (target.type === "vehicle") {
+        const { routeWeaponFiredToVehicle } = await import("../vehicle/vehicle-weapons.js");
+        const handled = await routeWeaponFiredToVehicle(payload, target);
+        if (handled) return;
+      }
+
       if (game.settings.get("cyberpunk2020", "damageAutoApply")) {
         await _autoApply(payload, target);
       } else {

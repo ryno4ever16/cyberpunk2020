@@ -137,3 +137,59 @@ test("Phase 5: live bridge — a real weapon's Penetration vs vehicle armor (Pha
   expect(R.softSeverity, "Pen 6 vs AV 2 penetrates").not.toBe("noPenetration");
   expect(R.hardSeverity, "Pen 6 vs AV 10 bounces").toBe("noPenetration");
 });
+
+test("Phase 5: live bridge — firing a normal weapon at a vehicle token routes to the resolver", async ({ page }) => {
+  await login(page, ACCOUNTS.gm);
+  await cleanupTestData(page).catch(() => {});
+
+  const R = await evalGameOrThrow(page, async () => {
+    const VW = await import("/systems/cyberpunk2020/module/vehicle/vehicle-weapons.js");
+    const flags = { cyberpunk2020: { __pwtest: true } };
+    const out = {};
+    const origRule = game.settings.get("cyberpunk2020", "vehicleRuleSystem");
+
+    // --- routeWeaponFiredToVehicle directly, Core: 50 damage − SP 40 = 10 to SDP ---
+    await game.settings.set("cyberpunk2020", "vehicleRuleSystem", "Core");
+    const car = await Actor.create({ name: "__PW__BridgeCar", type: "vehicle", flags, system: { sp: { front: 40 }, sdp: { value: 200, max: 200 } } });
+    await VW.routeWeaponFiredToVehicle({ areaDamages: { Torso: [{ damage: 50 }] }, ap: false }, car);
+    out.coreSDP = car._source.system.sdp.value;          // 190
+
+    // --- MM: the bridge resolves the firing weapon by name for exact Penetration ---
+    await game.settings.set("cyberpunk2020", "vehicleRuleSystem", "MaximumMetal");
+    const gunner = await Actor.create({ name: "__PW__BridgeGunner", type: "npc", flags });
+    await gunner.createEmbeddedDocuments("Item", [
+      { name: "__PW__RailCannon", type: "weapon", flags, system: { damage: "6d10", ap: true, attackType: "" } },  // Pen 6
+    ]);
+    const tank = await Actor.create({ name: "__PW__BridgeTank", type: "vehicle", flags, system: { sp: { front: 40 }, sdp: { value: 200, max: 200 } } }); // AV 2
+    const mm = await VW.routeWeaponFiredToVehicle(
+      { attackerId: gunner.id, weaponName: "__PW__RailCannon", areaDamages: { Torso: [{ damage: 18 }] }, ap: true }, tank);
+    out.mmHandled = mm;                                  // true
+    out.tankChanged = tank._source.system.destroyed === true || (tank._source.system.damagedSystems?.length ?? 0) > 0 || tank._source.system.sdp.value < 200 || tank._source.system.onFire === true || tank._source.system.immobilized === true;
+
+    // --- live: emit weaponFired at the vehicle token; the _hookWeaponFired divert handles it (Core) ---
+    await game.settings.set("cyberpunk2020", "vehicleRuleSystem", "Core");
+    const scene = await Scene.create({ name: "__PW__scene", width: 2000, height: 2000, grid: { type: 1, size: 100, distance: 2, units: "m" }, padding: 0, flags });
+    const apc = await Actor.create({ name: "__PW__LiveAPC", type: "vehicle", flags, system: { sp: { front: 40 }, sdp: { value: 200, max: 200 } } });
+    const [tok] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__LiveAPC", x: 100, y: 100, actorId: apc.id, actorLink: true, width: 4, height: 2, flags }]);
+    Hooks.callAll("cyberpunk2020.weaponFired", {
+      attackerId: gunner.id, weaponName: "__PW__RailCannon",
+      areaDamages: { Torso: [{ damage: 60 }] }, ap: false,
+      targetActorId: apc.id, targetTokenId: tok.id,
+    });
+    // the divert is async inside the hook — poll the committed SDP
+    const dl = Date.now() + 8000;
+    while (Date.now() < dl && apc._source.system.sdp.value === 200) await new Promise(r => setTimeout(r, 150));
+    out.liveSDP = apc._source.system.sdp.value;          // 200 − (60 − 40) = 180
+
+    await game.settings.set("cyberpunk2020", "vehicleRuleSystem", origRule);
+    for (const a of [car, gunner, tank, apc]) await a.delete().catch(() => {});
+    await scene.delete().catch(() => {});
+    return out;
+  });
+
+  console.log("Vehicle Phase 5 bridge:", JSON.stringify(R));
+  expect(R.coreSDP, "Core bridge: 200 − (50 − 40) = 190").toBe(190);
+  expect(R.mmHandled, "MM bridge handled the hit").toBe(true);
+  expect(R.tankChanged, "MM bridge applied an effect to the tank (Pen 6 vs AV 2 penetrates)").toBe(true);
+  expect(R.liveSDP, "live weaponFired at a vehicle token → 200 − 20 = 180").toBe(180);
+});
