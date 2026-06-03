@@ -24,6 +24,7 @@ import { registerDamageHooks } from "./combat/damage-hooks.js";
 import { registerSaveRollHandlers, postSavePrompts } from "./combat/save-rolls.js";
 import { registerVehicleCanvasHooks, deployVehicleToScene, boardVehicle, disembark } from "./vehicle/vehicle-canvas.js";
 import { openControlRollDialog } from "./vehicle/vehicle-control.js";
+import { openVehicleDamageDialog } from "./vehicle/vehicle-damage.js";
 
 Hooks.once('init', async function () {
 
@@ -36,7 +37,7 @@ Hooks.once('init', async function () {
         // A manual migrateworld.
         migrateWorld: migrations.migrateWorld,
         // Vehicle API: deploy a scalable handle token, board/disembark crew, and roll control/maneuver.
-        vehicles: { deploy: deployVehicleToScene, board: boardVehicle, disembark, controlRoll: openControlRollDialog }
+        vehicles: { deploy: deployVehicleToScene, board: boardVehicle, disembark, controlRoll: openControlRollDialog, applyDamage: openVehicleDamageDialog }
     };
 
     // Define custom Document classes

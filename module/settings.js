@@ -467,6 +467,16 @@ export function registerSystemSettings() {
     default: true,
   });
 
+  // --- Vehicles: Damage resolver (Phase 4) ---
+  game.settings.register("cyberpunk2020", "vehicleDamageEnabled", {
+    name: "Vehicles: Damage Resolver",
+    hint: "When enabled, vehicles get a 💥 Damage button (sheet header) and the game.cyberpunk.vehicles.applyDamage API. Core (p.112) subtracts SP and reduces SDP; Maximum Metal (p.4-6) compares Penetration to Armor Value, rolls the Surface/Minor/Major/Catastrophic damage table, then a hit location with fuel-fire / ammo-cookoff / crew-damage effects (and honors a Damage Control system). The active branch follows the Vehicles Rule System setting. Default ON.",
+    scope:   "world",
+    config:  true,
+    type:    Boolean,
+    default: true,
+  });
+
   // --- Combat: Detailed explosives / HEP concussion (Listen Up, optional) ---
   game.settings.register("cyberpunk2020", "explosivesDetailed", {
     name: "Combat: Detailed Explosives — HEP Concussion (Listen Up)",

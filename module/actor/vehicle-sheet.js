@@ -1,4 +1,5 @@
 import { openControlRollDialog } from "../vehicle/vehicle-control.js";
+import { openVehicleDamageDialog } from "../vehicle/vehicle-damage.js";
 
 /**
  * Vehicle / ACPA actor sheet (Phase 1-3).
@@ -35,6 +36,7 @@ export class CyberpunkVehicleSheet extends ActorSheet {
     data.ruleSystem = rule;
     data.isMM = rule === "MaximumMetal";
     try { data.controlEnabled = game.settings.get("cyberpunk2020", "vehicleControlEnabled"); } catch (e) { data.controlEnabled = true; }
+    try { data.damageEnabled = game.settings.get("cyberpunk2020", "vehicleDamageEnabled"); } catch (e) { data.damageEnabled = true; }
 
     data.vehicleTypes = ["car", "sportscar", "limo", "AV-4", "AV-6", "AV-7", "cycle", "truck", "rotor", "osprey", "boat", "tank", "APC", "acpa"];
     return data;
@@ -47,6 +49,10 @@ export class CyberpunkVehicleSheet extends ActorSheet {
     root?.querySelector?.(".cp-control-roll")?.addEventListener("click", (ev) => {
       ev.preventDefault();
       openControlRollDialog(this.actor);
+    });
+    root?.querySelector?.(".cp-vehicle-damage")?.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      openVehicleDamageDialog(this.actor);
     });
   }
 }
