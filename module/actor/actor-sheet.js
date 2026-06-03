@@ -792,8 +792,18 @@ export class CyberpunkActorSheet extends ActorSheet {
       ev.preventDefault();
       const btn = ev.currentTarget;
       const action = btn.dataset.action;
-      const item = this.actor.items.get(btn.dataset.itemId);
-      if (!item || !action) return;
+      if (!action) return;
+      // Use a real martial weapon if the actor has one (e.g. a cyber-claw), else a transient,
+      // unsaved unarmed weapon owned by the actor — the panel is weapon-less, so unarmed combat
+      // works with no item in the gear tab. Damage derives from the action (Strike 1d3 / Kick 1d6).
+      let item = btn.dataset.itemId ? this.actor.items.get(btn.dataset.itemId) : null;
+      if (!item) {
+        item = new CONFIG.Item.documentClass(
+          { name: localize("MartialArt"), type: "weapon", img: "systems/cyberpunk2020/img/punch-icon.svg",
+            system: { attackType: meleeAttackTypes.martial, weaponType: "Melee" } },
+          { parent: this.actor }
+        );
+      }
 
       const targetTokens = Array.from(game.users.current.targets.values()).map(target => ({
         name: target.document.name, id: target.id,

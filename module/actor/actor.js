@@ -39,30 +39,10 @@ export class CyberpunkActor extends Actor {
       updates["system.skillsSortedBy"] = "Name";
     }
 
-    // Default unarmed melee weapons: Kick + Strike
-    if (actorType === "character" || actorType === "npc") {
-      const UNARMED_WEAPON_IDS = [
-        "TF0nBrjofPX2RiuG", // Kick
-        "TZoiQuE8fUzJ8Jta"  // Strike
-      ];
-
-      const meleePack = game.packs.get("cyberpunk2020.melee");
-
-      if (meleePack) {
-        for (const wid of UNARMED_WEAPON_IDS) {
-          if (CyberpunkActor._hasItemWithBaseId(items, wid)) continue;
-
-          const doc = await meleePack.getDocument(wid);
-          if (!doc) continue;
-
-          const obj = doc.toObject();
-          obj.system = obj.system ?? {};
-          obj.system.equipped = true;
-
-          items.push(obj);
-        }
-      }
-    }
+    // NOTE: characters used to get default unarmed "Kick" + "Strike" weapon items here. The combat
+    // tab now has a single consolidated, weapon-less Martial Arts panel (see combat.hbs + the
+    // .martial-action handler), so those duplicate items are no longer auto-added. Existing
+    // characters keep any they already have; they can be deleted from the gear tab.
 
     updates.items = items;
     this.updateSource(updates);

@@ -48,6 +48,8 @@ test("martial action groups, dialog drops the Action dropdown, button routes the
 
     // 2) martialOptions(actor) no longer contains an Action dropdown.
     const actor = await Actor.create({ name: "__PW__Brawler", type: "character", flags, system: { stats: { ref: { base: 6 } } } });
+    // The default unarmed "Kick"/"Strike" weapon items are no longer auto-added on creation.
+    out.autoMartialWeapons = actor.items.filter(i => i.type === "weapon" && i.system.attackType === "Martial").length;
     const opts = LK.martialOptions(actor);
     const paths = opts.flat().map(g => g.dataPath);
     out.optionPaths      = paths;
@@ -72,6 +74,16 @@ test("martial action groups, dialog drops the Action dropdown, button routes the
     const strikeMsgs = game.messages.contents.filter(m => !before2.has(m.id));
     out.defaultStrike = has(strikeMsgs, "Strike");
 
+    // 3b) Weapon-less path: a TRANSIENT (unsaved) martial weapon owned by the actor — exactly what
+    // the .martial-action handler builds when the actor has no martial weapon item — routes too.
+    const transient = new CONFIG.Item.documentClass(
+      { name: "Unarmed", type: "weapon", system: { attackType: "Martial", weaponType: "Melee" } },
+      { parent: actor });
+    const before3 = new Set(game.messages.contents.map(m => m.id));
+    await transient.__weaponRoll({ action: "Throw", martialArt: "Brawling" }, []);
+    const throwMsgs = game.messages.contents.filter(m => !before3.has(m.id));
+    out.transientThrowInChat = has(throwMsgs, "Throw");
+
     // 4) Sheet rendering: the martial weapon shows grouped action buttons (validates the @root
     //    wiring of the inline partial), and a normal weapon still renders as a .fire-weapon row.
     await actor.createEmbeddedDocuments("Item", [
@@ -87,19 +99,18 @@ test("martial action groups, dialog drops the Action dropdown, button routes the
       if (!rootEl) await new Promise(r => setTimeout(r, 150));
     }
     out.sheetRendered = !!rootEl;
-    // ONE consolidated panel regardless of how many martial weapons exist: exactly one button per
-    // action (so total === actions in the active group set), and martial weapons are NOT rendered
-    // as individual fire-weapon rows. Each action is backed by the actor's first martial weapon.
+    // ONE consolidated panel: exactly one row per action (total === actions in the active group
+    // set), each row a weapon-style row with an icon; martial weapons are NOT listed individually.
     out.martialWeaponCount = actor.items.filter(i => i.type === "weapon" && i.system.attackType === "Martial").length;
     out.actionsPerSet = LK.martialActionGroups().reduce((n, g) => n + g.choices.length, 0);
     out.martialBtnCount = rootEl ? rootEl.querySelectorAll(".martial-action").length : -1;
     out.kickBtnCount    = rootEl ? rootEl.querySelectorAll('.martial-action[data-action="Kick"]').length : -1;
-    out.panelBacking    = rootEl ? (rootEl.querySelector('.martial-action')?.dataset.itemId ?? null) : null;
+    out.iconCount       = rootEl ? rootEl.querySelectorAll(".martial-action .field-image").length : -1;
     out.fireWeaponCount = rootEl ? rootEl.querySelectorAll(".fire-weapon").length : -1;
     await actor.sheet.close().catch(() => {});
 
     // cleanup the chat cards we created (they aren't __PW__-tagged in content)
-    for (const m of [...kickMsgs, ...strikeMsgs]) await m.delete().catch(() => {});
+    for (const m of [...kickMsgs, ...strikeMsgs, ...throwMsgs]) await m.delete().catch(() => {});
     await actor.delete().catch(() => {});
     return out;
   });
@@ -120,6 +131,10 @@ test("martial action groups, dialog drops the Action dropdown, button routes the
   expect(R.hasActionDropdown, "martialOptions has NO action dropdown").toBe(false);
   expect(R.optionPaths, "dialog keeps style + cyberlimb").toEqual(expect.arrayContaining(["martialArt", "cyberTerminus"]));
 
+  // Default unarmed weapons are no longer auto-added; unarmed works weapon-less.
+  expect(R.autoMartialWeapons, "no default Kick/Strike auto-added on creation").toBe(0);
+  expect(R.transientThrowInChat, "a transient (weapon-less) unarmed attack routes the action").toBe(true);
+
   // The button's action routes through to the attack
   expect(R.kickInChat, "injected action 'Kick' appears in the attack card").toBe(true);
   expect(R.defaultStrike, "omitting the action defaults to Strike").toBe(true);
@@ -127,9 +142,8 @@ test("martial action groups, dialog drops the Action dropdown, button routes the
   // The combat tab renders ONE consolidated panel (normal weapons still render as rows)
   expect(R.sheetRendered, "character sheet renders").toBe(true);
   expect(R.fireWeaponCount, "a normal weapon still renders as a fire-weapon row").toBeGreaterThanOrEqual(1);
-  expect(R.martialWeaponCount, "the world has multiple martial weapons on this actor").toBeGreaterThan(1);
-  // Consolidated: exactly one action button per action, regardless of how many martial weapons.
-  expect(R.martialBtnCount, "one button per action — a single consolidated set").toBe(R.actionsPerSet);
-  expect(R.kickBtnCount, "exactly ONE Kick button (no per-weapon duplication)").toBe(1);
-  expect(R.panelBacking, "actions are backed by a martial weapon item").toBeTruthy();
+  // Consolidated: exactly one action row per action, each a weapon-style row with an icon.
+  expect(R.martialBtnCount, "one row per action — a single consolidated set").toBe(R.actionsPerSet);
+  expect(R.kickBtnCount, "exactly ONE Kick row (no per-weapon duplication)").toBe(1);
+  expect(R.iconCount, "every action row has a weapon-style icon").toBe(R.actionsPerSet);
 });
