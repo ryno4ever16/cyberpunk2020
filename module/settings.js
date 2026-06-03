@@ -177,7 +177,7 @@ export function registerSystemSettings() {
   // --- Optional rules: Head Hit & Limb Loss ---
   game.settings.register("cyberpunk2020", "headHitDoubling", {
     name: "Combat: Head Hit Doubles Damage",
-    hint: "When enabled, any hit to the Head doubles the raw damage before armor resolution (CP2020 p.103 RAW). Disable for groups that skip this rule.",
+    hint: "When enabled, a hit to the Head doubles the FINAL damage — after armor (SP) and BTM are applied. RAW: 'A head hit always doubles damage' (CP2020 p.103, the optional 'He Shrugs Off Head Hits' rule); the book gives no timing, so the wound that actually gets through is what doubles. Disable for groups that skip this rule.",
     scope:   "world",
     config:  true,
     type:    Boolean,

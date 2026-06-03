@@ -12,16 +12,13 @@
                             {{#each vehicleTypes}}<option value="{{this}}" {{#if (equals ../system.vehicleType this)}}selected{{/if}}>{{this}}</option>{{/each}}
                         </select>
                     </div>
-                    <div class="field">
+                    <div class="field" title="Powered Armor (ACPA): derives Body Value from chassis STR ÷ 20 instead of SDP, has equal armor on every facing, takes no size penalty to be hit, and includes a built-in vehicle link (Maximum Metal, p.52).">
                         <label>ACPA (Powered Armor)</label>
                         <input type="checkbox" name="system.isACPA" {{#if system.isACPA}}checked{{/if}}/>
                     </div>
                     <div class="field" title="Active vehicle ruleset (world setting)">
                         <label>Ruleset</label>
                         <input type="text" class="not-editable" value="{{ruleSystem}}" readonly/>
-                    </div>
-                    <div class="field">
-                        <button type="button" class="cp-deploy-vehicle" title="Place this vehicle as a scalable token on the active scene (resize it to fit your image; crew tokens render on top)">🚗 Deploy to Canvas</button>
                     </div>
                     {{#if controlEnabled}}
                     <div class="field">
@@ -38,17 +35,17 @@
         {{!-- Armor & Structure --}}
         <h2 class="cyber-section-header">Armor &amp; Structure</h2>
         <div class="field-list">
-            <div class="field">
+            <div class="field" title="Stopping Power — the vehicle's armor. Core subtracts SP from incoming damage (p.112); Maximum Metal instead converts it to Armor Value (SP ÷ 20).">
                 <label>{{#if isMM}}Front SP{{else}}Stopping Power (SP){{/if}}</label>
                 <input type="number" name="system.sp.front" value="{{system.sp.front}}"/>
             </div>
-            <div class="field" title="Armor Value = SP / 20 (Maximum Metal)">
+            <div class="field" title="Armor Value = SP ÷ 20 (Maximum Metal, p.4). A weapon's Penetration is compared to this value — not to raw SP — to see if it gets through. Read-only; edit SP to change it.">
                 <label>AV (front)</label>
                 <input type="number" class="not-editable" value="{{system.armorValue.front}}" readonly/>
             </div>
         </div>
         {{#if isMM}}
-        <div class="field-list">
+        <div class="field-list" title="Per-facing armor (Maximum Metal flank rules, p.4): a hit to the side uses 75% of armor, top/rear/bottom 50%. The facing depends on the angle of the shot. ACPA armor is equal on all sides.">
             <div class="field"><label>Side SP</label><input type="number" name="system.sp.side" value="{{system.sp.side}}"/></div>
             <div class="field"><label>AV side</label><input type="number" class="not-editable" value="{{system.armorValue.side}}" readonly/></div>
             <div class="field"><label>Rear SP</label><input type="number" name="system.sp.rear" value="{{system.sp.rear}}"/></div>
@@ -62,9 +59,13 @@
         </div>
         {{/if}}
         <div class="field-list">
-            <div class="field"><label>SDP (current)</label><input type="number" name="system.sdp.value" value="{{system.sdp.value}}"/></div>
-            <div class="field"><label>SDP (max)</label><input type="number" name="system.sdp.max" value="{{system.sdp.max}}"/></div>
-            <div class="field" title="Body Value = SDP / 20 (or STR / 20 for ACPA)">
+            <div class="field" title="Structural Damage Points — the vehicle's hit points. Damage that gets past SP comes off here; at 0 SDP the vehicle is destroyed / inoperable (Core p.112).">
+                <label>SDP (current)</label><input type="number" name="system.sdp.value" value="{{system.sdp.value}}"/>
+            </div>
+            <div class="field" title="Maximum SDP — the undamaged total. Body Value is derived from this.">
+                <label>SDP (max)</label><input type="number" name="system.sdp.max" value="{{system.sdp.max}}"/>
+            </div>
+            <div class="field" title="Body Value = SDP ÷ 20 (rounded), or chassis STR ÷ 20 for ACPA. The vehicle's bulk/toughness on the Maximum Metal damage scale (p.4): it is subtracted on the damage-severity roll. Every vehicle has one (e.g. SDP 50 → Body 3); Core mode just doesn't use it — it tracks raw SDP instead. Read-only.">
                 <label>Body Value</label>
                 <input type="number" class="not-editable" value="{{system.bodyValue}}" readonly/>
             </div>
@@ -72,38 +73,54 @@
         </div>
         {{#if system.isACPA}}
         <div class="field-list">
-            <div class="field" title="Chassis STR drives Body Value for ACPA"><label>Chassis STR</label><input type="number" name="system.str" value="{{system.str}}"/></div>
+            <div class="field" title="ACPA chassis Strength. For powered armor, Body Value is STR ÷ 20 instead of SDP ÷ 20 (Maximum Metal, p.5)."><label>Chassis STR</label><input type="number" name="system.str" value="{{system.str}}"/></div>
         </div>
         {{/if}}
 
         {{!-- Movement --}}
         <h2 class="cyber-section-header">Movement</h2>
         <div class="field-list">
-            <div class="field"><label>Top Speed</label><input type="number" name="system.topSpeed" value="{{system.topSpeed}}"/></div>
-            <div class="field"><label>Safe Speed</label><input type="number" name="system.safeSpeed" value="{{system.safeSpeed}}"/></div>
+            <div class="field" title="Maximum speed. In Maximum Metal, going fast costs handling: the maneuver Difficulty rises +1 for every 10% of top speed you are driving above 50% of top speed (p.11).">
+                <label>Top Speed</label><input type="number" name="system.topSpeed" value="{{system.topSpeed}}"/>
+            </div>
+            <div class="field" title="The fastest you can go without a handling penalty. In Core, driving at 2× / 3× / 4× safe speed applies −2 / −4 / −6 to the Control Roll (p.112).">
+                <label>Safe Speed</label><input type="number" name="system.safeSpeed" value="{{system.safeSpeed}}"/>
+            </div>
         </div>
         <div class="field-list">
-            <div class="field"><label>Acceleration</label><input type="number" name="system.acc" value="{{system.acc}}"/></div>
-            <div class="field"><label>Deceleration</label><input type="number" name="system.dec" value="{{system.dec}}"/></div>
-            <div class="field"><label>Control Mod</label><input type="number" name="system.controlMod" value="{{system.controlMod}}"/></div>
+            <div class="field" title="How much speed the vehicle can gain per combat turn (Maximum Metal chase rules).">
+                <label>Acceleration</label><input type="number" name="system.acc" value="{{system.acc}}"/>
+            </div>
+            <div class="field" title="How much speed the vehicle can shed per combat turn — braking (Maximum Metal chase rules).">
+                <label>Deceleration</label><input type="number" name="system.dec" value="{{system.dec}}"/>
+            </div>
+            <div class="field" title="Vehicle handling modifier added to every Control / Maneuver roll (e.g. sportscar +2, limo −3, truck −4). It prefills the Control Roll dialog. Core uses the p.112 table; Maximum Metal the revised p.11 table.">
+                <label>Control Mod</label><input type="number" name="system.controlMod" value="{{system.controlMod}}"/>
+            </div>
         </div>
 
         {{!-- Crew & Systems --}}
         <h2 class="cyber-section-header">Crew &amp; Systems</h2>
         <div class="field-list">
-            <div class="field"><label>Crew Slots</label><input type="number" name="system.crewSlots" value="{{system.crewSlots}}"/></div>
-            <div class="field"><label>Passenger Slots</label><input type="number" name="system.passengerSlots" value="{{system.passengerSlots}}"/></div>
+            <div class="field" title="How many crew positions the vehicle has (driver, gunner, etc.). At least one is needed to operate it."><label>Crew Slots</label><input type="number" name="system.crewSlots" value="{{system.crewSlots}}"/></div>
+            <div class="field" title="How many additional passengers the vehicle can carry beyond the crew."><label>Passenger Slots</label><input type="number" name="system.passengerSlots" value="{{system.passengerSlots}}"/></div>
         </div>
         <div class="field-list">
-            <div class="field"><label>Vehicle Link</label><input type="checkbox" name="system.vehicleLink" {{#if system.vehicleLink}}checked{{/if}}/></div>
-            <div class="field"><label>Damage Control</label><input type="checkbox" name="system.damageControl" {{#if system.damageControl}}checked{{/if}}/></div>
-            <div class="field"><label>Fire Control</label><input type="number" name="system.fireControl" value="{{system.fireControl}}"/></div>
+            <div class="field" title="Cybernetic vehicle link: the driver/pilot adds +2 to all control, maneuver, and vehicle-weapon rolls, and can act while driving without the 'doing something else' penalty (Maximum Metal). ACPA always counts as linked.">
+                <label>Vehicle Link</label><input type="checkbox" name="system.vehicleLink" {{#if system.vehicleLink}}checked{{/if}}/>
+            </div>
+            <div class="field" title="A redundant network of backups, fire extinguishers and breakers. When a system is hit, roll 1d10 — on a 6-10 it keeps working as if undamaged (Maximum Metal, p.4). Used by the damage resolver.">
+                <label>Damage Control</label><input type="checkbox" name="system.damageControl" {{#if system.damageControl}}checked{{/if}}/>
+            </div>
+            <div class="field" title="Targeting-computer bonus added to the vehicle's weapon to-hit rolls (Maximum Metal). 0 = no fire-control computer.">
+                <label>Fire Control</label><input type="number" name="system.fireControl" value="{{system.fireControl}}"/>
+            </div>
         </div>
 
         {{!-- Notes --}}
         <h2 class="cyber-section-header">Notes</h2>
         <textarea name="system.notes" rows="4" style="width:100%;">{{system.notes}}</textarea>
 
-        <p style="opacity:0.6; font-size:0.8em; margin-top:6px;">Set the actor image (top-left) to your vehicle art, then Deploy. The token scales to its footprint — drag its resize handle to fit. Weapon mounts, control rolls, and the damage resolver arrive in later phases.</p>
+        <p style="opacity:0.6; font-size:0.8em; margin-top:6px;">Set the actor image (top-left) to your vehicle art, then drag the actor onto the canvas like any other actor — the token is pre-sized and scales to fit (drag its resize handle to adjust). Crew tokens placed on top render above it and ride along once boarded. Weapon mounts and the damage resolver arrive in later phases.</p>
     </div>
 </form>

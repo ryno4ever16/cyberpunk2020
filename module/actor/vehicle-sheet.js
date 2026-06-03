@@ -1,13 +1,15 @@
-import { deployVehicleToScene } from "../vehicle/vehicle-canvas.js";
 import { openControlRollDialog } from "../vehicle/vehicle-control.js";
 
 /**
- * Vehicle / ACPA actor sheet (Phase 1-2).
+ * Vehicle / ACPA actor sheet (Phase 1-3).
  *
  * Deliberately separate from CyberpunkActorSheet — vehicles have no skills/wound-track/
  * cyberware tabs. Shows a single SP in Core mode and all five facings under Maximum Metal
- * (the vehicleRuleSystem toggle). Derived Armor Value / Body Value are read-only. The
- * "Deploy to Canvas" button places the art tile + handle token (Idea A).
+ * (the vehicleRuleSystem toggle). Derived Armor Value / Body Value are read-only.
+ *
+ * There is no "Deploy to Canvas" button: a vehicle is placed by dragging the actor onto the
+ * canvas like any other actor. The prototype-token defaults (see vehicle-canvas.js preCreateActor)
+ * make that drag produce a correctly sized, low-sorted, art-fitted, vehicle-flagged token.
  */
 export class CyberpunkVehicleSheet extends ActorSheet {
 
@@ -42,12 +44,6 @@ export class CyberpunkVehicleSheet extends ActorSheet {
   activateListeners(html) {
     super.activateListeners(html);
     const root = html instanceof jQuery ? html[0] : html;
-    root?.querySelector?.(".cp-deploy-vehicle")?.addEventListener("click", async (ev) => {
-      ev.preventDefault();
-      if (!canvas?.scene) { ui.notifications.warn("Activate a scene first to deploy the vehicle."); return; }
-      const res = await deployVehicleToScene(this.actor);
-      if (res && !res.existing) ui.notifications.info(`${this.actor.name} deployed. Resize the token to fit your image; crew tokens render on top.`);
-    });
     root?.querySelector?.(".cp-control-roll")?.addEventListener("click", (ev) => {
       ev.preventDefault();
       openControlRollDialog(this.actor);

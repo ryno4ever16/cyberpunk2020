@@ -17,6 +17,15 @@ const VEHICLE_SORT = -100;            // render below crew tokens
 const _moveDeltas = new Map();
 
 /**
+ * A token represents a vehicle if its actor is a vehicle (covers tokens dragged from the sidebar
+ * like any other actor) or it carries the legacy vehicleHandle flag (tokens placed by an older
+ * deploy). Detecting by actor type is what lets a plain drag-to-canvas behave like Deploy did.
+ */
+function _isVehicleToken(doc) {
+  return doc?.actor?.type === "vehicle" || doc?.flags?.[SCOPE]?.vehicleHandle === true;
+}
+
+/**
  * Place a vehicle on a scene as a single visible, scalable handle token.
  * Idempotent per (actor, scene): if one already exists it is reused, not stacked.
  * @returns {Promise<{tokenId:string, existing:boolean}|null>}
@@ -68,7 +77,7 @@ export async function disembark(crewTokenDoc) {
 export function registerVehicleCanvasHooks() {
   Hooks.on("preUpdateToken", (doc, change, options) => {
     if (options?.cp2020VehicleSync) return;
-    if (!doc.flags?.[SCOPE]?.vehicleHandle) return;
+    if (!_isVehicleToken(doc)) return;
     const dx = (change.x ?? doc.x) - doc.x;
     const dy = (change.y ?? doc.y) - doc.y;
     if (dx || dy) _moveDeltas.set(doc.id, { dx, dy });
@@ -79,7 +88,7 @@ export function registerVehicleCanvasHooks() {
     if (delta) _moveDeltas.delete(doc.id);
     if (options?.cp2020VehicleSync) return;
     if (userId !== game.user.id) return;             // only the client that performed the move
-    if (!doc.flags?.[SCOPE]?.vehicleHandle || !delta || (!delta.dx && !delta.dy)) return;
+    if (!_isVehicleToken(doc) || !delta || (!delta.dx && !delta.dy)) return;
 
     const scene = doc.parent;
     const crew = scene.tokens.filter(t => t.flags?.[SCOPE]?.boardedVehicle === doc.actorId);
@@ -87,13 +96,18 @@ export function registerVehicleCanvasHooks() {
     if (upd.length) await scene.updateEmbeddedDocuments("Token", upd, { cp2020VehicleSync: true });
   });
 
-  // Sensible prototype-token defaults so dragging a vehicle actor to the canvas also works well.
+  // Prototype-token defaults so DRAGGING a vehicle actor onto the canvas behaves exactly like the
+  // old Deploy button: linked, 4x2 (resizable), rendered below crew, art scaled to fit, and flagged
+  // as a vehicle handle so the crew-follow coupling recognizes it. This is why the Deploy button
+  // was removed — a plain drag now produces an identical, fully-functional vehicle token.
   Hooks.on("preCreateActor", (actor, data) => {
     if (data?.type !== "vehicle") return;
     try {
       const base = actor.prototypeToken?.toObject?.() ?? {};
       actor.updateSource({ prototypeToken: foundry.utils.mergeObject(base, {
-        actorLink: true, width: 4, height: 2, sort: VEHICLE_SORT, texture: { fit: "contain" }
+        actorLink: true, width: 4, height: 2, sort: VEHICLE_SORT,
+        texture: { src: data.img ?? base.texture?.src, fit: "contain" },
+        flags: { [SCOPE]: { vehicleHandle: true } },
       }, { inplace: false }) });
     } catch (e) { /* non-fatal */ }
   });
