@@ -529,6 +529,22 @@ export function defaultHitLocations() {
   return cloneSystemDefault(DEFAULT_HIT_LOCATIONS);
 }
 
+// W4RST4R's Limb Rules hit-location table (1d10): 1 Head, 2 R.Arm, 3 L.Arm, 4-7 Torso,
+// 8 R.Leg, 9 L.Leg, 0(=10) Groin. Used for rolling + chat display when that model is active.
+// Groin has no stored SP/hitLocation; the damage resolver maps it to Torso armor at runtime.
+export let W4RST4R_AREA_LOOKUP = {
+  1: "Head",
+  2: "rArm",
+  3: "lArm",
+  4: "Torso",
+  5: "Torso",
+  6: "Torso",
+  7: "Torso",
+  8: "rLeg",
+  9: "lLeg",
+  10: "Groin"
+};
+
 export function rangedModifiers(weapon, targetTokens=[]) {
     let range = weapon.system.range || 50;
     let fireModes = weapon.__getFireModes() || [];

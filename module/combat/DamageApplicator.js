@@ -92,6 +92,25 @@ export const LIMB_LOCATIONS = new Set(["rArm", "lArm", "rLeg", "lLeg"]);
 const LIMB_NAMES = { rArm: "Right Arm", lArm: "Left Arm", rLeg: "Right Leg", lLeg: "Left Leg" };
 
 /**
+ * W4RST4R's hit-location table can roll "Groin", which has no stored armor / hit-location entry.
+ * The groin is covered by torso armor, so SP lookup and ablation use the Torso location at runtime
+ * (no actor-data field is added). Other locations pass through unchanged.
+ */
+export function spLocationKey(location) {
+  return location === "Groin" ? "Torso" : location;
+}
+
+/**
+ * Active limb model, resolved with precedence W4RST4R > Listen Up (detailed) > Core, so the right
+ * rule wins even if multiple flags are somehow set. The settings enforce mutual exclusivity too.
+ */
+export function activeLimbModel() {
+  try { if (game.settings.get("cyberpunk2020", "w4rst4rLimbRules")) return "W4RST4R"; } catch (e) { /* default */ }
+  try { if (game.settings.get("cyberpunk2020", "limbCripplingDetailed")) return "ListenUp"; } catch (e) { /* default */ }
+  return "Core";
+}
+
+/**
  * Final HP damage for one hit, including the location-doubling rules.
  *   - Head (headHitDoubling, CP2020 p.103): damage doubled AFTER BTM.
  *   - Limb (limbCripplingDetailed, Listen Up): post-armor damage doubled BEFORE BTM —
@@ -103,9 +122,10 @@ const LIMB_NAMES = { rArm: "Right Arm", lArm: "Left Arm", rLeg: "Right Leg", lLe
  * @param {string}  location
  */
 export function computeNetDamage(afterSP, btm, penetrates, location) {
-  let headDoubling = true, detailedLimb = false;
+  let headDoubling = true;
   try { headDoubling = game.settings.get("cyberpunk2020", "headHitDoubling"); } catch (e) { /* default */ }
-  try { detailedLimb = game.settings.get("cyberpunk2020", "limbCripplingDetailed"); } catch (e) { /* default */ }
+  // Only Listen Up doubles limb damage. W4RST4R (and Core) do not — they use the raw post-BTM net.
+  const detailedLimb = activeLimbModel() === "ListenUp";
 
   if (detailedLimb && LIMB_LOCATIONS.has(location) && penetrates) {
     return applyBTM(afterSP * 2, btm, penetrates);   // Listen Up: double post-armor, then BTM
@@ -125,10 +145,10 @@ export function computeNetDamage(afterSP, btm, penetrates, location) {
  * @param {{token?: object}} [opts]
  */
 export async function assessWoundSeverity(target, location, netDamage, { token = null } = {}) {
-  let limbLoss = true, detailedLimb = false;
+  let limbLoss = true;
   try { limbLoss = game.settings.get("cyberpunk2020", "limbLossEnabled"); } catch (e) { /* default */ }
   if (!limbLoss) return;
-  try { detailedLimb = game.settings.get("cyberpunk2020", "limbCripplingDetailed"); } catch (e) { /* default */ }
+  const model = activeLimbModel();   // "W4RST4R" | "ListenUp" | "Core"
 
   const liveTarget = game.actors.get(target.id) ?? target;
   const liveToken  = token ?? canvas?.tokens?.placeables?.find(t => t.actor?.id === liveTarget.id) ?? null;
@@ -153,12 +173,13 @@ export async function assessWoundSeverity(target, location, netDamage, { token =
     return;
   }
 
+  // Groin (W4RST4R table) is not a limb and has no head rule — it just takes damage. No-op here.
   if (!LIMB_LOCATIONS.has(location)) return;
   const limbName = LIMB_NAMES[location] ?? location;
 
-  if (detailedLimb) {
-    // Listen Up crippling bands (measured on the doubled netDamage).
-    if (netDamage >= 13 || netDamage >= 6) {
+  if (model === "ListenUp") {
+    // Listen Up crippling bands (measured on the doubled netDamage). No death save.
+    if (netDamage >= 6) {
       const destroyed = netDamage >= 13;
       const status = destroyed ? "destroyed" : "crippled";
       const cur = foundry.utils.duplicate(liveTarget.getFlag("cyberpunk2020", "limbStatus") ?? {});
@@ -173,6 +194,30 @@ export async function assessWoundSeverity(target, location, netDamage, { token =
         </div>`,
         speaker: ChatMessage.getSpeaker({ actor: liveTarget }),
       });
+    }
+    return;
+  }
+
+  if (model === "W4RST4R") {
+    // W4RST4R: >8 net disables the limb, >12 severs it; either way an immediate Death Save at
+    // Mortal 0. Damage is NOT doubled (handled in computeNetDamage). The limbStatus flag is reused.
+    if (netDamage > 8) {
+      const severed = netDamage > 12;
+      const status = severed ? "severed" : "disabled";
+      const cur = foundry.utils.duplicate(liveTarget.getFlag("cyberpunk2020", "limbStatus") ?? {});
+      cur[location] = status;
+      await liveTarget.setFlag("cyberpunk2020", "limbStatus", cur).catch(() => {});
+      await ChatMessage.create({
+        content: `<div class="cyberpunk save-prompt">
+          <h3>⚠ ${severed ? "Limb Severed" : "Limb Disabled"} — ${liveTarget.name}</h3>
+          <div><b>${netDamage} net damage to ${limbName}</b> — ${severed
+            ? "severed or crushed beyond recognition (more than 12)"
+            : "disabled (more than 8)"} (W4RST4R's Limb Rules).</div>
+          <div style="margin-top:4px;">Immediate Death Save required at Mortal 0.</div>
+        </div>`,
+        speaker: ChatMessage.getSpeaker({ actor: liveTarget }),
+      });
+      await postDeathSavePrompt(liveTarget, liveToken, 0);
     }
     return;
   }
@@ -210,9 +255,10 @@ export async function applyAreaDamages({ target, areaDamages, ap, edged = false,
   const btm = Number(target.system.stats?.bt?.modifier) || 0;
 
   const liveSP = {};
+  // Keyed by the SP location (Groin → Torso), so a Groin hit draws on torso armor.
   const getLiveSP = (key) => {
     if (liveSP[key] !== undefined) return liveSP[key];
-    liveSP[key] = Number(target.system.hitLocations?.[key]?.stoppingPower) || 0;
+    liveSP[key] = Number(target.system.hitLocations?.[spLocationKey(key)]?.stoppingPower) || 0;
     return liveSP[key];
   };
 
@@ -226,6 +272,7 @@ export async function applyAreaDamages({ target, areaDamages, ap, edged = false,
 
   for (const { location, rawDamage: baseRaw } of allHits) {
     const rawDamage = baseRaw;
+    const spKey = spLocationKey(location);   // armor/ablation location (Groin → Torso)
     let currentSP = getLiveSP(location);
 
     // Asymmetric armor multipliers: edged weapon (isEdged) and/or ammo armor mults.
@@ -234,7 +281,7 @@ export async function applyAreaDamages({ target, areaDamages, ap, edged = false,
     const effectiveSoftMult = edged ? Math.min(0.5, armorMultSoft) : armorMultSoft;
     const effectiveHardMult = armorMultHard;
     if ((effectiveSoftMult !== 1.0 || effectiveHardMult !== 1.0) && currentSP > 0 && armorMode !== ARMOR_MODES.NONE) {
-      const contributors = getArmorContributors(target, location);
+      const contributors = getArmorContributors(target, spKey);
       const allItems = [...contributors.cwItems, ...contributors.orderedLayers, ...contributors.unassigned];
       const hasHardArmor = allItems.some(item => getArmorHardness(item) === "hard");
       const mult = hasHardArmor ? effectiveHardMult : effectiveSoftMult;
@@ -268,8 +315,8 @@ export async function applyAreaDamages({ target, areaDamages, ap, edged = false,
       }
 
       if (ablate && armorMode === ARMOR_MODES.FULL && penetrates && netDamage > 0) {
-        await ablateLocationOnce(target, location);
-        liveSP[location] = _deriveLiveSP(target, location);
+        await ablateLocationOnce(target, spKey);
+        liveSP[location] = _deriveLiveSP(target, spKey);
       }
 
       // Limb / head wound severity (CP2020 p.103 + optional Listen Up crippling) — centralized.
@@ -299,7 +346,7 @@ export function resolveAreaDamagesSync({ target, areaDamages, ap, edged = false,
 
   const getLiveSP = (key) => {
     if (liveSP[key] !== undefined) return liveSP[key];
-    liveSP[key] = Number(target.system.hitLocations?.[key]?.stoppingPower) || 0;
+    liveSP[key] = Number(target.system.hitLocations?.[spLocationKey(key)]?.stoppingPower) || 0;
     return liveSP[key];
   };
 
@@ -312,7 +359,7 @@ export function resolveAreaDamagesSync({ target, areaDamages, ap, edged = false,
       const effSoftSync = edged ? Math.min(0.5, armorMultSoft) : armorMultSoft;
       const effHardSync = armorMultHard;
       if ((effSoftSync !== 1.0 || effHardSync !== 1.0) && currentSP > 0 && armorMode !== ARMOR_MODES.NONE) {
-        const contributors = getArmorContributors(target, location);
+        const contributors = getArmorContributors(target, spLocationKey(location));
         const allItems = [...contributors.cwItems, ...contributors.orderedLayers, ...contributors.unassigned];
         const hasHardArmor = allItems.some(item => getArmorHardness(item) === "hard");
         const mult = hasHardArmor ? effHardSync : effSoftSync;

@@ -1,4 +1,4 @@
-import { defaultAreaLookup, defaultHitLocations } from "./lookups.js"
+import { defaultAreaLookup, defaultHitLocations, W4RST4R_AREA_LOOKUP } from "./lookups.js"
 // Utility methods that don't really belong anywhere else
 
 export function properCase(str) {
@@ -54,19 +54,31 @@ export function deleteFieldUpdate(path) {
  * @param {*} targetArea If you're aiming at a specific area, this is the NAME of that area - eg "Head"
  * @returns {*} {roll: The rolled diceroll when aiming, areaHit: where actually hit}
  */
+// Which number→location table to roll/display on. W4RST4R's model uses its own table (incl.
+// Groin). Otherwise, the "Core hit-location display" setting (default on) forces the canonical
+// Core table; with it off, a per-actor custom hitLocLookup is honored instead.
+function _hitLocationLookup(targetActor) {
+    const w4 = (() => { try { return game.settings.get("cyberpunk2020", "w4rst4rLimbRules"); } catch { return false; } })();
+    if (w4) return W4RST4R_AREA_LOOKUP;
+    const coreDisplay = (() => { try { return game.settings.get("cyberpunk2020", "hitLocationCoreDisplay"); } catch { return true; } })();
+    if (coreDisplay) return defaultAreaLookup;
+    return (targetActor?.hitLocLookup) ? targetActor.hitLocLookup : defaultAreaLookup;
+}
+
 export async function rollLocation(targetActor, targetArea) {
     if(targetArea) {
-        // Area name to number lookup
+        // Area name to number lookup. Tolerate areas (e.g. W4RST4R "Groin") absent from the actor's
+        // hitLocations by still reporting the targeted area.
         const hitLocs = (!!targetActor) ? targetActor.hitLocations : defaultHitLocations();
-        const targetNum = hitLocs[targetArea].location[0];
-        let roll = await new Roll(`${targetNum}`).evaluate();
+        const targetNum = hitLocs?.[targetArea]?.location?.[0];
+        let roll = await new Roll(`${Number.isFinite(targetNum) ? targetNum : 1}`).evaluate();
         return {
             roll: roll,
             areaHit: targetArea
         };
     }
-    // Number to area name lookup
-    let hitAreaLookup = (!!targetActor && !!targetActor.hitLocLookup) ? targetActor.hitLocLookup : defaultAreaLookup;
+    // Number to area name lookup (Core table / W4RST4R table per settings).
+    let hitAreaLookup = _hitLocationLookup(targetActor);
 
     let roll = await new Roll("1d10").evaluate();
     return {

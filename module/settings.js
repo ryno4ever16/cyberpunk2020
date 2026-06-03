@@ -413,6 +413,44 @@ export function registerSystemSettings() {
     default: false,
   });
 
+  // --- Combat: Hit-location chat display (Core table) ---
+  game.settings.register("cyberpunk2020", "hitLocationCoreDisplay", {
+    name: "Combat: Show Hit Location (Core Table)",
+    hint: "When enabled (default), hit-location results are shown in chat using the CP2020 Core rulebook hit-location table (1 Head · 2-4 Torso · 5 R.Arm · 6 L.Arm · 7-8 R.Leg · 9-0 L.Leg). Turn off to honor a per-actor custom hit-location lookup instead. Cannot be used with W4RST4R's Limb Rules, which define their own location table — enabling that model turns this off automatically.",
+    scope:   "world",
+    config:  true,
+    type:    Boolean,
+    default: true,
+    onChange: (value) => {
+      if (!game.user?.isGM) return;
+      try {
+        if (value && game.settings.get("cyberpunk2020", "w4rst4rLimbRules")) {
+          game.settings.set("cyberpunk2020", "hitLocationCoreDisplay", false);
+          ui.notifications?.warn?.("Core hit-location display can't be combined with W4RST4R's Limb Rules (it uses its own location table).");
+        }
+      } catch (e) { /* settings not ready */ }
+    },
+  });
+
+  // --- Combat: W4RST4R's Limb Rules (alternate limb model) ---
+  game.settings.register("cyberpunk2020", "w4rst4rLimbRules", {
+    name: "Combat: W4RST4R's Limb Rules (alternate limb model)",
+    hint: "Alternate limb model with its own hit-location table (1 Head · 2 R.Arm · 3 L.Arm · 4-7 Torso · 8 R.Leg · 9 L.Leg · 0 Groin). Limb damage is NOT doubled: more than 8 net to a limb DISABLES it, more than 12 SEVERS it — either way the character makes an immediate Death Save at Mortal 0. A head wound of more than 8 kills automatically. While on, this overrides the Core / Listen Up limb rules and forces the Core hit-location display off. Requires 'Limb Loss & Head Wound Checks'. Default OFF.",
+    scope:   "world",
+    config:  true,
+    type:    Boolean,
+    default: false,
+    onChange: (value) => {
+      if (!game.user?.isGM) return;
+      try {
+        if (value) {
+          if (game.settings.get("cyberpunk2020", "hitLocationCoreDisplay")) game.settings.set("cyberpunk2020", "hitLocationCoreDisplay", false);
+          if (game.settings.get("cyberpunk2020", "limbCripplingDetailed")) game.settings.set("cyberpunk2020", "limbCripplingDetailed", false);
+        }
+      } catch (e) { /* settings not ready */ }
+    },
+  });
+
   // --- Combat: Shotgun / flechette spread (CP2020 p.108) ---
   game.settings.register("cyberpunk2020", "shotgunSpreadEnabled", {
     name: "Combat: Shotgun & Flechette Spread",
