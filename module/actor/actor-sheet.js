@@ -1,4 +1,4 @@
-import { martialOptions, meleeAttackTypes, meleeBonkOptions, rangedModifiers, weaponTypes, FNFF2_ONLY_MARTIAL_ART_IDS, isFnff2Enabled } from "../lookups.js"
+import { martialOptions, martialActionGroups, meleeAttackTypes, meleeBonkOptions, rangedModifiers, weaponTypes, FNFF2_ONLY_MARTIAL_ART_IDS, isFnff2Enabled } from "../lookups.js"
 import { deleteFieldUpdate, localize, localizeParam, cwHasType, cwIsEnabled } from "../utils.js"
 import { ModifiersDialog } from "../dialog/modifiers.js"
 import { SortOrders, sortSkills } from "./skill-sort.js";
@@ -205,6 +205,11 @@ export class CyberpunkActorSheet extends ActorSheet {
       misc: sortedItems.misc,
       cyberCost: sortedItems.cyberware.reduce((a,b) => a + b.system.cost, 0)
     };
+
+    // Martial-arts weapons render their actions as grouped buttons (Defensive/Attacks/Grapple)
+    // directly in the combat tab; the chosen button supplies the action to the attack dialog.
+    sheetData.martialActionGroups = martialActionGroups();
+    sheetData.MARTIAL_ATTACK_TYPE = meleeAttackTypes.martial;
 
     // Cyberware inventory & zones
     const allCyber = (sortedItems.cyberware || []).slice();
@@ -767,6 +772,29 @@ export class CyberpunkActorSheet extends ActorSheet {
         targetTokens: targetTokens,
         modifierGroups: modifierGroups,
         onConfirm: (fireOptions) => item.__weaponRoll(fireOptions, targetTokens)
+      });
+      dialog.render(true);
+    });
+
+    // Martial-arts action buttons (combat tab): the action is chosen by the button, so the dialog
+    // only collects martial-art style + cyberlimb, and we inject the action into the fire options.
+    html.find('.martial-action').click(ev => {
+      ev.stopPropagation();
+      ev.preventDefault();
+      const btn = ev.currentTarget;
+      const action = btn.dataset.action;
+      const item = this.actor.items.get(btn.dataset.itemId);
+      if (!item || !action) return;
+
+      const targetTokens = Array.from(game.users.current.targets.values()).map(target => ({
+        name: target.document.name, id: target.id,
+      }));
+
+      const dialog = new ModifiersDialog(this.actor, {
+        weapon: item,
+        targetTokens,
+        modifierGroups: martialOptions(this.actor),
+        onConfirm: (fireOptions) => item.__weaponRoll({ ...fireOptions, action }, targetTokens),
       });
       dialog.render(true);
     });

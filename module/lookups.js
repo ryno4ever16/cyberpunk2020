@@ -588,43 +588,34 @@ export function rangedModifiers(weapon, targetTokens=[]) {
     ];
 }
 
+/**
+ * Martial-arts ACTIONS grouped under the same subheaders the attack dialog used (Defensive /
+ * Attacks / Grapple). FNFF2 adds the all-out defenses and the extra strikes. The combat tab renders
+ * these as clickable buttons; the action is chosen by which button the player presses, so the
+ * dialog no longer carries an Action dropdown. Returns [{ groupName, choices:[actionKey,...] }].
+ */
+export function martialActionGroups() {
+    const base = [
+        { groupName: "Defensive", choices: ["Dodge", "BlockParry"] },
+        { groupName: "Attacks",   choices: ["Strike", "Kick", "Disarm", "SweepTrip"] },
+        { groupName: "Grapple",   choices: ["Grapple", "Hold", "Choke", "Throw", "Escape"] },
+    ];
+    if (isFnff2Enabled()) {
+        base[0].choices.unshift("AllOutParry", "AllOutDodge");
+        base[1].choices.splice(1, 0, "Punch");
+        base[1].choices.push("Ram", "JumpKick", "Cast");
+    }
+    return base;
+}
+
+/**
+ * Modifier groups for a martial-arts attack dialog. The ACTION is no longer chosen here — it comes
+ * from the combat-tab button the player pressed (see martialActionGroups + the .martial-action
+ * handler), and is injected into the fire options. The dialog only collects the style and cyberlimb.
+ */
 export function martialOptions(actor) {
     return [
         [{
-            localKey: "Action",
-            dataPath: "action",
-            defaultValue: "Strike",
-            choices: (() => {
-              const base = [
-                { groupName: "Defensive", choices: [
-                  "Dodge",
-                  "BlockParry"
-                ]},
-                { groupName: "Attacks", choices: [
-                  "Strike",
-                  "Kick",
-                  "Disarm",
-                  "SweepTrip"
-                ]},
-                { groupName: "Grapple", choices: [
-                  "Grapple",
-                  "Hold",
-                  "Choke",
-                  "Throw",
-                  "Escape"
-                ]}
-              ];
-
-              if (isFnff2Enabled()) {
-                base[0].choices.unshift("AllOutParry", "AllOutDodge");
-                base[1].choices.splice(1, 0, "Punch");
-                base[1].choices.push("Ram", "JumpKick", "Cast");
-              }
-
-              return base;
-            })(),
-        },
-        {
             localKey: "MartialArt",
             dataPath: "martialArt",
             choices: [

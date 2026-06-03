@@ -1129,8 +1129,9 @@ export class CyberpunkItem extends Item {
   async __martialBonk(attackMods) {
     let actor = this.actor;
     let system = actor.system;
-    // Action being done, eg strike, block etc
-    let action = attackMods.action;
+    // Action being done, eg strike, block etc. The action is chosen by the combat-tab button that
+    // launched this attack and injected into attackMods; default to Strike if a caller omits it.
+    let action = attackMods.action || martialActions.strike;
     let martialArt = attackMods.martialArt;
 
     // Will be something this line once I add the martial arts bonuses. None for brawling, remember

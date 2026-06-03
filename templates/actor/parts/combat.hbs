@@ -62,8 +62,34 @@
             {{/if}}
         </header>
 
+        {{!-- Reusable: a martial-arts weapon shown as grouped action buttons (Defensive/Attacks/
+             Grapple). Clicking a button launches that attack; the dialog only asks for style. --}}
+        {{#*inline "martialActions"}}
+            <div class="martial-weapon">
+                <div class="fire-weapon-head field">
+                    <div class="no-action field-image item-edit" style="background-image: url({{img}})" data-item-id="{{itemId}}"></div>
+                    <label class="name item-edit" data-item-id="{{itemId}}">{{name}}</label>
+                    <span class="flex-pad"></span>
+                    <span><div class="field-label inactive">{{CPLocal "MartialArt"}}</div></span>
+                </div>
+                {{#each @root.martialActionGroups as |grp|}}
+                <div class="martial-action-group">
+                    <span class="martial-group-label">{{CPLocal grp.groupName}}</span>
+                    <span class="martial-action-buttons">
+                    {{#each grp.choices as |act|}}
+                        <button type="button" class="martial-action" data-item-id="{{../../itemId}}" data-action="{{act}}">{{CPLocal act}}</button>
+                    {{/each}}
+                    </span>
+                </div>
+                {{/each}}
+            </div>
+        {{/inline}}
+
         {{!-- Normal weapons --}}
         {{#each gear.weapons as |weapon|}}
+            {{#if (equals weapon.system.attackType @root.MARTIAL_ATTACK_TYPE)}}
+                {{> martialActions itemId=weapon.id name=weapon.name img=weapon.img}}
+            {{else}}
             <div class="fire-weapon field action" data-item-id="{{weapon.id}}">
             <div class="no-action field-image item-edit" style="background-image: url({{weapon.img}})" data-item-id="{{weapon.id}}"></div>
             <label class="name">{{weapon.name}}</label>
@@ -74,21 +100,26 @@
                 {{/with}}
             </span>
             </div>
+            {{/if}}
         {{/each}}
 
         {{!-- Cyberweapons --}}
         {{#each gear.cyberware as |cyber|}}
             {{#if (cwHasType cyber.system.CyberWorkType "Weapon")}}
-            <div class="fire-weapon field action" data-item-id="{{cyber.id}}">
-                <div class="no-action field-image item-edit" style="background-image: url({{cyber.img}})" data-item-id="{{cyber.id}}"></div>
-                <label class="name">{{cyber.name}}</label>
-                <span class="flex-pad"></span>
-                <span>
-                {{#with cyber.system.CyberWorkType.Weapon}}
-                <div class="field-label inactive">{{#if attackType}}{{attackType}}{{else}}{{weaponType}}{{/if}}</div>
-                {{/with}}
-                </span>
-            </div>
+                {{#if (equals cyber.system.CyberWorkType.Weapon.attackType @root.MARTIAL_ATTACK_TYPE)}}
+                    {{> martialActions itemId=cyber.id name=cyber.name img=cyber.img}}
+                {{else}}
+                <div class="fire-weapon field action" data-item-id="{{cyber.id}}">
+                    <div class="no-action field-image item-edit" style="background-image: url({{cyber.img}})" data-item-id="{{cyber.id}}"></div>
+                    <label class="name">{{cyber.name}}</label>
+                    <span class="flex-pad"></span>
+                    <span>
+                    {{#with cyber.system.CyberWorkType.Weapon}}
+                    <div class="field-label inactive">{{#if attackType}}{{attackType}}{{else}}{{weaponType}}{{/if}}</div>
+                    {{/with}}
+                    </span>
+                </div>
+                {{/if}}
             {{/if}}
         {{/each}}
     </section>
