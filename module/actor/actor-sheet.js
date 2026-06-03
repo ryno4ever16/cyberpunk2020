@@ -206,10 +206,19 @@ export class CyberpunkActorSheet extends ActorSheet {
       cyberCost: sortedItems.cyberware.reduce((a,b) => a + b.system.cost, 0)
     };
 
-    // Martial-arts weapons render their actions as grouped buttons (Defensive/Attacks/Grapple)
-    // directly in the combat tab; the chosen button supplies the action to the attack dialog.
+    // One consolidated Martial Arts panel: the actions (Defensive/Attacks/Grapple) render as
+    // vertical rows in the combat tab; clicking one supplies the action to the attack dialog (the
+    // style is chosen there). Backed by the actor's first martial-arts weapon — they are
+    // interchangeable entry points (the action + style are chosen at click time, not the weapon).
     sheetData.martialActionGroups = martialActionGroups();
     sheetData.MARTIAL_ATTACK_TYPE = meleeAttackTypes.martial;
+    const _martialWeapon =
+      sortedItems.weapon.find(w => w.system?.attackType === meleeAttackTypes.martial)
+      ?? sortedItems.cyberware.find(c =>
+           cwHasType(c.system?.CyberWorkType, "Weapon")
+           && c.system?.CyberWorkType?.Weapon?.attackType === meleeAttackTypes.martial
+           && cwIsEnabled(c));
+    sheetData.martialWeaponId = _martialWeapon?.id ?? null;
 
     // Cyberware inventory & zones
     const allCyber = (sortedItems.cyberware || []).slice();

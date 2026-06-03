@@ -62,34 +62,9 @@
             {{/if}}
         </header>
 
-        {{!-- Reusable: a martial-arts weapon shown as grouped action buttons (Defensive/Attacks/
-             Grapple). Clicking a button launches that attack; the dialog only asks for style. --}}
-        {{#*inline "martialActions"}}
-            <div class="martial-weapon">
-                <div class="fire-weapon-head field">
-                    <div class="no-action field-image item-edit" style="background-image: url({{img}})" data-item-id="{{itemId}}"></div>
-                    <label class="name item-edit" data-item-id="{{itemId}}">{{name}}</label>
-                    <span class="flex-pad"></span>
-                    <span><div class="field-label inactive">{{CPLocal "MartialArt"}}</div></span>
-                </div>
-                {{#each @root.martialActionGroups as |grp|}}
-                <div class="martial-action-group">
-                    <span class="martial-group-label">{{CPLocal grp.groupName}}</span>
-                    <span class="martial-action-buttons">
-                    {{#each grp.choices as |act|}}
-                        <button type="button" class="martial-action" data-item-id="{{../../itemId}}" data-action="{{act}}">{{CPLocal act}}</button>
-                    {{/each}}
-                    </span>
-                </div>
-                {{/each}}
-            </div>
-        {{/inline}}
-
-        {{!-- Normal weapons --}}
+        {{!-- Normal weapons (martial-arts weapons are consolidated into the panel below) --}}
         {{#each gear.weapons as |weapon|}}
-            {{#if (equals weapon.system.attackType @root.MARTIAL_ATTACK_TYPE)}}
-                {{> martialActions itemId=weapon.id name=weapon.name img=weapon.img}}
-            {{else}}
+            {{#unless (equals weapon.system.attackType @root.MARTIAL_ATTACK_TYPE)}}
             <div class="fire-weapon field action" data-item-id="{{weapon.id}}">
             <div class="no-action field-image item-edit" style="background-image: url({{weapon.img}})" data-item-id="{{weapon.id}}"></div>
             <label class="name">{{weapon.name}}</label>
@@ -100,15 +75,13 @@
                 {{/with}}
             </span>
             </div>
-            {{/if}}
+            {{/unless}}
         {{/each}}
 
-        {{!-- Cyberweapons --}}
+        {{!-- Cyberweapons (non-martial) --}}
         {{#each gear.cyberware as |cyber|}}
             {{#if (cwHasType cyber.system.CyberWorkType "Weapon")}}
-                {{#if (equals cyber.system.CyberWorkType.Weapon.attackType @root.MARTIAL_ATTACK_TYPE)}}
-                    {{> martialActions itemId=cyber.id name=cyber.name img=cyber.img}}
-                {{else}}
+                {{#unless (equals cyber.system.CyberWorkType.Weapon.attackType @root.MARTIAL_ATTACK_TYPE)}}
                 <div class="fire-weapon field action" data-item-id="{{cyber.id}}">
                     <div class="no-action field-image item-edit" style="background-image: url({{cyber.img}})" data-item-id="{{cyber.id}}"></div>
                     <label class="name">{{cyber.name}}</label>
@@ -119,8 +92,25 @@
                     {{/with}}
                     </span>
                 </div>
-                {{/if}}
+                {{/unless}}
             {{/if}}
         {{/each}}
+
+        {{!-- Consolidated Martial Arts panel: one action per row, stacked vertically under the
+             Defensive / Attacks / Grapple headers. The martial-art style is chosen in the dialog
+             after clicking. Backed by the actor's first martial-arts weapon (martialWeaponId). --}}
+        {{#if @root.martialWeaponId}}
+        <div class="martial-panel">
+            <h3 class="martial-panel-title">{{CPLocal "MartialArt"}}</h3>
+            {{#each @root.martialActionGroups as |grp|}}
+            <div class="martial-group-header">{{CPLocal grp.groupName}}</div>
+            {{#each grp.choices as |act|}}
+            <div class="martial-action field action" data-item-id="{{@root.martialWeaponId}}" data-action="{{act}}">
+                <label class="name">{{CPLocal act}}</label>
+            </div>
+            {{/each}}
+            {{/each}}
+        </div>
+        {{/if}}
     </section>
 </div>

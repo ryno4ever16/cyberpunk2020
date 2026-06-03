@@ -86,15 +86,16 @@ test("martial action groups, dialog drops the Action dropdown, button routes the
       if (node && node.querySelector) rootEl = node;
       if (!rootEl) await new Promise(r => setTimeout(r, 150));
     }
-    out.sheetRendered    = !!rootEl;
-    // The world may auto-add default martial (unarmed) weapons, so count this actor's own martial
-    // weapons and assert the rendered buttons match exactly N_martial × actions_per_group_set.
+    out.sheetRendered = !!rootEl;
+    // ONE consolidated panel regardless of how many martial weapons exist: exactly one button per
+    // action (so total === actions in the active group set), and martial weapons are NOT rendered
+    // as individual fire-weapon rows. Each action is backed by the actor's first martial weapon.
     out.martialWeaponCount = actor.items.filter(i => i.type === "weapon" && i.system.attackType === "Martial").length;
-    out.actionsPerWeapon = (await import("/systems/cyberpunk2020/module/lookups.js"))
-      .martialActionGroups().reduce((n, g) => n + g.choices.length, 0);
-    out.martialBtnCount  = rootEl ? rootEl.querySelectorAll(".martial-action").length : -1;
-    out.kickBtnPresent   = rootEl ? !!rootEl.querySelector('.martial-action[data-action="Kick"]') : false;
-    out.fireWeaponCount  = rootEl ? rootEl.querySelectorAll(".fire-weapon").length : -1;
+    out.actionsPerSet = LK.martialActionGroups().reduce((n, g) => n + g.choices.length, 0);
+    out.martialBtnCount = rootEl ? rootEl.querySelectorAll(".martial-action").length : -1;
+    out.kickBtnCount    = rootEl ? rootEl.querySelectorAll('.martial-action[data-action="Kick"]').length : -1;
+    out.panelBacking    = rootEl ? (rootEl.querySelector('.martial-action')?.dataset.itemId ?? null) : null;
+    out.fireWeaponCount = rootEl ? rootEl.querySelectorAll(".fire-weapon").length : -1;
     await actor.sheet.close().catch(() => {});
 
     // cleanup the chat cards we created (they aren't __PW__-tagged in content)
@@ -123,12 +124,12 @@ test("martial action groups, dialog drops the Action dropdown, button routes the
   expect(R.kickInChat, "injected action 'Kick' appears in the attack card").toBe(true);
   expect(R.defaultStrike, "omitting the action defaults to Strike").toBe(true);
 
-  // The combat tab actually renders the grouped buttons (and normal weapons still render)
+  // The combat tab renders ONE consolidated panel (normal weapons still render as rows)
   expect(R.sheetRendered, "character sheet renders").toBe(true);
-  expect(R.kickBtnPresent, "a Kick button is present on the combat tab").toBe(true);
   expect(R.fireWeaponCount, "a normal weapon still renders as a fire-weapon row").toBeGreaterThanOrEqual(1);
-  // Exactly one button-group per martial weapon — no bleed into non-martial weapons, no duplication.
-  expect(R.martialBtnCount, "martial buttons == (martial weapons) × (actions per group set)")
-    .toBe(R.martialWeaponCount * R.actionsPerWeapon);
-  expect(R.martialWeaponCount, "actor has at least the one martial weapon we added").toBeGreaterThanOrEqual(1);
+  expect(R.martialWeaponCount, "the world has multiple martial weapons on this actor").toBeGreaterThan(1);
+  // Consolidated: exactly one action button per action, regardless of how many martial weapons.
+  expect(R.martialBtnCount, "one button per action — a single consolidated set").toBe(R.actionsPerSet);
+  expect(R.kickBtnCount, "exactly ONE Kick button (no per-weapon duplication)").toBe(1);
+  expect(R.panelBacking, "actions are backed by a martial weapon item").toBeTruthy();
 });
