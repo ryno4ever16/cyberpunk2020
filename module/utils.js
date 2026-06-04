@@ -14,6 +14,44 @@ export function replaceIn(replaceIn, replaceWith) {
     return replaceIn.replace("[VAR]", replaceWith);
 }
 
+/* ------------------------------------------------------------------ *
+ *  Singleton popups — one instance of a given dialog at a time.       *
+ *  Clicking a "Fire"/"Roll"/etc. button again brings the open dialog  *
+ *  to the front instead of stacking a second copy.                    *
+ * ------------------------------------------------------------------ */
+const _singletonDialogs = new Map();
+
+/**
+ * Open a dialog as a singleton keyed by `key`. If one is already open it is brought to the front
+ * and returned; otherwise `factory()` builds it, and it is tracked + auto-untracked on close.
+ * The factory must return an Application/Dialog (NOT yet rendered) — this renders it.
+ * @param {string} key
+ * @param {() => (object|null)} factory
+ * @returns {object|null} the dialog (existing or new)
+ */
+export function openSingletonDialog(key, factory) {
+    const existing = _singletonDialogs.get(key);
+    if (existing && (existing.rendered ?? false)) {
+        try { existing.bringToTop?.(); } catch (e) { /* non-fatal */ }
+        return existing;
+    }
+    _singletonDialogs.delete(key);
+
+    const dialog = factory();
+    if (!dialog) return null;
+
+    _singletonDialogs.set(key, dialog);
+    const origClose = dialog.close?.bind(dialog);
+    if (origClose) {
+        dialog.close = async (...args) => {
+            if (_singletonDialogs.get(key) === dialog) _singletonDialogs.delete(key);
+            return origClose(...args);
+        };
+    }
+    dialog.render(true);
+    return dialog;
+}
+
 export function localize(key, data = {}) {
   return game.i18n.format("CYBERPUNK." + key, data);
 }

@@ -16,6 +16,8 @@
  * The actual damage application reuses the Phase 4 resolver (applyVehicleDamageMM / ...Core).
  */
 
+import { openSingletonDialog } from "../utils.js";
+
 /** Average of a CP2020 damage formula ("2d6+1", "5d6", "1d10", "3d6+2"). PURE. */
 export function averageDamageFromFormula(formula) {
   const s = String(formula ?? "").replace(/\s+/g, "");
@@ -183,12 +185,28 @@ export async function routeWeaponFiredToVehicle(payload, vehicleActor) {
  * ------------------------------------------------------------------ */
 
 const FACINGS = ["front", "side", "rear", "top", "bottom"];
+const GUNNER_SKILL = "HeavyWeapons";   // the usual vehicle-weapon skill; prefilled, editable
 
 /**
- * Fire one of a vehicle's weapon mounts at a target. Opens a dialog to set the gunner's REF/skill,
- * the to-hit situation (the common vehicle modifiers), and the shot, then rolls to-hit; on a hit it
- * resolves Good Shot + multiple-rounds and applies damage to the target vehicle via the Phase 4
- * resolver. Honors `vehicleDamageEnabled`.
+ * Candidate gunners for a vehicle: its boarded crew first, then the user's owned characters/npcs.
+ * A vehicle weapon is operated by a crew member, but we don't HARD-require one — drones/RPVs/remote
+ * turrets fire with no occupant — so a gunner is optional; picking one prefills REF + weapon skill.
+ */
+function _candidateGunners(actor) {
+  const boarded = (canvas?.tokens?.placeables ?? [])
+    .filter(t => t.document?.flags?.[SCOPE]?.boardedVehicle === actor.id && t.actor)
+    .map(t => t.actor);
+  const owned = game.actors.filter(a => (a.type === "character" || a.type === "npc") && a.isOwner);
+  const out = [], seen = new Set();
+  for (const a of [...boarded, ...owned]) { if (!seen.has(a.id)) { seen.add(a.id); out.push(a); } }
+  return out;
+}
+
+/**
+ * Fire one of a vehicle's weapon mounts at a target. Opens a dialog to set the gunner (prefills
+ * REF/skill from a crew member), the to-hit situation (the common vehicle modifiers), and the shot,
+ * then rolls to-hit; on a hit it resolves Good Shot + multiple-rounds and applies damage to the
+ * target vehicle via the Phase 4 resolver. Singleton + honors `vehicleDamageEnabled`.
  * @param {Actor} actor  the firing vehicle
  * @param {object} mount {name, penetration, rof, arc}; if omitted, the dialog asks for penetration/ROF
  * @returns {Promise<Dialog|null>}
@@ -205,12 +223,23 @@ export async function openVehicleFireDialog(actor, mount = {}) {
   const isTurret = String(mount.arc || "").toLowerCase().includes("turret");
   const facingOpts = FACINGS.map(f => `<option value="${f}">${f}</option>`).join("");
 
+  // Gunner picker — prefills REF + weapon skill from a boarded crew member (optional).
+  const gunners = _candidateGunners(actor);
+  const gunnersById = Object.fromEntries(gunners.map(a => [a.id, a]));
+  const firstGunner = gunners[0] ?? null;
+  const ref0 = Number(firstGunner?.system?.stats?.ref?.total) || 0;
+  const skill0 = firstGunner ? (firstGunner.getSkillVal?.(GUNNER_SKILL) ?? 0) : 0;
+  const gunnerOpts = gunners.length
+    ? gunners.map(a => `<option value="${a.id}">${a.name}</option>`).join("")
+    : `<option value="">(no occupant — manual)</option>`;
+
   const content = `
 <div class="cyberpunk vehicle-fire-dialog" style="display:flex;flex-direction:column;gap:4px;">
-  <div style="opacity:0.7;font-size:0.85em;">${actor.name} fires <b>${mount.name || "weapon"}</b>${targetActor ? ` at <b>${targetActor.name}</b>` : " (no vehicle targeted — applies to the named target if you select one)"}.</div>
+  <div style="opacity:0.7;font-size:0.85em;">${actor.name} fires <b>${mount.name || "weapon"}</b>${targetActor ? ` at <b>${targetActor.name}</b>` : " (no vehicle targeted — you can apply from the chat card afterward)"}.</div>
+  <label>Gunner <select id="cp-vf-gunner" style="margin-left:6px;">${gunnerOpts}</select></label>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
-    <label>Gunner REF <input type="number" id="cp-vf-ref" value="0" style="width:48px;"></label>
-    <label>Weapon skill <input type="number" id="cp-vf-skill" value="0" style="width:48px;"></label>
+    <label>Gunner REF <input type="number" id="cp-vf-ref" value="${ref0}" style="width:48px;"></label>
+    <label>Weapon skill <input type="number" id="cp-vf-skill" value="${skill0}" style="width:48px;"></label>
     <label>Target # (DV) <input type="number" id="cp-vf-tn" value="15" style="width:48px;"></label>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -260,40 +289,80 @@ export async function openVehicleFireDialog(actor, mount = {}) {
       cancel: { label: "Cancel" },
     },
     default: "fire",
+    render: (html) => {
+      const root = html instanceof jQuery ? html[0] : html;
+      const gSel = root.querySelector("#cp-vf-gunner");
+      const refIn = root.querySelector("#cp-vf-ref");
+      const skillIn = root.querySelector("#cp-vf-skill");
+      gSel?.addEventListener("change", () => {
+        const g = gunnersById[gSel.value];
+        if (!g) return;
+        if (refIn) refIn.value = Number(g.system?.stats?.ref?.total) || 0;
+        if (skillIn) skillIn.value = g.getSkillVal?.(GUNNER_SKILL) ?? 0;
+      });
+    },
   });
-  dialog.render(true);
-  return dialog;
+  return openSingletonDialog(`vehicle-fire:${actor.id}`, () => dialog);
 }
 
 async function _executeVehicleFire(actor, targetActor, p) {
   const d10 = (await new Roll("1d10").evaluate());
   const res = resolveVehicleToHit({ d10: d10.total, ref: p.ref, skill: p.skill, mods: p.mods, targetNumber: p.targetNumber });
+  const extraRounds = roundsPerHit(p.rof) - 1;
 
   const verdict = res.hit
     ? `<span style="color:#3ad13a;font-weight:bold;">HIT</span> (${res.total} vs ${p.targetNumber})${res.goodShotSteps ? ` — Good Shot ×${res.goodShotSteps}` : ""}`
     : `<span style="color:#ff6060;font-weight:bold;">MISS</span> (${res.total} vs ${p.targetNumber})`;
+
+  // On a hit with no pre-selected target, offer an Apply button so the GM can target a vehicle and
+  // apply the same shot afterward (mirrors the personnel Apply-Damage flow).
+  let applyBtn = "";
+  if (res.hit && !targetActor) {
+    applyBtn = `<div style="margin-top:6px;border-top:1px solid var(--color-border-dark-tertiary);padding-top:4px;">
+      <span style="font-size:0.85em;opacity:0.8;">No vehicle targeted. Target the enemy vehicle's token, then:</span><br>
+      <button class="cp-vfire-apply" style="margin-top:4px;"
+        data-pen="${p.penetration}" data-facing="${p.facing}" data-range="${p.range}"
+        data-gs="${res.goodShotSteps}" data-rounds="${extraRounds}">💥 Apply to Targeted Vehicle</button>
+    </div>`;
+  }
 
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
     flavor: `${actor.name} — ${p.mountName}`,
     content: `<div class="cyberpunk vehicle-fire-result"><h3>🎯 ${p.mountName}</h3>
       <div>To-hit: 1d10 ${d10.total} + REF ${p.ref} + skill ${p.skill} + mods ${p.mods >= 0 ? "+" : ""}${p.mods} = <b>${res.total}</b></div>
-      <div style="margin-top:2px;">${verdict}</div></div>`,
+      <div style="margin-top:2px;">${verdict}</div>${applyBtn}</div>`,
     rolls: [d10],
   });
 
-  if (!res.hit) return res;
-  if (!targetActor) { ui.notifications?.info?.("Hit — target the enemy vehicle's token to auto-apply, or use its 💥 Damage button."); return res; }
+  if (!res.hit || !targetActor) return res;
+  await _applyVehicleShot(targetActor, { penetration: p.penetration, facing: p.facing, range: p.range, goodShotSteps: res.goodShotSteps, extraRounds });
+  return res;
+}
 
+/** Apply a resolved vehicle shot to a target vehicle via the Phase 4 resolver (Core / MM). */
+async function _applyVehicleShot(targetActor, { penetration = 0, facing = "front", range = "normal", goodShotSteps = 0, extraRounds = 0 } = {}) {
   const VD = await import("./vehicle-damage.js");
   const ruleSystem = (() => { try { return game.settings.get(SCOPE, "vehicleRuleSystem"); } catch { return "Core"; } })();
   if (ruleSystem === "MaximumMetal") {
-    await VD.applyVehicleDamageMM(targetActor, {
-      basePen: p.penetration, facing: p.facing, range: p.range,
-      goodShotSteps: res.goodShotSteps, extraRounds: roundsPerHit(p.rof) - 1,
-    });
+    await VD.applyVehicleDamageMM(targetActor, { basePen: penetration, facing, range, goodShotSteps, extraRounds });
   } else {
-    await VD.applyVehicleDamageCore(targetActor, { rawDamage: p.penetration, facing: p.facing });
+    await VD.applyVehicleDamageCore(targetActor, { rawDamage: penetration, facing });
   }
-  return res;
+}
+
+/** Chat handler for the "Apply to Targeted Vehicle" button on a vehicle-fire card. */
+export function registerVehicleFireHandlers() {
+  document.addEventListener("click", async (ev) => {
+    const btn = ev.target.closest?.(".cp-vfire-apply");
+    if (!btn || btn.disabled) return;
+    ev.preventDefault();
+    const targets = [...(game.user?.targets ?? [])].filter(t => t.actor?.type === "vehicle");
+    if (targets.length !== 1) { ui.notifications?.warn?.("Target exactly one vehicle token, then click Apply."); return; }
+    await _applyVehicleShot(targets[0].actor, {
+      penetration: Number(btn.dataset.pen) || 0, facing: btn.dataset.facing || "front",
+      range: btn.dataset.range || "normal", goodShotSteps: Number(btn.dataset.gs) || 0,
+      extraRounds: Number(btn.dataset.rounds) || 0,
+    });
+  });
 }

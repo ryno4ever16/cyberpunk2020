@@ -145,6 +145,9 @@ export function computeNetDamage(afterSP, btm, penetrates, location) {
  * @param {{token?: object}} [opts]
  */
 export async function assessWoundSeverity(target, location, netDamage, { token = null } = {}) {
+  // Vehicles have no limbs/head/death saves — never run wound severity on them (they use the
+  // vehicle resolver). Defense in depth alongside the applyAreaDamages redirect.
+  if (target?.type === "vehicle") return;
   let limbLoss = true;
   try { limbLoss = game.settings.get("cyberpunk2020", "limbLossEnabled"); } catch (e) { /* default */ }
   if (!limbLoss) return;
@@ -210,7 +213,8 @@ export async function assessWoundSeverity(target, location, netDamage, { token =
       await ChatMessage.create({
         content: `<div class="cyberpunk save-prompt">
           <h3>⚠ ${severed ? "Limb Severed" : "Limb Disabled"} — ${liveTarget.name}</h3>
-          <div><b>${netDamage} net damage to ${limbName}</b> — ${severed
+          <div>Location: <b>${limbName}</b></div>
+          <div><b>${netDamage} net damage</b> — ${severed
             ? "severed or crushed beyond recognition (more than 12)"
             : "disabled (more than 8)"} (W4RST4R's Limb Rules).</div>
           <div style="margin-top:4px;">Immediate Death Save required at Mortal 0.</div>
@@ -227,7 +231,8 @@ export async function assessWoundSeverity(target, location, netDamage, { token =
     await ChatMessage.create({
       content: `<div class="cyberpunk save-prompt">
         <h3>⚠ Limb Loss — ${liveTarget.name}</h3>
-        <div><b>${netDamage} net damage to ${limbName}</b> — severed or crushed beyond recognition (CP2020 p.103).</div>
+        <div>Location: <b>${limbName}</b></div>
+        <div><b>${netDamage} net damage</b> — severed or crushed beyond recognition (CP2020 p.103).</div>
         <div style="margin-top:4px;">Immediate Death Save required at Mortal 0.</div>
       </div>`,
       speaker: ChatMessage.getSpeaker({ actor: liveTarget }),
@@ -251,6 +256,18 @@ export async function assessWoundSeverity(target, location, netDamage, { token =
  * @returns {Promise<object[]>}     Per-hit results (includes netDamage when dryRun=false)
  */
 export async function applyAreaDamages({ target, areaDamages, ap, edged = false, armorMultSoft = 1.0, armorMultHard = 1.0, penDamageMult = 1.0, armorMode, ablate, coverSP = 0, dryRun = false }) {
+  // Vehicles NEVER use the personnel pipeline — they have no limbs, death saves, BTM, or HP. Route
+  // any vehicle target to the vehicle damage resolver (Core SP→SDP / Maximum Metal penetration),
+  // which reduces SDP / sets vehicle status instead of writing the character `damage` field and
+  // running limb/head checks. Catches every apply path (auto-apply, DamageDialog, Apply button).
+  if (!dryRun && target?.type === "vehicle") {
+    try {
+      const VW = await import("../vehicle/vehicle-weapons.js");
+      await VW.routeWeaponFiredToVehicle({ areaDamages, ap }, target);
+    } catch (err) { console.warn("cyberpunk2020 | vehicle damage routing failed:", err); }
+    return [];
+  }
+
   const results = [];
   const btm = Number(target.system.stats?.bt?.modifier) || 0;
 

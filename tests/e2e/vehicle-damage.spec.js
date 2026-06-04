@@ -171,3 +171,56 @@ test("Phase 4: live application (Core writes SDP, MM catastrophic destroys), and
   expect(R.enabledDialog, "setting ON → dialog opens").toBe(true);
   expect(R.nonVehicle, "non-vehicle actor → null").toBeNull();
 });
+
+test("vehicle target is routed AWAY from the personnel pipeline (no limb loss, reduces current SDP)", async ({ page }) => {
+  await login(page, ACCOUNTS.gm);
+  await cleanupTestData(page).catch(() => {});
+
+  const R = await evalGameOrThrow(page, async () => {
+    const DA = await import("/systems/cyberpunk2020/module/combat/DamageApplicator.js");
+    const flags = { cyberpunk2020: { __pwtest: true } };
+    const out = {};
+    const origRule = game.settings.get("cyberpunk2020", "vehicleRuleSystem");
+    const origEnabled = game.settings.get("cyberpunk2020", "vehicleDamageEnabled");
+    const origLimb = game.settings.get("cyberpunk2020", "limbLossEnabled");
+    await game.settings.set("cyberpunk2020", "vehicleRuleSystem", "Core");
+    await game.settings.set("cyberpunk2020", "vehicleDamageEnabled", true);
+    await game.settings.set("cyberpunk2020", "limbLossEnabled", true);
+
+    const veh = await Actor.create({ name: "__PW__RoutedVeh", type: "vehicle", flags, system: { sp: { front: 40 }, sdp: { value: 100, max: 100 } } });
+
+    // Apply through the PERSONNEL pipeline with a LIMB location + a huge hit. The vehicle guard must
+    // redirect to the vehicle resolver: current SDP drops (Core), and NO limb/death logic runs.
+    const before = new Set(game.messages.contents.map(m => m.id));
+    const results = await DA.applyAreaDamages({
+      target: veh, areaDamages: { rArm: [{ damage: 60 }] },
+      ap: false, armorMode: DA.ARMOR_MODES.NONE, ablate: false, dryRun: false,
+    });
+    out.resultsEmpty = Array.isArray(results) && results.length === 0;   // redirected
+    out.sdpValue = veh._source.system.sdp.value;                          // 100 − (60 − 40 front SP) = 80
+    out.sdpMax   = veh._source.system.sdp.max;                            // 100 (unchanged)
+    const newMsgs = game.messages.contents.filter(m => !before.has(m.id));
+    out.limbMsg  = newMsgs.some(m => /Limb (Loss|Disabled|Severed)/.test(m.content || ""));
+    out.deathMsg = newMsgs.some(m => /Death Save/.test(m.content || ""));
+
+    // assessWoundSeverity called directly on a vehicle is a no-op.
+    const before2 = new Set(game.messages.contents.map(m => m.id));
+    await DA.assessWoundSeverity(veh, "rArm", 20, {});
+    out.directNoOp = game.messages.contents.filter(m => !before2.has(m.id)).length === 0;
+
+    for (const m of game.messages.contents.filter(m => !before.has(m.id))) await m.delete().catch(() => {});
+    await game.settings.set("cyberpunk2020", "vehicleRuleSystem", origRule);
+    await game.settings.set("cyberpunk2020", "vehicleDamageEnabled", origEnabled);
+    await game.settings.set("cyberpunk2020", "limbLossEnabled", origLimb);
+    await veh.delete().catch(() => {});
+    return out;
+  });
+
+  console.log("Vehicle routing:", JSON.stringify(R));
+  expect(R.resultsEmpty, "personnel pipeline redirects vehicles (no per-hit results)").toBe(true);
+  expect(R.sdpValue, "current SDP reduced via the vehicle resolver (100 − 20 = 80)").toBe(80);
+  expect(R.sdpMax, "max SDP unchanged").toBe(100);
+  expect(R.limbMsg, "shooting a vehicle does NOT cause limb loss").toBe(false);
+  expect(R.deathMsg, "shooting a vehicle does NOT trigger a Death Save").toBe(false);
+  expect(R.directNoOp, "assessWoundSeverity is a no-op on a vehicle").toBe(true);
+});

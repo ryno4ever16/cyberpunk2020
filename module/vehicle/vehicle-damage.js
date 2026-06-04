@@ -20,6 +20,8 @@
  * bottom rolls the dice, calls these, applies the result to the actor, and posts a chat card.
  */
 
+import { openSingletonDialog } from "../utils.js";
+
 const SCOPE = "cyberpunk2020";
 
 /* --------------------------------- CORE (p.112) --------------------------------- */
@@ -243,8 +245,7 @@ export async function openVehicleDamageDialog(actor) {
     },
     default: "apply",
   });
-  dialog.render(true);
-  return dialog;
+  return openSingletonDialog(`vehicle-damage:${actor.id}`, () => dialog);
 }
 
 /** Apply Core damage: subtract facing SP, reduce SDP, set destroyed; post a card. */
@@ -255,7 +256,9 @@ export async function applyVehicleDamageCore(actor, { rawDamage = 0, ap = false,
   const currentSDP = Number(sys.sdp?.value) || 0;
   const res = coreVehicleDamage({ rawDamage, sp, currentSDP, ap });
 
-  await actor.update({ "system.sdp.value": res.newSDP });
+  // Write the WHOLE sdp object — a dot-path update ("system.sdp.value") on this ObjectField wipes
+  // sdp.max (and thus Body Value). Preserve max.
+  await actor.update({ "system.sdp": { value: res.newSDP, max: Number(sys.sdp?.max) || 0 } });
 
   const content = `
 <div class="cyberpunk vehicle-damage-result">
@@ -325,13 +328,16 @@ export async function applyVehicleDamageMM(actor, { basePen = 0, facing = "front
         if (fire.total <= crit.fuelFirePct) { updates["system.onFire"] = true; lines += `<br><span style="color:#e07b00;">Fuel ignites (rolled ${fire.total} ≤ ${crit.fuelFirePct}%) — on fire: 3d6/crew/turn, 25%/turn to explode.</span>`; }
         else lines += `<br>Fuel hit but did not ignite (rolled ${fire.total} > ${crit.fuelFirePct}%).`;
       }
+      // Destroying a vehicle zeroes current SDP. Write the WHOLE sdp object (a dot-path update wipes
+      // sdp.max → Body Value); preserve max.
+      const zeroSDP = { value: 0, max: Number(sys.sdp?.max) || 0 };
       const isExplosive = (subLoc === "Engine" || subLoc === "Cargo/Ammo");
       if (isExplosive && crit.enginePct > 0) {
         const ex = await new Roll("1d100").evaluate(); rolls.push(ex);
-        if (ex.total <= crit.enginePct) { updates["system.destroyed"] = true; updates["system.sdp.value"] = 0; lines += `<br><span style="color:#ff3030;font-weight:bold;">Engine/ammo cooks off (rolled ${ex.total} ≤ ${crit.enginePct}%) — vehicle DEMOLISHED.</span>`; }
+        if (ex.total <= crit.enginePct) { updates["system.destroyed"] = true; updates["system.sdp"] = zeroSDP; lines += `<br><span style="color:#ff3030;font-weight:bold;">Engine/ammo cooks off (rolled ${ex.total} ≤ ${crit.enginePct}%) — vehicle DEMOLISHED.</span>`; }
         else lines += `<br>Engine/ammo hit but held (rolled ${ex.total} > ${crit.enginePct}%).`;
       }
-      if (sev.severity === "catastrophic") { updates["system.destroyed"] = true; updates["system.sdp.value"] = 0; }
+      if (sev.severity === "catastrophic") { updates["system.destroyed"] = true; updates["system.sdp"] = zeroSDP; }
       // Record the damaged system.
       const sysName = subLoc ?? loc;
       if (!damaged.includes(sysName)) { damaged.push(sysName); updates["system.damagedSystems"] = damaged; }

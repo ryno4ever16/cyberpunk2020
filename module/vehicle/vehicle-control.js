@@ -25,7 +25,7 @@
  * bottom is a thin wrapper: it rolls the dice, calls these functions, and renders a chat card.
  */
 
-import { localize } from "../utils.js";
+import { localize, openSingletonDialog } from "../utils.js";
 
 const SCOPE = "cyberpunk2020";
 
@@ -375,8 +375,7 @@ export async function openControlRollDialog(actor, opts = {}) {
       diffSel?.addEventListener("change", () => { if (hint) hint.textContent = MANEUVER_EXAMPLES[diffSel.value] ?? ""; });
     },
   });
-  dialog.render(true);
-  return dialog;
+  return openSingletonDialog(`vehicle-control:${actor.id}`, () => dialog);
 }
 
 /** Roll the dice, run the pure resolver + loss tables, and post the result card. */

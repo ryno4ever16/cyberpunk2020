@@ -39,7 +39,9 @@ export class CyberpunkVehicleSheet extends ActorSheet {
     try { data.controlEnabled = game.settings.get("cyberpunk2020", "vehicleControlEnabled"); } catch (e) { data.controlEnabled = true; }
     try { data.damageEnabled = game.settings.get("cyberpunk2020", "vehicleDamageEnabled"); } catch (e) { data.damageEnabled = true; }
 
-    data.vehicleTypes = ["car", "sportscar", "limo", "AV-4", "AV-6", "AV-7", "cycle", "truck", "rotor", "osprey", "boat", "tank", "APC", "acpa"];
+    // "acpa" is intentionally NOT a vehicle type — Powered Armor is marked by the ACPA checkbox
+    // (system.isACPA), which is what the data model + resolver key on. Having both was redundant.
+    data.vehicleTypes = ["car", "sportscar", "limo", "AV-4", "AV-6", "AV-7", "cycle", "truck", "rotor", "osprey", "boat", "tank", "APC"];
     return data;
   }
 

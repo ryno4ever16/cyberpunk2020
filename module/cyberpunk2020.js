@@ -25,7 +25,7 @@ import { registerSaveRollHandlers, postSavePrompts } from "./combat/save-rolls.j
 import { registerVehicleCanvasHooks, deployVehicleToScene, boardVehicle, disembark } from "./vehicle/vehicle-canvas.js";
 import { openControlRollDialog } from "./vehicle/vehicle-control.js";
 import { openVehicleDamageDialog } from "./vehicle/vehicle-damage.js";
-import { weaponToPenetration, vehicleToHitModifier, openVehicleFireDialog } from "./vehicle/vehicle-weapons.js";
+import { weaponToPenetration, vehicleToHitModifier, openVehicleFireDialog, registerVehicleFireHandlers } from "./vehicle/vehicle-weapons.js";
 
 Hooks.once('init', async function () {
 
@@ -174,6 +174,9 @@ Hooks.once("ready", async function () {
 
   // Register stun/death save chat button handlers (all users)
   registerSaveRollHandlers();
+
+  // Register the vehicle-fire "Apply to Targeted Vehicle" chat button handler (all users)
+  registerVehicleFireHandlers();
 
   if (!game.user.isGM) return;
 
