@@ -22,6 +22,7 @@ import { DamageDialog }                                       from "./DamageDial
 import { applyAreaDamages, ablateLocationOnce, ablateLocationByAmount, assessWoundSeverity, ARMOR_MODES } from "./DamageApplicator.js";
 import { postStunSavePrompt, postDeathSavePrompt, updateTaserState, applyAcidDotState, applyDotFromPayload } from "./save-rolls.js";
 import { rollLocation }                                       from "../utils.js";
+import { dispatchAttack }                                     from "../vehicle/vehicle-targeting.js";
 
 // Payload waiting to be attached to the next chat message created
 let _pendingPayload = null;
@@ -288,13 +289,10 @@ function _hookWeaponFired() {
         return;
       }
 
-      // Bridge: a vehicle target uses the vehicle damage resolver (SP→SDP / Penetration vs Armor
-      // Value), not the personnel pipeline. Routes both Core and Maximum Metal.
-      if (target.type === "vehicle") {
-        const { routeWeaponFiredToVehicle } = await import("../vehicle/vehicle-weapons.js");
-        const handled = await routeWeaponFiredToVehicle(payload, target);
-        if (handled) return;
-      }
+      // Unified dispatcher (4-way: source scale × target type). Vehicle targets → vehicle resolver
+      // (SP→SDP / Penetration vs Armor Value); a Penetration weapon vs a person → MM p.8. Returns
+      // true when handled; a normal personnel-vs-person hit falls through to the dialog below.
+      if (await dispatchAttack(payload, target)) return;
 
       if (game.settings.get("cyberpunk2020", "damageAutoApply")) {
         await _autoApply(payload, target);
@@ -366,6 +364,10 @@ function _hookRenderChatMessage() {
         target = await _pickTargetDialog();
         if (!target) return;
       }
+
+      // Dispatch by target type: a vehicle target (or a Penetration weapon vs a person) is handled
+      // by the unified resolver; a normal personnel-vs-person hit falls through to the dialog.
+      if (await dispatchAttack(payload, target)) return;
 
       if (game.settings.get("cyberpunk2020", "damageAutoApply")) {
         await _autoApply(payload, target);

@@ -28,6 +28,7 @@ import { openControlRollDialog } from "./vehicle/vehicle-control.js";
 import { openVehicleDamageDialog } from "./vehicle/vehicle-damage.js";
 import { weaponToPenetration, vehicleToHitModifier, openVehicleFireDialog, registerVehicleFireHandlers } from "./vehicle/vehicle-weapons.js";
 import { seedVehicleWeaponCompendium, ensureVehicleWeaponSeed } from "./vehicle/vehicle-weapon-catalog.js";
+import { registerVehicleTargetingHandlers } from "./vehicle/vehicle-targeting.js";
 
 Hooks.once('init', async function () {
 
@@ -180,6 +181,9 @@ Hooks.once("ready", async function () {
 
   // Register the vehicle-fire "Apply to Targeted Vehicle" chat button handler (all users)
   registerVehicleFireHandlers();
+
+  // Register the MM p.8 LUCK-save chat button handler (Penetration weapon vs a person)
+  registerVehicleTargetingHandlers();
 
   // Seed the Vehicle Weapons (MM) compendium from the verified catalog if it's empty (active GM only).
   ensureVehicleWeaponSeed();

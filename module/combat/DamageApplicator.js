@@ -468,3 +468,22 @@ function _deriveLiveSP(target, location) {
   if (!sps.length) return 0;
   return sps.reduce((acc, sp) => _combineSP(acc, sp), 0);
 }
+
+/** Effective armor SP at a hit location AFTER proportional layer combination (the value the damage
+ *  system actually uses). Exposed for the Maximum Metal p.8 personnel-vs-anti-vehicle resolver. */
+export function effectiveArmorSP(target, location) {
+  return _deriveLiveSP(target, location);
+}
+
+const _MM_AV_LOCATIONS = ["Head", "Torso", "lArm", "rArm", "lLeg", "rLeg"];
+/**
+ * Personnel Armor Value for Maximum Metal p.8 ("Personnel vs Anti-Vehicle Weapons"): the mean of
+ * the PROPORTIONAL per-location SP across the body, ÷ 20. The book rounds the average SP first,
+ * then the ÷20 (worked example: an SP19 jacket over 3 of 6 locations → mean 9.5 → 10 → AV 1).
+ */
+export function personnelArmorValue(target) {
+  if (!target) return 0;
+  const sps = _MM_AV_LOCATIONS.map(loc => Number(_deriveLiveSP(target, loc)) || 0);
+  const meanSP = Math.round(sps.reduce((a, b) => a + b, 0) / sps.length);
+  return Math.round(meanSP / 20);
+}
