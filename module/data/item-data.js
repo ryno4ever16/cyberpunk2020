@@ -473,6 +473,64 @@ export class CyberpunkVehicleData extends CyberpunkBaseItemData {
   }
 }
 
+/**
+ * Maximum Metal vehicle/ACPA weapon (Phase 5b). A catalogued Item dragged onto a vehicle actor;
+ * the vehicle's "mounts" are its embedded vehicleWeapon Items. Fields come straight from the MM
+ * stat-block format (SKILL · WA · DAMAGE(PEN) · #SHOTS · ROF · REL · RANGE · BURST), MM p.4/17/19/20/22.
+ * Penetration is given DIRECTLY by the book (no derivation). See [[maximum-metal-reference]] §6.
+ */
+export class CyberpunkVehicleWeaponData extends CyberpunkBaseItemData {
+  static defineSchema() {
+    return {
+      ...commonSchema(),
+      // Classification — drives the resolution archetype (MM weapon classes A–H).
+      weaponClass: stringField("directFire"),  // directFire|burst|rocket|missile|artillery|bomb|cone|melee|special
+      mountType:   stringField("turret"),       // turret|fixed|articulated|open|pintle|pod|juryRigged
+      arc:         stringField("turret"),       // turret(360)|front|side|rear — firing arc
+      // To-hit.
+      wa:          numberField(0),               // Weapon Accuracy modifier
+      // Damage scale. MM lists Vehicle Penetration directly; `damage` dice kept for vs-personnel (p.8 alt).
+      penetration: numberField(0),
+      damage:      stringField(""),
+      ap:          booleanField(false),
+      heat:        booleanField(false),          // shaped-charge: range-immune; Composite Armor halves Pen
+      hiEx:        booleanField(false),          // high-explosive: range-immune
+      highDensityAP: booleanField(false),        // errata p.105: full damage through armor like HEAT
+      burst:       numberField(0),               // burst radius in meters (0 = none)
+      // Rate / ammo.
+      rof:         numberField(1),
+      rofAlt:      numberField(0),               // variable ROF ("30 OR 5" → rof 30, rofAlt 5; 0 = none)
+      shots:       numberField(1),
+      shotsLeft:   numberField(1),
+      // Range.
+      range:       numberField(0),
+      minRange:    numberField(0),               // missiles: 1/10 Long range
+      reliability: stringField("VR"),
+      // Guided weapons (class D).
+      guidance:      stringField("none"),        // none|semiActive|active|paint
+      guidanceSkill: numberField(0),             // active missile's own Skill (+15/+20)
+      // Cone weapons (class F scatter-packs).
+      coneAngle:   numberField(0),               // degrees (60/120/180)
+      projectiles: numberField(0),
+      // Shell / warhead variants (selected at fire time). Each: {name, pen, burst, ap, heat, hiEx, damage}.
+      shellVariants: arrayField(null, []),
+      activeShell:   stringField(""),            // selected variant name ("" = base stats)
+      // Construction.
+      space:       numberField(0)
+    };
+  }
+
+  static migrateData(source) {
+    source ??= {};
+    normalizeBooleanIfPresent(source, "ap", false);
+    normalizeBooleanIfPresent(source, "heat", false);
+    normalizeBooleanIfPresent(source, "hiEx", false);
+    normalizeBooleanIfPresent(source, "highDensityAP", false);
+    normalizeArrayIfPresent(source, "shellVariants", []);
+    return super.migrateData(source);
+  }
+}
+
 export class CyberpunkMiscData extends CyberpunkBaseItemData {}
 
 function normalizeRangeDamages(value) {

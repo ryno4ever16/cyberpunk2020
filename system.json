@@ -316,6 +316,13 @@
       "system": "cyberpunk2020",
       "path": "./packs/programs.db",
       "type": "Item"
+    },
+    {
+      "name": "vehicle-weapons",
+      "label": "Vehicle Weapons (MM)",
+      "system": "cyberpunk2020",
+      "path": "./packs/vehicle-weapons.db",
+      "type": "Item"
     }
   ],
   "packFolders": [
@@ -363,6 +370,7 @@
               "shotguns",
               "rifles",
               "heavy",
+              "vehicle-weapons",
               "melee",
               "exotics",
               "ammo"

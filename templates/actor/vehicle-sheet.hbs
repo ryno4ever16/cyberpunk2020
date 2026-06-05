@@ -122,25 +122,23 @@
             </div>
         </div>
 
-        {{!-- Weapon Mounts --}}
+        {{!-- Weapon Mounts = embedded vehicleWeapon Items (drag from the Vehicle Weapons (MM) compendium) --}}
         <h2 class="cyber-section-header">Weapons</h2>
-        <div class="cp-mounts">
-            {{#each system.weaponMounts as |mount idx|}}
-            <div class="field-list cp-mount-row" data-mount-index="{{idx}}">
-                <div class="field"><label>Name</label><input type="text" class="cp-mount-field" data-field="name" value="{{mount.name}}"/></div>
-                <div class="field" title="Maximum Metal base Penetration (Core: damage dealt to the target's SP/SDP)."><label>Pen/Dmg</label><input type="number" class="cp-mount-field" data-field="penetration" value="{{mount.penetration}}"/></div>
-                <div class="field" title="Rate of fire — ROF 30 hits with 5 rounds per hit, ROF 100 with 10 (extra rounds add penetration)."><label>ROF</label><input type="number" class="cp-mount-field" data-field="rof" value="{{mount.rof}}"/></div>
-                <div class="field"><label>Arc</label>
-                    <select class="cp-mount-field" data-field="arc">
-                        <option value="fixed-fwd" {{#if (equals mount.arc "fixed-fwd")}}selected{{/if}}>Fixed</option>
-                        <option value="turret" {{#if (equals mount.arc "turret")}}selected{{/if}}>Turret</option>
-                    </select>
-                </div>
-                {{#if @root.damageEnabled}}<button type="button" class="cp-mount-fire" data-mount-index="{{idx}}" title="Fire this mount at the targeted vehicle (to-hit roll + Good Shot → resolver)">🎯</button>{{/if}}
-                <button type="button" class="cp-mount-remove" data-mount-index="{{idx}}" title="Remove this mount">✕</button>
+        <div class="cp-weapons">
+            {{#each weapons as |weapon|}}
+            <div class="field-list cp-weapon-row">
+                <img class="cp-weapon-img" src="{{weapon.img}}" width="24" height="24"/>
+                <span class="cp-weapon-name" title="{{weapon.system.weaponClass}} · {{weapon.system.mountType}} mount"><b>{{weapon.name}}</b></span>
+                <span class="cp-weapon-stat" title="Vehicle Penetration">Pen {{weapon.system.penetration}}{{#if weapon.system.ap}} AP{{/if}}{{#if weapon.system.heat}} HEAT{{/if}}</span>
+                <span class="cp-weapon-stat" title="Rate of fire">ROF {{weapon.system.rof}}</span>
+                <span class="cp-weapon-stat" title="Firing arc">{{weapon.system.arc}}</span>
+                {{#if @root.damageEnabled}}<button type="button" class="cp-weapon-fire" data-weapon-id="{{weapon.id}}" title="Fire this weapon at the target (to-hit roll → resolver)">🎯</button>{{/if}}
+                <button type="button" class="cp-weapon-edit" data-weapon-id="{{weapon.id}}" title="Edit this weapon">✎</button>
+                <button type="button" class="cp-weapon-delete" data-weapon-id="{{weapon.id}}" title="Remove this weapon">✕</button>
             </div>
             {{/each}}
-            <button type="button" class="cp-mount-add">＋ Add Weapon Mount</button>
+            <button type="button" class="cp-weapon-add" title="Create a blank weapon to edit.">＋ Add Weapon</button>
+            <p style="opacity:0.6; font-size:0.78em; margin-top:2px;">Drag weapons from the <b>Vehicle Weapons (MM)</b> compendium onto this sheet, or add a blank one and edit it.</p>
         </div>
 
         {{!-- Notes --}}

@@ -799,7 +799,7 @@
 		}
 	},
 	"Item": {
-		"types": ["skill", "weapon", "ammo", "armor", "cyberware", "vehicle", "misc", "program"],
+		"types": ["skill", "weapon", "ammo", "armor", "cyberware", "vehicle", "vehicleWeapon", "misc", "program"],
 		"templates": {
 			"common": {
 				"flavor": "",
@@ -1017,6 +1017,9 @@
 			}
 		},
 		"misc": {
+			"templates": ["common"]
+		},
+		"vehicleWeapon": {
 			"templates": ["common"]
 		}
 	}

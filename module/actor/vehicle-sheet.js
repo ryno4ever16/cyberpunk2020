@@ -42,6 +42,11 @@ export class CyberpunkVehicleSheet extends ActorSheet {
     // "acpa" is intentionally NOT a vehicle type — Powered Armor is marked by the ACPA checkbox
     // (system.isACPA), which is what the data model + resolver key on. Having both was redundant.
     data.vehicleTypes = ["car", "sportscar", "limo", "AV-4", "AV-6", "AV-7", "cycle", "truck", "rotor", "osprey", "boat", "tank", "APC"];
+
+    // Weapons are embedded vehicleWeapon Items (Phase 5b). The vehicle's "mounts" = these Items;
+    // the legacy inline system.weaponMounts array is deprecated (unreleased data → no migration).
+    data.weapons = (this.actor.itemTypes?.vehicleWeapon ?? this.actor.items.filter(i => i.type === "vehicleWeapon"))
+      .map(i => ({ id: i.id, name: i.name, img: i.img, system: i.system }));
     return data;
   }
 
@@ -58,33 +63,34 @@ export class CyberpunkVehicleSheet extends ActorSheet {
       openVehicleDamageDialog(this.actor);
     });
 
-    // ── Weapon mounts ──────────────────────────────────────────────────────
-    // The mount array is edited by rebuilding it from the DOM and writing the whole array (this
-    // sidesteps Foundry's flaky per-index array form coercion). Each mount is a plain object.
-    const readMounts = () => Array.from(root?.querySelectorAll?.(".cp-mount-row") ?? []).map(row => {
-      const get = (f) => row.querySelector(`.cp-mount-field[data-field="${f}"]`)?.value ?? "";
-      return { name: get("name"), penetration: Number(get("penetration")) || 0, rof: Number(get("rof")) || 1, arc: get("arc") || "fixed-fwd" };
-    });
-    const writeMounts = (mounts) => this.actor.update({ "system.weaponMounts": mounts });
+    // ── Weapon mounts = embedded vehicleWeapon Items (Phase 5b) ─────────────
+    // Drag a weapon from the "Vehicle Weapons (MM)" compendium onto the sheet (default ActorSheet
+    // drop handling creates the embedded Item), or use Add to create a blank one. Edit opens the
+    // weapon's item sheet; the legacy inline weaponMounts UI is retired.
+    const getWeapon = (el) => this.actor.items.get(el?.dataset?.weaponId);
 
-    root?.querySelector?.(".cp-mount-add")?.addEventListener("click", async (ev) => {
+    root?.querySelector?.(".cp-weapon-add")?.addEventListener("click", async (ev) => {
       ev.preventDefault();
-      const mounts = [...(this.actor.system.weaponMounts ?? [])];
-      mounts.push({ name: "Weapon", penetration: 0, rof: 1, arc: "fixed-fwd" });
-      await writeMounts(mounts);
+      await this.actor.createEmbeddedDocuments("Item", [{ name: "New Weapon", type: "vehicleWeapon" }]);
     });
-    root?.querySelectorAll?.(".cp-mount-field").forEach(el => el.addEventListener("change", () => writeMounts(readMounts())));
-    root?.querySelectorAll?.(".cp-mount-remove").forEach(btn => btn.addEventListener("click", async (ev) => {
+    root?.querySelectorAll?.(".cp-weapon-edit").forEach(btn => btn.addEventListener("click", (ev) => {
       ev.preventDefault();
-      const idx = Number(ev.currentTarget.dataset.mountIndex);
-      const mounts = [...(this.actor.system.weaponMounts ?? [])];
-      if (idx >= 0 && idx < mounts.length) { mounts.splice(idx, 1); await writeMounts(mounts); }
+      getWeapon(ev.currentTarget)?.sheet?.render(true);
     }));
-    root?.querySelectorAll?.(".cp-mount-fire").forEach(btn => btn.addEventListener("click", (ev) => {
+    root?.querySelectorAll?.(".cp-weapon-delete").forEach(btn => btn.addEventListener("click", async (ev) => {
       ev.preventDefault();
-      const idx = Number(ev.currentTarget.dataset.mountIndex);
-      const mount = (this.actor.system.weaponMounts ?? [])[idx];
-      if (mount) openVehicleFireDialog(this.actor, mount);
+      const w = getWeapon(ev.currentTarget);
+      if (w) await w.delete();
+    }));
+    root?.querySelectorAll?.(".cp-weapon-fire").forEach(btn => btn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      const w = getWeapon(ev.currentTarget);
+      if (!w) return;
+      // Adapter to the Phase-5 fire dialog shape; firing is reworked around the Item in 5c/5d.
+      openVehicleFireDialog(this.actor, {
+        name: w.name, penetration: Number(w.system?.penetration) || 0,
+        rof: Number(w.system?.rof) || 1, arc: w.system?.arc || "turret", itemId: w.id
+      });
     }));
   }
 }

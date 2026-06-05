@@ -42,6 +42,9 @@ export const preloadHandlebarsTemplates = async function() {
         // Vehicle
         "systems/cyberpunk2020/templates/item/parts/vehicle/summary.hbs",
         "systems/cyberpunk2020/templates/item/parts/vehicle/settings.hbs",
+        // Vehicle weapon (Maximum Metal)
+        "systems/cyberpunk2020/templates/item/parts/vehicleWeapon/summary.hbs",
+        "systems/cyberpunk2020/templates/item/parts/vehicleWeapon/settings.hbs",
         // Skill
         "systems/cyberpunk2020/templates/item/parts/skill/summary.hbs",
         "systems/cyberpunk2020/templates/item/parts/skill/settings.hbs",

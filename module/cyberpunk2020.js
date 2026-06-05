@@ -12,6 +12,7 @@ import {
     CyberpunkProgramData,
     CyberpunkSkillData,
     CyberpunkVehicleData,
+    CyberpunkVehicleWeaponData,
     CyberpunkWeaponData
 } from "./data/item-data.js";
 
@@ -26,6 +27,7 @@ import { registerVehicleCanvasHooks, deployVehicleToScene, boardVehicle, disemba
 import { openControlRollDialog } from "./vehicle/vehicle-control.js";
 import { openVehicleDamageDialog } from "./vehicle/vehicle-damage.js";
 import { weaponToPenetration, vehicleToHitModifier, openVehicleFireDialog, registerVehicleFireHandlers } from "./vehicle/vehicle-weapons.js";
+import { seedVehicleWeaponCompendium, ensureVehicleWeaponSeed } from "./vehicle/vehicle-weapon-catalog.js";
 
 Hooks.once('init', async function () {
 
@@ -38,7 +40,7 @@ Hooks.once('init', async function () {
         // A manual migrateworld.
         migrateWorld: migrations.migrateWorld,
         // Vehicle API: deploy a scalable handle token, board/disembark crew, and roll control/maneuver.
-        vehicles: { deploy: deployVehicleToScene, board: boardVehicle, disembark, controlRoll: openControlRollDialog, applyDamage: openVehicleDamageDialog, weaponToPen: weaponToPenetration, toHitMod: vehicleToHitModifier, fire: openVehicleFireDialog }
+        vehicles: { deploy: deployVehicleToScene, board: boardVehicle, disembark, controlRoll: openControlRollDialog, applyDamage: openVehicleDamageDialog, weaponToPen: weaponToPenetration, toHitMod: vehicleToHitModifier, fire: openVehicleFireDialog, seedWeapons: seedVehicleWeaponCompendium }
     };
 
     // Define custom Document classes
@@ -58,6 +60,7 @@ Hooks.once('init', async function () {
     CONFIG.Item.dataModels.armor = CyberpunkArmorData;
     CONFIG.Item.dataModels.cyberware = CyberpunkCyberwareData;
     CONFIG.Item.dataModels.vehicle = CyberpunkVehicleData;
+    CONFIG.Item.dataModels.vehicleWeapon = CyberpunkVehicleWeaponData;
     CONFIG.Item.dataModels.misc = CyberpunkMiscData;
 
     // Register sheets, unregister original core sheets
@@ -177,6 +180,9 @@ Hooks.once("ready", async function () {
 
   // Register the vehicle-fire "Apply to Targeted Vehicle" chat button handler (all users)
   registerVehicleFireHandlers();
+
+  // Seed the Vehicle Weapons (MM) compendium from the verified catalog if it's empty (active GM only).
+  ensureVehicleWeaponSeed();
 
   if (!game.user.isGM) return;
 
