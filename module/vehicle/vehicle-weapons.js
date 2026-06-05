@@ -285,7 +285,7 @@ export async function openVehicleFireDialog(actor, mount = {}) {
     <label style="margin-left:8px;"><input type="checkbox" id="cp-vf-link" ${actor.system?.vehicleLink ? "checked" : ""}> Vehicle link (+2)</label><br>
     <label><input type="checkbox" id="cp-vf-moving"> Firer moving, unstabilized (−3)</label><br>
     <label><input type="checkbox" id="cp-vf-dark"> Dark / obscured (−3)</label>
-    <label style="margin-left:8px;">Other <input type="number" id="cp-vf-other" value="0" style="width:44px;"></label>
+    <label style="margin-left:8px;" title="The vehicle's fire-control / targeting-computer bonus (system.fireControl), auto-applied. Edit to add an ad-hoc bonus on top.">Fire control <input type="number" id="cp-vf-other" value="${Number(actor.system?.fireControl) || 0}" style="width:44px;"></label>
   </fieldset>
 </div>`;
 
