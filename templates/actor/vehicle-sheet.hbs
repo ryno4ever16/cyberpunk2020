@@ -120,6 +120,12 @@
             <div class="field" title="Composite armor (metals + plastics + ceramics + depleted heavy metals): halves the Penetration of shaped-charge HEAT weapons, but penetrating damage is not halved (Maximum Metal, p.23). Used by the damage resolver.">
                 <label>Composite Armor</label><input type="checkbox" name="system.compositeArmor" {{#if system.compositeArmor}}checked{{/if}}/>
             </div>
+            <div class="field" title="Sensors / radar: automatically detect an inbound missile (90%) so the crew can react. Without sensors, detection falls back to a Notice/Awareness roll (Maximum Metal, p.10/25-26).">
+                <label>Sensors / Radar</label><input type="checkbox" name="system.sensors" {{#if system.sensors}}checked{{/if}}/>
+            </div>
+            <div class="field" title="Anti-missile system (AGAMS/AEAMS): when a missile is detected, the crew may attempt to shoot it down — destroy on a roll of 4+, detonate it early (half damage) on 1-3 (Maximum Metal, p.24).">
+                <label>Anti-Missile (AGAMS)</label><input type="checkbox" name="system.antiMissile" {{#if system.antiMissile}}checked{{/if}}/>
+            </div>
             <div class="field" title="Targeting-computer bonus added to the vehicle's weapon to-hit rolls (Maximum Metal). 0 = no fire-control computer.">
                 <label>Fire Control</label><input type="number" name="system.fireControl" value="{{system.fireControl}}"/>
             </div>

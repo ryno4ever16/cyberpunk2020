@@ -9,7 +9,7 @@
  */
 
 import { mmEnabled } from "../settings.js";
-import { missileSpeed, turnsToImpact, resolveMissileToHit, resolvePaintHit } from "./vehicle-missiles.js";
+import { missileSpeed, turnsToImpact, resolveMissileToHit, resolvePaintHit, countermeasureModifier, interceptResult, electronicDetect, visualDetectDV } from "./vehicle-missiles.js";
 
 const SCOPE = "cyberpunk2020";
 const MISSILE_IMG = "systems/cyberpunk2020/img/missile.webp";
@@ -58,7 +58,8 @@ export async function launchMissile({ scene: sceneArg, shooterToken, targetToken
     weaponName: missile.weaponName ?? "missile",
     operatorBonus: Number(missile.operatorBonus) || 0, missileSkill: Number(missile.missileSkill) || 0,
     targetNumber: Number(missile.targetNumber) || 0,
-    speed, turnsToImpact: tti, totalTurns: tti, detected: false, launchRound: game.combat?.round ?? 0,
+    speed, turnsToImpact: tti, totalTurns: tti, detected: false,
+    difficultyMods: 0, intercepted: null, reactions: [], launchRound: game.combat?.round ?? 0,
   };
 
   const [tok] = await scene.createEmbeddedDocuments("Token", [{
@@ -73,6 +74,7 @@ export async function launchMissile({ scene: sceneArg, shooterToken, targetToken
     speaker: ChatMessage.getSpeaker({ actor: shooterToken.actor ?? undefined }),
     content: `<div class="cyberpunk save-prompt"><h3>🚀 ${flight.weaponName} launched</h3><div class="save-info">${sDoc.name ?? "Firer"} → ${tDoc.name ?? "target"}. Impact in <b>${tti}</b> turn${tti !== 1 ? "s" : ""} (${flight.guidance}).</div></div>`,
   });
+  await _tryDetect(tok, scene);   // can the target spot it now? (sensors auto / Notice-Awareness)
   ui.combat?.render();
   return tok;
 }
@@ -86,6 +88,7 @@ export async function advanceMissiles(scene = canvas?.scene) {
     const f = mt.flags[SCOPE].missile;
     const targetDoc = scene.tokens.get(f.targetTokenId);
     if (!targetDoc) { await mt.delete().catch(() => {}); continue; }   // target gone → missile lost
+    if (!f.detected) await _tryDetect(mt, scene);    // retry detection while inbound
     const tti = Number(f.turnsToImpact) || 1;
     const tc = _docCenter(targetDoc, gs);
     if (tti <= 1) {
@@ -103,25 +106,143 @@ export async function advanceMissiles(scene = canvas?.scene) {
 async function _resolveMissileImpact(f, targetDoc, scene, gs) {
   const target = targetDoc.actor;
   const d10 = (await new Roll("1d10").evaluate()).total;
+  const dm = Number(f.difficultyMods) || 0;   // accumulated countermeasure / evade +Difficulty
   const hit = f.guidance === "paint"
     ? resolvePaintHit(d10)
-    : resolveMissileToHit({ guidance: f.guidance, d10, operatorBonus: f.operatorBonus, missileSkill: f.missileSkill, targetNumber: f.targetNumber }).hit;
+    : resolveMissileToHit({ guidance: f.guidance, d10, operatorBonus: f.operatorBonus, missileSkill: f.missileSkill, targetNumber: f.targetNumber, difficultyMods: dm }).hit;
 
   if (!hit || !target) {
-    await ChatMessage.create({ content: `<div class="cyberpunk save-prompt"><h3>🚀 ${f.weaponName} — MISS</h3><div class="save-info">at ${targetDoc.name ?? "target"}.</div></div>` });
+    await ChatMessage.create({ content: `<div class="cyberpunk save-prompt"><h3>🚀 ${f.weaponName} — MISS</h3><div class="save-info">at ${targetDoc.name ?? "target"}${dm ? ` (countermeasures +${dm})` : ""}.</div></div>` });
     return;
   }
+  // An AGAMS/AEAMS that detonated the missile in its burst range halves damage & Penetration.
+  const burst = f.intercepted === "burst";
+  const pen = burst ? Math.ceil((Number(f.penetration) || 0) / 2) : (Number(f.penetration) || 0);
   const { dispatchAttack, detectFacingFromTokens } = await import("./vehicle-targeting.js");
   const shooterDoc = scene.tokens.get(f.shooterTokenId);
   const facing = (shooterDoc?.object && targetDoc.object) ? detectFacingFromTokens(shooterDoc.object, targetDoc.object) : "front";
   await dispatchAttack({
-    scale: "penetration", penetration: f.penetration, ap: f.ap, heat: f.heat, hefPenetrator: f.hefPenetrator,
-    weaponName: f.weaponName, facing, targetTokenId: targetDoc.id,
+    scale: "penetration", penetration: pen, ap: f.ap, heat: f.heat, hefPenetrator: f.hefPenetrator,
+    weaponName: f.weaponName + (burst ? " (intercepted, ½)" : ""), facing, targetTokenId: targetDoc.id,
   }, target);
+}
+
+/**
+ * Attempt to detect an inbound missile for its target (MM p.10). Sensors auto-detect (90%); else a
+ * Notice/Awareness test (Awareness + Combat Sense + 1d10 vs DV 20). On success reveal the token and
+ * post the reaction card. Detection is PERCEPTION (auto); the reactions on the card are deliberate.
+ */
+async function _tryDetect(mt, scene) {
+  const f = mt.flags?.[SCOPE]?.missile;
+  if (!f || f.detected) return false;
+  const targetDoc = scene.tokens.get(f.targetTokenId);
+  const target = targetDoc?.actor;
+  if (!target) return false;
+  let detected = false, how = "";
+  if (target.system?.sensors) {
+    detected = electronicDetect((await new Roll("1d10").evaluate()).total);
+    how = detected ? "detected on sensors" : "";
+  } else {
+    const aware = Number(target.getSkillVal?.("Awareness") ?? 0) || 0;
+    const cs = Number(target.getSkillVal?.("Combat Sense") ?? target.getSkillVal?.("CombatSense") ?? 0) || 0;
+    const roll = (await new Roll("1d10").evaluate()).total;
+    detected = (roll + aware + cs) >= visualDetectDV("inFlight");
+    how = detected ? `spotted (Awareness ${aware} + CS ${cs} + 1d10 ${roll} ≥ 20)` : "";
+  }
+  if (!detected) return false;
+  await mt.update({ hidden: false, [`flags.${SCOPE}.missile.detected`]: true });
+  await _postIncomingCard(mt, f, targetDoc, how);
+  return true;
+}
+
+/** The best +Difficulty an available countermeasure imposes on the missile's homing method. */
+function _bestCountermeasure(cms = [], method = "radar") {
+  let cm = null, mod = 0;
+  for (const c of (cms ?? [])) { const m = countermeasureModifier([c], method); if (m > mod) { mod = m; cm = c; } }
+  return { cm, mod };
+}
+
+/** Consolidated "Incoming Missile" card — the defender's deliberate reactions (whispered to owner+GM). */
+async function _postIncomingCard(mt, f, targetDoc, how = "") {
+  const target = targetDoc?.actor;
+  const sceneId = targetDoc?.parent?.id ?? canvas?.scene?.id ?? "";
+  const best = _bestCountermeasure(target?.system?.countermeasures ?? [], f.homingMethod);
+  const hasAM = !!target?.system?.antiMissile;
+  const btn = (cls, label) => `<button class="${cls}" data-token-id="${mt.id}" data-scene-id="${sceneId}" style="margin:2px 2px 0 0;">${label}</button>`;
+  const whisper = target ? game.users.filter(u => u.isGM || target.testUserPermission(u, "OWNER")).map(u => u.id) : undefined;
+  await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor: target ?? undefined }),
+    whisper,
+    content: `
+<div class="cyberpunk save-prompt">
+  <h3>🚨 Incoming Missile — ${targetDoc?.name ?? "target"}</h3>
+  <div class="save-info"><b>${f.weaponName}</b> · ${f.guidance} / ${f.homingMethod} · impact in <b>${f.turnsToImpact}</b> turn(s).${how ? ` <span style="opacity:0.75;">${how}.</span>` : ""}</div>
+  <div class="save-buttons" style="margin-top:6px;">
+    ${best.cm ? btn("cp-missile-cm", `🎆 Deploy ${best.cm} (+${best.mod})`) : `<span style="opacity:0.6;font-size:0.85em;">No countermeasure vs ${f.homingMethod}. </span>`}
+    ${btn("cp-missile-evade", "↪ Evade (+2)")}
+    ${hasAM ? btn("cp-missile-intercept", "🛡 Anti-Missile") : ""}
+  </div>
+</div>`,
+  });
+}
+
+/** Apply a deliberate reaction to an in-flight missile. (Applied by the GM / a permitted client.) */
+async function _applyMissileReaction(tokenId, kind) {
+  const scene = canvas?.scene;
+  const mt = scene?.tokens?.get(tokenId);
+  const f = mt?.flags?.[SCOPE]?.missile;
+  if (!mt || !f) return;
+  const target = scene.tokens.get(f.targetTokenId)?.actor;
+
+  if (kind === "intercept") {
+    const res = interceptResult((await new Roll("1d10").evaluate()).total, 0);
+    if (res.outcome === "destroyed") {
+      await ChatMessage.create({ content: `<div class="cyberpunk save-prompt"><h3>🛡 Anti-missile — ${f.weaponName} DESTROYED</h3></div>` });
+      await mt.delete().catch(() => {});
+    } else if (res.outcome === "burst") {
+      await mt.update({ [`flags.${SCOPE}.missile.intercepted`]: "burst" });
+      await ChatMessage.create({ content: `<div class="cyberpunk save-prompt"><h3>🛡 Anti-missile — detonated early</h3><div class="save-info">${f.weaponName} will hit at HALF damage & Penetration.</div></div>` });
+    } else {
+      await ChatMessage.create({ content: `<div class="cyberpunk save-prompt"><h3>🛡 Anti-missile — MISSED</h3><div class="save-info">${f.weaponName} still inbound.</div></div>` });
+    }
+    return;
+  }
+
+  let add = 0, label = "";
+  if (kind === "evade") { add = 2; label = "Evasive maneuver (+2)"; }
+  else {
+    const best = _bestCountermeasure(target?.system?.countermeasures ?? [], f.homingMethod);
+    if (!best.cm) { ui.notifications?.warn?.("No countermeasure defeats this missile's homing method."); return; }
+    add = best.mod; label = `${best.cm} (+${best.mod})`;
+  }
+  const cur = Number(f.difficultyMods) || 0;
+  await mt.update({ [`flags.${SCOPE}.missile.difficultyMods`]: cur + add });
+  await ChatMessage.create({ content: `<div class="cyberpunk save-prompt"><h3>🎆 Countermeasure — ${label}</h3><div class="save-info">vs ${f.weaponName}: to-hit Difficulty now +${cur + add}.</div></div>` });
 }
 
 /** Auto-advance missiles each combat round (active GM only) + inject the Missiles-in-Flight panel. */
 export function registerMissileFlightHooks() {
+  // Reaction buttons on the Incoming-Missile card (+ GM reveal from the tracker panel).
+  document.addEventListener("click", async (ev) => {
+    const cm = ev.target.closest?.(".cp-missile-cm");
+    const ev2 = ev.target.closest?.(".cp-missile-evade");
+    const ic = ev.target.closest?.(".cp-missile-intercept");
+    const rv = ev.target.closest?.(".cp-missile-reveal");
+    const btn = cm || ev2 || ic || rv;
+    if (!btn || btn.disabled) return;
+    ev.preventDefault();
+    btn.disabled = true;
+    const tokenId = btn.dataset.tokenId;
+    if (cm) await _applyMissileReaction(tokenId, "countermeasure");
+    else if (ev2) await _applyMissileReaction(tokenId, "evade");
+    else if (ic) await _applyMissileReaction(tokenId, "intercept");
+    else if (rv) {
+      const mt = canvas?.scene?.tokens?.get(tokenId);
+      const f = mt?.flags?.[SCOPE]?.missile;
+      if (mt && f) { await mt.update({ hidden: false, [`flags.${SCOPE}.missile.detected`]: true }); await _postIncomingCard(mt, f, canvas.scene.tokens.get(f.targetTokenId), "revealed by GM"); }
+    }
+  });
+
   Hooks.on("updateCombat", async (combat, changed) => {
     if (!game.user?.isGM || game.users?.activeGM?.id !== game.user.id) return;
     if (changed.round === undefined) return;    // once per round
@@ -138,7 +259,9 @@ export function registerMissileFlightHooks() {
     const rows = missiles.map(mt => {
       const f = mt.flags[SCOPE].missile;
       const tgt = scene.tokens.get(f.targetTokenId)?.name ?? "?";
-      const det = f.detected ? "" : ' <span style="opacity:0.6;">(undetected)</span>';
+      const det = f.detected ? "" : (game.user.isGM
+        ? ` <span style="opacity:0.6;">(undetected)</span> <button class="cp-missile-reveal" data-token-id="${mt.id}" title="Reveal this missile to its target (GM)" style="font-size:0.72em;padding:0 4px;">👁</button>`
+        : ' <span style="opacity:0.6;">(undetected)</span>');
       return `<li class="cp-missile-row" data-token-id="${mt.id}" style="cursor:pointer;font-size:0.82em;padding:2px 4px;">🚀 <b>${f.weaponName}</b> → ${tgt} · ${f.guidance} · <b>${f.turnsToImpact}</b>t${det}</li>`;
     }).join("");
     const panel = document.createElement("div");

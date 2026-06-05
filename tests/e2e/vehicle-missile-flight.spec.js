@@ -79,3 +79,52 @@ test("Phase 5f-2: missile launch, flight advance, and impact", async ({ page }) 
   expect(R.tokenGone).toBe(true);
   expect(R.targetDamaged).toBe(true);
 });
+
+test("Phase 5f-3: countermeasure Difficulty makes a missile miss at impact", async ({ page }) => {
+  await login(page, ACCOUNTS.gm);
+  await cleanupTestData(page).catch(() => {});
+
+  const R = await evalGameOrThrow(page, async () => {
+    const F = await import("/systems/cyberpunk2020/module/vehicle/vehicle-missile-flight.js");
+    const flags = { cyberpunk2020: { __pwtest: true } };
+    const out = {};
+    const origMM = game.settings.get("cyberpunk2020", "mmEnabled");
+    const origRule = game.settings.get("cyberpunk2020", "vehicleRuleSystem");
+    let scene, shooter, target;
+    try {
+      await game.settings.set("cyberpunk2020", "mmEnabled", true);
+      await game.settings.set("cyberpunk2020", "vehicleRuleSystem", "MaximumMetal");
+      scene = await Scene.create({ name: "__PW__msl3", width: 6000, height: 2000, grid: { type: 1, size: 100, distance: 2, units: "m" }, padding: 0, flags });
+      shooter = await Actor.create({ name: "__PW__Sh3", type: "npc", flags });
+      target = await Actor.create({ name: "__PW__Tg3", type: "vehicle", flags, system: { sp: { front: 0, side: 0, rear: 0, top: 0, bottom: 0 }, sdp: { value: 200, max: 200 } } });
+      const [sTok] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__Sh3", x: 0, y: 0, width: 1, height: 1, actorId: shooter.id, flags }]);
+      const [tTok] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__Tg3", x: 1000, y: 0, width: 4, height: 2, actorId: target.id, actorLink: true, flags }]);
+
+      // (a) Heavy countermeasure Difficulty (+50) → the missile misses; target untouched.
+      const mA = await F.launchMissile({ scene, shooterToken: sTok, targetToken: tTok, missile: { guidance: "semiActive", penetration: 30, operatorBonus: 5, targetNumber: 10, weaponName: "__PW__A" } });
+      await mA.update({ ["flags.cyberpunk2020.missile.difficultyMods"]: 50, ["flags.cyberpunk2020.missile.turnsToImpact"]: 1 });
+      await F.advanceMissiles(scene);
+      out.missGone = !scene.tokens.get(mA.id);
+      out.targetUnhurt = target._source.system.sdp.value === 200 && target._source.system.destroyed !== true;
+
+      // (b) Control: no countermeasure, always-hit operator → target damaged.
+      const mB = await F.launchMissile({ scene, shooterToken: sTok, targetToken: tTok, missile: { guidance: "semiActive", penetration: 30, operatorBonus: 99, targetNumber: 0, weaponName: "__PW__B" } });
+      await mB.update({ ["flags.cyberpunk2020.missile.turnsToImpact"]: 1 });
+      await F.advanceMissiles(scene);
+      out.hitGone = !scene.tokens.get(mB.id);
+      out.targetHurt = target._source.system.sdp.value < 200 || target._source.system.destroyed === true;
+    } finally {
+      await game.settings.set("cyberpunk2020", "mmEnabled", origMM);
+      await game.settings.set("cyberpunk2020", "vehicleRuleSystem", origRule);
+      if (scene) await scene.delete().catch(() => {});
+      for (const a of game.actors.filter(x => x.name?.startsWith("__PW__"))) await a.delete().catch(() => {});
+    }
+    return out;
+  });
+
+  console.log("Phase 5f-3:", JSON.stringify(R));
+  expect(R.missGone).toBe(true);
+  expect(R.targetUnhurt).toBe(true);   // countermeasure Difficulty defeated the missile
+  expect(R.hitGone).toBe(true);
+  expect(R.targetHurt).toBe(true);     // control missile (no CM) still connects
+});

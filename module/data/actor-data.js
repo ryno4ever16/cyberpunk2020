@@ -167,6 +167,8 @@ export class CyberpunkVehicleActorData extends foundry.abstract.TypeDataModel {
       vehicleLink:   booleanField(false),
       damageControl: booleanField(false),
       compositeArmor: booleanField(false),   // halves shaped-charge (HEAT) Penetration (MM p.23)
+      sensors:       booleanField(false),    // radar/detectors: auto-detect inbound missiles (90%)
+      antiMissile:   booleanField(false),    // AGAMS/AEAMS: can attempt to shoot down inbound missiles
       fireControl:   numberField(0),
       countermeasures: arrayField(stringField(), []),
       weaponMounts:    arrayField(null, []),   // [{ name, penetration, rof, shots, range, arc, ammoType }]
