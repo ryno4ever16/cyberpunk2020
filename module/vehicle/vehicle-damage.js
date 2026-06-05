@@ -272,14 +272,14 @@ export async function applyVehicleDamageCore(actor, { rawDamage = 0, ap = false,
 }
 
 /** Apply Maximum Metal damage: penetration → severity → hit location → crit effects; post a card. */
-export async function applyVehicleDamageMM(actor, { basePen = 0, facing = "front", goodShotSteps = 0, extraRounds = 0, range = "normal" } = {}) {
+export async function applyVehicleDamageMM(actor, { basePen = 0, facing = "front", goodShotSteps = 0, extraRounds = 0, range = "normal", hefPenetrator = false } = {}) {
   const sys = actor.system ?? {};
   const isACPA = !!sys.isACPA;
   const avKey = _facingKey(facing);
   const av = isACPA ? (Number(sys.armorValue?.front) || 0) : (Number(sys.armorValue?.[avKey]) || 0);
   const bodyValue = Number(sys.bodyValue) || 0;
 
-  const pen = mmEffectivePenetration({ basePen, goodShotSteps, extraRounds, range });
+  const pen = mmEffectivePenetration({ basePen, goodShotSteps, extraRounds, range, hefPenetrator });
   // ACPA armor is equal on all sides — no flank reduction.
   const effAV = isACPA ? av : mmEffectiveArmor(av, facing);
 

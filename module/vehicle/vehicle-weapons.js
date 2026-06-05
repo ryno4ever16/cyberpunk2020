@@ -216,12 +216,40 @@ export async function openVehicleFireDialog(actor, mount = {}) {
   const enabled = (() => { try { return game.settings.get(SCOPE, "vehicleDamageEnabled"); } catch { return true; } })();
   if (!enabled) { ui.notifications?.warn?.("Vehicle damage automation is disabled in the system settings."); return null; }
 
-  // Default target = a single targeted token whose actor is a vehicle.
-  const targets = [...(game.user?.targets ?? [])].filter(t => t.actor?.type === "vehicle");
-  const targetActor = targets.length === 1 ? targets[0].actor : null;
+  // Resolve the full vehicleWeapon Item (the sheet passes {itemId,...}); fall back to mount values.
+  const item = mount.itemId ? actor.items.get(mount.itemId) : null;
+  const w = item?.system ?? {};
+  const wName = item?.name ?? mount.name ?? "weapon";
+  const basePen = Number(w.penetration ?? mount.penetration) || 0;
+  const wa = Number(w.wa) || 0;
+  const rof0 = Number(w.rof ?? mount.rof) || 1;
+  const arc = w.arc ?? mount.arc ?? "turret";
+  const ap = !!w.ap, heat = !!w.heat, hiEx = !!w.hiEx;
+  const hefPenetrator = heat || hiEx;             // HEAT / Hi-Ex → Penetration not reduced by range
+  const weaponRange = Number(w.range) || 0;
 
-  const isTurret = String(mount.arc || "").toLowerCase().includes("turret");
-  const facingOpts = FACINGS.map(f => `<option value="${f}">${f}</option>`).join("");
+  // Target = a single targeted token (vehicle OR character — the dispatcher routes both, MM p.6 / p.8).
+  const targets = [...(game.user?.targets ?? [])];
+  const targetTok = targets.length === 1 ? targets[0] : null;
+  const targetActor = targetTok?.actor ?? null;
+
+  // Diegetic facing + range band + arc check from the tokens (auto; facing/range overridable below).
+  const VT = await import("./vehicle-targeting.js");
+  const firerTok = canvas?.tokens?.placeables?.find(t => t.actor?.id === actor.id) ?? null;
+  let detFacing = "front", detRange = "normal", arcWarn = "";
+  if (firerTok && targetTok) {
+    detFacing = VT.detectFacingFromTokens(firerTok, targetTok);
+    const dist = (() => { try { return canvas.grid.measureDistance(firerTok.center, targetTok.center); } catch { return 0; } })();
+    detRange = VT.rangeBand(dist, weaponRange);
+    const bearing = VT.bearingFromFirer(firerTok, targetTok);
+    if (!VT.mountArcBears(bearing, arc)) {
+      arcWarn = `<div style="color:#e0a020;font-size:0.82em;margin-top:2px;">⚠ Target is to the <b>${bearing}</b> of the firer — outside the <b>${arc}</b> mount's arc. You can still fire (override).</div>`;
+    }
+  }
+
+  const isTurret = String(arc).toLowerCase().includes("turret");
+  const facingOpts = FACINGS.map(f => `<option value="${f}" ${f === detFacing ? "selected" : ""}>${f}</option>`).join("");
+  const rangeOpts = ["normal", "long", "extreme"].map(r => `<option value="${r}" ${r === detRange ? "selected" : ""}>${r.charAt(0).toUpperCase() + r.slice(1)}</option>`).join("");
 
   // Gunner picker — prefills REF + weapon skill from a boarded crew member (optional).
   const gunners = _candidateGunners(actor);
@@ -235,7 +263,8 @@ export async function openVehicleFireDialog(actor, mount = {}) {
 
   const content = `
 <div class="cyberpunk vehicle-fire-dialog" style="display:flex;flex-direction:column;gap:4px;">
-  <div style="opacity:0.7;font-size:0.85em;">${actor.name} fires <b>${mount.name || "weapon"}</b>${targetActor ? ` at <b>${targetActor.name}</b>` : " (no vehicle targeted — you can apply from the chat card afterward)"}.</div>
+  <div style="opacity:0.7;font-size:0.85em;">${actor.name} fires <b>${wName}</b>${targetActor ? ` at <b>${targetActor.name}</b>` : " (no target — apply from the chat card afterward)"}.${wa ? ` <span style="opacity:0.8;">WA ${wa >= 0 ? "+" : ""}${wa} auto-applied.</span>` : ""}</div>
+  ${arcWarn}
   <label>Gunner <select id="cp-vf-gunner" style="margin-left:6px;">${gunnerOpts}</select></label>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
     <label>Gunner REF <input type="number" id="cp-vf-ref" value="${ref0}" style="width:48px;"></label>
@@ -243,10 +272,10 @@ export async function openVehicleFireDialog(actor, mount = {}) {
     <label>Target # (DV) <input type="number" id="cp-vf-tn" value="15" style="width:48px;"></label>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
-    <label>Base penetration <input type="number" id="cp-vf-pen" value="${Number(mount.penetration) || 0}" style="width:48px;"></label>
-    <label>ROF <input type="number" id="cp-vf-rof" value="${Number(mount.rof) || 1}" style="width:48px;"></label>
+    <label>Base penetration <input type="number" id="cp-vf-pen" value="${basePen}" style="width:48px;"></label>
+    <label>ROF <input type="number" id="cp-vf-rof" value="${rof0}" style="width:48px;"></label>
     <label>Facing <select id="cp-vf-facing">${facingOpts}</select></label>
-    <label>Range <select id="cp-vf-range"><option value="normal">Normal</option><option value="long">Long</option><option value="extreme">Extreme</option></select></label>
+    <label>Range <select id="cp-vf-range">${rangeOpts}</select></label>
   </div>
   <fieldset style="border:1px solid var(--color-border-light-tertiary);padding:4px 6px;">
     <legend style="font-size:0.8em;">To-hit modifiers</legend>
@@ -275,14 +304,16 @@ export async function openVehicleFireDialog(actor, mount = {}) {
             penetration: num("#cp-vf-pen"), rof: num("#cp-vf-rof"),
             facing: root.querySelector("#cp-vf-facing")?.value || "front",
             range: root.querySelector("#cp-vf-range")?.value || "normal",
-            mods: vehicleToHitModifier({
-              targetLarge: true, isACPATarget: !!targetActor?.system?.isACPA,
+            ap, hefPenetrator,
+            mods: wa + vehicleToHitModifier({
+              targetLarge: targetActor ? targetActor.type === "vehicle" : true,
+              isACPATarget: !!targetActor?.system?.isACPA,
               stationary: chk("#cp-vf-stationary"), targetSpeedMph: num("#cp-vf-tspeed"),
               turret: chk("#cp-vf-turret"), vehicleLink: chk("#cp-vf-link"),
               firerMoving: chk("#cp-vf-moving"), darkObscured: chk("#cp-vf-dark"),
               targetingComputer: num("#cp-vf-other"),
             }),
-            mountName: mount.name || "weapon",
+            mountName: wName,
           });
         },
       },
@@ -319,10 +350,11 @@ async function _executeVehicleFire(actor, targetActor, p) {
   let applyBtn = "";
   if (res.hit && !targetActor) {
     applyBtn = `<div style="margin-top:6px;border-top:1px solid var(--color-border-dark-tertiary);padding-top:4px;">
-      <span style="font-size:0.85em;opacity:0.8;">No vehicle targeted. Target the enemy vehicle's token, then:</span><br>
+      <span style="font-size:0.85em;opacity:0.8;">No target selected. Target the enemy token (vehicle or person), then:</span><br>
       <button class="cp-vfire-apply" style="margin-top:4px;"
         data-pen="${p.penetration}" data-facing="${p.facing}" data-range="${p.range}"
-        data-gs="${res.goodShotSteps}" data-rounds="${extraRounds}">💥 Apply to Targeted Vehicle</button>
+        data-gs="${res.goodShotSteps}" data-rounds="${extraRounds}"
+        data-ap="${p.ap ? 1 : 0}" data-hef="${p.hefPenetrator ? 1 : 0}" data-weapon="${p.mountName}">💥 Apply to Target</button>
     </div>`;
   }
 
@@ -336,19 +368,22 @@ async function _executeVehicleFire(actor, targetActor, p) {
   });
 
   if (!res.hit || !targetActor) return res;
-  await _applyVehicleShot(targetActor, { penetration: p.penetration, facing: p.facing, range: p.range, goodShotSteps: res.goodShotSteps, extraRounds });
+  await _applyVehicleShot(targetActor, {
+    penetration: p.penetration, facing: p.facing, range: p.range,
+    goodShotSteps: res.goodShotSteps, extraRounds, ap: p.ap, hefPenetrator: p.hefPenetrator, weaponName: p.mountName
+  });
   return res;
 }
 
-/** Apply a resolved vehicle shot to a target vehicle via the Phase 4 resolver (Core / MM). */
-async function _applyVehicleShot(targetActor, { penetration = 0, facing = "front", range = "normal", goodShotSteps = 0, extraRounds = 0 } = {}) {
-  const VD = await import("./vehicle-damage.js");
-  const ruleSystem = (() => { try { return game.settings.get(SCOPE, "vehicleRuleSystem"); } catch { return "Core"; } })();
-  if (ruleSystem === "MaximumMetal") {
-    await VD.applyVehicleDamageMM(targetActor, { basePen: penetration, facing, range, goodShotSteps, extraRounds });
-  } else {
-    await VD.applyVehicleDamageCore(targetActor, { rawDamage: penetration, facing });
-  }
+/**
+ * Apply a resolved vehicle shot to ANY target via the unified 5c dispatcher: a vehicle target uses
+ * the Phase-4 resolver (Pen vs Armor Value), a person uses MM p.8 (Penetration vs the personal AV).
+ */
+async function _applyVehicleShot(targetActor, { penetration = 0, facing = "front", range = "normal", goodShotSteps = 0, extraRounds = 0, ap = false, hefPenetrator = false, weaponName = "weapon" } = {}) {
+  const { dispatchAttack } = await import("./vehicle-targeting.js");
+  await dispatchAttack({
+    scale: "penetration", penetration, facing, range, goodShotSteps, extraRounds, ap, hefPenetrator, weaponName
+  }, targetActor);
 }
 
 /** Chat handler for the "Apply to Targeted Vehicle" button on a vehicle-fire card. */
@@ -357,12 +392,13 @@ export function registerVehicleFireHandlers() {
     const btn = ev.target.closest?.(".cp-vfire-apply");
     if (!btn || btn.disabled) return;
     ev.preventDefault();
-    const targets = [...(game.user?.targets ?? [])].filter(t => t.actor?.type === "vehicle");
-    if (targets.length !== 1) { ui.notifications?.warn?.("Target exactly one vehicle token, then click Apply."); return; }
+    const targets = [...(game.user?.targets ?? [])];
+    if (targets.length !== 1) { ui.notifications?.warn?.("Target exactly one token (vehicle or person), then click Apply."); return; }
     await _applyVehicleShot(targets[0].actor, {
       penetration: Number(btn.dataset.pen) || 0, facing: btn.dataset.facing || "front",
       range: btn.dataset.range || "normal", goodShotSteps: Number(btn.dataset.gs) || 0,
-      extraRounds: Number(btn.dataset.rounds) || 0,
+      extraRounds: Number(btn.dataset.rounds) || 0, ap: btn.dataset.ap === "1",
+      hefPenetrator: btn.dataset.hef === "1", weaponName: btn.dataset.weapon || "weapon",
     });
   });
 }

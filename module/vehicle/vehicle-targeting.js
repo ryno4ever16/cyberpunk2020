@@ -71,6 +71,50 @@ export function resolveFacing(payload, targetActor) {
   return "front";
 }
 
+/**
+ * Range band for Penetration falloff (MM p.6: −25% at Long, −50% at Extreme; HE/HEAT immune). PURE.
+ * Normal ≤ ½ the weapon's range, Long ≤ full range, Extreme beyond.
+ */
+export function rangeBand(distanceM, weaponRangeM) {
+  const r = Number(weaponRangeM) || 0;
+  const d = Number(distanceM) || 0;
+  if (r <= 0) return "normal";
+  if (d <= r * 0.5) return "normal";
+  if (d <= r) return "long";
+  return "extreme";
+}
+
+/**
+ * Whether a weapon's mount can bear on a target, given where the target sits relative to the
+ * FIRER's facing (front/side/rear/top/bottom from computeFacing on the firer→target vector). PURE.
+ * Turret = 360°; fixed/pod = front only; articulated/side = front or side; rear = rear. Top/bottom
+ * need high-angle traverse (not modeled) → out of arc. (MM p.11/p.15; warn-but-allow.)
+ */
+export function mountArcBears(bearing, arc = "turret") {
+  if (arc === "turret") return true;
+  if (bearing === "top" || bearing === "bottom") return false;
+  switch (arc) {
+    case "front": return bearing === "front";
+    case "rear":  return bearing === "rear";
+    case "side":  return bearing === "front" || bearing === "side";
+    default:      return true;
+  }
+}
+
+/** Where the target sits relative to the FIRER's facing (for arc checks). Reads the two tokens. */
+export function bearingFromFirer(firerToken, targetToken) {
+  // computeFacing on the firer's rotation + the vector from firer to target.
+  if (!firerToken || !targetToken) return "front";
+  const fc = firerToken.center ?? { x: firerToken.x, y: firerToken.y };
+  const tc = targetToken.center ?? { x: targetToken.x, y: targetToken.y };
+  const fElev = Number(firerToken.document?.elevation ?? firerToken.elevation) || 0;
+  const tElev = Number(targetToken.document?.elevation ?? targetToken.elevation) || 0;
+  return computeFacing({
+    dx: tc.x - fc.x, dy: tc.y - fc.y, dz: tElev - fElev,
+    rotationDeg: Number(firerToken.document?.rotation ?? firerToken.rotation) || 0
+  });
+}
+
 /* --------------------- MM p.8: Penetration weapon vs a PERSON --------------------- */
 
 /**
@@ -201,7 +245,8 @@ export async function dispatchAttack(payload, target) {
           basePen: Number(payload.penetration) || 0, facing,
           goodShotSteps: Number(payload.goodShotSteps) || 0,
           extraRounds: Number(payload.extraRounds) || 0,
-          range: payload.range || "normal"
+          range: payload.range || "normal",
+          hefPenetrator: !!payload.hefPenetrator   // HEAT/Hi-Ex → Penetration not reduced by range
         });
       } else {
         await VD.applyVehicleDamageCore(target, { rawDamage: Number(payload.penetration) || 0, ap: !!payload.ap, facing });
