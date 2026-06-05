@@ -231,6 +231,9 @@ export async function openVehicleFireDialog(actor, mount = {}) {
   const burst = Number(w.burst) || 0;             // Class B area weapons (HE/HEAT shells, GLs, rockets)
   const coneAngle = Number(w.coneAngle) || 0;     // Class F scatter-packs
   const weaponClass = w.weaponClass ?? "directFire";
+  const guidance = w.guidance ?? "none";          // Class C guided missiles
+  const guidanceSkill = Number(w.guidanceSkill) || 0;
+  const homingMethod = w.homingMethod ?? "radar";
 
   // Target = a single targeted token (vehicle OR character — the dispatcher routes both, MM p.6 / p.8).
   const targets = [...(game.user?.targets ?? [])];
@@ -310,6 +313,7 @@ export async function openVehicleFireDialog(actor, mount = {}) {
             range: root.querySelector("#cp-vf-range")?.value || "normal",
             ap, hefPenetrator, heat,
             burst, coneAngle, weaponClass, weaponRange,
+            guidance, missileSkill: guidanceSkill, homingMethod,
             firerTokenId: firerTok?.id, targetTokenId: targetTok?.id,
             mods: wa + vehicleToHitModifier({
               targetLarge: targetActor ? targetActor.type === "vehicle" : true,
@@ -343,6 +347,21 @@ export async function openVehicleFireDialog(actor, mount = {}) {
 }
 
 async function _executeVehicleFire(actor, targetActor, p) {
+  // Guided missiles fly for multiple turns: launch a tracked missile token; the to-hit is at impact.
+  if (p.weaponClass === "missile") {
+    const firerTok = p.firerTokenId ? canvas?.tokens?.get(p.firerTokenId) : null;
+    const targetTok = p.targetTokenId ? canvas?.tokens?.get(p.targetTokenId) : null;
+    if (firerTok && targetTok) {
+      const { launchMissile } = await import("./vehicle-missile-flight.js");
+      await launchMissile({ shooterToken: firerTok, targetToken: targetTok, missile: {
+        guidance: p.guidance, homingMethod: p.homingMethod, penetration: p.penetration,
+        ap: p.ap, heat: p.heat, hefPenetrator: p.hefPenetrator, weaponName: p.mountName,
+        operatorBonus: (p.ref || 0) + (p.skill || 0), missileSkill: p.missileSkill, targetNumber: p.targetNumber,
+      } });
+      return { launched: true };
+    }
+    ui.notifications?.warn?.("Missiles need the firer and target on the canvas — resolving as a direct shot.");
+  }
   const d10 = (await new Roll("1d10").evaluate());
   const res = resolveVehicleToHit({ d10: d10.total, ref: p.ref, skill: p.skill, mods: p.mods, targetNumber: p.targetNumber });
   const extraRounds = roundsPerHit(p.rof) - 1;

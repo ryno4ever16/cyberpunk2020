@@ -112,6 +112,15 @@
     <div class="field" title="Active missile's own Skill rating (e.g. +15 / +20), used in place of the operator's skill.">
         <label>Guide skill</label><input type="number" name="system.guidanceSkill" value="{{system.guidanceSkill}}"/>
     </div>
+    <div class="field" title="Homing method — determines which countermeasures defeat it (radar ← chaff/jamming/ECM; thermal/IR ← flares/IR-baffling/IR-smoke; optical ← smoke; laser ← anti-laser aerosol).">
+        <label>Homing</label>
+        <select name="system.homingMethod">
+            <option value="radar" {{#if (equals system.homingMethod "radar")}}selected{{/if}}>Radar</option>
+            <option value="thermal" {{#if (equals system.homingMethod "thermal")}}selected{{/if}}>Thermal / IR</option>
+            <option value="optical" {{#if (equals system.homingMethod "optical")}}selected{{/if}}>Optical</option>
+            <option value="laser" {{#if (equals system.homingMethod "laser")}}selected{{/if}}>Laser</option>
+        </select>
+    </div>
     <div class="field" title="Cone angle in degrees for scatter-pack weapons (60 / 120 / 180).">
         <label>Cone°</label><input type="number" name="system.coneAngle" value="{{system.coneAngle}}"/>
     </div>

@@ -53,7 +53,7 @@ export const SEED_VEHICLE_WEAPONS = [
   {
     name: "Hellfire", img: ICON,
     system: {
-      weaponClass: "missile", mountType: "pod", arc: "front", guidance: "paint",
+      weaponClass: "missile", mountType: "pod", arc: "front", guidance: "paint", homingMethod: "laser",
       wa: 0, penetration: 21, damage: "20D10AP", heat: true, ap: true, burst: 4,
       rof: 1, shots: 1, range: 3000, minRange: 300, reliability: "VR",
       space: 1, cost: 10000, source: SOURCE

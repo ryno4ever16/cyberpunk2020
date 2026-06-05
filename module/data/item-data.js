@@ -509,6 +509,7 @@ export class CyberpunkVehicleWeaponData extends CyberpunkBaseItemData {
       // Guided weapons (class D).
       guidance:      stringField("none"),        // none|semiActive|active|paint
       guidanceSkill: numberField(0),             // active missile's own Skill (+15/+20)
+      homingMethod:  stringField("radar"),       // radar|thermal|optical|laser — which countermeasures defeat it
       // Cone weapons (class F scatter-packs).
       coneAngle:   numberField(0),               // degrees (60/120/180)
       projectiles: numberField(0),

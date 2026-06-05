@@ -29,6 +29,7 @@ import { openVehicleDamageDialog } from "./vehicle/vehicle-damage.js";
 import { weaponToPenetration, vehicleToHitModifier, openVehicleFireDialog, registerVehicleFireHandlers } from "./vehicle/vehicle-weapons.js";
 import { seedVehicleWeaponCompendium, ensureVehicleWeaponSeed } from "./vehicle/vehicle-weapon-catalog.js";
 import { registerVehicleTargetingHandlers } from "./vehicle/vehicle-targeting.js";
+import { registerMissileFlightHooks } from "./vehicle/vehicle-missile-flight.js";
 
 Hooks.once('init', async function () {
 
@@ -184,6 +185,9 @@ Hooks.once("ready", async function () {
 
   // Register the MM p.8 LUCK-save chat button handler (Penetration weapon vs a person)
   registerVehicleTargetingHandlers();
+
+  // Register guided-missile multi-turn flight (auto-advance per round + Missiles-in-Flight panel)
+  registerMissileFlightHooks();
 
   // Seed the Vehicle Weapons (MM) compendium from the verified catalog if it's empty (active GM only).
   ensureVehicleWeaponSeed();
