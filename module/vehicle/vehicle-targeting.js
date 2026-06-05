@@ -246,7 +246,8 @@ export async function dispatchAttack(payload, target) {
           goodShotSteps: Number(payload.goodShotSteps) || 0,
           extraRounds: Number(payload.extraRounds) || 0,
           range: payload.range || "normal",
-          hefPenetrator: !!payload.hefPenetrator   // HEAT/Hi-Ex → Penetration not reduced by range
+          hefPenetrator: !!payload.hefPenetrator,  // HEAT/Hi-Ex → Penetration not reduced by range
+          heat: !!payload.heat                     // HEAT (shaped-charge) → halved by Composite Armor
         });
       } else {
         await VD.applyVehicleDamageCore(target, { rawDamage: Number(payload.penetration) || 0, ap: !!payload.ap, facing });

@@ -166,6 +166,7 @@ export class CyberpunkVehicleActorData extends foundry.abstract.TypeDataModel {
       // Systems
       vehicleLink:   booleanField(false),
       damageControl: booleanField(false),
+      compositeArmor: booleanField(false),   // halves shaped-charge (HEAT) Penetration (MM p.23)
       fireControl:   numberField(0),
       countermeasures: arrayField(stringField(), []),
       weaponMounts:    arrayField(null, []),   // [{ name, penetration, rof, shots, range, arc, ammoType }]

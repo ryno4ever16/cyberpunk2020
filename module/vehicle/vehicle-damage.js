@@ -272,14 +272,17 @@ export async function applyVehicleDamageCore(actor, { rawDamage = 0, ap = false,
 }
 
 /** Apply Maximum Metal damage: penetration → severity → hit location → crit effects; post a card. */
-export async function applyVehicleDamageMM(actor, { basePen = 0, facing = "front", goodShotSteps = 0, extraRounds = 0, range = "normal", hefPenetrator = false } = {}) {
+export async function applyVehicleDamageMM(actor, { basePen = 0, facing = "front", goodShotSteps = 0, extraRounds = 0, range = "normal", hefPenetrator = false, heat = false } = {}) {
   const sys = actor.system ?? {};
   const isACPA = !!sys.isACPA;
   const avKey = _facingKey(facing);
   const av = isACPA ? (Number(sys.armorValue?.front) || 0) : (Number(sys.armorValue?.[avKey]) || 0);
   const bodyValue = Number(sys.bodyValue) || 0;
 
-  const pen = mmEffectivePenetration({ basePen, goodShotSteps, extraRounds, range, hefPenetrator });
+  const penRaw = mmEffectivePenetration({ basePen, goodShotSteps, extraRounds, range, hefPenetrator });
+  // Composite Armor halves the Penetration of shaped-charge (HEAT) weapons (MM p.23).
+  const composite = !isACPA && !!sys.compositeArmor && !!heat;
+  const pen = composite ? Math.ceil(penRaw / 2) : penRaw;
   // ACPA armor is equal on all sides — no flank reduction.
   const effAV = isACPA ? av : mmEffectiveArmor(av, facing);
 
@@ -288,7 +291,7 @@ export async function applyVehicleDamageMM(actor, { basePen = 0, facing = "front
 
   const sev = mmDamageSeverity({ pen, effectiveArmorValue: effAV, bodyValue, d10: await d10() });
 
-  let body = `Pen <b>${pen}</b> (base ${basePen}) vs AV <b>${effAV}</b>${facing !== "front" && !isACPA ? ` (${facing} flank)` : ""} − Body ${bodyValue}`;
+  let body = `Pen <b>${pen}</b> (base ${basePen}${composite ? ", ½ vs Composite" : ""}) vs AV <b>${effAV}</b>${facing !== "front" && !isACPA ? ` (${facing} flank)` : ""} − Body ${bodyValue}`;
   let lines = "";
   const updates = {};
   const damaged = Array.isArray(sys.damagedSystems) ? [...sys.damagedSystems] : [];

@@ -304,7 +304,7 @@ export async function openVehicleFireDialog(actor, mount = {}) {
             penetration: num("#cp-vf-pen"), rof: num("#cp-vf-rof"),
             facing: root.querySelector("#cp-vf-facing")?.value || "front",
             range: root.querySelector("#cp-vf-range")?.value || "normal",
-            ap, hefPenetrator,
+            ap, hefPenetrator, heat,
             mods: wa + vehicleToHitModifier({
               targetLarge: targetActor ? targetActor.type === "vehicle" : true,
               isACPATarget: !!targetActor?.system?.isACPA,
@@ -354,7 +354,7 @@ async function _executeVehicleFire(actor, targetActor, p) {
       <button class="cp-vfire-apply" style="margin-top:4px;"
         data-pen="${p.penetration}" data-facing="${p.facing}" data-range="${p.range}"
         data-gs="${res.goodShotSteps}" data-rounds="${extraRounds}"
-        data-ap="${p.ap ? 1 : 0}" data-hef="${p.hefPenetrator ? 1 : 0}" data-weapon="${p.mountName}">💥 Apply to Target</button>
+        data-ap="${p.ap ? 1 : 0}" data-hef="${p.hefPenetrator ? 1 : 0}" data-heat="${p.heat ? 1 : 0}" data-weapon="${p.mountName}">💥 Apply to Target</button>
     </div>`;
   }
 
@@ -370,7 +370,7 @@ async function _executeVehicleFire(actor, targetActor, p) {
   if (!res.hit || !targetActor) return res;
   await _applyVehicleShot(targetActor, {
     penetration: p.penetration, facing: p.facing, range: p.range,
-    goodShotSteps: res.goodShotSteps, extraRounds, ap: p.ap, hefPenetrator: p.hefPenetrator, weaponName: p.mountName
+    goodShotSteps: res.goodShotSteps, extraRounds, ap: p.ap, hefPenetrator: p.hefPenetrator, heat: p.heat, weaponName: p.mountName
   });
   return res;
 }
@@ -379,10 +379,10 @@ async function _executeVehicleFire(actor, targetActor, p) {
  * Apply a resolved vehicle shot to ANY target via the unified 5c dispatcher: a vehicle target uses
  * the Phase-4 resolver (Pen vs Armor Value), a person uses MM p.8 (Penetration vs the personal AV).
  */
-async function _applyVehicleShot(targetActor, { penetration = 0, facing = "front", range = "normal", goodShotSteps = 0, extraRounds = 0, ap = false, hefPenetrator = false, weaponName = "weapon" } = {}) {
+async function _applyVehicleShot(targetActor, { penetration = 0, facing = "front", range = "normal", goodShotSteps = 0, extraRounds = 0, ap = false, hefPenetrator = false, heat = false, weaponName = "weapon" } = {}) {
   const { dispatchAttack } = await import("./vehicle-targeting.js");
   await dispatchAttack({
-    scale: "penetration", penetration, facing, range, goodShotSteps, extraRounds, ap, hefPenetrator, weaponName
+    scale: "penetration", penetration, facing, range, goodShotSteps, extraRounds, ap, hefPenetrator, heat, weaponName
   }, targetActor);
 }
 
@@ -398,7 +398,7 @@ export function registerVehicleFireHandlers() {
       penetration: Number(btn.dataset.pen) || 0, facing: btn.dataset.facing || "front",
       range: btn.dataset.range || "normal", goodShotSteps: Number(btn.dataset.gs) || 0,
       extraRounds: Number(btn.dataset.rounds) || 0, ap: btn.dataset.ap === "1",
-      hefPenetrator: btn.dataset.hef === "1", weaponName: btn.dataset.weapon || "weapon",
+      hefPenetrator: btn.dataset.hef === "1", heat: btn.dataset.heat === "1", weaponName: btn.dataset.weapon || "weapon",
     });
   });
 }

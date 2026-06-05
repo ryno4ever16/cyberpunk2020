@@ -117,6 +117,9 @@
             <div class="field" title="A redundant network of backups, fire extinguishers and breakers. When a system is hit, roll 1d10 — on a 6-10 it keeps working as if undamaged (Maximum Metal, p.4). Used by the damage resolver.">
                 <label>Damage Control</label><input type="checkbox" name="system.damageControl" {{#if system.damageControl}}checked{{/if}}/>
             </div>
+            <div class="field" title="Composite armor (metals + plastics + ceramics + depleted heavy metals): halves the Penetration of shaped-charge HEAT weapons, but penetrating damage is not halved (Maximum Metal, p.23). Used by the damage resolver.">
+                <label>Composite Armor</label><input type="checkbox" name="system.compositeArmor" {{#if system.compositeArmor}}checked{{/if}}/>
+            </div>
             <div class="field" title="Targeting-computer bonus added to the vehicle's weapon to-hit rolls (Maximum Metal). 0 = no fire-control computer.">
                 <label>Fire Control</label><input type="number" name="system.fireControl" value="{{system.fireControl}}"/>
             </div>
