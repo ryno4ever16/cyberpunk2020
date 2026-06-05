@@ -227,6 +227,9 @@ export async function openVehicleFireDialog(actor, mount = {}) {
   const ap = !!w.ap, heat = !!w.heat, hiEx = !!w.hiEx;
   const hefPenetrator = heat || hiEx;             // HEAT / Hi-Ex → Penetration not reduced by range
   const weaponRange = Number(w.range) || 0;
+  const burst = Number(w.burst) || 0;             // Class B area weapons (HE/HEAT shells, GLs, rockets)
+  const coneAngle = Number(w.coneAngle) || 0;     // Class F scatter-packs
+  const weaponClass = w.weaponClass ?? "directFire";
 
   // Target = a single targeted token (vehicle OR character — the dispatcher routes both, MM p.6 / p.8).
   const targets = [...(game.user?.targets ?? [])];
@@ -305,6 +308,8 @@ export async function openVehicleFireDialog(actor, mount = {}) {
             facing: root.querySelector("#cp-vf-facing")?.value || "front",
             range: root.querySelector("#cp-vf-range")?.value || "normal",
             ap, hefPenetrator, heat,
+            burst, coneAngle, weaponClass, weaponRange,
+            firerTokenId: firerTok?.id, targetTokenId: targetTok?.id,
             mods: wa + vehicleToHitModifier({
               targetLarge: targetActor ? targetActor.type === "vehicle" : true,
               isACPATarget: !!targetActor?.system?.isACPA,
@@ -368,11 +373,38 @@ async function _executeVehicleFire(actor, targetActor, p) {
   });
 
   if (!res.hit || !targetActor) return res;
-  await _applyVehicleShot(targetActor, {
-    penetration: p.penetration, facing: p.facing, range: p.range,
-    goodShotSteps: res.goodShotSteps, extraRounds, ap: p.ap, hefPenetrator: p.hefPenetrator, heat: p.heat, weaponName: p.mountName
-  });
+  // Area weapons (cone scatter-packs, burst HE/HEAT shells/rockets) hit everything in the template.
+  if (p.weaponClass === "cone" || p.burst > 0) {
+    await _applyAreaShot(p, res, extraRounds);
+  } else {
+    await _applyVehicleShot(targetActor, {
+      penetration: p.penetration, facing: p.facing, range: p.range,
+      goodShotSteps: res.goodShotSteps, extraRounds, ap: p.ap, hefPenetrator: p.hefPenetrator, heat: p.heat, weaponName: p.mountName
+    });
+  }
   return res;
+}
+
+/** Apply an area weapon's shot: burst (circle, centered on the target) or cone (from the firer). */
+async function _applyAreaShot(p, res, extraRounds) {
+  const { resolveAreaShot } = await import("./vehicle-area.js");
+  const firerTok = p.firerTokenId ? canvas?.tokens?.get(p.firerTokenId) : null;
+  const targetTok = p.targetTokenId ? canvas?.tokens?.get(p.targetTokenId) : null;
+  const center = (t) => t ? (t.center ?? { x: t.x, y: t.y }) : null;
+  const payload = {
+    scale: "penetration", penetration: p.penetration, range: p.range,
+    goodShotSteps: res.goodShotSteps, extraRounds, ap: p.ap, hefPenetrator: p.hefPenetrator, heat: p.heat, weaponName: p.mountName
+  };
+  if (p.weaponClass === "cone") {
+    const fc = center(firerTok), tc = center(targetTok);
+    if (!fc || !tc) return;
+    const dirDeg = Math.atan2(tc.y - fc.y, tc.x - fc.x) * 180 / Math.PI;
+    await resolveAreaShot({ firerToken: firerTok, origin: fc, shape: { type: "cone", angleDeg: p.coneAngle || 60, rangeM: p.weaponRange || 15, dirDeg }, payload });
+  } else {
+    const tc = center(targetTok);
+    if (!tc) return;
+    await resolveAreaShot({ firerToken: firerTok, origin: tc, shape: { type: "circle", radiusM: p.burst }, payload });
+  }
 }
 
 /**

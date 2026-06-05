@@ -46,3 +46,35 @@ test("Phase 5e: composite armor halves HEAT Penetration (MM p.23)", async ({ pag
   expect(R.hiExComposite).toBe(8);   // a regular Hi-Ex round is NOT halved by composite
   expect(R.heatPlain).toBe(8);       // no composite → full HEAT Pen
 });
+
+test("Phase 5e: burst + cone geometry (pure)", async ({ page }) => {
+  await login(page, ACCOUNTS.gm);
+
+  const R = await evalGameOrThrow(page, async () => {
+    const A = await import("/systems/cyberpunk2020/module/vehicle/vehicle-area.js");
+    const out = {};
+    // Circle radius 50 around (100,100).
+    out.cIn   = A.pointInCircle(120, 100, 100, 100, 50);   // dist 20 → in
+    out.cEdge = A.pointInCircle(150, 100, 100, 100, 50);   // dist 50 → in
+    out.cOut  = A.pointInCircle(160, 100, 100, 100, 50);   // dist 60 → out
+    // Cone from origin facing east (0°), half-angle 30, range 100.
+    out.coneFwd    = A.pointInCone(50, 0, 0, 0, 0, 30, 100);    // straight ahead → in
+    out.coneEdge   = A.pointInCone(50, 28, 0, 0, 0, 30, 100);   // ~29.2° → in
+    out.coneWide   = A.pointInCone(50, 50, 0, 0, 0, 30, 100);   // 45° → out
+    out.coneBack   = A.pointInCone(-50, 0, 0, 0, 0, 30, 100);   // behind → out
+    out.coneFar    = A.pointInCone(150, 0, 0, 0, 0, 30, 100);   // beyond range → out
+    out.coneOrigin = A.pointInCone(0, 0, 0, 0, 0, 30, 100);     // origin → in
+    return out;
+  });
+
+  console.log("Phase 5e geometry:", JSON.stringify(R));
+  expect(R.cIn).toBe(true);
+  expect(R.cEdge).toBe(true);
+  expect(R.cOut).toBe(false);
+  expect(R.coneFwd).toBe(true);
+  expect(R.coneEdge).toBe(true);
+  expect(R.coneWide).toBe(false);
+  expect(R.coneBack).toBe(false);
+  expect(R.coneFar).toBe(false);
+  expect(R.coneOrigin).toBe(true);
+});
