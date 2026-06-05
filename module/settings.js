@@ -1,3 +1,16 @@
+const SCOPE = "cyberpunk2020";
+
+/** Master Maximum Metal toggle. When OFF (default), every MM-overlay feature falls back to Core CP2020. */
+export function mmEnabled() {
+  try { return !!game.settings.get(SCOPE, "mmEnabled"); } catch { return false; }
+}
+
+/** The active vehicle ruleset, gated by the master MM toggle: forces "Core" whenever MM is off. */
+export function effectiveVehicleRuleSystem() {
+  try { return mmEnabled() ? (game.settings.get(SCOPE, "vehicleRuleSystem") || "Core") : "Core"; }
+  catch { return "Core"; }
+}
+
 export function registerSystemSettings() {
    /**
    * Track the system version upon which point a migration was last applied
@@ -481,6 +494,18 @@ export function registerSystemSettings() {
     default: true,
   });
 
+  // ===================== MAXIMUM METAL (master + overlay) =====================
+  // Master switch. Everything registered from here down belongs to the Maximum Metal layer; the
+  // renderSettingsConfig hook (end of this function) groups them under a "Maximum Metal" header.
+  game.settings.register("cyberpunk2020", "mmEnabled", {
+    name: "Maximum Metal: Enable Maximum Metal",
+    hint: "Master switch for the Maximum Metal military-hardware layer. When OFF (default), vehicles use only the Core 'Vehicles in FNFF' rules (CP2020 p.112) and every MM-only feature is disabled: the Penetration/Armor-Value resolver, composite armor, personnel-vs-anti-vehicle (p.8), area weapons, missiles, the 5-facing vehicle sheet, and the Maximum Metal weapon compendium seeding. Turn ON for the detailed military system. The settings below belong to Maximum Metal.",
+    scope:   "world",
+    config:  true,
+    type:    Boolean,
+    default: false,
+  });
+
   // --- Vehicles: which ruleset the vehicle resolver uses ---
   game.settings.register("cyberpunk2020", "vehicleRuleSystem", {
     name: "Vehicles: Rule System",
@@ -523,6 +548,36 @@ export function registerSystemSettings() {
     config:  true,
     type:    Boolean,
     default: false,
+  });
+
+  // --- Maximum Metal: in-list section header + master gating of the MM sub-settings ---
+  Hooks.on("renderSettingsConfig", (app, html) => {
+    const root = html instanceof jQuery ? html[0] : (Array.isArray(html) ? html[0] : html);
+    if (!root?.querySelector) return;
+    const MM_KEYS = ["mmEnabled", "vehicleRuleSystem", "vehicleControlEnabled", "vehicleDamageEnabled"];
+    const groupOf = (k) => {
+      const el = root.querySelector(`[name="${SCOPE}.${k}"], [data-setting-id="${SCOPE}.${k}"]`);
+      return el?.closest(".form-group") ?? el?.closest(".setting") ?? null;
+    };
+    const groups = MM_KEYS.map(groupOf).filter(Boolean);
+    if (!groups.length) return;
+    const first = groups[0];
+    if (!first.previousElementSibling?.classList?.contains("cp-mm-header")) {
+      const header = document.createElement("h3");
+      header.className = "cp-mm-header";
+      header.textContent = "Maximum Metal";
+      header.style.cssText = "margin-top:14px;border-top:2px solid var(--color-border-light-primary);padding-top:8px;";
+      first.parentNode.insertBefore(header, first);
+    }
+    // Keep the MM groups consecutive under the header.
+    let anchor = first;
+    for (const g of groups.slice(1)) { if (anchor.nextElementSibling !== g) anchor.parentNode.insertBefore(g, anchor.nextElementSibling); anchor = g; }
+    // Grey out / disable the MM sub-settings when the master is off; live-update when it's toggled.
+    const subGroups = groups.slice(1);
+    const setEnabled = (on) => { for (const g of subGroups) { g.style.opacity = on ? "" : "0.5"; g.querySelectorAll("input,select,button,textarea").forEach(el => { el.disabled = !on; }); } };
+    setEnabled(mmEnabled());
+    const masterInput = first.querySelector(`[name="${SCOPE}.mmEnabled"]`);
+    masterInput?.addEventListener("change", () => setEnabled(!!masterInput.checked));
   });
 
 }

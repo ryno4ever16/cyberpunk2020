@@ -1,6 +1,7 @@
 import { openControlRollDialog } from "../vehicle/vehicle-control.js";
 import { openVehicleDamageDialog } from "../vehicle/vehicle-damage.js";
 import { openVehicleFireDialog } from "../vehicle/vehicle-weapons.js";
+import { effectiveVehicleRuleSystem } from "../settings.js";
 
 /**
  * Vehicle / ACPA actor sheet (Phase 1-3).
@@ -33,7 +34,7 @@ export class CyberpunkVehicleSheet extends ActorSheet {
     data.editable = this.isEditable ?? this.options?.editable ?? false;
 
     let rule = "Core";
-    try { rule = game.settings.get("cyberpunk2020", "vehicleRuleSystem"); } catch (e) { /* settings not ready */ }
+    try { rule = effectiveVehicleRuleSystem(); } catch (e) { /* settings not ready */ }
     data.ruleSystem = rule;
     data.isMM = rule === "MaximumMetal";
     try { data.controlEnabled = game.settings.get("cyberpunk2020", "vehicleControlEnabled"); } catch (e) { data.controlEnabled = true; }

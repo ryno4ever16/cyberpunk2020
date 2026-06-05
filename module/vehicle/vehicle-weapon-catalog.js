@@ -9,6 +9,8 @@
  * populates the "Vehicle Weapons (MM)" compendium (idempotent) so GMs can drag them onto vehicles.
  */
 
+import { mmEnabled } from "../settings.js";
+
 const ICON = "icons/svg/explosion.svg";
 const SOURCE = "Maximum Metal";
 
@@ -111,6 +113,7 @@ export async function seedVehicleWeaponCompendium({ force = false } = {}) {
 
 /** Ready-time one-shot: seed the compendium if it exists and is empty. Active GM only. */
 export async function ensureVehicleWeaponSeed() {
+  if (!mmEnabled()) return;                                   // Maximum Metal off → don't seed the MM compendium
   if (!game.user?.isGM || game.users?.activeGM?.id !== game.user.id) return;
   const pack = game.packs?.get(PACK_ID);
   if (!pack) return;

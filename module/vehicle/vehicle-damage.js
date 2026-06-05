@@ -21,6 +21,7 @@
  */
 
 import { openSingletonDialog } from "../utils.js";
+import { effectiveVehicleRuleSystem } from "../settings.js";
 
 const SCOPE = "cyberpunk2020";
 
@@ -183,7 +184,7 @@ export async function openVehicleDamageDialog(actor) {
   if (!actor || actor.type !== "vehicle") return null;
   const enabled = (() => { try { return game.settings.get(SCOPE, "vehicleDamageEnabled"); } catch { return true; } })();
   if (!enabled) { ui.notifications?.warn?.("Vehicle damage automation is disabled in the system settings."); return null; }
-  const ruleSystem = (() => { try { return game.settings.get(SCOPE, "vehicleRuleSystem"); } catch { return "Core"; } })();
+  const ruleSystem = effectiveVehicleRuleSystem();
   const isMM = ruleSystem === "MaximumMetal";
   const sys = actor.system ?? {};
 

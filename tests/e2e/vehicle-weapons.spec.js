@@ -147,6 +147,8 @@ test("Phase 5: live bridge — firing a normal weapon at a vehicle token routes 
     const flags = { cyberpunk2020: { __pwtest: true } };
     const out = {};
     const origRule = game.settings.get("cyberpunk2020", "vehicleRuleSystem");
+    const origMM = game.settings.get("cyberpunk2020", "mmEnabled");
+    await game.settings.set("cyberpunk2020", "mmEnabled", true);   // MM resolver now gated behind the master toggle
 
     // --- routeWeaponFiredToVehicle directly, Core: 50 damage − SP 40 = 10 to SDP ---
     await game.settings.set("cyberpunk2020", "vehicleRuleSystem", "Core");
@@ -184,6 +186,7 @@ test("Phase 5: live bridge — firing a normal weapon at a vehicle token routes 
     out.liveSDP = apc._source.system.sdp.value;          // 200 − (60 − 40) = 180
 
     await game.settings.set("cyberpunk2020", "vehicleRuleSystem", origRule);
+    await game.settings.set("cyberpunk2020", "mmEnabled", origMM);
     for (const a of [car, gunner, tank, apc]) await a.delete().catch(() => {});
     await scene.delete().catch(() => {});
     return out;

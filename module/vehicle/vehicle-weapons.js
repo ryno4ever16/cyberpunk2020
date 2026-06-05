@@ -17,6 +17,7 @@
  */
 
 import { openSingletonDialog } from "../utils.js";
+import { effectiveVehicleRuleSystem } from "../settings.js";
 
 /** Average of a CP2020 damage formula ("2d6+1", "5d6", "1d10", "3d6+2"). PURE. */
 export function averageDamageFromFormula(formula) {
@@ -168,7 +169,7 @@ export async function routeWeaponFiredToVehicle(payload, vehicleActor) {
   }
   const ap = !!payload?.ap;
 
-  const ruleSystem = (() => { try { return game.settings.get(SCOPE, "vehicleRuleSystem"); } catch { return "Core"; } })();
+  const ruleSystem = effectiveVehicleRuleSystem();
   // Imported lazily to keep the pure-math top of this module free of Phase 4 UI deps in tests.
   const VD = await import("./vehicle-damage.js");
   if (ruleSystem === "MaximumMetal") {

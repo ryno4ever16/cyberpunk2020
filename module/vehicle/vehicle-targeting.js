@@ -14,6 +14,7 @@
 
 import { applyAreaDamages, ablateLocationByAmount, personnelArmorValue, ARMOR_MODES } from "../combat/DamageApplicator.js";
 import { rollLocation } from "../utils.js";
+import { effectiveVehicleRuleSystem } from "../settings.js";
 
 const SCOPE = "cyberpunk2020";
 
@@ -238,7 +239,7 @@ export async function dispatchAttack(payload, target) {
   if (target.type === "vehicle") {
     if (isPen) {
       const VD = await import("./vehicle-damage.js");
-      const ruleSystem = (() => { try { return game.settings.get(SCOPE, "vehicleRuleSystem"); } catch { return "Core"; } })();
+      const ruleSystem = effectiveVehicleRuleSystem();
       const facing = resolveFacing(payload, target);
       if (ruleSystem === "MaximumMetal") {
         await VD.applyVehicleDamageMM(target, {
