@@ -46,9 +46,13 @@ test("Phase 5b: vehicleWeapon data model + verified seed catalog", async ({ page
     out.lawHeat = (() => { const w = byName["LAW"]?.system; return !!(w?.heat && w?.penetration === 4 && w?.weaponClass === "rocket"); })();
     out.minigunSmallArms = /d6/i.test(byName["5.56mm Minigun"]?.system.damage ?? "");   // small-arms D6
     out.howitzer150AP = !!byName["150mm Howitzer"]?.system.shellVariants?.some(v => v.ap && v.pen === 21);
-    out.aamramActive = byName["AAMRAM"]?.system.guidance;                        // "active"
+    out.aamramActive = byName["AAMRAM"]?.system.guidance;                        // "active" (self-guiding)
+    out.samSemiActive = byName["SAM (Scorpion)"]?.system.guidance;               // "semiActive" (operator-fired)
     out.bomb1000Burst = byName["1000-lb Bomb"]?.system.burst;                    // 72
     out.paintingLaserPen = byName["Painting Laser"]?.system.penetration;         // 0 (guides, no damage)
+    // FAE is a Pen-10 HE blast, NOT a chemical/gas cloud (regression guard for the warhead fix).
+    const fae = byName["1000-lb Bomb"]?.system.shellVariants?.find(v => /FAE/.test(v.name));
+    out.faeNotGas = !!fae && fae.warhead !== "chemical" && fae.pen === 10;
 
     // ── Data model registration (set at init from system JS — always live) ──
     const DM = CONFIG.Item?.dataModels?.vehicleWeapon;
@@ -107,8 +111,10 @@ test("Phase 5b: vehicleWeapon data model + verified seed catalog", async ({ page
   expect(R.minigunSmallArms).toBe(true);
   expect(R.howitzer150AP).toBe(true);
   expect(R.aamramActive).toBe("active");
+  expect(R.samSemiActive).toBe("semiActive");
   expect(R.bomb1000Burst).toBe(72);
   expect(R.paintingLaserPen).toBe(0);
+  expect(R.faeNotGas).toBe(true);
 
   // Data model registered with the expected fields (always asserted).
   expect(R.modelRegistered).toBe(true);

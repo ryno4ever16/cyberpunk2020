@@ -277,7 +277,8 @@ export const SEED_VEHICLE_WEAPONS = [
   //    movement penalties and are +10/+20 vs ground. Pen derived from the clean damage dice per MM p.4 (HEAT ×2). ──
   { name: "Heavy ATGM", img: ICON, system: { weaponClass:"missile", mountType:"pod", arc:"front", guidance:"semiActive", homingMethod:"wire",
       wa:2, penetration:18, damage:"18D10AP", ap:true, heat:true, burst:4, rof:1, shots:1, range:3000, minRange:300, reliability:"VR", space:5, cost:10000, source:SOURCE } },
-  { name: "SAM (Scorpion)", img: ICON, system: { weaponClass:"missile", mountType:"pod", arc:"front", guidance:"active", homingMethod:"radar", guidanceSkill:0,
+  // SAM (Scorpion) is operator-fired with Heavy Weapons skill (not a self-guiding "Active" missile like VSAM/AAM).
+  { name: "SAM (Scorpion)", img: ICON, system: { weaponClass:"missile", mountType:"pod", arc:"front", guidance:"semiActive", homingMethod:"radar",
       wa:-1, penetration:7, damage:"7D10", heat:true, burst:4, rof:1, shots:1, range:5000, minRange:500, reliability:"VR", space:1, cost:1000, source:SOURCE } },
   { name: "VSAM", img: ICON, system: { weaponClass:"missile", mountType:"pod", arc:"front", guidance:"active", homingMethod:"radar", guidanceSkill:15,
       wa:0, penetration:15, damage:"15D10", heat:true, burst:4, rof:1, shots:1, range:8000, minRange:800, reliability:"VR", space:1, cost:10000, source:SOURCE } },
@@ -317,7 +318,7 @@ export const SEED_VEHICLE_WEAPONS = [
       shellVariants:[{ name:"500-lb Cluster", pen:4, burst:48, warhead:"cluster" }, { name:"500-lb Anti-Tank", pen:8, burst:4, warhead:"heat", heat:true, ap:true }, { name:"500-lb Incendiary", pen:0, burst:48, warhead:"wp" }] } },
   { name: "1000-lb Bomb", img: ICON, system: { weaponClass:"bomb", mountType:"pod", arc:"front",
       wa:-3, penetration:10, hiEx:true, burst:72, rof:1, shots:1, range:0, reliability:"VR", space:5, cost:2000, source:SOURCE,
-      shellVariants:[{ name:"1000-lb Cluster", pen:4, burst:72, warhead:"cluster" }, { name:"1000-lb FAE", pen:10, burst:144, warhead:"chemical" }] } },
+      shellVariants:[{ name:"1000-lb Cluster", pen:4, burst:72, warhead:"cluster" }, { name:"1000-lb FAE", pen:10, burst:144, hiEx:true }] } },
   { name: "2000-lb Bomb", img: ICON, system: { weaponClass:"bomb", mountType:"pod", arc:"front",
       wa:-3, penetration:11, hiEx:true, burst:96, rof:1, shots:1, range:0, reliability:"VR", space:6, cost:3000, source:SOURCE } },
 

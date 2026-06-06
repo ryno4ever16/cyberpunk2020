@@ -38,6 +38,11 @@ R. Talsorian Games’ [Cyberpunk 2020](https://talsorianstore.com/products/cyber
 
 All rights to Cyberpunk 2020 belong to R. Talsorian Games. Under their [homebrew content policy](https://rtalsoriangames.com/homebrew-content-policy/), any compendium produced with this system will include only the statistical summaries of items (equivalent to the weapon-table rows) and no descriptive text. There will be no stat blocks for monsters, NPCs, or hazards.
 
+## Known issues
+
+* **Maximum Metal — guided-missile token art is a placeholder.** In-flight missiles render with a temporary `img/missile.webp` sprite (it points diagonally on a solid background and is rotated by a tunable offset). It works, but should be replaced with a north-pointing, transparent-background sprite before a public release — then set `MISSILE_ART_OFFSET` to `0` in `module/vehicle/vehicle-missile-flight.js`.
+* **Maximum Metal — a few special weapons resolve approximately.** The E‑Harpoon (Pen 20 that ignores armour; damage is temporary) and the Painting Laser (which guides "paint" missiles) are catalogued so GMs can field them, but their unique mechanics are GM‑adjudicated rather than fully automated.
+
 ## How to build
 
 Run

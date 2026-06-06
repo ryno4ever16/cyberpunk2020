@@ -102,3 +102,61 @@ test("player firing at a GM-owned vehicle relays the damage to the GM", async ({
     await playerCtx.close();
   }
 });
+
+test("a player's personnel-damage payload at a GM-owned vehicle also relays (non-Pen branch)", async ({ browser }) => {
+  // The relay gate sits ABOVE the Pen/non-Pen split in dispatchAttack, so a normal bullet (areaDamages,
+  // no `scale`) fired at a GM vehicle must relay too — the GM then routes it through the Core/MM bridge
+  // (routeWeaponFiredToVehicle). Without the relay the player's direct write would throw and be lost.
+  const START_SDP = 50;
+  const setup = await evalGameOrThrow(gmPage, async (arg) => {
+    const OBSERVER = CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER;
+    const veh = await Actor.create({
+      name: "__PW__EnemyVehicle2", type: "vehicle",
+      flags: { cyberpunk2020: { __pwtest: true } },
+      ownership: { default: OBSERVER },
+      system: { sp: { front: 0, side: 0, rear: 0, top: 0, bottom: 0 }, sdp: { value: arg.sdp, max: arg.sdp } },
+    });
+    return { vehId: veh.id };
+  }, { sdp: START_SDP });
+
+  const playerCtx = await browser.newContext({ viewport: { width: 1400, height: 800 }, ignoreHTTPSErrors: true });
+  const playerPage = await playerCtx.newPage();
+  try {
+    await login(playerPage, ACCOUNTS.player1);
+    const res = await evalGameOrThrow(playerPage, async (arg) => {
+      const out = {};
+      const veh = game.actors.get(arg.vehId);
+      out.canModify = veh ? veh.canUserModify(game.user, "update") : null;
+      const VT = await import("/systems/cyberpunk2020/module/vehicle/vehicle-targeting.js");
+      out.dispatchThrew = false;
+      try {
+        // No `scale` → personnel-damage payload → the non-Pen dispatcher branch.
+        out.handled = await VT.dispatchAttack(
+          { areaDamages: { Torso: [{ damage: 250 }] }, weaponName: "__PW__RelayBullet", facing: "front" },
+          veh
+        );
+      } catch (e) { out.dispatchThrew = true; out.err = String(e?.message ?? e); }
+      return out;
+    }, { vehId: setup.vehId });
+
+    console.log("Non-Pen relay result:", JSON.stringify(res));
+    expect(res.canModify, "player must NOT own the GM vehicle").toBe(false);
+    expect(res.dispatchThrew, "non-Pen dispatchAttack must relay (not throw) on the player's client").toBe(false);
+    expect(res.handled, "dispatchAttack reports it handled the attack").toBe(true);
+
+    const finalSdp = await evalGameOrThrow(gmPage, async (arg) => {
+      const deadline = Date.now() + 12_000;
+      let v = game.actors.get(arg.vehId)?.system?.sdp?.value ?? null;
+      while (Date.now() < deadline && v === arg.sdp) {
+        await new Promise(r => setTimeout(r, 150));
+        v = game.actors.get(arg.vehId)?.system?.sdp?.value ?? null;
+      }
+      return v;
+    }, { vehId: setup.vehId, sdp: START_SDP });
+
+    console.log("Non-Pen vehicle SDP after relay:", finalSdp);
+    expect(finalSdp, "GM applied the relayed personnel-damage hit (SDP dropped)").toBeLessThan(START_SDP);
+  } finally {
+    await playerCtx.close();
+  }
+});
