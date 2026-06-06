@@ -87,6 +87,26 @@
         </div>
         {{/if}}
 
+        {{!-- ACPA combat status (Maximum Metal p.55-56): written by the powered-armor damage resolver
+              + per-round ticks; editable here so the GM can adjust/reset (e.g. field repairs). --}}
+        {{#if mmOn}}{{#if system.isACPA}}
+        <h2 class="cyber-section-header">ACPA Combat Status</h2>
+        <div class="field-list">
+            <div class="field" title="Suit Strength lost to Critical Hits (reduces melee damage and lift). 0 = undamaged.">
+                <label>STR damage</label><input type="number" name="system.strDamage" value="{{system.strDamage}}"/></div>
+            <div class="field" title="Suit Reflexes lost to Critical Hits (reduces the pilot's REF / control). 0 = undamaged.">
+                <label>REF damage</label><input type="number" name="system.refDamage" value="{{system.refDamage}}"/></div>
+            <div class="field" title="Remaining power-cell life in hours (24h normal). Drained by power-unit criticals.">
+                <label>Power (hrs)</label><input type="number" name="system.powerHours" value="{{system.powerHours}}"/></div>
+            <div class="field" title="Minutes until heatstroke after a cooling-system critical (0 = OK). When it expires the pilot makes escalating Stun Saves.">
+                <label>Cooling (min)</label><input type="number" name="system.coolingTimer" value="{{system.coolingTimer}}"/></div>
+            <div class="field" title="Rounds the interface/electronics are out (counts down each combat round).">
+                <label>Interface out</label><input type="number" name="system.interfaceOut" value="{{system.interfaceOut}}"/></div>
+            <div class="field" title="Rounds a body area is seized up / immobile (counts down each combat round; restores mobility at 0).">
+                <label>Seized (rds)</label><input type="number" name="system.seizeUp" value="{{system.seizeUp}}"/></div>
+        </div>
+        {{/if}}{{/if}}
+
         {{!-- Movement --}}
         <h2 class="cyber-section-header">Movement</h2>
         <div class="field-list">
