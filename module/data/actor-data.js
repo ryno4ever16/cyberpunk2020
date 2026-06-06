@@ -11,6 +11,8 @@ import {
   stringField
 } from "./schema-helpers.js";
 
+import { acpaAreaSOP, chassisStats } from "../vehicle/vehicle-acpa.js";
+
 function hasOwn(source, key) {
   return Object.prototype.hasOwnProperty.call(source, key);
 }
@@ -187,10 +189,20 @@ export class CyberpunkVehicleActorData extends foundry.abstract.TypeDataModel {
       interfaceOut: numberField(0),    // rounds the interface/electronics are out
       seizeUp:      numberField(0),    // rounds a body area is seized up
 
+      // ACPA frame structure (Maximum Metal p.61): CURRENT per-area frame SOP (damage tracked by the
+      // powered-armor resolver). Max + chassis stats are DERIVED from chassis STR below.
+      frameSOP:    objectField({ head: 0, rArm: 0, lArm: 0, rLeg: 0, lLeg: 0, torso: 0 }),
+
       // Derived (recomputed each prepare; stored so they're available to templates/rolls)
       armorValue: objectField({ front: 0, side: 0, rear: 0, top: 0, bottom: 0 }),
       bodyValue:  numberField(0),
       destroyed:  booleanField(false),
+      // ACPA-derived frame stats (from chassis STR via the Chassis Inventory Table).
+      frameSOPMax: objectField({ head: 0, rArm: 0, lArm: 0, rLeg: 0, lLeg: 0, torso: 0 }),
+      toughness:   numberField(0),    // damage-reduction Toughness Mod (negative)
+      damMod:      stringField(""),   // linear-frame melee Damage Mod (display)
+      lift:        numberField(0),
+      carry:       numberField(0),
 
       notes: htmlField("")
     };
@@ -214,5 +226,16 @@ export class CyberpunkVehicleActorData extends foundry.abstract.TypeDataModel {
     const sdpMax = this.isACPA ? (Number(this.str) || 0) : (Number(this.sdp?.max) || 0);
     this.bodyValue = Math.round(sdpMax / 20);
     this.destroyed = sdpMax > 0 && (Number(this.sdp?.value) || 0) <= 0;
+
+    // ACPA frame derivations (Maximum Metal p.61-62): per-area frame SOP max + Chassis Inventory stats.
+    if (this.isACPA) {
+      const str = Number(this.str) || 0;
+      this.frameSOPMax = acpaAreaSOP(str);
+      const cs = chassisStats(str);
+      this.toughness = cs.toughness;
+      this.damMod = cs.damMod;
+      this.lift = cs.lift;
+      this.carry = cs.carry;
+    }
   }
 }

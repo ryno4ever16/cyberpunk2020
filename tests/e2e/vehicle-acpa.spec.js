@@ -44,6 +44,14 @@ test("Phase 6-1: ACPA combat math (pure, MM p.52-60)", async ({ page }) => {
       tick1: A.acpaTickStatus({ seizeUp: 2, interfaceOut: 1 }),
       tickEnd: A.acpaTickStatus({ seizeUp: 1 }),
       tickNone: A.acpaTickStatus({}),
+      // Construction (MM p.61-62): per-area frame SOP + Chassis Inventory.
+      areaSOP40: A.acpaAreaSOP(40),
+      areaSOP16: A.acpaAreaSOP(16),
+      cs40: A.chassisStats(40),
+      cs12tough: A.chassisStats(12).toughness,
+      cs52tough: A.chassisStats(52).toughness,
+      cs38tough: A.chassisStats(38).toughness,
+      cs10tough: A.chassisStats(10).toughness,
     };
   });
 
@@ -77,6 +85,15 @@ test("Phase 6-1: ACPA combat math (pure, MM p.52-60)", async ({ page }) => {
   expect(R.tickEnd.updates["system.seizeUp"]).toBe(0);
   expect(R.tickEnd.updates["system.immobilized"]).toBe(false);
   expect(Object.keys(R.tickNone.updates).length).toBe(0);
+  // Per-area frame SOP: STR40 → Head/Arm 10, Leg 20, Torso 30; STR16 → 4/8/12.
+  expect(R.areaSOP40).toEqual({ head: 10, rArm: 10, lArm: 10, rLeg: 20, lLeg: 20, torso: 30 });
+  expect(R.areaSOP16).toEqual({ head: 4, rArm: 4, lArm: 4, rLeg: 8, lLeg: 8, torso: 12 });
+  expect(R.cs40.toughness).toBe(-10);
+  expect(R.cs40.cost).toBe(66000);
+  expect(R.cs12tough).toBe(-5);
+  expect(R.cs52tough).toBe(-12);
+  expect(R.cs38tough).toBe(-9);    // picks the STR 37 row
+  expect(R.cs10tough).toBe(-5);    // clamps to the STR 12 row
 });
 
 test("Phase 6-2: ACPA penetrating damage applies + catastrophic destroys", async ({ page }) => {
@@ -93,6 +110,8 @@ test("Phase 6-2: ACPA penetrating damage applies + catastrophic destroys", async
         system: { isACPA: true, str: 40, sp: { front: 0, side: 0, rear: 0, top: 0, bottom: 0 }, sdp: { value: 100, max: 100 } } });
       out.powerDefault = acpa.system.powerHours;   // additive field default = 24
       out.coolingDefault = acpa.system.coolingTimer; // 0
+      out.frameTorso = acpa.system.frameSOPMax?.torso;   // derived: STR40 → 30
+      out.toughness = acpa.system.toughness;             // derived: STR40 → -10
 
       // Catastrophic: overwhelming Penetration vs AV 0 → suit destroyed (no throw on the ACPA branch).
       await VD.applyVehicleDamageMM(acpa, { basePen: 999, facing: "front" });
@@ -108,6 +127,8 @@ test("Phase 6-2: ACPA penetrating damage applies + catastrophic destroys", async
   console.log("Phase 6-2 apply:", JSON.stringify(R));
   expect(R.powerDefault).toBe(24);
   expect(R.coolingDefault).toBe(0);
+  expect(R.frameTorso).toBe(30);    // derived per-area frame SOP (STR40 Torso = 75%)
+  expect(R.toughness).toBe(-10);    // derived Chassis Inventory Toughness Mod
   expect(R.destroyed).toBe(true);
   expect(R.sdpZero).toBe(true);
   expect(R.maxPreserved).toBe(true);

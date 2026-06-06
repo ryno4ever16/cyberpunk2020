@@ -185,6 +185,47 @@ export function acpaJumpM(runM, { running = false, vertical = false } = {}) {
   return vertical ? horizontal / 3 : horizontal;
 }
 
+/* ------------------------------ Construction / Linear Frame (MM p.61-63) ------------------------------ */
+
+/**
+ * Per-body-area frame SOP from chassis STR (MM p.61): Head and each Arm 25%, each Leg 50%, Torso 75%
+ * (rounded). These are the Structural Damage Points of the FRAME in each area; destroying an area's
+ * frame SOP knocks out its systems, and destroying the Torso shuts the suit down. PURE.
+ * @returns {{head:number, rArm:number, lArm:number, rLeg:number, lLeg:number, torso:number}}
+ */
+export function acpaAreaSOP(str) {
+  const s = Math.max(0, Number(str) || 0);
+  const r = (p) => Math.round(s * p);
+  return { head: r(0.25), rArm: r(0.25), lArm: r(0.25), rLeg: r(0.5), lLeg: r(0.5), torso: r(0.75) };
+}
+
+/** The Chassis Inventory Table (MM p.62): chassis STR → frame stats. Toughness Mod reduces incoming damage. */
+const CHASSIS_TABLE = [
+  { str: 12, toughness: -5,  damMod: "+4",     lift: 600,  carry: 180, weight: 125, cost: 5000 },
+  { str: 14, toughness: -5,  damMod: "+6",     lift: 700,  carry: 210, weight: 138, cost: 7000 },
+  { str: 16, toughness: -5,  damMod: "1d6+2",  lift: 800,  carry: 240, weight: 150, cost: 9000 },
+  { str: 20, toughness: -6,  damMod: "1d10",   lift: 1000, carry: 300, weight: 116, cost: 28450 },
+  { str: 25, toughness: -7,  damMod: "1d10+2", lift: 1250, carry: 375, weight: 138, cost: 37360 },
+  { str: 27, toughness: -7,  damMod: "1d10+5", lift: 1350, carry: 405, weight: 146, cost: 38700 },
+  { str: 30, toughness: -8,  damMod: "1d10+5", lift: 1500, carry: 450, weight: 158, cost: 46990 },
+  { str: 32, toughness: -8,  damMod: "3d6-1",  lift: 1600, carry: 480, weight: 166, cost: 50890 },
+  { str: 35, toughness: -9,  damMod: "3d6-1",  lift: 1750, carry: 525, weight: 180, cost: 56140 },
+  { str: 37, toughness: -9,  damMod: "3d6-1",  lift: 1850, carry: 555, weight: 185, cost: 61050 },
+  { str: 40, toughness: -10, damMod: "2d10",   lift: 2000, carry: 600, weight: 200, cost: 66000 },
+  { str: 42, toughness: -10, damMod: "2d10",   lift: 2100, carry: 630, weight: 208, cost: 69970 },
+  { str: 45, toughness: -11, damMod: "2d10",   lift: 2250, carry: 675, weight: 222, cost: 75250 },
+  { str: 50, toughness: -12, damMod: "2d10+5", lift: 2500, carry: 750, weight: 242, cost: 85230 },
+  { str: 52, toughness: -12, damMod: "2d10+5", lift: 2600, carry: 780, weight: 250, cost: 89230 },
+];
+
+/** Frame stats for a chassis STR (the row at or below it; clamped to the smallest). PURE. */
+export function chassisStats(str) {
+  const s = Number(str) || 0;
+  let row = CHASSIS_TABLE[0];
+  for (const r of CHASSIS_TABLE) { if (s >= r.str) row = r; else break; }
+  return { ...row };
+}
+
 /* ------------------------------ Linear Frame (naked) (MM p.56) ------------------------------ */
 
 /**

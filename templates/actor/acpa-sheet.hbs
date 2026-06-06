@@ -61,6 +61,28 @@
             {{#if system.destroyed}}<div class="field"><label style="color:#ff4040;font-weight:bold;">DESTROYED</label></div>{{/if}}
         </div>
 
+        {{!-- Linear Frame — derived from chassis STR via the Chassis Inventory Table (MM p.61-62). --}}
+        {{#if mmOn}}
+        <h2 class="cyber-section-header">Linear Frame</h2>
+        <div class="field-list">
+            <div class="field" title="Toughness Mod (MM p.62): reduces incoming damage (like BTM). Derived from chassis STR. Read-only.">
+                <label>Toughness</label><input type="number" class="not-editable" value="{{system.toughness}}" readonly/></div>
+            <div class="field" title="Linear-frame melee Damage Mod (frame worn standalone; full ACPA melee uses Punch/Crush/Kick). Derived.">
+                <label>Frame Dam Mod</label><input type="text" class="not-editable" value="{{system.damMod}}" readonly/></div>
+            <div class="field" title="Dead-weight lift (kg), derived from chassis STR."><label>Lift (kg)</label><input type="number" class="not-editable" value="{{system.lift}}" readonly/></div>
+            <div class="field" title="Carry capacity (kg), derived from chassis STR."><label>Carry (kg)</label><input type="number" class="not-editable" value="{{system.carry}}" readonly/></div>
+        </div>
+        <p style="opacity:0.6; font-size:0.78em; margin:2px 0;">Frame SOP per body area (max, from chassis STR — Head/Arm 25%, Leg 50%, Torso 75%). Destroying an area kills its systems; the Torso shuts the suit down.</p>
+        <div class="field-list">
+            <div class="field"><label>Head</label><input type="number" class="not-editable" value="{{system.frameSOPMax.head}}" readonly/></div>
+            <div class="field"><label>Torso</label><input type="number" class="not-editable" value="{{system.frameSOPMax.torso}}" readonly/></div>
+            <div class="field"><label>R.Arm</label><input type="number" class="not-editable" value="{{system.frameSOPMax.rArm}}" readonly/></div>
+            <div class="field"><label>L.Arm</label><input type="number" class="not-editable" value="{{system.frameSOPMax.lArm}}" readonly/></div>
+            <div class="field"><label>R.Leg</label><input type="number" class="not-editable" value="{{system.frameSOPMax.rLeg}}" readonly/></div>
+            <div class="field"><label>L.Leg</label><input type="number" class="not-editable" value="{{system.frameSOPMax.lLeg}}" readonly/></div>
+        </div>
+        {{/if}}
+
         {{!-- Pilot & Systems --}}
         <h2 class="cyber-section-header">Pilot &amp; Systems</h2>
         <div class="field-list">
