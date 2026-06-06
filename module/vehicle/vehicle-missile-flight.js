@@ -10,6 +10,7 @@
 
 import { mmEnabled } from "../settings.js";
 import { missileSpeed, turnsToImpact, resolveMissileToHit, resolvePaintHit, countermeasureModifier, interceptResult, electronicDetect, visualDetectDV } from "./vehicle-missiles.js";
+import { pixelsToMeters } from "./vehicle-grid.js";
 
 const SCOPE = "cyberpunk2020";
 const MISSILE_IMG = "systems/cyberpunk2020/img/missile.webp";
@@ -26,7 +27,6 @@ async function _ensureMissileActor() {
 }
 
 const _gridSize = (scene) => Number(scene?.grid?.size) || 100;
-const _gridDist = (scene) => Number(scene?.grid?.distance) || 1;
 /** Centre of a TokenDocument in pixels (document fields only — no reliance on a rendered placeable). */
 function _docCenter(doc, gs) { return { x: doc.x + (doc.width * gs) / 2, y: doc.y + (doc.height * gs) / 2 }; }
 const _headingDeg = (from, to) => Math.atan2(to.y - from.y, to.x - from.x) * 180 / Math.PI;
@@ -46,7 +46,7 @@ export async function launchMissile({ scene: sceneArg, shooterToken, targetToken
   const proxy = await _ensureMissileActor();
 
   const sc = _docCenter(sDoc, gs), tc = _docCenter(tDoc, gs);
-  const distM = (Math.hypot(tc.x - sc.x, tc.y - sc.y) / gs) * _gridDist(scene);
+  const distM = pixelsToMeters(scene, Math.hypot(tc.x - sc.x, tc.y - sc.y));
   const speed = missileSpeed(missile.guidance, missile.speed);
   const tti = turnsToImpact(distM, speed);
 

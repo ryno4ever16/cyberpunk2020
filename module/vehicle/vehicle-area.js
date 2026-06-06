@@ -8,6 +8,8 @@
  * MeasuredTemplate is placed only for the visual.
  */
 
+import { pxPerMeter, metersToUnits } from "./vehicle-grid.js";
+
 const DEG = Math.PI / 180;
 
 /* --------------------------------- PURE geometry --------------------------------- */
@@ -35,16 +37,9 @@ export function pointInCone(px, py, ox, oy, dirDeg, halfDeg, range) {
 
 /* ------------------------------ Canvas template placement ------------------------------ */
 
-/** Meters → pixels for the active scene (grid.size px per grid.distance units). */
-function pxPerMeter(scene) {
-  const size = Number(scene?.grid?.size) || 100;
-  const dist = Number(scene?.grid?.distance) || 1;
-  return size / dist;
-}
-
 async function placeBurstTemplate(scene, x, y, radiusM) {
   const td = {
-    t: "circle", x, y, distance: Math.max(0.5, Number(radiusM) || 0),
+    t: "circle", x, y, distance: Math.max(0.5, metersToUnits(scene, radiusM)),   // template distance is in grid units
     fillColor: "#ff6600", borderColor: "#ff6600",
     flags: { cyberpunk2020: { vehicleArea: true } }
   };
@@ -55,7 +50,7 @@ async function placeBurstTemplate(scene, x, y, radiusM) {
 async function placeConeTemplate(scene, x, y, dirDeg, angleDeg, rangeM) {
   const td = {
     t: "cone", x, y, direction: dirDeg, angle: Math.max(5, Number(angleDeg) || 60),
-    distance: Math.max(0.5, Number(rangeM) || 0),
+    distance: Math.max(0.5, metersToUnits(scene, rangeM)),
     fillColor: "#ff6600", borderColor: "#ff6600",
     flags: { cyberpunk2020: { vehicleArea: true } }
   };

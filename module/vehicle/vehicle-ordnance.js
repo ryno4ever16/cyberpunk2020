@@ -14,6 +14,7 @@ import { warheadProfile, shellTravelTurns, indirectToHitNumber, indirectToHitBon
          bombDirectPen, diveBombAimBonus, bombFallTurns, bombLanding } from "./vehicle-indirect.js";
 import { resolveAreaShot } from "./vehicle-area.js";
 import { openSingletonDialog } from "../utils.js";
+import { pxPerMeter, metersToUnits, metersPerUnit } from "./vehicle-grid.js";
 
 const SCOPE = "cyberpunk2020";
 
@@ -35,7 +36,7 @@ async function _ignite(actor, dot = {}) {
 async function _placeGasCloud(scene, origin, radiusM, weaponName) {
   if (!_enabled("gasGrenadeCloudEnabled")) return null;
   const td = {
-    t: "circle", x: origin.x, y: origin.y, direction: 0, distance: Math.max(0.5, Number(radiusM) || 0),
+    t: "circle", x: origin.x, y: origin.y, direction: 0, distance: Math.max(0.5, metersToUnits(scene, radiusM)),
     fillColor: "#88ff44", borderColor: "#44aa22",
     flags: { [SCOPE]: {
       isGasCloud: true, turnsLeft: 3, stunSaveMod: 0,
@@ -95,7 +96,7 @@ export async function resolveWarheadBurst({ firerToken = null, origin, warhead =
 
 /* ------------------------------ Fire dialogs (5g-3 / 5g-4) ------------------------------ */
 
-const _ppm = (scene) => (Number(scene?.grid?.size) || 100) / (Number(scene?.grid?.distance) || 1);
+const _ppm = pxPerMeter;   // unit-aware pixels-per-metre (see vehicle-grid.js)
 const _center = (t) => t?.center ?? { x: t?.x, y: t?.y };
 const _num = (root, id) => Number(root.querySelector(id)?.value) || 0;
 const _chk = (root, id) => !!root.querySelector(id)?.checked;
@@ -138,7 +139,7 @@ export async function openIndirectFireDialog(actor, mount = {}) {
   const firerTok = _firerTokenOf(actor);
   const scene = targetTok.document?.parent ?? canvas?.scene;
   const rangeAuto = (firerTok && targetTok)
-    ? (() => { try { return Math.round(canvas.grid.measureDistance(firerTok.center, targetTok.center)); } catch { return Number(w.range) || 0; } })()
+    ? (() => { try { return Math.round(canvas.grid.measureDistance(firerTok.center, targetTok.center) * metersPerUnit(scene)); } catch { return Number(w.range) || 0; } })()
     : (Number(w.range) || 0);
 
   const content = `
