@@ -178,6 +178,15 @@ export class CyberpunkVehicleActorData extends foundry.abstract.TypeDataModel {
       immobilized:    booleanField(false),
       damagedSystems: arrayField(stringField(), []),
 
+      // ACPA combat status (Maximum Metal p.55-56) — written by the powered-armor damage resolver.
+      // Additive: existing actors get the schema defaults on load (no migration / relaunch needed).
+      strDamage:    numberField(0),    // accumulated Suit STR loss from criticals
+      refDamage:    numberField(0),    // accumulated Suit REF loss (already ÷2 per the chart)
+      powerHours:   numberField(24),   // remaining power-cell life in hours (24h default)
+      coolingTimer: numberField(0),    // minutes until heatstroke (0 = cooling OK)
+      interfaceOut: numberField(0),    // rounds the interface/electronics are out
+      seizeUp:      numberField(0),    // rounds a body area is seized up
+
       // Derived (recomputed each prepare; stored so they're available to templates/rolls)
       armorValue: objectField({ front: 0, side: 0, rear: 0, top: 0, bottom: 0 }),
       bodyValue:  numberField(0),

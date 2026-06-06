@@ -22,6 +22,7 @@
 
 import { openSingletonDialog } from "../utils.js";
 import { effectiveVehicleRuleSystem } from "../settings.js";
+import { acpaBodyArea, externalSystemHit, acpaSystemHit, acpaRollAgain, acpaCriticalEffect, acpaCriticalUpdate } from "./vehicle-acpa.js";
 
 const SCOPE = "cyberpunk2020";
 
@@ -272,6 +273,52 @@ export async function applyVehicleDamageCore(actor, { rawDamage = 0, ap = false,
   return res;
 }
 
+/**
+ * Resolve a penetrating ACPA (powered-armor) hit (Maximum Metal p.55-56): body area → 50% external
+ * system → System Hit Table → Critical Hit Chart (applied to the suit's tracked status) → Integrity.
+ * Rolls its own dice (pushed to `rolls`) and returns the chat lines + the actor updates.
+ */
+async function _resolveAcpaPenetration(sys, sev, rolls) {
+  const roll = async (f) => { const r = await new Roll(f).evaluate(); rolls.push(r); return r; };
+  const d10 = async () => (await roll("1d10")).total;
+  const updates = {};
+  const crit = MM_CRIT[sev.severity] ?? {};
+
+  const area = acpaBodyArea(await d10());
+  let lines = `Roll ${sev.score} → <b>${sev.severity.toUpperCase()}</b> · body area: <b>${area}</b>`;
+
+  if (externalSystemHit(await d10())) {
+    // 50% (5-in-10): an external system on that area absorbs the hit instead of the suit (MM p.55).
+    lines += `<br>An <b>external system</b> on the ${area} is struck (it absorbs the hit; the GM checks its integrity).`;
+  } else {
+    let cat = acpaSystemHit(await d10());
+    if (cat === "rollAgain") cat = (acpaRollAgain(await d10()) === "critical") ? "critical" : acpaSystemHit(await d10());
+
+    if (cat === "critical") {
+      const effect = acpaCriticalEffect(await d10());
+      const amount = effect.formula ? (await roll(effect.formula)).total : 0;
+      const { updates: cu, note } = acpaCriticalUpdate(sys, effect, amount);
+      Object.assign(updates, cu);
+      lines += `<br><span style="color:#ff3030;font-weight:bold;">CRITICAL HIT</span> — ${effect.label}: <b>${note}</b>.`;
+    } else {
+      const label = cat === "chassis" ? "Main Chassis" : (cat === "enclosed" ? "an Enclosed System" : "an Internal Weapon");
+      const intRoll = await roll("1d100");
+      const gone = intRoll.total <= (crit.destroyPct ?? 0);
+      lines += `<br>System Hit: <b>${label}</b> ${gone ? "DESTROYED" : "damaged (integrity check)"} (rolled ${intRoll.total} vs ${crit.destroyPct ?? 0}%).`;
+      const damaged = Array.isArray(sys.damagedSystems) ? [...sys.damagedSystems] : [];
+      if (!damaged.includes(label)) { damaged.push(label); updates["system.damagedSystems"] = damaged; }
+    }
+  }
+
+  lines += `<br>Pilot in that area takes <b>${crit.crewDice ?? "—"}</b>.`;
+  if (sev.severity === "catastrophic") {
+    updates["system.destroyed"] = true;
+    updates["system.sdp"] = { value: 0, max: Number(sys.sdp?.max) || 0 };
+    lines += `<br><span style="color:#ff3030;font-weight:bold;">Catastrophic — suit DESTROYED.</span>`;
+  }
+  return { lines, updates };
+}
+
 /** Apply Maximum Metal damage: penetration → severity → hit location → crit effects; post a card. */
 export async function applyVehicleDamageMM(actor, { basePen = 0, facing = "front", goodShotSteps = 0, extraRounds = 0, range = "normal", hefPenetrator = false, heat = false } = {}) {
   const sys = actor.system ?? {};
@@ -305,9 +352,14 @@ export async function applyVehicleDamageMM(actor, { basePen = 0, facing = "front
   } else if (sev.severity === "surface") {
     const surf = mmSurfaceDamage(await d10(), basePen);
     lines = `Roll ${sev.score} → <b>Surface</b>: ${surf.itemDamaged ? (surf.destroyed ? "an exposed item destroyed" : "an exposed item damaged") : "no item hit"}.`;
+  } else if (isACPA) {
+    // Powered armor: System Hit / Critical Hit / Integrity (MM p.55-56) → tracked suit status.
+    const r = await _resolveAcpaPenetration(sys, sev, rolls);
+    lines = r.lines;
+    Object.assign(updates, r.updates);
   } else {
-    // Penetrating Minor/Major/Catastrophic → hit location + crit effects.
-    const loc = isACPA ? acpaHitLocation(await d10()) : mmHitLocation(await d10(), facing);
+    // Penetrating Minor/Major/Catastrophic → hit location + crit effects. (Vehicles.)
+    const loc = mmHitLocation(await d10(), facing);
     const crit = MM_CRIT[sev.severity];
     let locLine = loc;
     let subLoc = null;

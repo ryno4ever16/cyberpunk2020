@@ -1,6 +1,13 @@
 import { test, expect } from "@playwright/test";
 import { ACCOUNTS } from "../helpers/accounts.js";
-import { login, evalGameOrThrow } from "../helpers/foundry.js";
+import { login, evalGameOrThrow, cleanupTestData } from "../helpers/foundry.js";
+
+test.afterAll(async ({ browser }) => {
+  const ctx = await browser.newContext({ ignoreHTTPSErrors: true });
+  const p = await ctx.newPage();
+  try { await login(p, ACCOUNTS.gm); await cleanupTestData(p); } catch {}
+  await ctx.close();
+});
 
 /**
  * Vehicle — Phase 6-1: PURE ACPA combat math (Maximum Metal p.52-60). No documents; just imports the
@@ -25,6 +32,14 @@ test("Phase 6-1: ACPA combat math (pure, MM p.52-60)", async ({ page }) => {
       run: A.acpaRunM({ sib: 5, ma: 8 }),
       jumpRun: A.acpaJumpM(39, { running: true }), jumpStat: A.acpaJumpM(39, { running: false }), jumpVert: A.acpaJumpM(39, { running: true, vertical: true }),
       lfBasic: A.linearFrameHitChance(14), lfAdv: A.linearFrameHitChance(30),
+      // Body areas + critical→update writes.
+      ba1: A.acpaBodyArea(1), ba2: A.acpaBodyArea(2), ba4: A.acpaBodyArea(4), ba6: A.acpaBodyArea(6), ba10: A.acpaBodyArea(10),
+      cuSeize: A.acpaCriticalUpdate({ seizeUp: 0 }, A.acpaCriticalEffect(1), 5),
+      cuStr: A.acpaCriticalUpdate({ strDamage: 0 }, A.acpaCriticalEffect(4), 4),
+      cuRef: A.acpaCriticalUpdate({ refDamage: 0 }, A.acpaCriticalEffect(6), 5),
+      cuPower: A.acpaCriticalUpdate({ powerHours: 24 }, A.acpaCriticalEffect(8), 3),
+      cuIface: A.acpaCriticalUpdate({ interfaceOut: 0 }, A.acpaCriticalEffect(9), 4),
+      cuShock: A.acpaCriticalUpdate({ sdp: { value: 50, max: 50 } }, A.acpaCriticalEffect(10), 3),
     };
   });
 
@@ -44,4 +59,46 @@ test("Phase 6-1: ACPA combat math (pure, MM p.52-60)", async ({ page }) => {
   expect(R.run).toBe(39);
   expect(R.jumpRun).toBeCloseTo(9.75, 2); expect(R.jumpStat).toBeCloseTo(6.5, 2); expect(R.jumpVert).toBeCloseTo(3.25, 2);
   expect(R.lfBasic).toBe(0.2); expect(R.lfAdv).toBe(0.3);
+  expect(R.ba1).toBe("Head"); expect(R.ba2).toBe("Right Arm"); expect(R.ba4).toBe("Right Leg"); expect(R.ba6).toBe("Left Leg"); expect(R.ba10).toBe("Torso");
+  expect(R.cuSeize.updates["system.seizeUp"]).toBe(5);
+  expect(R.cuSeize.updates["system.immobilized"]).toBe(true);
+  expect(R.cuStr.updates["system.strDamage"]).toBe(4);
+  expect(R.cuRef.updates["system.refDamage"]).toBe(3);        // round(1d6=5 / 2)
+  expect(R.cuPower.updates["system.powerHours"]).toBe(18);    // 24 − 3×2
+  expect(R.cuIface.updates["system.interfaceOut"]).toBe(4);
+  expect(R.cuShock.updates["system.sdp"].value).toBe(47);     // 50 − 3
+});
+
+test("Phase 6-2: ACPA penetrating damage applies + catastrophic destroys", async ({ page }) => {
+  await login(page, ACCOUNTS.gm);
+  await cleanupTestData(page).catch(() => {});
+
+  const R = await evalGameOrThrow(page, async () => {
+    const VD = await import("/systems/cyberpunk2020/module/vehicle/vehicle-damage.js");
+    const flags = { cyberpunk2020: { __pwtest: true } };
+    const out = {};
+    let acpa;
+    try {
+      acpa = await Actor.create({ name: "__PW__ACPA", type: "vehicle", flags,
+        system: { isACPA: true, str: 40, sp: { front: 0, side: 0, rear: 0, top: 0, bottom: 0 }, sdp: { value: 100, max: 100 } } });
+      out.powerDefault = acpa.system.powerHours;   // additive field default = 24
+      out.coolingDefault = acpa.system.coolingTimer; // 0
+
+      // Catastrophic: overwhelming Penetration vs AV 0 → suit destroyed (no throw on the ACPA branch).
+      await VD.applyVehicleDamageMM(acpa, { basePen: 999, facing: "front" });
+      out.destroyed = acpa._source.system.destroyed === true;
+      out.sdpZero = (acpa._source.system.sdp?.value ?? 1) === 0;
+      out.maxPreserved = (acpa._source.system.sdp?.max ?? 0) === 100;   // dot-path doesn't wipe max
+    } finally {
+      if (acpa) await acpa.delete().catch(() => {});
+    }
+    return out;
+  });
+
+  console.log("Phase 6-2 apply:", JSON.stringify(R));
+  expect(R.powerDefault).toBe(24);
+  expect(R.coolingDefault).toBe(0);
+  expect(R.destroyed).toBe(true);
+  expect(R.sdpZero).toBe(true);
+  expect(R.maxPreserved).toBe(true);
 });
