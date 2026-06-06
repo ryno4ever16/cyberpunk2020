@@ -224,7 +224,9 @@ export class CyberpunkVehicleActorData extends foundry.abstract.TypeDataModel {
       armorWeight:  numberField(0),    // armor-shell weight (kg) from the chosen shell SP
       armorCost:    numberField(0),    // armor-shell cost (eb) from the chosen shell SP
       mountedSystemsWeight: numberField(0),  // summed weight of embedded acpaSystem Items
+      mountedSystemsCost:   numberField(0),  // summed cost of embedded acpaSystem Items
       totalWeight:  numberField(0),    // total fully-loaded weight (chassis + armor + trooper + systems)
+      buildCost:    numberField(0),    // total build cost (chassis + armor + interface + reflex + systems)
       sib:          numberField(0),    // Suit Initiative Bonus = round(cap ÷ totalWeight) − 1 + interface SIB
 
       notes: htmlField("")
@@ -280,13 +282,20 @@ export class CyberpunkVehicleActorData extends foundry.abstract.TypeDataModel {
       const trooper = Number(this.trooperCapacity) || 0;
       const sysW = Number(this.systemsWeight) || 0;
       const cmdW = this.commandComputer ? 1 : 0;
-      // Sum embedded acpaSystem Items (prepared by now) for the mounted-systems weight.
-      let mountedSystemsWeight = 0;
+      // Sum embedded acpaSystem Items (prepared by now) for the mounted-systems weight + cost.
+      let mountedSystemsWeight = 0, mountedSystemsCost = 0;
       const items = this.parent?.items;
-      if (items) for (const it of items) if (it.type === "acpaSystem") mountedSystemsWeight += Number(it.system?.weight) || 0;
+      if (items) for (const it of items) if (it.type === "acpaSystem") {
+        mountedSystemsWeight += Number(it.system?.weight) || 0;
+        mountedSystemsCost   += Number(it.system?.cost)   || 0;
+      }
       this.mountedSystemsWeight = mountedSystemsWeight;
+      this.mountedSystemsCost = mountedSystemsCost;
       this.totalWeight = cs.weight + this.armorWeight + trooper + ri.weight + mountedSystemsWeight + sysW + cmdW;
       this.sib = acpaSib({ chassisCapacity: cs.lift, totalWeight: this.totalWeight, interfaceSib: ri.sib });
+      // Total build cost (chassis + armor shell + interface + reflex/control + Command Computer + systems).
+      this.buildCost = (Number(cs.cost) || 0) + this.armorCost + (Number(ri.cost) || 0) + (Number(rc.cost) || 0)
+        + (this.commandComputer ? 5000 : 0) + mountedSystemsCost;
     }
   }
 }

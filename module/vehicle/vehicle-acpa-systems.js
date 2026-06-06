@@ -161,3 +161,33 @@ export function acpaHitSystem(mounted = [], area, sopDamage = 0) {
   const overflow = destroyed ? Math.max(0, total - sop) : 0;
   return { index, hitKey: m.key, destroyed, overflow, updated };
 }
+
+/* ------------------------------- Build validation (MM p.61) ------------------------------- */
+
+const _AREA_LABEL = { head: "Head", rArm: "Right Arm", lArm: "Left Arm", rLeg: "Right Leg", lLeg: "Left Leg", torso: "Torso" };
+
+/**
+ * Validate a powered-armor build against the Maximum Metal construction limits (p.61). PURE — returns
+ * a list of human-readable issue strings (empty = a legal build):
+ *   - the armor shell SP cannot exceed 2× the chassis STR,
+ *   - the fully-loaded suit cannot weigh more than the chassis Lift/Capacity,
+ *   - no body area may exceed its internal or external space budget.
+ * @param {{str, armorSP, totalWeight, chassisCapacity, spacesOver}} opts
+ *   spacesOver: the per-area {internal, external} overage from acpaSpacesOver().
+ * @returns {string[]}
+ */
+export function acpaBuildIssues({ str = 0, armorSP = 0, totalWeight = 0, chassisCapacity = 0, spacesOver = {} } = {}) {
+  const issues = [];
+  const s = Number(str) || 0;
+  const sp = Number(armorSP) || 0;
+  if (s > 0 && sp > 2 * s) issues.push(`Armor SP ${sp} exceeds 2× chassis STR (max ${2 * s}).`);
+  const cap = Number(chassisCapacity) || 0;
+  const tw = Number(totalWeight) || 0;
+  if (cap > 0 && tw > cap) issues.push(`Overweight: ${tw} kg exceeds the chassis Lift/Capacity (${cap} kg).`);
+  for (const a of _AREA_KEYS) {
+    const o = spacesOver?.[a] ?? {};
+    if ((Number(o.internal) || 0) > 0) issues.push(`${_AREA_LABEL[a]}: ${o.internal} over the internal space budget.`);
+    if ((Number(o.external) || 0) > 0) issues.push(`${_AREA_LABEL[a]}: ${o.external} over the external space budget.`);
+  }
+  return issues;
+}

@@ -505,3 +505,52 @@ test("Phase 6 D-4d-3: a System Hit damages a specific mounted system (live)", as
   expect(R.sysCountBefore).toBe(6);
   expect(R.anyDamaged).toBe(true);   // the resolver routed SOP to specific mounted system Items
 });
+
+/**
+ * Phase 6 D-5 — point-buy build validation + total cost (Maximum Metal p.61). PURE acpaBuildIssues
+ * (SP ≤ 2×STR, weight ≤ chassis Lift/Capacity, per-area space budgets) + the derived buildCost on a
+ * real ACPA (chassis + armor shell + interface + reflex/control + Command Computer + systems).
+ */
+test("Phase 6 D-5: build validation + total cost (pure + derived)", async ({ page }) => {
+  await login(page, ACCOUNTS.gm);
+  await cleanupTestData(page).catch(() => {});
+
+  const R = await evalGameOrThrow(page, async () => {
+    const S = await import("/systems/cyberpunk2020/module/vehicle/vehicle-acpa-systems.js");
+    const out = { pure: {}, actor: {} };
+
+    // PURE acpaBuildIssues — count the flagged issues for each scenario.
+    out.pure.legal      = S.acpaBuildIssues({ str: 40, armorSP: 80, totalWeight: 500, chassisCapacity: 2000, spacesOver: {} }).length;             // 0 (SP = 2×40 OK)
+    out.pure.spOver     = S.acpaBuildIssues({ str: 40, armorSP: 90, totalWeight: 500, chassisCapacity: 2000 }).length;                              // 1 (SP > 80)
+    out.pure.overweight = S.acpaBuildIssues({ str: 40, armorSP: 40, totalWeight: 2500, chassisCapacity: 2000 }).length;                             // 1
+    out.pure.spacesOver = S.acpaBuildIssues({ str: 40, armorSP: 40, totalWeight: 500, chassisCapacity: 2000, spacesOver: { torso: { internal: 2, external: 0 }, head: { internal: 0, external: 1 } } }).length; // 2
+    out.pure.combined   = S.acpaBuildIssues({ str: 40, armorSP: 100, totalWeight: 2500, chassisCapacity: 2000, spacesOver: { torso: { internal: 1, external: 0 } } }).length; // 3
+
+    // DERIVED buildCost: STR40 chassis 66000 + armor SP40 9600 + Full-HUD 2400 + Advanced 0 = 78000.
+    const flags = { cyberpunk2020: { __pwtest: true } };
+    let acpa;
+    try {
+      acpa = await Actor.create({ name: "__PW__ACPA_D5", type: "vehicle", flags,
+        system: { isACPA: true, str: 40, sp: { front: 40, side: 0, rear: 0, top: 0, bottom: 0 } } });
+      out.actor.baseCost = acpa.system.buildCost;   // 78000
+      // + a 2000 eb system + Command Computer (5000) → 85000.
+      await acpa.createEmbeddedDocuments("Item", [{ name: "Medic", type: "acpaSystem", system: { category: "utility", cost: 2000, weight: 3, area: "torso" } }]);
+      await acpa.update({ "system.commandComputer": true });
+      out.actor.withExtras  = acpa.system.buildCost;          // 78000 + 2000 + 5000 = 85000
+      out.actor.mountedCost = acpa.system.mountedSystemsCost; // 2000
+    } finally {
+      if (acpa) await acpa.delete().catch(() => {});
+    }
+    return out;
+  });
+
+  console.log("Phase 6 D-5:", JSON.stringify(R));
+  expect(R.pure.legal).toBe(0);
+  expect(R.pure.spOver).toBe(1);
+  expect(R.pure.overweight).toBe(1);
+  expect(R.pure.spacesOver).toBe(2);
+  expect(R.pure.combined).toBe(3);
+  expect(R.actor.baseCost).toBe(78000);
+  expect(R.actor.withExtras).toBe(85000);
+  expect(R.actor.mountedCost).toBe(2000);
+});

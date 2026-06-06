@@ -232,10 +232,31 @@
         </table>
         {{/if}}
 
+        {{!-- Build validation (point-buy budget: SP ≤ 2×STR, weight ≤ capacity, per-area spaces). --}}
+        {{#if mmOn}}
+        <h2 class="cyber-section-header">Build</h2>
+        <div class="field-list">
+            <div class="field" title="Total build cost — chassis + armor shell + Reality Interface + Reflex/Control + Command Computer + systems.">
+                <label>Total Cost (eb)</label><input type="number" class="not-editable" value="{{system.buildCost}}" readonly/></div>
+            <div class="field" title="Total loaded weight vs the chassis Lift/Capacity. An overweight suit is flagged below.">
+                <label>Weight / Cap</label><input type="text" class="not-editable" value="{{system.totalWeight}} / {{system.lift}} kg" readonly/></div>
+        </div>
+        {{#if acpaBuildValid}}
+        <p style="color:#3ad13a; font-size:0.85em; margin:2px 0;">✓ Legal build — within SP, weight, and space limits.</p>
+        {{else}}
+        <div style="border:1px solid #ff6060; border-radius:3px; padding:4px 6px; margin:2px 0;">
+            <p style="color:#ff6060; font-weight:bold; font-size:0.85em; margin:0 0 2px;">⚠ Build issues</p>
+            <ul style="margin:0; padding-left:18px; font-size:0.82em;">
+                {{#each acpaBuildIssues as |issue|}}<li>{{issue}}</li>{{/each}}
+            </ul>
+        </div>
+        {{/if}}
+        {{/if}}
+
         {{!-- Notes --}}
         <h2 class="cyber-section-header">Notes</h2>
         <textarea name="system.notes" rows="4" style="width:100%;">{{system.notes}}</textarea>
 
-        <p style="opacity:0.6; font-size:0.8em; margin-top:6px;">Powered armor (ACPA). Combat (Penetration damage, the System Hit / Critical Hit chart, melee) and the build system (Linear Frame &amp; Toughness, Reality Interface, Reflex/Control, derived SIB, per-area frame SOP, the systems catalog) are in place. Per-system hit-tracking and the point-buy budget validator are being finished.</p>
+        <p style="opacity:0.6; font-size:0.8em; margin-top:6px;">Powered armor (ACPA). The full build system — Linear Frame &amp; Toughness, Reality Interface, Reflex/Control, derived SIB, per-area frame SOP, the systems catalog (per-system SOP), and the point-buy budget validator — and combat (Penetration damage, the System Hit / Critical Hit chart, melee) are in place.</p>
     </div>
 </form>

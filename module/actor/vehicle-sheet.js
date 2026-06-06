@@ -3,7 +3,7 @@ import { openVehicleDamageDialog } from "../vehicle/vehicle-damage.js";
 import { openVehicleFireDialog } from "../vehicle/vehicle-weapons.js";
 import { openAcpaMeleeDialog, repairAcpa } from "../vehicle/vehicle-acpa-combat.js";
 import { REALITY_INTERFACES, REFLEX_CONTROLS } from "../vehicle/vehicle-acpa.js";
-import { acpaSystemsSummary, acpaAreaSpaces } from "../vehicle/vehicle-acpa-systems.js";
+import { acpaSystemsSummary, acpaAreaSpaces, acpaSpacesOver, acpaBuildIssues } from "../vehicle/vehicle-acpa-systems.js";
 import { effectiveVehicleRuleSystem, mmEnabled } from "../settings.js";
 
 /**
@@ -89,7 +89,19 @@ export class CyberpunkVehicleSheet extends ActorSheet {
           usedExt: summary.byArea[k].external, availExt: avail[k].external, overExt: summary.byArea[k].external > avail[k].external,
         }));
       data.acpaSystemsCost = summary.totalCost;
-    } catch (e) { data.acpaSpaceRows = []; data.acpaSystemsCost = 0; }
+
+      // Build validation (D-5): SP ≤ 2×STR, weight ≤ chassis capacity, per-area space budgets.
+      const str = Number(this.actor.system?.str) || 0;
+      const issues = acpaBuildIssues({
+        str,
+        armorSP: Number(this.actor.system?.sp?.front) || 0,
+        totalWeight: Number(this.actor.system?.totalWeight) || 0,
+        chassisCapacity: Number(this.actor.system?.lift) || 0,   // derived Lift/Capacity
+        spacesOver: acpaSpacesOver(mounted, str),
+      });
+      data.acpaBuildIssues = issues;
+      data.acpaBuildValid = issues.length === 0;
+    } catch (e) { data.acpaSpaceRows = []; data.acpaSystemsCost = 0; data.acpaBuildIssues = []; data.acpaBuildValid = true; }
     return data;
   }
 
