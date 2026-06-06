@@ -166,7 +166,7 @@
             {{#each weapons as |weapon|}}
             <div class="field-list cp-weapon-row">
                 <img class="cp-weapon-img" src="{{weapon.img}}" width="24" height="24"/>
-                <span class="cp-weapon-name" title="{{weapon.system.weaponClass}} · {{weapon.system.mountType}} mount"><b>{{weapon.name}}</b></span>
+                <span class="cp-weapon-name" title="{{weapon.system.weaponClass}} · {{weapon.system.mountType}} mount"><b>{{weapon.name}}</b>{{#if weapon.system.activeShell}} <span style="opacity:0.7;font-size:0.85em;">▸ {{weapon.system.activeShell}}</span>{{/if}}</span>
                 <span class="cp-weapon-stat" title="Vehicle Penetration">Pen {{weapon.system.penetration}}{{#if weapon.system.ap}} AP{{/if}}{{#if weapon.system.heat}} HEAT{{/if}}</span>
                 <span class="cp-weapon-stat" title="Rate of fire">ROF {{weapon.system.rof}}</span>
                 <span class="cp-weapon-stat" title="Firing arc">{{weapon.system.arc}}</span>

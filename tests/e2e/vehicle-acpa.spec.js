@@ -822,3 +822,67 @@ test("Phase 6 deferral C: heatstroke fires the linked pilot's Stun/Shock Save (l
   expect(R.pilotSavePosted).toBe(true);   // the linked pilot got a real Stun/Shock Save prompt
   expect(R.heatLevel2).toBe(2);
 });
+
+/**
+ * Investigative pass — the RAW System Integrity Check (MM p.56) is now WIRED into the resolver: a
+ * system that absorbs a hit (SOP not fully consumed) can still be knocked INOPERABLE (25% if it has
+ * lost < ½ its SOP, 75% if ≥ ½). With SOP 1000, no single or accumulated hit here can ever EXCEED the
+ * SOP, so a destroyed system whose sopDamage is still BELOW its SOP can ONLY be an integrity knockout —
+ * the deterministic proof that the check fired (not a SOP-exceeded destruction).
+ */
+test("System Integrity Check knocks out a partially-damaged system (live)", async ({ page }) => {
+  await login(page, ACCOUNTS.gm);
+  await cleanupTestData(page).catch(() => {});
+  const R = await evalGameOrThrow(page, async () => {
+    const VD = await import("/systems/cyberpunk2020/module/vehicle/vehicle-damage.js");
+    const flags = { cyberpunk2020: { __pwtest: true } };
+    const out = {}; let acpa;
+    try {
+      acpa = await Actor.create({ name: "__PW__ACPA_INTEG", type: "vehicle", flags,
+        system: { isACPA: true, str: 40, sp: { front: 0, side: 0, rear: 0, top: 0, bottom: 0 }, sdp: { value: 100, max: 100 } } });
+      const areas = ["head", "rArm", "lArm", "rLeg", "lLeg", "torso"];
+      await acpa.createEmbeddedDocuments("Item", areas.map(a => ({
+        name: `Sys-${a}`, type: "acpaSystem", system: { category: "sensor", mount: "internal", area: a, sop: 1000, weight: 1 }
+      })));
+      for (let i = 0; i < 200; i++) await VD.applyVehicleDamageMM(acpa, { rawDamage: 40, basePen: 50 });
+      const sysItems = acpa.itemTypes.acpaSystem;
+      out.damagedCount = sysItems.filter(it => (Number(it.system?.sopDamage) || 0) > 0 || it.system?.destroyed).length;
+      out.noSopExceeded = sysItems.every(it => (Number(it.system?.sopDamage) || 0) < (Number(it.system?.sop) || 0));
+      out.integrityKill = sysItems.some(it => it.system?.destroyed && (Number(it.system?.sopDamage) || 0) < (Number(it.system?.sop) || 0));
+    } finally { if (acpa) await acpa.delete().catch(() => {}); }
+    return out;
+  });
+  console.log("System Integrity:", JSON.stringify(R));
+  expect(R.damagedCount).toBeGreaterThan(0);
+  expect(R.noSopExceeded).toBe(true);    // SOP 1000 was never fully consumed...
+  expect(R.integrityKill).toBe(true);    // ...yet a system was knocked inoperable → the Integrity Check fired
+});
+
+/**
+ * Investigative pass — ACPA total weight counts BOTH the weight summed from mounted system Items AND
+ * the manual "Extra Sys Wt" field, additively (the field is now an explicit misc extra, not a stale
+ * duplicate of the mounted total). Verifies neither is dropped and they don't collide.
+ */
+test("ACPA total weight = mounted-systems weight PLUS the manual extra field (additive)", async ({ page }) => {
+  await login(page, ACCOUNTS.gm);
+  await cleanupTestData(page).catch(() => {});
+  const R = await evalGameOrThrow(page, async () => {
+    const flags = { cyberpunk2020: { __pwtest: true } };
+    const out = {}; let acpa;
+    try {
+      acpa = await Actor.create({ name: "__PW__ACPA_WT", type: "vehicle", flags,
+        system: { isACPA: true, str: 40, sp: { front: 0, side: 0, rear: 0, top: 0, bottom: 0 }, trooperCapacity: 0, systemsWeight: 0 } });
+      out.base = acpa.system.totalWeight;
+      await acpa.createEmbeddedDocuments("Item", [{ name: "HeavySys", type: "acpaSystem", system: { category: "utility", weight: 50, area: "torso" } }]);
+      out.mounted = acpa.system.mountedSystemsWeight;   // 50
+      out.withItem = acpa.system.totalWeight;           // base + 50
+      await acpa.update({ "system.systemsWeight": 20 });
+      out.withBoth = acpa.system.totalWeight;           // base + 50 + 20 (manual extra adds on top)
+    } finally { if (acpa) await acpa.delete().catch(() => {}); }
+    return out;
+  });
+  console.log("ACPA weight additive:", JSON.stringify(R));
+  expect(R.mounted).toBe(50);
+  expect(R.withItem).toBe(R.base + 50);
+  expect(R.withBoth).toBe(R.base + 50 + 20);
+});

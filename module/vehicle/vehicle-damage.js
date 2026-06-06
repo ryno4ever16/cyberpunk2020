@@ -22,7 +22,7 @@
 
 import { openSingletonDialog } from "../utils.js";
 import { effectiveVehicleRuleSystem } from "../settings.js";
-import { acpaBodyArea, externalSystemHit, acpaSystemHit, acpaRollAgain, acpaCriticalEffect, acpaCriticalUpdate, acpaAreaSOP } from "./vehicle-acpa.js";
+import { acpaBodyArea, externalSystemHit, acpaSystemHit, acpaRollAgain, acpaCriticalEffect, acpaCriticalUpdate, acpaAreaSOP, systemIntegrity } from "./vehicle-acpa.js";
 import { acpaHitSystem, acpaSystemSop } from "./vehicle-acpa-systems.js";
 
 const SCOPE = "cyberpunk2020";
@@ -291,6 +291,7 @@ const _ACPA_AREA_KEY = { "Head": "head", "Right Arm": "rArm", "Left Arm": "lArm"
 async function _resolveAcpaSopDamage(actor, sys, { pen, rawDamage, str }, rolls) {
   const roll = async (f) => { const r = await new Roll(f).evaluate(); rolls.push(r); return r; };
   const d10 = async () => (await roll("1d10")).total;
+  const d100 = async () => (await roll("1d100")).total;
   const updates = {};
   const itemUpdates = [];
   let pilotDamage = 0;   // frame-breach overflow that reaches the wearer (applied to a linked pilot)
@@ -322,8 +323,21 @@ async function _resolveAcpaSopDamage(actor, sys, { pen, rawDamage, str }, rolls)
     if (hit.index < 0) return null;
     const struck = hit.updated[hit.index];
     const it = sysItems.find(x => x.id === struck.id);
-    itemUpdates.push({ _id: struck.id, "system.sopDamage": struck.sopDamage, "system.destroyed": !!struck.destroyed });
-    return { name: it?.name ?? "system", struck, destroyed: hit.destroyed, overflow: hit.overflow, total: acpaSystemSop({ sop: it?.system?.sop, sp: it?.system?.sp }) };
+    // Keep a reference to the pushed Item update so the Integrity Check can flip it to destroyed.
+    const iu = { _id: struck.id, "system.sopDamage": struck.sopDamage, "system.destroyed": !!struck.destroyed };
+    itemUpdates.push(iu);
+    return { name: it?.name ?? "system", struck, destroyed: hit.destroyed, overflow: hit.overflow, total: acpaSystemSop({ sop: it?.system?.sop, sp: it?.system?.sp }), iu };
+  };
+
+  // System Integrity Check (MM p.56): a system that ABSORBED a hit without its SOP being fully consumed
+  // can still be knocked out — 25% if it has lost < ½ its SOP, 75% if ≥ ½. On failure it's inoperable
+  // (marked destroyed) but the frame is still spared (it absorbed the SOP). Returns a note, or "".
+  const integrityCheck = async (r) => {
+    const chk = systemIntegrity({ sopLost: r.struck.sopDamage, sopTotal: r.total });
+    const pct = Math.round(chk.inopChance * 100);
+    if ((await d100()) > pct) return "";
+    r.iu["system.destroyed"] = true;
+    return ` <span style="color:#e07b00;">Integrity check failed (${pct}%) — system knocked <b>INOPERABLE</b>.</span>`;
   };
 
   // 50% (5-in-10): the hit struck an EXTERNAL (unarmored) system instead of the suit proper (MM p.55).
@@ -331,7 +345,8 @@ async function _resolveAcpaSopDamage(actor, sys, { pen, rawDamage, str }, rolls)
     const r = hitMountedSystem(i => i.type === "acpaSystem" && i.system?.mount === "external");
     if (!r) return { body, lines: lines + `<br>An <b>external system</b> on the ${areaName} took it (none mounted there — GM adjudicates).`, updates, itemUpdates };
     if (!r.destroyed) {
-      lines += `<br>An <b>external system</b> (<b>${r.name}</b>) on the ${areaName} absorbed <b>${sop}</b> SOP (now ${r.struck.sopDamage}/${r.total}). Suit proper spared.`;
+      const inopNote = await integrityCheck(r);
+      lines += `<br>An <b>external system</b> (<b>${r.name}</b>) on the ${areaName} absorbed <b>${sop}</b> SOP (now ${r.struck.sopDamage}/${r.total}). Suit proper spared.${inopNote}`;
       return { body, lines, updates, itemUpdates };
     }
     lines += `<br>An <b>external system</b> (<b>${r.name}</b>) on the ${areaName} was <span style="color:#e07b00;font-weight:bold;">DESTROYED</span>.`;
@@ -359,7 +374,8 @@ async function _resolveAcpaSopDamage(actor, sys, { pen, rawDamage, str }, rolls)
           frameDamage = r.overflow;
           if (r.overflow > 0) lines += ` ${r.overflow} SOP overflows to the frame.`;
         } else {
-          lines += `<br>System Hit: <b>${r.name}</b> (${areaName}) absorbed <b>${sop}</b> SOP (now ${r.struck.sopDamage}/${r.total}). Frame spared.`;
+          const inopNote = await integrityCheck(r);
+          lines += `<br>System Hit: <b>${r.name}</b> (${areaName}) absorbed <b>${sop}</b> SOP (now ${r.struck.sopDamage}/${r.total}). Frame spared.${inopNote}`;
           frameDamage = 0;
         }
       } else {
@@ -377,8 +393,10 @@ async function _resolveAcpaSopDamage(actor, sys, { pen, rawDamage, str }, rolls)
           const dn = `${r.name} (destroyed)`;
           if (!damaged.includes(dn)) { damaged.push(dn); updates["system.damagedSystems"] = damaged; }
         } else {
-          lines += `<br>System Hit: <b>${r.name}</b> (weapon, ${areaName}) absorbed <b>${sop}</b> SOP (now ${r.struck.sopDamage}/${r.total}). Frame spared.`;
+          const inopNote = await integrityCheck(r);
+          lines += `<br>System Hit: <b>${r.name}</b> (weapon, ${areaName}) absorbed <b>${sop}</b> SOP (now ${r.struck.sopDamage}/${r.total}). Frame spared.${inopNote}`;
           frameDamage = 0;
+          if (inopNote) { const dn = `${r.name} (destroyed)`; if (!damaged.includes(dn)) { damaged.push(dn); updates["system.damagedSystems"] = damaged; } }
         }
       } else {
         lines += `<br>System Hit: <b>an internal weapon</b> in the ${areaName} (none mounted there — hits the frame).`;

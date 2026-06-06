@@ -242,6 +242,19 @@ export async function openVehicleFireDialog(actor, mount = {}) {
   const guidanceSkill = Number(w.guidanceSkill) || 0;
   const homingMethod = w.homingMethod ?? "radar";
 
+  // Shell selection (MM p.17): a cannon/launcher with shellVariants fires a chosen round per shot —
+  // the base (solid / standard) round or a Hi-Ex / HEAT variant, each with its own Penetration, burst
+  // and range-immunity. The pick is PERSISTED in system.activeShell (survives + shows on the sheet).
+  const baseShell = { name: "", label: `${wName} — base (Pen ${basePen})`, pen: basePen, burst, ap, heat, hiEx };
+  const variantShells = (Array.isArray(w.shellVariants) ? w.shellVariants : []).map(v => ({
+    name: v.name || "shell",
+    label: `${v.name || "shell"} (Pen ${Number(v.pen) || 0}${v.burst ? `, ${v.burst}m burst` : ""}${v.heat ? ", HEAT" : (v.hiEx ? ", Hi-Ex" : "")})`,
+    pen: Number(v.pen) || 0, burst: Number(v.burst) || 0, ap: !!v.ap, heat: !!v.heat, hiEx: !!v.hiEx,
+  }));
+  const shells = [baseShell, ...variantShells];
+  let shellIdx = shells.findIndex(s => s.name === String(w.activeShell || ""));
+  if (shellIdx < 0) shellIdx = 0;
+
   // Target = a single targeted token (vehicle OR character — the dispatcher routes both, MM p.6 / p.8).
   const targets = [...(game.user?.targets ?? [])];
   const targetTok = targets.length === 1 ? targets[0] : null;
@@ -304,8 +317,9 @@ export async function openVehicleFireDialog(actor, mount = {}) {
     <label>Weapon skill <input type="number" id="cp-vf-skill" value="${skill0}" style="width:48px;"></label>
     <label>Target # (DV) <input type="number" id="cp-vf-tn" value="15" style="width:48px;"></label>
   </div>
+  ${variantShells.length ? `<label title="Choose the loaded round; the choice is saved on the weapon. Hi-Ex/HEAT shells set their own Penetration, burst and range-immunity.">Shell <select id="cp-vf-shell" style="margin-left:6px;">${shells.map((s, i) => `<option value="${i}" ${i === shellIdx ? "selected" : ""}>${s.label}</option>`).join("")}</select></label>` : ""}
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
-    <label>Base penetration <input type="number" id="cp-vf-pen" value="${basePen}" style="width:48px;"></label>
+    <label>Base penetration <input type="number" id="cp-vf-pen" value="${shells[shellIdx].pen}" style="width:48px;"></label>
     <label>ROF <input type="number" id="cp-vf-rof" value="${rof0}" style="width:48px;"></label>
     <label>Facing <select id="cp-vf-facing">${facingOpts}</select></label>
     <label>Range <select id="cp-vf-range">${rangeOpts}</select></label>
@@ -341,14 +355,20 @@ export async function openVehicleFireDialog(actor, mount = {}) {
               return;
             }
           }
+          // Resolve + persist the chosen shell (system.activeShell). The shell sets the structural
+          // properties (burst, HEAT/Hi-Ex range-immunity, AP); the Pen field follows it (and any manual tweak).
+          const shellSel = shells[num("#cp-vf-shell")] ?? shells[0];
+          if (item && (item.system?.activeShell ?? "") !== shellSel.name) {
+            try { await item.update({ "system.activeShell": shellSel.name }); } catch (e) { /* non-owner: shell stays transient for this shot */ }
+          }
           await _executeVehicleFire(actor, targetActor, {
             ref: num("#cp-vf-ref"), skill: num("#cp-vf-skill"), targetNumber: num("#cp-vf-tn"),
             penetration: num("#cp-vf-pen"), rof: num("#cp-vf-rof"),
             facing: root.querySelector("#cp-vf-facing")?.value || "front",
             range: root.querySelector("#cp-vf-range")?.value || "normal",
-            ap, hefPenetrator, heat,
-            damageFormula: item?.system?.damage ?? "",   // real weapon damage (ACPA SOP uses it)
-            burst, coneAngle, weaponClass, weaponRange,
+            ap: shellSel.ap, hefPenetrator: (shellSel.heat || shellSel.hiEx), heat: shellSel.heat,
+            damageFormula: shellSel.name ? "" : (item?.system?.damage ?? ""),   // base round carries the weapon's dice
+            burst: shellSel.burst, coneAngle, weaponClass, weaponRange,
             guidance, missileSkill: guidanceSkill, homingMethod,
             firerTokenId: firerTok?.id, targetTokenId: targetTok?.id,
             mods: wa + vehicleToHitModifier({
@@ -359,7 +379,7 @@ export async function openVehicleFireDialog(actor, mount = {}) {
               firerMoving: chk("#cp-vf-moving"), darkObscured: chk("#cp-vf-dark"),
               targetingComputer: num("#cp-vf-other"), dfb: num("#cp-vf-dfb"),
             }),
-            mountName: wName,
+            mountName: shellSel.name ? `${wName} (${shellSel.name})` : wName,
           });
         },
       },
@@ -376,6 +396,13 @@ export async function openVehicleFireDialog(actor, mount = {}) {
         if (!g) return;
         if (refIn) refIn.value = Number(g.system?.stats?.ref?.total) || 0;
         if (skillIn) skillIn.value = g.getSkillVal?.(GUNNER_SKILL) ?? 0;
+      });
+      // Picking a shell updates the Penetration field to that round's Pen (still hand-editable after).
+      const shellSelEl = root.querySelector("#cp-vf-shell");
+      const penInEl = root.querySelector("#cp-vf-pen");
+      shellSelEl?.addEventListener("change", () => {
+        const s = shells[Number(shellSelEl.value) || 0];
+        if (s && penInEl) penInEl.value = s.pen;
       });
       // Live arc recheck: spin/move the firing vehicle (or the target) and the warning updates in
       // place — no need to close and reopen. Under strict arc, also enable/disable the Fire button.
