@@ -323,6 +323,13 @@
       "system": "cyberpunk2020",
       "path": "./packs/vehicle-weapons.db",
       "type": "Item"
+    },
+    {
+      "name": "acpa-systems",
+      "label": "ACPA Systems (MM)",
+      "system": "cyberpunk2020",
+      "path": "./packs/acpa-systems.db",
+      "type": "Item"
     }
   ],
   "packFolders": [

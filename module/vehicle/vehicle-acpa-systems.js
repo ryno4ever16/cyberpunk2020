@@ -96,14 +96,19 @@ export function acpaSystemsSummary(mounted = []) {
   const byArea = Object.fromEntries(_AREA_KEYS.map(a => [a, { internal: 0, external: 0 }]));
   let totalWeight = 0, totalCost = 0;
   for (const m of mounted ?? []) {
-    const def = acpaSystemDef(m?.key);
-    if (!def) continue;
-    totalWeight += Number(def.weight) || 0;
-    totalCost   += Number(def.cost)   || 0;
+    const def = acpaSystemDef(m?.key) ?? {};
+    // Prefer the mounted entry's own values (a placed Item may have been edited); fall back to catalog.
+    const weight = m?.weight ?? def.weight ?? 0;
+    const cost   = m?.cost   ?? def.cost   ?? 0;
+    const spaces = m?.spaces ?? def.spaces ?? 0;
+    const mount  = m?.mount  ?? def.mount  ?? "internal";
+    if (def.key == null && m?.key == null && weight === 0 && spaces === 0 && cost === 0) continue;
+    totalWeight += Number(weight) || 0;
+    totalCost   += Number(cost)   || 0;
     const area = _AREA_KEYS.includes(m?.area) ? m.area : "torso";
     // External mount uses external spaces; everything else (internal/either/retract) uses internal.
-    const kind = (m?.mount ?? def.mount) === "external" ? "external" : "internal";
-    byArea[area][kind] += Number(def.spaces) || 0;
+    const kind = mount === "external" ? "external" : "internal";
+    byArea[area][kind] += Number(spaces) || 0;
   }
   return { totalWeight, totalCost, byArea };
 }

@@ -534,6 +534,35 @@ export class CyberpunkVehicleWeaponData extends CyberpunkBaseItemData {
 
 export class CyberpunkMiscData extends CyberpunkBaseItemData {}
 
+/**
+ * ACPA non-weapon system (Maximum Metal p.61-79). A utility / sensor / movement / defensive / safety
+ * device mounted in a powered-armor body area. Carries its own SOP (so a hit can knock out this one
+ * system), its build budget (weight/spaces/cost/SP), and where it sits (area + internal/external mount).
+ * Offensive systems are vehicleWeapon Items, not this type. `weight`/`cost` come from commonSchema.
+ */
+export class CyberpunkAcpaSystemData extends CyberpunkBaseItemData {
+  static defineSchema() {
+    return {
+      ...commonSchema(),
+      category:   stringField("utility"),    // utility|sensor|movement|defensive|safety
+      area:       stringField("torso"),      // head|rArm|lArm|rLeg|lLeg|torso — body-area placement
+      mount:      stringField("internal"),   // internal(enclosed)|external(unprotected)|either|retract
+      spaces:     numberField(0),            // spaces consumed in its area
+      sp:         numberField(0),            // intrinsic SP (external / retractable items)
+      sop:        numberField(0),            // structural points (0 → derive 3×SP at runtime)
+      sopDamage:  numberField(0),            // accumulated SOP damage (per-system tracking)
+      destroyed:  booleanField(false),
+      catalogKey: stringField("")            // links back to ACPA_SYSTEMS (blank = custom)
+    };
+  }
+
+  static migrateData(source) {
+    source ??= {};
+    normalizeBooleanIfPresent(source, "destroyed", false);
+    return super.migrateData(source);
+  }
+}
+
 function normalizeRangeDamages(value) {
   if (Array.isArray(value)) {
     return mergeDefaults({ pointBlank: value[0] ?? "" }, DEFAULT_RANGE_DAMAGES);

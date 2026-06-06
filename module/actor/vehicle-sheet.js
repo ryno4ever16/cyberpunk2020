@@ -3,6 +3,7 @@ import { openVehicleDamageDialog } from "../vehicle/vehicle-damage.js";
 import { openVehicleFireDialog } from "../vehicle/vehicle-weapons.js";
 import { openAcpaMeleeDialog, repairAcpa } from "../vehicle/vehicle-acpa-combat.js";
 import { REALITY_INTERFACES, REFLEX_CONTROLS } from "../vehicle/vehicle-acpa.js";
+import { acpaSystemsSummary, acpaAreaSpaces } from "../vehicle/vehicle-acpa-systems.js";
 import { effectiveVehicleRuleSystem, mmEnabled } from "../settings.js";
 
 /**
@@ -70,6 +71,25 @@ export class CyberpunkVehicleSheet extends ActorSheet {
       .map(r => ({ key: r.key, label: `${r.label} (SIB ${r.sib >= 0 ? "+" : ""}${r.sib} / DFB ${r.dfb >= 0 ? "+" : ""}${r.dfb})` }));
     data.reflexControlChoices = Object.values(REFLEX_CONTROLS)
       .map(r => ({ key: r.key, label: `${r.label} (REF ${r.refMod >= 0 ? "+" : ""}${r.refMod}, max ${r.maxRef})` }));
+
+    // ACPA non-weapon systems = embedded acpaSystem Items (D-4d). List + per-area spaces budget.
+    const sysItems = (this.actor.itemTypes?.acpaSystem ?? this.actor.items.filter(i => i.type === "acpaSystem"));
+    data.acpaSystems = sysItems.map(i => ({ id: i.id, name: i.name, img: i.img, system: i.system }));
+    try {
+      const mounted = sysItems.map(i => ({
+        key: i.system?.catalogKey, area: i.system?.area, mount: i.system?.mount,
+        spaces: i.system?.spaces, weight: i.system?.weight, cost: i.system?.cost
+      }));
+      const summary = acpaSystemsSummary(mounted);
+      const avail = acpaAreaSpaces(Number(this.actor.system?.str) || 0);
+      data.acpaSpaceRows = [["head", "Head"], ["torso", "Torso"], ["rArm", "R.Arm"], ["lArm", "L.Arm"], ["rLeg", "R.Leg"], ["lLeg", "L.Leg"]]
+        .map(([k, label]) => ({
+          label,
+          usedInt: summary.byArea[k].internal, availInt: avail[k].internal, overInt: summary.byArea[k].internal > avail[k].internal,
+          usedExt: summary.byArea[k].external, availExt: avail[k].external, overExt: summary.byArea[k].external > avail[k].external,
+        }));
+      data.acpaSystemsCost = summary.totalCost;
+    } catch (e) { data.acpaSpaceRows = []; data.acpaSystemsCost = 0; }
     return data;
   }
 
@@ -122,6 +142,22 @@ export class CyberpunkVehicleSheet extends ActorSheet {
         name: w.name, penetration: Number(w.system?.penetration) || 0,
         rof: Number(w.system?.rof) || 1, arc: w.system?.arc || "turret", itemId: w.id
       });
+    }));
+
+    // ── ACPA non-weapon systems = embedded acpaSystem Items (D-4d) ──────────
+    const getSystem = (el) => this.actor.items.get(el?.dataset?.systemId);
+    root?.querySelector?.(".cp-acpa-system-add")?.addEventListener("click", async (ev) => {
+      ev.preventDefault();
+      await this.actor.createEmbeddedDocuments("Item", [{ name: "New System", type: "acpaSystem" }]);
+    });
+    root?.querySelectorAll?.(".cp-acpa-system-edit").forEach(btn => btn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      getSystem(ev.currentTarget)?.sheet?.render(true);
+    }));
+    root?.querySelectorAll?.(".cp-acpa-system-delete").forEach(btn => btn.addEventListener("click", async (ev) => {
+      ev.preventDefault();
+      const s = getSystem(ev.currentTarget);
+      if (s) await s.delete();
     }));
   }
 }

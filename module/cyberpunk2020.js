@@ -5,6 +5,7 @@ import { CyberpunkItem } from "./item/item.js";
 import { CyberpunkItemSheet } from "./item/item-sheet.js";
 import { CyberpunkCharacterData, CyberpunkNpcData, CyberpunkVehicleActorData } from "./data/actor-data.js";
 import {
+    CyberpunkAcpaSystemData,
     CyberpunkAmmoData,
     CyberpunkArmorData,
     CyberpunkCyberwareData,
@@ -28,6 +29,7 @@ import { openControlRollDialog } from "./vehicle/vehicle-control.js";
 import { openVehicleDamageDialog } from "./vehicle/vehicle-damage.js";
 import { weaponToPenetration, vehicleToHitModifier, openVehicleFireDialog, registerVehicleFireHandlers } from "./vehicle/vehicle-weapons.js";
 import { seedVehicleWeaponCompendium, ensureVehicleWeaponSeed } from "./vehicle/vehicle-weapon-catalog.js";
+import { seedAcpaSystemCompendium, ensureAcpaSystemSeed } from "./vehicle/vehicle-acpa-catalog.js";
 import { registerVehicleTargetingHandlers } from "./vehicle/vehicle-targeting.js";
 import { registerMissileFlightHooks } from "./vehicle/vehicle-missile-flight.js";
 import { openAcpaMeleeDialog, registerAcpaCombatHooks, repairAcpa } from "./vehicle/vehicle-acpa-combat.js";
@@ -43,7 +45,7 @@ Hooks.once('init', async function () {
         // A manual migrateworld.
         migrateWorld: migrations.migrateWorld,
         // Vehicle API: deploy a scalable handle token, board/disembark crew, and roll control/maneuver.
-        vehicles: { deploy: deployVehicleToScene, board: boardVehicle, disembark, controlRoll: openControlRollDialog, applyDamage: openVehicleDamageDialog, weaponToPen: weaponToPenetration, toHitMod: vehicleToHitModifier, fire: openVehicleFireDialog, seedWeapons: seedVehicleWeaponCompendium, acpaMelee: openAcpaMeleeDialog, acpaRepair: repairAcpa }
+        vehicles: { deploy: deployVehicleToScene, board: boardVehicle, disembark, controlRoll: openControlRollDialog, applyDamage: openVehicleDamageDialog, weaponToPen: weaponToPenetration, toHitMod: vehicleToHitModifier, fire: openVehicleFireDialog, seedWeapons: seedVehicleWeaponCompendium, seedAcpaSystems: seedAcpaSystemCompendium, acpaMelee: openAcpaMeleeDialog, acpaRepair: repairAcpa }
     };
 
     // Define custom Document classes
@@ -64,6 +66,7 @@ Hooks.once('init', async function () {
     CONFIG.Item.dataModels.cyberware = CyberpunkCyberwareData;
     CONFIG.Item.dataModels.vehicle = CyberpunkVehicleData;
     CONFIG.Item.dataModels.vehicleWeapon = CyberpunkVehicleWeaponData;
+    CONFIG.Item.dataModels.acpaSystem = CyberpunkAcpaSystemData;
     CONFIG.Item.dataModels.misc = CyberpunkMiscData;
 
     // Register sheets, unregister original core sheets
@@ -195,6 +198,9 @@ Hooks.once("ready", async function () {
 
   // Seed the Vehicle Weapons (MM) compendium from the verified catalog if it's empty (active GM only).
   ensureVehicleWeaponSeed();
+
+  // Seed the ACPA Systems (MM) compendium from the verified catalog if it's empty (active GM only).
+  ensureAcpaSystemSeed();
 
   if (!game.user.isGM) return;
 

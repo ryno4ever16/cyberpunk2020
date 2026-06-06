@@ -45,6 +45,9 @@ export const preloadHandlebarsTemplates = async function() {
         // Vehicle weapon (Maximum Metal)
         "systems/cyberpunk2020/templates/item/parts/vehicleWeapon/summary.hbs",
         "systems/cyberpunk2020/templates/item/parts/vehicleWeapon/settings.hbs",
+        // ACPA system (Maximum Metal non-weapon systems)
+        "systems/cyberpunk2020/templates/item/parts/acpaSystem/summary.hbs",
+        "systems/cyberpunk2020/templates/item/parts/acpaSystem/settings.hbs",
         // Skill
         "systems/cyberpunk2020/templates/item/parts/skill/summary.hbs",
         "systems/cyberpunk2020/templates/item/parts/skill/settings.hbs",

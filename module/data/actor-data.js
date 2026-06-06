@@ -223,6 +223,7 @@ export class CyberpunkVehicleActorData extends foundry.abstract.TypeDataModel {
       // ACPA-derived weight + initiative (from the Armor Inventory + SIB derivation, MM p.61-62).
       armorWeight:  numberField(0),    // armor-shell weight (kg) from the chosen shell SP
       armorCost:    numberField(0),    // armor-shell cost (eb) from the chosen shell SP
+      mountedSystemsWeight: numberField(0),  // summed weight of embedded acpaSystem Items
       totalWeight:  numberField(0),    // total fully-loaded weight (chassis + armor + trooper + systems)
       sib:          numberField(0),    // Suit Initiative Bonus = round(cap ÷ totalWeight) − 1 + interface SIB
 
@@ -279,7 +280,12 @@ export class CyberpunkVehicleActorData extends foundry.abstract.TypeDataModel {
       const trooper = Number(this.trooperCapacity) || 0;
       const sysW = Number(this.systemsWeight) || 0;
       const cmdW = this.commandComputer ? 1 : 0;
-      this.totalWeight = cs.weight + this.armorWeight + trooper + ri.weight + sysW + cmdW;
+      // Sum embedded acpaSystem Items (prepared by now) for the mounted-systems weight.
+      let mountedSystemsWeight = 0;
+      const items = this.parent?.items;
+      if (items) for (const it of items) if (it.type === "acpaSystem") mountedSystemsWeight += Number(it.system?.weight) || 0;
+      this.mountedSystemsWeight = mountedSystemsWeight;
+      this.totalWeight = cs.weight + this.armorWeight + trooper + ri.weight + mountedSystemsWeight + sysW + cmdW;
       this.sib = acpaSib({ chassisCapacity: cs.lift, totalWeight: this.totalWeight, interfaceSib: ri.sib });
     }
   }
