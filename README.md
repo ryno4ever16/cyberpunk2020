@@ -42,6 +42,7 @@ All rights to Cyberpunk 2020 belong to R. Talsorian Games. Under their [homebrew
 
 * **Maximum Metal — guided-missile token art is a placeholder.** In-flight missiles render with a temporary `img/missile.webp` sprite (it points diagonally on a solid background and is rotated by a tunable offset). It works, but should be replaced with a north-pointing, transparent-background sprite before a public release — then set `MISSILE_ART_OFFSET` to `0` in `module/vehicle/vehicle-missile-flight.js`.
 * **Maximum Metal — a few special weapons resolve approximately.** The E‑Harpoon (Pen 20 that ignores armour; damage is temporary) and the Painting Laser (which guides "paint" missiles) are catalogued so GMs can field them, but their unique mechanics are GM‑adjudicated rather than fully automated.
+* **Maximum Metal — direct‑fire cannons can't pick their shell in the fire dialog yet.** Cannons (75/90/105/120/140mm) carry Hi‑Ex and HEAT shell variants, but only the indirect‑fire and bombing dialogs offer a shell selector; the direct‑fire dialog always uses the base round. To fire HEAT directly, edit the Base Penetration in the dialog (a shell picker for direct fire is a planned follow‑up).
 
 ## How to build
 

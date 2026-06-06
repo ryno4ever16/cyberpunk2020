@@ -40,12 +40,18 @@ export async function seedAcpaSystemCompendium({ force = false } = {}) {
     // quietly (retried next launch) rather than letting createDocuments raise a locked-pack warning.
     if (pack.locked) return { ok: false, reason: "locked" };
     const index = await pack.getIndex();
-    const existing = new Set(index.map(e => e.name));
-    const toCreate = Object.values(ACPA_SYSTEMS)
-      .filter(def => force || !existing.has(def.label))
-      .map(def => ({ name: def.label, type: "acpaSystem", img: ICON, system: defToSystem(def) }));
+    // `force` UPDATES existing entries in place; otherwise back-fill missing names only. (Filtering all
+    // names through createDocuments on force DUPLICATED the catalog rather than refreshing it.)
+    const idByName = new Map(index.map(e => [e.name, e._id]));
+    const toCreate = [], toUpdate = [];
+    for (const def of Object.values(ACPA_SYSTEMS)) {
+      const id = idByName.get(def.label);
+      if (id == null) toCreate.push({ name: def.label, type: "acpaSystem", img: ICON, system: defToSystem(def) });
+      else if (force) toUpdate.push({ _id: id, img: ICON, system: defToSystem(def) });
+    }
     if (toCreate.length) await Item.createDocuments(toCreate, { pack: pack.collection });
-    return { ok: true, created: toCreate.length };
+    if (toUpdate.length) await Item.updateDocuments(toUpdate, { pack: pack.collection });
+    return { ok: true, created: toCreate.length, updated: toUpdate.length };
   } catch (err) {
     console.warn("Cyberpunk2020 | ACPA-system compendium seed failed", err);
     return { ok: false, reason: "error" };

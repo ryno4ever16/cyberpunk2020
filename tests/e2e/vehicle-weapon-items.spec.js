@@ -48,6 +48,10 @@ test("Phase 5b: vehicleWeapon data model + verified seed catalog", async ({ page
     out.howitzer150AP = !!byName["150mm Howitzer"]?.system.shellVariants?.some(v => v.ap && v.pen === 21);
     out.aamramActive = byName["AAMRAM"]?.system.guidance;                        // "active" (self-guiding)
     out.samSemiActive = byName["SAM (Scorpion)"]?.system.guidance;               // "semiActive" (operator-fired)
+    // Guided-missile Penetration = the book's PRE-DERIVED value (Appendix B p.101), not the d10 count.
+    out.samPen = byName["SAM (Scorpion)"]?.system.penetration;                   // 4 (not 7)
+    out.vsamPen = byName["VSAM"]?.system.penetration;                            // 8 (not 15)
+    out.aamramPen = byName["AAMRAM"]?.system.penetration;                        // 9 (not 17)
     out.bomb1000Burst = byName["1000-lb Bomb"]?.system.burst;                    // 72
     out.paintingLaserPen = byName["Painting Laser"]?.system.penetration;         // 0 (guides, no damage)
     // FAE is a Pen-10 HE blast, NOT a chemical/gas cloud (regression guard for the warhead fix).
@@ -70,19 +74,32 @@ test("Phase 5b: vehicleWeapon data model + verified seed catalog", async ({ page
     if (out.packPresent && game.user?.isGM) {
       await cat.seedVehicleWeaponCompendium();
       out.packCount = (await game.packs.get("cyberpunk2020.vehicle-weapons").getIndex()).size;
+      // Regression guard: force-reseed must REFRESH existing entries, not DUPLICATE the catalog.
+      const fr = await cat.seedVehicleWeaponCompendium({ force: true });
+      out.forceCreated = fr.created;                                    // 0 — all names already present
+      const idx2 = [...(await game.packs.get("cyberpunk2020.vehicle-weapons").getIndex())];
+      out.packCountAfterForce = idx2.length;                            // unchanged (no duplicates)
+      out.packDupes = idx2.map(e => e.name).length - new Set(idx2.map(e => e.name)).size;  // 0
     }
 
     if (out.typeValid) {
       let veh;
       try {
         [veh] = await Actor.createDocuments([{ name: "ZZTEST MM Vehicle", type: "vehicle" }]);
-        await veh.createEmbeddedDocuments("Item", [{
-          name: "20mm Autocannon", type: "vehicleWeapon", system: byName["20mm Autocannon"].system
-        }]);
+        await veh.createEmbeddedDocuments("Item", [
+          { name: "20mm Autocannon", type: "vehicleWeapon", system: byName["20mm Autocannon"].system },
+          // A cannon with HEAT/Hi-Ex shell variants — verify the variant sub-keys SURVIVE the DataModel
+          // (shellVariants is an ArrayField of AnyField, so warhead/heat/ap must not be stripped on create).
+          { name: "120mm Cannon", type: "vehicleWeapon", system: byName["120mm Cannon"].system },
+        ]);
         const mounts = veh.itemTypes.vehicleWeapon ?? veh.items.filter(i => i.type === "vehicleWeapon");
-        out.embeddedCount = mounts.length;                                       // 1
-        out.embeddedPen = mounts[0]?.system.penetration;                          // 4
-        out.embeddedClass = mounts[0]?.system.weaponClass;                        // "directFire"
+        out.embeddedCount = mounts.length;                                       // 2
+        const ac = mounts.find(m => m.name === "20mm Autocannon");
+        out.embeddedPen = ac?.system.penetration;                                // 4
+        out.embeddedClass = ac?.system.weaponClass;                              // "directFire"
+        const cannon = mounts.find(m => m.name === "120mm Cannon");
+        const heatV = cannon?.system.shellVariants?.find(v => v.heat);
+        out.variantsSurvive = !!heatV && heatV.pen === 12 && heatV.burst === 2;  // sub-keys preserved
       } finally {
         if (veh) await veh.delete().catch(() => {});
       }
@@ -112,6 +129,9 @@ test("Phase 5b: vehicleWeapon data model + verified seed catalog", async ({ page
   expect(R.howitzer150AP).toBe(true);
   expect(R.aamramActive).toBe("active");
   expect(R.samSemiActive).toBe("semiActive");
+  expect(R.samPen).toBe(4);
+  expect(R.vsamPen).toBe(8);
+  expect(R.aamramPen).toBe(9);
   expect(R.bomb1000Burst).toBe(72);
   expect(R.paintingLaserPen).toBe(0);
   expect(R.faeNotGas).toBe(true);
@@ -125,9 +145,15 @@ test("Phase 5b: vehicleWeapon data model + verified seed catalog", async ({ page
     console.warn("Phase 5b: world relaunch pending — vehicleWeapon type/pack not yet registered. Re-run after reload to exercise item creation.");
   } else {
     expect(R.packPresent).toBe(true);
-    expect(R.embeddedCount).toBe(1);
+    expect(R.embeddedCount).toBe(2);
     expect(R.embeddedPen).toBe(4);
     expect(R.embeddedClass).toBe("directFire");
-    if (R.packCount != null) expect(R.packCount).toBeGreaterThanOrEqual(R.seedCount);  // compendium back-filled
+    expect(R.variantsSurvive).toBe(true);   // shell-variant sub-keys preserved through Item creation
+    if (R.packCount != null) {
+      expect(R.packCount).toBeGreaterThanOrEqual(R.seedCount);          // compendium back-filled
+      expect(R.forceCreated).toBe(0);                                   // force created nothing new...
+      expect(R.packCountAfterForce).toBe(R.packCount);                  // ...and did not grow the pack
+      expect(R.packDupes).toBe(0);                                      // no duplicate names
+    }
   }
 });

@@ -27,6 +27,8 @@ test("dedicated ACPA sheet renders for isACPA; vehicle sheet for plain vehicles"
       await game.settings.set("cyberpunk2020", "mmEnabled", true);
 
       acpa = await Actor.create({ name: "__PW__ACPADS", type: "vehicle", flags, system: { isACPA: true, str: 40 } });
+      // Mount a weapon so the Weapons list renders a row — used to verify the CSS layout fix below.
+      try { await acpa.createEmbeddedDocuments("Item", [{ name: "__PW__ACPAGun", type: "vehicleWeapon", system: { penetration: 5, rof: 2, arc: "turret", weaponClass: "directFire" } }]); } catch {}
       a1 = acpa.sheet;
       out.tmplACPA = a1.template.includes("acpa-sheet.hbs");
       await a1.render(true); await new Promise(r => setTimeout(r, 300));
@@ -36,6 +38,15 @@ test("dedicated ACPA sheet renders for isACPA; vehicle sheet for plain vehicles"
       out.acpaMelee = !!root.querySelector(".cp-acpa-melee");
       out.acpaStatus = !!root.querySelector('[name="system.powerHours"]');
       out.acpaWeaponsAdd = !!root.querySelector(".cp-weapon-add");
+      // CSS layout fix: the weapon row carries .field-list (a 2-col grid) but must render as a single
+      // flex row, and its action buttons must be uniform width (not resize per glyph). Verify computed style.
+      const wrow = root.querySelector(".cp-weapon-row");
+      if (wrow) {
+        out.weaponRowDisplay = getComputedStyle(wrow).display;        // expect "flex", not "grid"
+        const widths = [...root.querySelectorAll(".cp-weapon-row > button")].map(b => Math.round(b.getBoundingClientRect().width));
+        out.actionBtnWidths = widths;
+        out.actionBtnsEqual = widths.length >= 2 && widths.every(w => w === widths[0] && w > 0);
+      }
       await a1.close();
 
       plain = await Actor.create({ name: "__PW__PLAINDS", type: "vehicle", flags, system: { isACPA: false } });
@@ -64,4 +75,9 @@ test("dedicated ACPA sheet renders for isACPA; vehicle sheet for plain vehicles"
   expect(R.acpaWeaponsAdd).toBe(true);
   expect(R.tmplPlain).toBe(true);
   expect(R.plainForm).toBe(false);   // plain vehicle did NOT get the ACPA template
+  // CSS layout fix (only assert when a weapon row actually rendered).
+  if (R.weaponRowDisplay !== undefined) {
+    expect(R.weaponRowDisplay, "weapon row must be a flex row, not the inherited .field-list grid").toBe("flex");
+    expect(R.actionBtnsEqual, `row action buttons must be uniform width (got ${JSON.stringify(R.actionBtnWidths)})`).toBe(true);
+  }
 });

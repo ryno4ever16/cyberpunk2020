@@ -256,9 +256,9 @@ export const SEED_VEHICLE_WEAPONS = [
 
   // ── Unguided rockets (p.19). High-explosive: Penetration is range-immune (hefPenetrator), scatter on a miss. ──
   { name: "2\" Rocket", img: ICON, system: { weaponClass:"rocket", mountType:"pod", arc:"front",
-      wa:-2, penetration:3, damage:"6D10", hiEx:true, burst:4, rof:1, shots:1, range:500, reliability:"VR", space:1, cost:100, source:SOURCE } },
+      wa:-2, penetration:3, damage:"6D10", hiEx:true, burst:3, rof:1, shots:1, range:500, reliability:"VR", space:1, cost:100, source:SOURCE } },
   { name: "3.5\" Rocket", img: ICON, system: { weaponClass:"rocket", mountType:"pod", arc:"front",
-      wa:-2, penetration:5, damage:"9D10", hiEx:true, burst:8, rof:1, shots:1, range:2000, reliability:"VR", space:1, cost:400, source:SOURCE } },
+      wa:-2, penetration:5, damage:"9D10", hiEx:true, burst:8, rof:1, shots:1, range:600, reliability:"VR", space:1, cost:400, source:SOURCE } },
   { name: "5\" Rocket", img: ICON, system: { weaponClass:"rocket", mountType:"pod", arc:"front",
       wa:-2, penetration:7, damage:"13D10", hiEx:true, burst:15, rof:1, shots:1, range:2000, reliability:"VR", space:1, cost:1000, source:SOURCE } },
   // One-shot HEAT launchers (p.19). Pen = the book's value, matching the AP-dice factor (LAW 4D10AP→4, etc.).
@@ -267,25 +267,26 @@ export const SEED_VEHICLE_WEAPONS = [
   { name: "HLAW", img: ICON, system: { weaponClass:"rocket", mountType:"pod", arc:"front",
       wa:-2, penetration:12, damage:"11D10AP", ap:true, heat:true, burst:4, rof:1, shots:1, range:200, reliability:"VR", space:1, cost:800, source:SOURCE } },
   { name: "Militech RPG-A", img: ICON, system: { weaponClass:"rocket", mountType:"pod", arc:"front",
-      wa:-2, penetration:6, damage:"6D10AP", ap:true, heat:true, burst:4, rof:1, shots:1, range:200, reliability:"VR", space:1, cost:1500, source:SOURCE,
+      wa:-2, penetration:6, damage:"6D10AP", ap:true, heat:true, burst:4, rof:1, shots:1, range:750, reliability:"VR", space:1, cost:1500, source:SOURCE,
       shellVariants:[{ name:"RPG-A H-E", pen:3, burst:6, hiEx:true }] } },
   { name: "Militech RPG-B", img: ICON, system: { weaponClass:"rocket", mountType:"pod", arc:"front",
-      wa:-2, penetration:10, damage:"9D10AP", ap:true, heat:true, burst:4, rof:1, shots:1, range:200, reliability:"VR", space:1, cost:1500, source:SOURCE } },
+      wa:-2, penetration:10, damage:"9D10AP", ap:true, heat:true, burst:4, rof:1, shots:1, range:500, reliability:"VR", space:1, cost:1500, source:SOURCE } },
 
-  // ── Guided missiles (p.19). HEAT warheads; guidance/homing set the to-hit method (missiles fly via the
-  //    flight tracker). Heavy ATGM ≈ TOW/Songbird (wire-guided, semi-active). SAMs/AAMs ignore aerial-target
-  //    movement penalties and are +10/+20 vs ground. Pen derived from the clean damage dice per MM p.4 (HEAT ×2). ──
+  // ── Guided missiles (p.19; stats taken from the clean Appendix B vehicle chart, p.101). HEAT warheads;
+  //    guidance/homing set the to-hit method (missiles fly via the flight tracker). Heavy ATGM ≈ TOW/Songbird
+  //    (wire-guided, semi-active). SAM (Scorpion) is operator-fired (HVY skill); VSAM/AAM/AAMRAM are self-guiding
+  //    Active missiles (Skill +15/+20 — the firer's WA/skill don't apply); all ignore aerial-target movement and
+  //    are +10/+20 vs ground. The (Pen) is the book's PRE-DERIVED Vehicle Penetration, NOT the d10 count. ──
   { name: "Heavy ATGM", img: ICON, system: { weaponClass:"missile", mountType:"pod", arc:"front", guidance:"semiActive", homingMethod:"wire",
       wa:2, penetration:18, damage:"18D10AP", ap:true, heat:true, burst:4, rof:1, shots:1, range:3000, minRange:300, reliability:"VR", space:5, cost:10000, source:SOURCE } },
-  // SAM (Scorpion) is operator-fired with Heavy Weapons skill (not a self-guiding "Active" missile like VSAM/AAM).
   { name: "SAM (Scorpion)", img: ICON, system: { weaponClass:"missile", mountType:"pod", arc:"front", guidance:"semiActive", homingMethod:"radar",
-      wa:-1, penetration:7, damage:"7D10", heat:true, burst:4, rof:1, shots:1, range:5000, minRange:500, reliability:"VR", space:1, cost:1000, source:SOURCE } },
+      wa:-1, penetration:4, damage:"7D10", heat:true, burst:6, rof:1, shots:1, range:1000, minRange:100, reliability:"VR", space:1, cost:1000, source:SOURCE } },
   { name: "VSAM", img: ICON, system: { weaponClass:"missile", mountType:"pod", arc:"front", guidance:"active", homingMethod:"radar", guidanceSkill:15,
-      wa:0, penetration:15, damage:"15D10", heat:true, burst:4, rof:1, shots:1, range:8000, minRange:800, reliability:"VR", space:1, cost:10000, source:SOURCE } },
+      wa:0, penetration:8, damage:"15D10", heat:true, burst:10, rof:1, shots:1, range:5000, minRange:500, reliability:"VR", space:1, cost:10000, source:SOURCE } },
   { name: "AAM (short-ranged)", img: ICON, system: { weaponClass:"missile", mountType:"pod", arc:"front", guidance:"active", homingMethod:"infrared", guidanceSkill:15,
-      wa:2, penetration:15, damage:"15D10", heat:true, burst:4, rof:1, shots:1, range:15000, minRange:1500, reliability:"VR", space:1, cost:15000, source:SOURCE } },
+      wa:0, penetration:8, damage:"15D10", heat:true, burst:12, rof:1, shots:1, range:15000, minRange:1500, reliability:"VR", space:1, cost:15000, source:SOURCE } },
   { name: "AAMRAM", img: ICON, system: { weaponClass:"missile", mountType:"pod", arc:"front", guidance:"active", homingMethod:"radar", guidanceSkill:20,
-      wa:0, penetration:17, damage:"17D10", heat:true, burst:4, rof:1, shots:1, range:80000, minRange:8000, reliability:"VR", space:3, cost:250000, source:SOURCE } },
+      wa:0, penetration:9, damage:"17D10", heat:true, burst:12, rof:1, shots:1, range:80000, minRange:8000, reliability:"VR", space:3, cost:250000, source:SOURCE } },
 
   // ── Artillery / indirect (p.20). Mortars 400 m/turn, howitzers/rockets 600 m/turn; spotter-corrected To-Hit.
   //    Mortars have a minimum range of 1/100 their max. Shell variants cover the artillery ammunition (p.21). ──
@@ -343,12 +344,19 @@ export async function seedVehicleWeaponCompendium({ force = false } = {}) {
   try {
     if (wasLocked) await pack.configure({ locked: false });
     const index = await pack.getIndex();
-    const existing = new Set(index.map(e => e.name));
-    const toCreate = SEED_VEHICLE_WEAPONS
-      .filter(w => force || !existing.has(w.name))
-      .map(w => ({ name: w.name, type: "vehicleWeapon", img: w.img, system: w.system }));
+    // Map name → existing doc id. `force` UPDATES existing entries in place (refresh stats); without
+    // force we only back-fill missing names. (Earlier this filtered all names through createDocuments
+    // on force, which DUPLICATED the whole catalog instead of refreshing it.)
+    const idByName = new Map(index.map(e => [e.name, e._id]));
+    const toCreate = [], toUpdate = [];
+    for (const w of SEED_VEHICLE_WEAPONS) {
+      const id = idByName.get(w.name);
+      if (id == null) toCreate.push({ name: w.name, type: "vehicleWeapon", img: w.img, system: w.system });
+      else if (force) toUpdate.push({ _id: id, img: w.img, system: w.system });
+    }
     if (toCreate.length) await Item.createDocuments(toCreate, { pack: pack.collection });
-    return { ok: true, created: toCreate.length };
+    if (toUpdate.length) await Item.updateDocuments(toUpdate, { pack: pack.collection });
+    return { ok: true, created: toCreate.length, updated: toUpdate.length };
   } catch (err) {
     console.warn("Cyberpunk2020 | vehicle-weapon compendium seed failed", err);
     return { ok: false, reason: "error" };
