@@ -101,7 +101,93 @@ export const SEED_VEHICLE_WEAPONS = [
       coneAngle: 60, projectiles: 24, rof: 1, shots: 6, range: 15, reliability: "VR",
       space: 1, cost: 500, source: SOURCE
     }
-  }
+  },
+
+  // ───────────────────────── ACPA weapon roster (Maximum Metal charts, Appendix A p.95-96) ─────────────────────────
+  // Each carries its own SP/SOP (ACPA mounting + per-weapon hit tracking). `area` defaults to torso;
+  // re-assign it on the suit. ROF "N OR M" → rof N (high) / rofAlt M.
+
+  // Heavy MGs & rifle (p.95).
+  { name: "12.7mm Heavy MG", img: ICON, system: {
+      weaponClass: "directFire", mountType: "articulated", arc: "front", wa: 1,
+      penetration: 3, damage: "6D10", rof: 10, rofAlt: 5, shots: 100, range: 550, reliability: "VR",
+      space: 2, cost: 2000, sp: 25, sop: 30, area: "rArm", source: SOURCE } },
+  { name: "14.5mm Heavy MG", img: ICON, system: {
+      weaponClass: "directFire", mountType: "articulated", arc: "front", wa: 0,
+      penetration: 4, damage: "7D10", rof: 5, rofAlt: 3, shots: 100, range: 550, reliability: "VR",
+      space: 3, cost: 4000, sp: 20, sop: 15, area: "rArm", source: SOURCE } },
+  { name: "4mm Railgun", img: ICON, system: {
+      weaponClass: "directFire", mountType: "articulated", arc: "front", wa: 3,
+      penetration: 7, damage: "5D10+10AP", ap: true, rof: 1, shots: 5, range: 1500, reliability: "ST",
+      space: 2, cost: 12000, sp: 15, sop: 10, area: "rArm", source: SOURCE } },
+
+  // ACPA cannon (p.96).
+  { name: "BCL-20 ACPA Cannon", img: ICON, system: {
+      weaponClass: "directFire", mountType: "articulated", arc: "front", wa: 1,
+      penetration: 4, damage: "9D10", rof: 2, shots: 20, range: 550, reliability: "VR",
+      space: 2, cost: 2700, sp: 25, sop: 35, area: "rArm", source: SOURCE } },
+  { name: "27-30mm Autocannon", img: ICON, system: {
+      weaponClass: "directFire", mountType: "articulated", arc: "front", wa: 0,
+      penetration: 5, damage: "9D10", rof: 10, shots: 50, range: 600, reliability: "VR",
+      space: 3, cost: 4000, sp: 30, sop: 30, area: "rArm", source: SOURCE } },
+  { name: "EMG-83 Improved Railgun", img: ICON, system: {
+      weaponClass: "directFire", mountType: "articulated", arc: "front", wa: 2,
+      penetration: 7, damage: "5D10+10AP", ap: true, rof: 1, shots: 10, range: 1000, reliability: "ST",
+      space: 3, cost: 17500, sp: 25, sop: 15, area: "rArm", source: SOURCE } },
+  { name: "75mm Recoilless", img: ICON, system: {
+      weaponClass: "directFire", mountType: "articulated", arc: "front", wa: 0,
+      penetration: 8, damage: "8D10AP", ap: true, heat: true, rof: 1, shots: 4, range: 500, reliability: "VR",
+      space: 2, cost: 15000, sp: 15, sop: 20, area: "rArm", source: SOURCE } },
+
+  // Rockets (p.96) — unguided HE (range-immune), burst.
+  { name: "IFAR Rocket", img: ICON, system: {
+      weaponClass: "rocket", mountType: "pod", arc: "front", wa: -2,
+      penetration: 4, damage: "8D10", hiEx: true, burst: 6, rof: 1, shots: 1, range: 500, reliability: "VR",
+      space: 2, cost: 200, sp: 20, sop: 30, area: "torso", source: SOURCE } },
+  { name: "IFAR 6-Pod", img: ICON, system: {
+      weaponClass: "rocket", mountType: "pod", arc: "front", wa: -2,
+      penetration: 4, damage: "8D10", hiEx: true, burst: 6, rof: 1, shots: 6, range: 500, reliability: "VR",
+      space: 4, cost: 4200, sp: 20, sop: 105, area: "torso", source: SOURCE } },
+  { name: "LAW-III", img: ICON, system: {
+      weaponClass: "rocket", mountType: "pod", arc: "front", wa: -2,
+      penetration: 4, damage: "4D10AP", ap: true, heat: true, burst: 2, rof: 1, shots: 1, range: 200, reliability: "VR",
+      space: 1, cost: 300, sp: 20, sop: 10, area: "torso", source: SOURCE } },
+
+  // Guided missiles (p.96) — HEAT, paint/active.
+  { name: "Light ATGM", img: ICON, system: {
+      weaponClass: "missile", mountType: "pod", arc: "front", guidance: "paint", homingMethod: "laser", wa: 2,
+      penetration: 12, damage: "12D10AP", ap: true, heat: true, burst: 4, rof: 1, shots: 1, range: 1000, minRange: 100, reliability: "VR",
+      space: 2, cost: 3000, sp: 20, sop: 20, area: "torso", source: SOURCE } },
+  { name: "Spectre ATGM", img: ICON, system: {
+      weaponClass: "missile", mountType: "pod", arc: "front", guidance: "active", homingMethod: "radar", guidanceSkill: 15, wa: 0,
+      penetration: 18, damage: "18D10AP", ap: true, heat: true, burst: 4, rof: 1, shots: 1, range: 3000, minRange: 300, reliability: "VR",
+      space: 2, cost: 10000, sp: 20, sop: 25, area: "torso", source: SOURCE } },
+
+  // Grenade launchers (p.96) — burst HE (standard grenade defaults; swap shells for other warheads).
+  { name: "Tsunami 25mm Grenade Launcher", img: ICON, system: {
+      weaponClass: "burst", mountType: "articulated", arc: "front", wa: 0,
+      penetration: 4, damage: "", hiEx: true, burst: 5, rof: 3, rofAlt: 1, shots: 20, range: 1500, reliability: "VR",
+      space: 1, cost: 1700, sp: 20, sop: 25, area: "rArm", source: SOURCE } },
+  { name: "40mm Auto-Grenade Launcher", img: ICON, system: {
+      weaponClass: "burst", mountType: "articulated", arc: "front", wa: 1,
+      penetration: 4, damage: "", hiEx: true, burst: 5, rof: 20, rofAlt: 3, shots: 50, range: 1600, reliability: "VR",
+      space: 2, cost: 2500, sp: 25, sop: 30, area: "rArm", source: SOURCE } },
+
+  // Beam (p.95) — special escalating damage; modelled as a high-Pen direct-fire energy weapon.
+  { name: "\"Photon\" Assault Cannon", img: ICON, system: {
+      weaponClass: "special", mountType: "articulated", arc: "front", wa: 2,
+      penetration: 6, damage: "10D6AP", ap: true, rof: 2, shots: 30, range: 300, reliability: "ST",
+      space: 3, cost: 80000, sp: 15, sop: 10, area: "rArm", source: SOURCE } },
+
+  // Melee (p.95) — ACPA hand weapons (used via the melee dialog; tracked here for mounting + SOP).
+  { name: "Retractable Mono-PA Sword", img: ICON, system: {
+      weaponClass: "melee", mountType: "articulated", arc: "front", wa: 1,
+      penetration: 6, damage: "4D6AP", ap: true, rof: 1, shots: 1, range: 2, reliability: "VR",
+      space: 1, cost: 2000, sp: 0, sop: 15, area: "rArm", source: SOURCE } },
+  { name: "Large Power Saw", img: ICON, system: {
+      weaponClass: "melee", mountType: "articulated", arc: "front", wa: -2,
+      penetration: 6, damage: "8D6AP", ap: true, rof: 1, shots: 1, range: 2, reliability: "ST",
+      space: 1, cost: 1250, sp: 20, sop: 25, area: "rArm", source: SOURCE } }
 ];
 
 const PACK_ID = "cyberpunk2020.vehicle-weapons";

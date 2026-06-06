@@ -30,7 +30,7 @@ test("Phase 5b: vehicleWeapon data model + verified seed catalog", async ({ page
     // ── Seed catalog (pure data — always live) ──────────────────────────────
     out.seedCount = cat.SEED_VEHICLE_WEAPONS.length;
     const byName = Object.fromEntries(cat.SEED_VEHICLE_WEAPONS.map(w => [w.name, w]));
-    out.classes = cat.SEED_VEHICLE_WEAPONS.map(w => w.system.weaponClass).sort();
+    out.classSet = [...new Set(cat.SEED_VEHICLE_WEAPONS.map(w => w.system.weaponClass))].sort();
     out.autocannonPen = byName["20mm Autocannon"]?.system.penetration;          // 4
     const cannon = byName["105mm Cannon"];
     out.cannonVariants = cannon?.system.shellVariants?.length;                   // 2
@@ -51,6 +51,12 @@ test("Phase 5b: vehicleWeapon data model + verified seed catalog", async ({ page
     out.typeValid = (game.documentTypes?.Item ?? []).includes("vehicleWeapon");
     out.packPresent = !!game.packs?.get("cyberpunk2020.vehicle-weapons");
     out.relaunchPending = !out.typeValid;
+
+    // Re-seed the compendium to the full catalog (idempotent back-fill of newly-added weapons).
+    if (out.packPresent && game.user?.isGM) {
+      await cat.seedVehicleWeaponCompendium();
+      out.packCount = (await game.packs.get("cyberpunk2020.vehicle-weapons").getIndex()).size;
+    }
 
     if (out.typeValid) {
       let veh;
@@ -73,9 +79,9 @@ test("Phase 5b: vehicleWeapon data model + verified seed catalog", async ({ page
 
   console.log("Phase 5b vehicleWeapon:", JSON.stringify(R));
 
-  // Seed catalog — verified against MM (always asserted).
-  expect(R.seedCount).toBe(6);
-  expect(R.classes).toEqual(["artillery", "cone", "directFire", "directFire", "missile", "rocket"]);
+  // Seed catalog — verified against MM (always asserted). Expanded with the ACPA weapon roster.
+  expect(R.seedCount).toBe(24);
+  expect(R.classSet).toEqual(["artillery", "bomb", "burst", "cone", "directFire", "melee", "missile", "rocket", "special"]);
   expect(R.autocannonPen).toBe(4);
   expect(R.cannonVariants).toBe(2);
   expect(R.cannonHasHEAT).toBe(true);
@@ -96,5 +102,6 @@ test("Phase 5b: vehicleWeapon data model + verified seed catalog", async ({ page
     expect(R.embeddedCount).toBe(1);
     expect(R.embeddedPen).toBe(4);
     expect(R.embeddedClass).toBe("directFire");
+    if (R.packCount != null) expect(R.packCount).toBeGreaterThanOrEqual(R.seedCount);  // compendium back-filled
   }
 });
