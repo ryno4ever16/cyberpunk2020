@@ -1,7 +1,7 @@
 import { openControlRollDialog } from "../vehicle/vehicle-control.js";
 import { openVehicleDamageDialog } from "../vehicle/vehicle-damage.js";
 import { openVehicleFireDialog } from "../vehicle/vehicle-weapons.js";
-import { openAcpaMeleeDialog } from "../vehicle/vehicle-acpa-combat.js";
+import { openAcpaMeleeDialog, repairAcpa } from "../vehicle/vehicle-acpa-combat.js";
 import { effectiveVehicleRuleSystem, mmEnabled } from "../settings.js";
 
 /**
@@ -81,6 +81,10 @@ export class CyberpunkVehicleSheet extends ActorSheet {
     root?.querySelector?.(".cp-acpa-melee")?.addEventListener("click", (ev) => {
       ev.preventDefault();
       openAcpaMeleeDialog(this.actor);
+    });
+    root?.querySelector?.(".cp-acpa-repair")?.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      repairAcpa(this.actor);
     });
 
     // ── Weapon mounts = embedded vehicleWeapon Items (Phase 5b) ─────────────

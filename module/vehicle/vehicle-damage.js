@@ -22,7 +22,7 @@
 
 import { openSingletonDialog } from "../utils.js";
 import { effectiveVehicleRuleSystem } from "../settings.js";
-import { acpaBodyArea, externalSystemHit, acpaSystemHit, acpaRollAgain, acpaCriticalEffect, acpaCriticalUpdate } from "./vehicle-acpa.js";
+import { acpaBodyArea, externalSystemHit, acpaSystemHit, acpaRollAgain, acpaCriticalEffect, acpaCriticalUpdate, acpaAreaSOP } from "./vehicle-acpa.js";
 
 const SCOPE = "cyberpunk2020";
 
@@ -273,54 +273,94 @@ export async function applyVehicleDamageCore(actor, { rawDamage = 0, ap = false,
   return res;
 }
 
+const _ACPA_AREA_KEY = { "Head": "head", "Right Arm": "rArm", "Left Arm": "lArm", "Right Leg": "rLeg", "Left Leg": "lLeg", "Torso": "torso" };
+
 /**
- * Resolve a penetrating ACPA (powered-armor) hit (Maximum Metal p.55-56): body area → 50% external
- * system → System Hit Table → Critical Hit Chart (applied to the suit's tracked status) → Integrity.
- * Rolls its own dice (pushed to `rolls`) and returns the chat lines + the actor updates.
+ * Faithful ACPA (powered-armor) damage (Maximum Metal p.54-56): SOP damage = incoming damage − armor
+ * SP − Toughness Mod. If it gets through, roll a body area → 50% external system → System Hit Table
+ * → (Critical Hit Chart on a critical), then consume the struck area's FRAME SOP; overflow past the
+ * frame spills to the pilot. A destroyed area knocks out its systems; a destroyed Torso shuts the
+ * suit down. (Per-system SOP arrives with the systems catalog in D-4 — for now all hits hit the frame.)
+ *
+ * `rawDamage` is the actual rolled weapon damage when the payload carries it; otherwise the incoming
+ * damage is estimated from the Penetration Factor (Pen ≈ avgDamage/10). Rolls its own dice (pushed to
+ * `rolls`) and returns the chat header/lines + the actor updates.
  */
-async function _resolveAcpaPenetration(sys, sev, rolls) {
+async function _resolveAcpaSopDamage(actor, sys, { pen, rawDamage, str }, rolls) {
   const roll = async (f) => { const r = await new Roll(f).evaluate(); rolls.push(r); return r; };
   const d10 = async () => (await roll("1d10")).total;
   const updates = {};
-  const crit = MM_CRIT[sev.severity] ?? {};
 
-  const area = acpaBodyArea(await d10());
-  let lines = `Roll ${sev.score} → <b>${sev.severity.toUpperCase()}</b> · body area: <b>${area}</b>`;
+  const incoming = (rawDamage != null) ? Math.max(0, Number(rawDamage) || 0) : Math.max(0, pen * 10);
+  const armorSP = Number(sys.sp?.front) || 0;
+  const toughness = Math.abs(Number(sys.toughness) || 0);
+  const sop = incoming - armorSP - toughness;
+  const dmgSrc = (rawDamage != null) ? `${incoming} dmg` : `Pen ${pen} ≈ ${incoming} dmg`;
+  const body = `${dmgSrc} − Armor SP ${armorSP} − Toughness ${toughness} = <b>${sop}</b> SOP`;
 
+  if (sop <= 0) return { body, lines: `Armor + frame absorbed it — no penetration.`, updates };
+
+  const areaName = acpaBodyArea(await d10());
+  const areaKey = _ACPA_AREA_KEY[areaName] ?? "torso";
+  let lines = `<b>${sop}</b> SOP to the <b>${areaName}</b>`;
+
+  // 50% (5-in-10): an external (unarmored) system takes it instead of the suit proper (MM p.55).
   if (externalSystemHit(await d10())) {
-    // 50% (5-in-10): an external system on that area absorbs the hit instead of the suit (MM p.55).
-    lines += `<br>An <b>external system</b> on the ${area} is struck (it absorbs the hit; the GM checks its integrity).`;
-  } else {
-    let cat = acpaSystemHit(await d10());
-    if (cat === "rollAgain") cat = (acpaRollAgain(await d10()) === "critical") ? "critical" : acpaSystemHit(await d10());
+    return { body, lines: lines + `<br>An <b>external system</b> on the ${areaName} took it (GM checks its integrity).`, updates };
+  }
 
-    if (cat === "critical") {
-      const effect = acpaCriticalEffect(await d10());
-      const amount = effect.formula ? (await roll(effect.formula)).total : 0;
-      const { updates: cu, note } = acpaCriticalUpdate(sys, effect, amount);
-      Object.assign(updates, cu);
-      lines += `<br><span style="color:#ff3030;font-weight:bold;">CRITICAL HIT</span> — ${effect.label}: <b>${note}</b>.`;
-    } else {
-      const label = cat === "chassis" ? "Main Chassis" : (cat === "enclosed" ? "an Enclosed System" : "an Internal Weapon");
-      const intRoll = await roll("1d100");
-      const gone = intRoll.total <= (crit.destroyPct ?? 0);
-      lines += `<br>System Hit: <b>${label}</b> ${gone ? "DESTROYED" : "damaged (integrity check)"} (rolled ${intRoll.total} vs ${crit.destroyPct ?? 0}%).`;
+  // System Hit Table; a 10 re-rolls into a Critical or another System Hit.
+  let cat = acpaSystemHit(await d10());
+  if (cat === "rollAgain") cat = (acpaRollAgain(await d10()) === "critical") ? "critical" : acpaSystemHit(await d10());
+  if (cat === "critical") {
+    const eff = acpaCriticalEffect(await d10());
+    const amt = eff.formula ? (await roll(eff.formula)).total : 0;
+    const { updates: cu, note } = acpaCriticalUpdate(sys, eff, amt);
+    Object.assign(updates, cu);
+    lines += `<br><span style="color:#ff3030;font-weight:bold;">CRITICAL</span> — ${eff.label}: ${note}.`;
+  } else {
+    const label = cat === "chassis" ? "frame (chassis)" : (cat === "enclosed" ? "an enclosed system" : "an internal weapon");
+    lines += `<br>System Hit: <b>${label}</b> in the ${areaName}.`;
+    if (cat !== "chassis") {
       const damaged = Array.isArray(sys.damagedSystems) ? [...sys.damagedSystems] : [];
-      if (!damaged.includes(label)) { damaged.push(label); updates["system.damagedSystems"] = damaged; }
+      const dname = `${areaName} ${cat === "enclosed" ? "system" : "weapon"}`;
+      if (!damaged.includes(dname)) { damaged.push(dname); updates["system.damagedSystems"] = damaged; }
     }
   }
 
-  lines += `<br>Pilot in that area takes <b>${crit.crewDice ?? "—"}</b>.`;
-  if (sev.severity === "catastrophic") {
-    updates["system.destroyed"] = true;
-    updates["system.sdp"] = { value: 0, max: Number(sys.sdp?.max) || 0 };
-    lines += `<br><span style="color:#ff3030;font-weight:bold;">Catastrophic — suit DESTROYED.</span>`;
+  // Consume the area's FRAME SOP; overflow spills to the pilot. Initialize current SOP to full on the
+  // first hit (a freshly built/repaired suit has frameSOP = frameSOPMax).
+  const max = sys.frameSOPMax ?? acpaAreaSOP(str);
+  let cur = { ...(sys.frameSOP ?? {}) };
+  if (Object.values(cur).every(v => !Number(v))) cur = { ...max };
+  const before = Number(cur[areaKey]) || 0;
+  const remaining = before - sop;
+  cur[areaKey] = Math.max(0, remaining);
+  updates["system.frameSOP"] = cur;
+  lines += (remaining < 0)
+    ? `<br>${areaName} frame SOP ${before} → 0; <b>${-remaining}</b> overflows to the <b>pilot</b>.`
+    : `<br>${areaName} frame SOP ${before} → ${cur[areaKey]}.`;
+
+  if (cur[areaKey] === 0) {
+    lines += `<br><span style="color:#e07b00;">${areaName} frame destroyed — its systems are inoperable.</span>`;
+    if (areaKey === "torso") {
+      updates["system.destroyed"] = true;
+      updates["system.immobilized"] = true;
+      updates["system.sdp"] = { value: 0, max: Number(sys.sdp?.max) || 0 };
+      lines += ` <span style="color:#ff3030;font-weight:bold;">TORSO DESTROYED — the suit SHUTS DOWN.</span>`;
+    } else if (areaKey === "rLeg" || areaKey === "lLeg") {
+      updates["system.immobilized"] = true;
+    }
   }
-  return { lines, updates };
+  return { body, lines, updates };
 }
 
-/** Apply Maximum Metal damage: penetration → severity → hit location → crit effects; post a card. */
-export async function applyVehicleDamageMM(actor, { basePen = 0, facing = "front", goodShotSteps = 0, extraRounds = 0, range = "normal", hefPenetrator = false, heat = false } = {}) {
+/**
+ * Apply Maximum Metal damage and post a card. Vehicles use the Penetration → severity → hit-location
+ * flow; powered armor (isACPA) uses the faithful SOP-damage flow (MM p.54-56). `rawDamage` is the
+ * actual rolled weapon damage when the caller has it (used for ACPA); else ACPA estimates it from Pen.
+ */
+export async function applyVehicleDamageMM(actor, { basePen = 0, facing = "front", goodShotSteps = 0, extraRounds = 0, range = "normal", hefPenetrator = false, heat = false, rawDamage = null } = {}) {
   const sys = actor.system ?? {};
   const isACPA = !!sys.isACPA;
   const avKey = _facingKey(facing);
@@ -331,73 +371,70 @@ export async function applyVehicleDamageMM(actor, { basePen = 0, facing = "front
   // Composite Armor halves the Penetration of shaped-charge (HEAT) weapons (MM p.23).
   const composite = !isACPA && !!sys.compositeArmor && !!heat;
   const pen = composite ? Math.ceil(penRaw / 2) : penRaw;
-  // ACPA armor is equal on all sides — no flank reduction.
   const effAV = isACPA ? av : mmEffectiveArmor(av, facing);
 
   const rolls = [];
   const d10 = async () => { const r = await new Roll("1d10").evaluate(); rolls.push(r); return r.total; };
 
-  const sev = mmDamageSeverity({ pen, effectiveArmorValue: effAV, bodyValue, d10: await d10() });
-
-  let body = `Pen <b>${pen}</b> (base ${basePen}${composite ? ", ½ vs Composite" : ""}) vs AV <b>${effAV}</b>${facing !== "front" && !isACPA ? ` (${facing} flank)` : ""} − Body ${bodyValue}`;
-  let lines = "";
+  let body = "", lines = "", sev = null;
   const updates = {};
   const damaged = Array.isArray(sys.damagedSystems) ? [...sys.damagedSystems] : [];
 
-  if (!sev.penetrated) {
-    const surf = mmSurfaceDamage(await d10(), basePen);
-    lines = surf.itemDamaged
-      ? `No penetration — <b>surface</b>: an exposed item is ${surf.destroyed ? "destroyed" : "damaged (50% repairable)"}.`
-      : `No penetration — no surface effect.`;
-  } else if (sev.severity === "surface") {
-    const surf = mmSurfaceDamage(await d10(), basePen);
-    lines = `Roll ${sev.score} → <b>Surface</b>: ${surf.itemDamaged ? (surf.destroyed ? "an exposed item destroyed" : "an exposed item damaged") : "no item hit"}.`;
-  } else if (isACPA) {
-    // Powered armor: System Hit / Critical Hit / Integrity (MM p.55-56) → tracked suit status.
-    const r = await _resolveAcpaPenetration(sys, sev, rolls);
+  if (isACPA) {
+    // Powered armor uses the faithful SOP-damage flow (MM p.54-56), not the vehicle severity table.
+    const r = await _resolveAcpaSopDamage(actor, sys, { pen, rawDamage, str: Number(sys.str) || 0 }, rolls);
+    body = r.body;
     lines = r.lines;
     Object.assign(updates, r.updates);
   } else {
-    // Penetrating Minor/Major/Catastrophic → hit location + crit effects. (Vehicles.)
-    const loc = mmHitLocation(await d10(), facing);
-    const crit = MM_CRIT[sev.severity];
-    let locLine = loc;
-    let subLoc = null;
-    if (!isACPA && (loc === "Hull" || loc === "Turret")) {
-      subLoc = mmSubLocation(await d10(), loc, facing);
-      locLine = `${loc} → ${subLoc}`;
-    }
+    sev = mmDamageSeverity({ pen, effectiveArmorValue: effAV, bodyValue, d10: await d10() });
+    body = `Pen <b>${pen}</b> (base ${basePen}${composite ? ", ½ vs Composite" : ""}) vs AV <b>${effAV}</b>${facing !== "front" ? ` (${facing} flank)` : ""} − Body ${bodyValue}`;
 
-    // Damage Control may shrug off the hit (6-10).
-    let ignored = false;
-    if (sys.damageControl) ignored = damageControlIgnores(await d10());
-
-    lines = `Roll ${sev.score} → <b>${sev.severity.toUpperCase()}</b> · location: <b>${locLine}</b>`;
-    if (ignored) {
-      lines += `<br><span style="color:#3ad13a;">Damage Control absorbed the hit (rolled 6-10) — system stays functional.</span>`;
+    if (!sev.penetrated) {
+      const surf = mmSurfaceDamage(await d10(), basePen);
+      lines = surf.itemDamaged
+        ? `No penetration — <b>surface</b>: an exposed item is ${surf.destroyed ? "destroyed" : "damaged (50% repairable)"}.`
+        : `No penetration — no surface effect.`;
+    } else if (sev.severity === "surface") {
+      const surf = mmSurfaceDamage(await d10(), basePen);
+      lines = `Roll ${sev.score} → <b>Surface</b>: ${surf.itemDamaged ? (surf.destroyed ? "an exposed item destroyed" : "an exposed item damaged") : "no item hit"}.`;
     } else {
-      // Status flags from the location.
-      if (loc === "Motive Gear" || (isACPA && (loc === "Legs" || loc === "Power Cell"))) updates["system.immobilized"] = true;
-      if (loc === "Fuel") {
-        const fire = (await new Roll("1d100").evaluate());
-        rolls.push(fire);
-        if (fire.total <= crit.fuelFirePct) { updates["system.onFire"] = true; lines += `<br><span style="color:#e07b00;">Fuel ignites (rolled ${fire.total} ≤ ${crit.fuelFirePct}%) — on fire: 3d6/crew/turn, 25%/turn to explode.</span>`; }
-        else lines += `<br>Fuel hit but did not ignite (rolled ${fire.total} > ${crit.fuelFirePct}%).`;
+      // Penetrating Minor/Major/Catastrophic → hit location + crit effects.
+      const loc = mmHitLocation(await d10(), facing);
+      const crit = MM_CRIT[sev.severity];
+      let locLine = loc;
+      let subLoc = null;
+      if (loc === "Hull" || loc === "Turret") {
+        subLoc = mmSubLocation(await d10(), loc, facing);
+        locLine = `${loc} → ${subLoc}`;
       }
-      // Destroying a vehicle zeroes current SDP. Write the WHOLE sdp object (a dot-path update wipes
-      // sdp.max → Body Value); preserve max.
-      const zeroSDP = { value: 0, max: Number(sys.sdp?.max) || 0 };
-      const isExplosive = (subLoc === "Engine" || subLoc === "Cargo/Ammo");
-      if (isExplosive && crit.enginePct > 0) {
-        const ex = await new Roll("1d100").evaluate(); rolls.push(ex);
-        if (ex.total <= crit.enginePct) { updates["system.destroyed"] = true; updates["system.sdp"] = zeroSDP; lines += `<br><span style="color:#ff3030;font-weight:bold;">Engine/ammo cooks off (rolled ${ex.total} ≤ ${crit.enginePct}%) — vehicle DEMOLISHED.</span>`; }
-        else lines += `<br>Engine/ammo hit but held (rolled ${ex.total} > ${crit.enginePct}%).`;
+
+      let ignored = false;
+      if (sys.damageControl) ignored = damageControlIgnores(await d10());
+
+      lines = `Roll ${sev.score} → <b>${sev.severity.toUpperCase()}</b> · location: <b>${locLine}</b>`;
+      if (ignored) {
+        lines += `<br><span style="color:#3ad13a;">Damage Control absorbed the hit (rolled 6-10) — system stays functional.</span>`;
+      } else {
+        if (loc === "Motive Gear") updates["system.immobilized"] = true;
+        if (loc === "Fuel") {
+          const fire = (await new Roll("1d100").evaluate());
+          rolls.push(fire);
+          if (fire.total <= crit.fuelFirePct) { updates["system.onFire"] = true; lines += `<br><span style="color:#e07b00;">Fuel ignites (rolled ${fire.total} ≤ ${crit.fuelFirePct}%) — on fire: 3d6/crew/turn, 25%/turn to explode.</span>`; }
+          else lines += `<br>Fuel hit but did not ignite (rolled ${fire.total} > ${crit.fuelFirePct}%).`;
+        }
+        const zeroSDP = { value: 0, max: Number(sys.sdp?.max) || 0 };
+        const isExplosive = (subLoc === "Engine" || subLoc === "Cargo/Ammo");
+        if (isExplosive && crit.enginePct > 0) {
+          const ex = await new Roll("1d100").evaluate(); rolls.push(ex);
+          if (ex.total <= crit.enginePct) { updates["system.destroyed"] = true; updates["system.sdp"] = zeroSDP; lines += `<br><span style="color:#ff3030;font-weight:bold;">Engine/ammo cooks off (rolled ${ex.total} ≤ ${crit.enginePct}%) — vehicle DEMOLISHED.</span>`; }
+          else lines += `<br>Engine/ammo hit but held (rolled ${ex.total} > ${crit.enginePct}%).`;
+        }
+        if (sev.severity === "catastrophic") { updates["system.destroyed"] = true; updates["system.sdp"] = zeroSDP; }
+        const sysName = subLoc ?? loc;
+        if (!damaged.includes(sysName)) { damaged.push(sysName); updates["system.damagedSystems"] = damaged; }
+        lines += `<br>Crew in that area take <b>${crit.crewDice}</b>; ${crit.destroyPct}% the system is destroyed (else damaged until repaired).`;
       }
-      if (sev.severity === "catastrophic") { updates["system.destroyed"] = true; updates["system.sdp"] = zeroSDP; }
-      // Record the damaged system.
-      const sysName = subLoc ?? loc;
-      if (!damaged.includes(sysName)) { damaged.push(sysName); updates["system.damagedSystems"] = damaged; }
-      lines += `<br>Crew in that area take <b>${crit.crewDice}</b>; ${crit.destroyPct}% the system is destroyed (else damaged until repaired).`;
     }
   }
 
@@ -405,10 +442,10 @@ export async function applyVehicleDamageMM(actor, { basePen = 0, facing = "front
 
   const content = `
 <div class="cyberpunk vehicle-damage-result">
-  <h3>💥 ${actor.name} — Maximum Metal Damage</h3>
+  <h3>💥 ${actor.name} — ${isACPA ? "Powered-Armor" : "Maximum Metal"} Damage</h3>
   <div>${body}</div>
   <div style="margin-top:4px;">${lines}</div>
 </div>`;
   await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), content, rolls });
-  return { pen, effAV, severity: sev.severity, score: sev.score, updates };
+  return { pen, effAV, isACPA, severity: sev?.severity, score: sev?.score, updates };
 }

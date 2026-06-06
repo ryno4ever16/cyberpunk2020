@@ -96,7 +96,7 @@ test("Phase 6-1: ACPA combat math (pure, MM p.52-60)", async ({ page }) => {
   expect(R.cs10tough).toBe(-5);    // clamps to the STR 12 row
 });
 
-test("Phase 6-2: ACPA penetrating damage applies + catastrophic destroys", async ({ page }) => {
+test("Phase 6 D-3: ACPA SOP-damage flow (armor stops weak hits; frame SOP → Torso shutdown)", async ({ page }) => {
   await login(page, ACCOUNTS.gm);
   await cleanupTestData(page).catch(() => {});
 
@@ -107,17 +107,31 @@ test("Phase 6-2: ACPA penetrating damage applies + catastrophic destroys", async
     let acpa;
     try {
       acpa = await Actor.create({ name: "__PW__ACPA", type: "vehicle", flags,
-        system: { isACPA: true, str: 40, sp: { front: 0, side: 0, rear: 0, top: 0, bottom: 0 }, sdp: { value: 100, max: 100 } } });
+        system: { isACPA: true, str: 40, sp: { front: 100, side: 0, rear: 0, top: 0, bottom: 0 }, sdp: { value: 100, max: 100 } } });
       out.powerDefault = acpa.system.powerHours;   // additive field default = 24
       out.coolingDefault = acpa.system.coolingTimer; // 0
       out.frameTorso = acpa.system.frameSOPMax?.torso;   // derived: STR40 → 30
       out.toughness = acpa.system.toughness;             // derived: STR40 → -10
+      const sumSOP = (o) => Object.values(o || {}).reduce((a, v) => a + (Number(v) || 0), 0);
+      out.sumMax = sumSOP(acpa.system.frameSOPMax);      // 10+10+10+20+20+30 = 100
 
-      // Catastrophic: overwhelming Penetration vs AV 0 → suit destroyed (no throw on the ACPA branch).
-      await VD.applyVehicleDamageMM(acpa, { basePen: 999, facing: "front" });
-      out.destroyed = acpa._source.system.destroyed === true;
-      out.sdpZero = (acpa._source.system.sdp?.value ?? 1) === 0;
-      out.maxPreserved = (acpa._source.system.sdp?.max ?? 0) === 100;   // dot-path doesn't wipe max
+      // (a) Weak hit vs SP 100 armor + Toughness → no penetration; the frame is untouched.
+      await VD.applyVehicleDamageMM(acpa, { rawDamage: 20 });
+      out.noPenFrameZero = sumSOP(acpa._source.system.frameSOP) === 0;
+      out.noPenAlive = acpa._source.system.destroyed !== true;
+
+      // (b) Strip the armor and hammer it: each big hit consumes the struck area's frame SOP, and the
+      // Torso destroyed shuts the suit down (random area each hit; an external system absorbs ~50%).
+      await acpa.update({ "system.sp": { front: 0, side: 0, rear: 0, top: 0, bottom: 0 } });
+      let destroyed = false;
+      for (let i = 0; i < 60 && !destroyed; i++) {
+        await VD.applyVehicleDamageMM(acpa, { rawDamage: 999, basePen: 99 });
+        destroyed = acpa._source.system.destroyed === true;
+      }
+      out.eventuallyDestroyed = destroyed;
+      out.tookFrameDamage = sumSOP(acpa._source.system.frameSOP) < out.sumMax;
+      out.sdpZeroOnShutdown = (acpa._source.system.sdp?.value ?? 1) === 0;
+      out.maxPreserved = (acpa._source.system.sdp?.max ?? 0) === 100;
     } finally {
       if (acpa) await acpa.delete().catch(() => {});
     }
@@ -129,7 +143,11 @@ test("Phase 6-2: ACPA penetrating damage applies + catastrophic destroys", async
   expect(R.coolingDefault).toBe(0);
   expect(R.frameTorso).toBe(30);    // derived per-area frame SOP (STR40 Torso = 75%)
   expect(R.toughness).toBe(-10);    // derived Chassis Inventory Toughness Mod
-  expect(R.destroyed).toBe(true);
-  expect(R.sdpZero).toBe(true);
+  expect(R.sumMax).toBe(100);
+  expect(R.noPenFrameZero).toBe(true);     // armor + Toughness stopped the weak hit — frame untouched
+  expect(R.noPenAlive).toBe(true);
+  expect(R.eventuallyDestroyed).toBe(true); // Torso eventually destroyed → suit shuts down
+  expect(R.tookFrameDamage).toBe(true);
+  expect(R.sdpZeroOnShutdown).toBe(true);
   expect(R.maxPreserved).toBe(true);
 });

@@ -174,7 +174,8 @@ export async function routeWeaponFiredToVehicle(payload, vehicleActor) {
   const VD = await import("./vehicle-damage.js");
   if (ruleSystem === "MaximumMetal") {
     const pen = _payloadPenetration(payload, total, ap);
-    await VD.applyVehicleDamageMM(vehicleActor, { basePen: pen, facing: "front" });
+    // ACPA's faithful SOP flow uses the actual rolled damage; pass it through (vehicles ignore it).
+    await VD.applyVehicleDamageMM(vehicleActor, { basePen: pen, facing: "front", rawDamage: total });
   } else {
     await VD.applyVehicleDamageCore(vehicleActor, { rawDamage: total, ap, facing: "front" });
   }

@@ -92,6 +92,21 @@ export async function openAcpaMeleeDialog(actor) {
   return openSingletonDialog(`acpa-melee:${actor.id}`, () => dialog);
 }
 
+/** Field repair: restore an ACPA suit to full — frame SOP, SDP, power, and clear all damage/status. */
+export async function repairAcpa(actor) {
+  if (!actor || actor.type !== "vehicle" || !actor.system?.isACPA) { ui.notifications?.warn?.("Repair is for ACPA (powered armor) only."); return; }
+  const sys = actor.system;
+  const sdpMax = Number(sys.sdp?.max) || 0;
+  await actor.update({
+    "system.frameSOP": { ...(sys.frameSOPMax ?? {}) },
+    "system.sdp": { value: sdpMax, max: sdpMax },
+    "system.strDamage": 0, "system.refDamage": 0, "system.powerHours": 24,
+    "system.coolingTimer": 0, "system.interfaceOut": 0, "system.seizeUp": 0,
+    "system.destroyed": false, "system.immobilized": false, "system.onFire": false,
+  });
+  ui.notifications?.info?.(`${actor.name} fully repaired (frame SOP & systems restored).`);
+}
+
 /**
  * Per-round ACPA status ticks (MM p.55-56): seize-up and interface-out timers count down each combat
  * round for every ACPA combatant; seize-up ending restores mobility. Active GM only (so N GMs don't
