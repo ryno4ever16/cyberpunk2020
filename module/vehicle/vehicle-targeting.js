@@ -248,7 +248,9 @@ export async function dispatchAttack(payload, target) {
           extraRounds: Number(payload.extraRounds) || 0,
           range: payload.range || "normal",
           hefPenetrator: !!payload.hefPenetrator,  // HEAT/Hi-Ex → Penetration not reduced by range
-          heat: !!payload.heat                     // HEAT (shaped-charge) → halved by Composite Armor
+          heat: !!payload.heat,                    // HEAT (shaped-charge) → halved by Composite Armor
+          // Real rolled weapon damage when the firer supplies it (ACPA SOP uses it; vehicles ignore it).
+          rawDamage: (payload.rawDamage != null) ? Number(payload.rawDamage) : null
         });
       } else {
         await VD.applyVehicleDamageCore(target, { rawDamage: Number(payload.penetration) || 0, ap: !!payload.ap, facing });

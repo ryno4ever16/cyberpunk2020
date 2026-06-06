@@ -347,6 +347,7 @@ export async function openVehicleFireDialog(actor, mount = {}) {
             facing: root.querySelector("#cp-vf-facing")?.value || "front",
             range: root.querySelector("#cp-vf-range")?.value || "normal",
             ap, hefPenetrator, heat,
+            damageFormula: item?.system?.damage ?? "",   // real weapon damage (ACPA SOP uses it)
             burst, coneAngle, weaponClass, weaponRange,
             guidance, missileSkill: guidanceSkill, homingMethod,
             firerTokenId: firerTok?.id, targetTokenId: targetTok?.id,
@@ -445,7 +446,7 @@ async function _executeVehicleFire(actor, targetActor, p) {
       <button class="cp-vfire-apply" style="margin-top:4px;"
         data-pen="${p.penetration}" data-facing="${p.facing}" data-range="${p.range}"
         data-gs="${res.goodShotSteps}" data-rounds="${extraRounds}"
-        data-ap="${p.ap ? 1 : 0}" data-hef="${p.hefPenetrator ? 1 : 0}" data-heat="${p.heat ? 1 : 0}" data-weapon="${p.mountName}">💥 Apply to Target</button>
+        data-ap="${p.ap ? 1 : 0}" data-hef="${p.hefPenetrator ? 1 : 0}" data-heat="${p.heat ? 1 : 0}" data-weapon="${p.mountName}" data-dmg="${p.damageFormula ?? ""}">💥 Apply to Target</button>
     </div>`;
   }
 
@@ -465,7 +466,8 @@ async function _executeVehicleFire(actor, targetActor, p) {
   } else {
     await _applyVehicleShot(targetActor, {
       penetration: p.penetration, facing: p.facing, range: p.range,
-      goodShotSteps: res.goodShotSteps, extraRounds, ap: p.ap, hefPenetrator: p.hefPenetrator, heat: p.heat, weaponName: p.mountName
+      goodShotSteps: res.goodShotSteps, extraRounds, ap: p.ap, hefPenetrator: p.hefPenetrator, heat: p.heat, weaponName: p.mountName,
+      damageFormula: p.damageFormula
     });
   }
   return res;
@@ -477,9 +479,12 @@ async function _applyAreaShot(p, res, extraRounds) {
   const firerTok = p.firerTokenId ? canvas?.tokens?.get(p.firerTokenId) : null;
   const targetTok = p.targetTokenId ? canvas?.tokens?.get(p.targetTokenId) : null;
   const center = (t) => t ? (t.center ?? { x: t.x, y: t.y }) : null;
+  // One damage roll for the whole burst/cone (one shell), so an ACPA caught in it uses real damage.
+  let rawDamage = null;
+  if (p.damageFormula) { try { rawDamage = (await new Roll(String(p.damageFormula)).evaluate()).total; } catch (e) { rawDamage = null; } }
   const payload = {
     scale: "penetration", penetration: p.penetration, range: p.range,
-    goodShotSteps: res.goodShotSteps, extraRounds, ap: p.ap, hefPenetrator: p.hefPenetrator, heat: p.heat, weaponName: p.mountName
+    goodShotSteps: res.goodShotSteps, extraRounds, ap: p.ap, hefPenetrator: p.hefPenetrator, heat: p.heat, weaponName: p.mountName, rawDamage
   };
   if (p.weaponClass === "cone") {
     const fc = center(firerTok), tc = center(targetTok);
@@ -497,10 +502,13 @@ async function _applyAreaShot(p, res, extraRounds) {
  * Apply a resolved vehicle shot to ANY target via the unified 5c dispatcher: a vehicle target uses
  * the Phase-4 resolver (Pen vs Armor Value), a person uses MM p.8 (Penetration vs the personal AV).
  */
-async function _applyVehicleShot(targetActor, { penetration = 0, facing = "front", range = "normal", goodShotSteps = 0, extraRounds = 0, ap = false, hefPenetrator = false, heat = false, weaponName = "weapon" } = {}) {
+async function _applyVehicleShot(targetActor, { penetration = 0, facing = "front", range = "normal", goodShotSteps = 0, extraRounds = 0, ap = false, hefPenetrator = false, heat = false, weaponName = "weapon", damageFormula = "" } = {}) {
   const { dispatchAttack } = await import("./vehicle-targeting.js");
+  // Roll the weapon's real damage when known so an ACPA target's SOP flow uses it (not the Pen×10 estimate).
+  let rawDamage = null;
+  if (damageFormula) { try { rawDamage = (await new Roll(String(damageFormula)).evaluate()).total; } catch (e) { rawDamage = null; } }
   await dispatchAttack({
-    scale: "penetration", penetration, facing, range, goodShotSteps, extraRounds, ap, hefPenetrator, heat, weaponName
+    scale: "penetration", penetration, facing, range, goodShotSteps, extraRounds, ap, hefPenetrator, heat, weaponName, rawDamage
   }, targetActor);
 }
 
@@ -517,6 +525,7 @@ export function registerVehicleFireHandlers() {
       range: btn.dataset.range || "normal", goodShotSteps: Number(btn.dataset.gs) || 0,
       extraRounds: Number(btn.dataset.rounds) || 0, ap: btn.dataset.ap === "1",
       hefPenetrator: btn.dataset.hef === "1", heat: btn.dataset.heat === "1", weaponName: btn.dataset.weapon || "weapon",
+      damageFormula: btn.dataset.dmg || "",
     });
   });
 }

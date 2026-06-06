@@ -661,3 +661,42 @@ test("Phase 6 polish: pilot link drives REF + takes frame-overflow damage (live)
   expect(R.effRefLinked).toBe(8);       // linked pilot REF used, not the manual fallback (5)
   expect(R.pilotTookDamage).toBe(true); // frame-breach overflow wounded the pilot
 });
+
+/**
+ * Phase 6 polish #4 — real rolled damage threads into the ACPA SOP flow (LIVE). The same Pen-1 attack
+ * does nothing via the Pen×10 estimate (10 − Toughness 10 = 0 SOP) but penetrates and destroys the
+ * frame once the firer supplies the weapon's actual rolled damage (rawDamage).
+ */
+test("Phase 6 polish: real rolled damage threads to the ACPA SOP flow (live)", async ({ page }) => {
+  await login(page, ACCOUNTS.gm);
+  await cleanupTestData(page).catch(() => {});
+
+  const R = await evalGameOrThrow(page, async () => {
+    const VT = await import("/systems/cyberpunk2020/module/vehicle/vehicle-targeting.js");
+    const flags = { cyberpunk2020: { __pwtest: true } };
+    const sumSOP = (o) => Object.values(o || {}).reduce((a, v) => a + (Number(v) || 0), 0);
+    const out = {};
+    let acpa;
+    try {
+      acpa = await Actor.create({ name: "__PW__ACPA_RAW", type: "vehicle", flags,
+        system: { isACPA: true, str: 40, sp: { front: 0, side: 0, rear: 0, top: 0, bottom: 0 }, sdp: { value: 100, max: 100 } } });
+      // (a) Pen 1, NO rawDamage → incoming = Pen×10 = 10; − Toughness 10 → SOP 0 → never penetrates.
+      for (let i = 0; i < 12; i++) await VT.dispatchAttack({ scale: "penetration", penetration: 1, facing: "front" }, acpa);
+      out.noRawFrameSum = sumSOP(acpa._source.system.frameSOP);     // 0 (frame untouched)
+      out.noRawDestroyed = acpa._source.system.destroyed === true;   // false
+      // (b) Same Pen 1, but rawDamage 500 → SOP 490 → penetrates; frame eventually destroyed.
+      let destroyed = false;
+      for (let i = 0; i < 30 && !destroyed; i++) {
+        await VT.dispatchAttack({ scale: "penetration", penetration: 1, rawDamage: 500, facing: "front" }, acpa);
+        destroyed = acpa._source.system.destroyed === true;
+      }
+      out.rawDestroyed = destroyed;
+    } finally { if (acpa) await acpa.delete().catch(() => {}); }
+    return out;
+  });
+
+  console.log("Phase 6 polish rawdmg:", JSON.stringify(R));
+  expect(R.noRawFrameSum).toBe(0);      // Pen×10 (10) − Toughness 10 = 0 → no penetration
+  expect(R.noRawDestroyed).toBe(false);
+  expect(R.rawDestroyed).toBe(true);    // threaded real damage (500) penetrates + destroys the frame
+});

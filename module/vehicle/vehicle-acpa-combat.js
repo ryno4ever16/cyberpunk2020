@@ -82,9 +82,11 @@ export async function openAcpaMeleeDialog(actor) {
              <div>To-hit: 1d10 ${d10.total} + REF ${ref} + skill ${skill} = <b>${total}</b> vs ${dv} — ${verdict}</div>
              <div style="margin-top:2px;">Damage <b>${dmg.formula}</b> → Penetration <b>${pen}</b> (vehicle scale).</div></div>` });
         if (hit && targetActor) {
+          // Roll the strike's real damage so an ACPA target's SOP flow uses it, not the Pen×10 estimate.
+          const dmgRoll = await new Roll(dmg.formula).evaluate();
           const { dispatchAttack, detectFacingFromTokens } = await import("./vehicle-targeting.js");
           const facing = (firerTok && targetTok) ? detectFacingFromTokens(firerTok, targetTok) : "front";
-          await dispatchAttack({ scale: "penetration", penetration: pen, facing, targetTokenId: targetTok.id, weaponName: `ACPA ${kindLabel}` }, targetActor);
+          await dispatchAttack({ scale: "penetration", penetration: pen, rawDamage: dmgRoll.total, facing, targetTokenId: targetTok.id, weaponName: `ACPA ${kindLabel}` }, targetActor);
         }
       } },
       cancel: { label: "Cancel" },
