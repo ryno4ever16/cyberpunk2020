@@ -11,7 +11,7 @@ import {
   stringField
 } from "./schema-helpers.js";
 
-import { acpaAreaSOP, chassisStats } from "../vehicle/vehicle-acpa.js";
+import { acpaAreaSOP, chassisStats, realityInterface, reflexControl, acpaEffectiveRef } from "../vehicle/vehicle-acpa.js";
 
 function hasOwn(source, key) {
   return Object.prototype.hasOwnProperty.call(source, key);
@@ -193,6 +193,14 @@ export class CyberpunkVehicleActorData extends foundry.abstract.TypeDataModel {
       // powered-armor resolver). Max + chassis stats are DERIVED from chassis STR below.
       frameSOP:    objectField({ head: 0, rArm: 0, lArm: 0, rLeg: 0, lLeg: 0, torso: 0 }),
 
+      // ACPA build selections (Maximum Metal p.64-65). Additive — existing actors get these defaults
+      // on load (no migration / relaunch). Defaults are the neutral military baseline: Full-HUD
+      // Wideband (SIB 0, so no surprise to existing suits) + Advanced reflex/control (full REF, max 10).
+      realityInterface: stringField("FULL_HUD_WIDEBAND"),
+      reflexControl:    stringField("ADVANCED"),
+      commandComputer:  booleanField(false),   // C3: +1 initiative/awareness while linked (integrable with any)
+      pilotRef:         numberField(0),         // pilot base REF (until a pilot actor is linked)
+
       // Derived (recomputed each prepare; stored so they're available to templates/rolls)
       armorValue: objectField({ front: 0, side: 0, rear: 0, top: 0, bottom: 0 }),
       bodyValue:  numberField(0),
@@ -203,6 +211,13 @@ export class CyberpunkVehicleActorData extends foundry.abstract.TypeDataModel {
       damMod:      stringField(""),   // linear-frame melee Damage Mod (display)
       lift:        numberField(0),
       carry:       numberField(0),
+      // ACPA-derived interface/reflex stats (from the Reality Interface + Reflex/Control selections).
+      dfb:          numberField(0),    // Direct-Fire Bonus — to-hit mod when the suit fires its weapons
+      interfaceSib: numberField(0),    // Reality Interface's contribution to the suit's Initiative Bonus
+      interfaceSop: numberField(0),    // Reality Interface SOP (build budget)
+      maxRef:       numberField(10),   // operating-REF cap from the Reflex/Control system
+      refMod:       numberField(0),    // REF modifier from the Reflex/Control system
+      effectiveRef: numberField(0),    // clamp(pilotRef + refMod, 0..maxRef) − refDamage
 
       notes: htmlField("")
     };
@@ -236,6 +251,18 @@ export class CyberpunkVehicleActorData extends foundry.abstract.TypeDataModel {
       this.damMod = cs.damMod;
       this.lift = cs.lift;
       this.carry = cs.carry;
+
+      // Reality Interface + Reflex/Control derivations (Maximum Metal p.64-65).
+      const ri = realityInterface(this.realityInterface);
+      const rc = reflexControl(this.reflexControl);
+      this.dfb = ri.dfb;
+      this.interfaceSib = ri.sib;
+      this.interfaceSop = ri.sop;
+      this.maxRef = rc.maxRef;
+      this.refMod = rc.refMod;
+      this.effectiveRef = acpaEffectiveRef({
+        pilotRef: this.pilotRef, refMod: rc.refMod, maxRef: rc.maxRef, refDamage: this.refDamage
+      });
     }
   }
 }

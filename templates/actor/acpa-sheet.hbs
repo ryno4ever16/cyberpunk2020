@@ -86,6 +86,42 @@
         </div>
         {{/if}}
 
+        {{!-- Reality Interface & Reflex/Control — the suit's "user interface" (MM p.64-65). The
+              interface sets DFB (weapon to-hit) + its SIB contribution; reflex/control sets the REF cap. --}}
+        {{#if mmOn}}
+        <h2 class="cyber-section-header">Reality Interface &amp; Reflex/Control</h2>
+        <div class="field-list">
+            <div class="field" title="Reality Interface (MM p.64). Always mounted in the helmet. Sets the suit's SIB contribution and its Direct-Fire Bonus (DFB) — the to-hit modifier when the suit fires its own weapons, replacing any smartgun bonus.">
+                <label>Reality Interface</label>
+                <select name="system.realityInterface">
+                    {{#each realityInterfaceChoices}}<option value="{{key}}" {{#if (equals ../system.realityInterface key)}}selected{{/if}}>{{label}}</option>{{/each}}
+                </select>
+            </div>
+            <div class="field" title="Reflex/Control system (MM p.65). Sets the REF modifier and the maximum operating Reflex (the suit's REF cap). Takes no spaces. Advanced is the free military standard.">
+                <label>Reflex/Control</label>
+                <select name="system.reflexControl">
+                    {{#each reflexControlChoices}}<option value="{{key}}" {{#if (equals ../system.reflexControl key)}}selected{{/if}}>{{label}}</option>{{/each}}
+                </select>
+            </div>
+        </div>
+        <div class="field-list">
+            <div class="field" title="Direct-Fire Bonus — added to the suit's weapon to-hit rolls (replaces any smartgun bonus). Derived from the Reality Interface. Read-only.">
+                <label>DFB (to-hit)</label><input type="number" class="not-editable" value="{{system.dfb}}" readonly/></div>
+            <div class="field" title="The Reality Interface's contribution to the suit's Initiative Bonus (SIB). Derived. Read-only.">
+                <label>Interface SIB</label><input type="number" class="not-editable" value="{{system.interfaceSib}}" readonly/></div>
+            <div class="field" title="Maximum operating Reflex allowed by the Reflex/Control system. The pilot's REF is capped here while driving the suit. Read-only.">
+                <label>Max REF</label><input type="number" class="not-editable" value="{{system.maxRef}}" readonly/></div>
+        </div>
+        <div class="field-list">
+            <div class="field" title="Pilot's base Reflex (REF). Until a pilot actor is linked, set it here; the suit's effective REF derives from it, the Reflex/Control modifier and cap, minus critical REF damage.">
+                <label>Pilot REF</label><input type="number" name="system.pilotRef" value="{{system.pilotRef}}"/></div>
+            <div class="field" title="Effective operating REF = clamp(pilot REF + Reflex/Control mod, 0..max) − suit REF critical damage. Derived. Read-only.">
+                <label>Effective REF</label><input type="number" class="not-editable" value="{{system.effectiveRef}}" readonly/></div>
+            <div class="field" title="Command &amp; Control Computer (C3): squad-coordination option, +1 to Initiative and Awareness while linked. Integrable with any Reflex/Control system.">
+                <label>Command Computer</label><input type="checkbox" name="system.commandComputer" {{#if system.commandComputer}}checked{{/if}}/></div>
+        </div>
+        {{/if}}
+
         {{!-- Pilot & Systems --}}
         <h2 class="cyber-section-header">Pilot &amp; Systems</h2>
         <div class="field-list">

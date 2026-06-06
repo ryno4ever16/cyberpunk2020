@@ -2,6 +2,7 @@ import { openControlRollDialog } from "../vehicle/vehicle-control.js";
 import { openVehicleDamageDialog } from "../vehicle/vehicle-damage.js";
 import { openVehicleFireDialog } from "../vehicle/vehicle-weapons.js";
 import { openAcpaMeleeDialog, repairAcpa } from "../vehicle/vehicle-acpa-combat.js";
+import { REALITY_INTERFACES, REFLEX_CONTROLS } from "../vehicle/vehicle-acpa.js";
 import { effectiveVehicleRuleSystem, mmEnabled } from "../settings.js";
 
 /**
@@ -63,6 +64,12 @@ export class CyberpunkVehicleSheet extends ActorSheet {
     // the legacy inline system.weaponMounts array is deprecated (unreleased data → no migration).
     data.weapons = (this.actor.itemTypes?.vehicleWeapon ?? this.actor.items.filter(i => i.type === "vehicleWeapon"))
       .map(i => ({ id: i.id, name: i.name, img: i.img, system: i.system }));
+
+    // ACPA build dropdowns (Reality Interface + Reflex/Control). Labels show the key stats inline.
+    data.realityInterfaceChoices = Object.values(REALITY_INTERFACES)
+      .map(r => ({ key: r.key, label: `${r.label} (SIB ${r.sib >= 0 ? "+" : ""}${r.sib} / DFB ${r.dfb >= 0 ? "+" : ""}${r.dfb})` }));
+    data.reflexControlChoices = Object.values(REFLEX_CONTROLS)
+      .map(r => ({ key: r.key, label: `${r.label} (REF ${r.refMod >= 0 ? "+" : ""}${r.refMod}, max ${r.maxRef})` }));
     return data;
   }
 

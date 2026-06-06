@@ -151,3 +151,90 @@ test("Phase 6 D-3: ACPA SOP-damage flow (armor stops weak hits; frame SOP → To
   expect(R.sdpZeroOnShutdown).toBe(true);
   expect(R.maxPreserved).toBe(true);
 });
+
+/**
+ * Phase 6 D-4a — Reality Interface + Reflex/Control (Maximum Metal p.64-65). Verifies the PURE
+ * lookup tables + the effective-REF clamp, then the same values surfacing as DERIVED actor data
+ * (additive defaults: Full-HUD Wideband + Advanced; switching the selects re-derives DFB/SIB/REF cap).
+ */
+test("Phase 6 D-4a: Reality Interface + Reflex/Control (pure lookups + derived stats)", async ({ page }) => {
+  await login(page, ACCOUNTS.gm);
+  await cleanupTestData(page).catch(() => {});
+
+  const R = await evalGameOrThrow(page, async () => {
+    const A = await import("/systems/cyberpunk2020/module/vehicle/vehicle-acpa.js");
+    const out = { pure: {}, actor: {} };
+
+    // PURE lookups (MM p.64-65).
+    out.pure.apertureSib = A.realityInterface("APERTURE_BASED").sib;   // -6
+    out.pure.apertureDfb = A.realityInterface("APERTURE_BASED").dfb;   // -2
+    out.pure.vriDfb      = A.realityInterface("RUSSIAN_ARMS_VRI").dfb; // +3
+    out.pure.fallbackRi  = A.realityInterface("nope").key;            // FULL_HUD_WIDEBAND
+    out.pure.basicMax    = A.reflexControl("BASIC").maxRef;           // 8
+    out.pure.basicMod    = A.reflexControl("BASIC").refMod;           // -2
+    out.pure.basicCost   = A.reflexControl("BASIC").cost;             // -2000
+    out.pure.highMax     = A.reflexControl("HIGH_BOOST").maxRef;      // 12
+    out.pure.fallbackRc  = A.reflexControl("nope").key;              // ADVANCED
+    // effective-REF clamp: Advanced(0)/cap10, Basic(-2)/cap8, LowBoost(+1)/cap11, then minus refDamage.
+    out.pure.effAdv   = A.acpaEffectiveRef({ pilotRef: 9,  refMod: 0,  maxRef: 10 });               // 9
+    out.pure.effBasic = A.acpaEffectiveRef({ pilotRef: 9,  refMod: -2, maxRef: 8 });                // 7
+    out.pure.effCap   = A.acpaEffectiveRef({ pilotRef: 12, refMod: 1,  maxRef: 11 });               // 11 (capped)
+    out.pure.effDmg   = A.acpaEffectiveRef({ pilotRef: 9,  refMod: 0,  maxRef: 10, refDamage: 3 }); // 6
+
+    // DERIVED on a real ACPA actor — additive defaults are Full-HUD Wideband + Advanced.
+    const flags = { cyberpunk2020: { __pwtest: true } };
+    let acpa;
+    try {
+      acpa = await Actor.create({ name: "__PW__ACPA_D4a", type: "vehicle", flags,
+        system: { isACPA: true, str: 40, pilotRef: 9 } });
+      out.actor.defRi  = acpa.system.realityInterface;  // FULL_HUD_WIDEBAND
+      out.actor.defRc  = acpa.system.reflexControl;      // ADVANCED
+      out.actor.defDfb = acpa.system.dfb;                // +2
+      out.actor.defSib = acpa.system.interfaceSib;       // 0
+      out.actor.defMax = acpa.system.maxRef;             // 10
+      out.actor.defEff = acpa.system.effectiveRef;       // clamp(9+0, 0..10) = 9
+
+      // Switch to the worst interface + Basic control and re-derive.
+      await acpa.update({ "system.realityInterface": "APERTURE_BASED", "system.reflexControl": "BASIC" });
+      out.actor.aprDfb   = acpa.system.dfb;              // -2
+      out.actor.aprSib   = acpa.system.interfaceSib;     // -6
+      out.actor.basicMax = acpa.system.maxRef;           // 8
+      out.actor.basicEff = acpa.system.effectiveRef;     // clamp(9-2, 0..8) = 7
+
+      // Critical REF damage subtracts after the cap.
+      await acpa.update({ "system.reflexControl": "ADVANCED", "system.refDamage": 3 });
+      out.actor.dmgEff = acpa.system.effectiveRef;       // clamp(9+0, 0..10) = 9, − 3 = 6
+    } finally {
+      if (acpa) await acpa.delete().catch(() => {});
+    }
+    return out;
+  });
+
+  console.log("Phase 6 D-4a:", JSON.stringify(R));
+  // PURE
+  expect(R.pure.apertureSib).toBe(-6);
+  expect(R.pure.apertureDfb).toBe(-2);
+  expect(R.pure.vriDfb).toBe(3);
+  expect(R.pure.fallbackRi).toBe("FULL_HUD_WIDEBAND");
+  expect(R.pure.basicMax).toBe(8);
+  expect(R.pure.basicMod).toBe(-2);
+  expect(R.pure.basicCost).toBe(-2000);
+  expect(R.pure.highMax).toBe(12);
+  expect(R.pure.fallbackRc).toBe("ADVANCED");
+  expect(R.pure.effAdv).toBe(9);
+  expect(R.pure.effBasic).toBe(7);
+  expect(R.pure.effCap).toBe(11);
+  expect(R.pure.effDmg).toBe(6);
+  // DERIVED
+  expect(R.actor.defRi).toBe("FULL_HUD_WIDEBAND");
+  expect(R.actor.defRc).toBe("ADVANCED");
+  expect(R.actor.defDfb).toBe(2);
+  expect(R.actor.defSib).toBe(0);
+  expect(R.actor.defMax).toBe(10);
+  expect(R.actor.defEff).toBe(9);
+  expect(R.actor.aprDfb).toBe(-2);
+  expect(R.actor.aprSib).toBe(-6);
+  expect(R.actor.basicMax).toBe(8);
+  expect(R.actor.basicEff).toBe(7);
+  expect(R.actor.dmgEff).toBe(6);
+});

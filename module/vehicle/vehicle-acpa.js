@@ -226,6 +226,57 @@ export function chassisStats(str) {
   return { ...row };
 }
 
+/* ------------------- Reality Interface & Reflex/Control (MM p.64-65) ------------------- */
+
+/**
+ * Reality Interface systems (MM p.64). The interface always lives in the helmet. Each level sets
+ * the suit's SIB bonus (added in the SIB derivation) and its Direct-Fire Bonus (DFB) — the to-hit
+ * modifier applied when the suit fires its OWN weapons (this replaces any smartgun bonus).
+ * `sop`/`weight`/`spaces`/`cost` feed the build budget; `maxWeapons` = simultaneous targets. PURE.
+ */
+export const REALITY_INTERFACES = {
+  APERTURE_BASED:    { key: "APERTURE_BASED",    label: "Aperture-Based",    sib: -6, dfb: -2, sop: 20, weight: 0, spaces: 0,   cost: 100,  enclosed: true,  maxWeapons: 1 },
+  ENHANCED_APERTURE: { key: "ENHANCED_APERTURE", label: "Enhanced Aperture", sib: -4, dfb:  0, sop: 15, weight: 1, spaces: 0.5, cost: 300,  enclosed: true,  maxWeapons: 1 },
+  WIDEBAND_APERTURE: { key: "WIDEBAND_APERTURE", label: "Wideband Aperture", sib: -2, dfb:  1, sop: 15, weight: 1, spaces: 0.5, cost: 800,  enclosed: true,  maxWeapons: 1 },
+  FULL_HUD_WIDEBAND: { key: "FULL_HUD_WIDEBAND", label: "Full-HUD Wideband", sib:  0, dfb:  2, sop: 10, weight: 2, spaces: 0.5, cost: 2400, enclosed: false, maxWeapons: 1 },
+  ECI_WIDEBAND_HUD:  { key: "ECI_WIDEBAND_HUD",  label: "ECI Wideband HUD",  sib:  2, dfb:  2, sop: 10, weight: 2, spaces: 0.5, cost: 4000, enclosed: false, maxWeapons: 3 },
+  RUSSIAN_ARMS_VRI:  { key: "RUSSIAN_ARMS_VRI",  label: "Russian Arms VRI",  sib:  3, dfb:  3, sop: 25, weight: 3, spaces: 1,   cost: 6000, enclosed: false, maxWeapons: 4 },
+  MILITECH_VRI:      { key: "MILITECH_VRI",      label: "Militech VRI",      sib:  3, dfb:  3, sop: 15, weight: 2, spaces: 1,   cost: 8000, enclosed: false, maxWeapons: 4 },
+};
+
+/** Reality Interface row for a key (defaults to Full-HUD Wideband — the neutral SIB-0 baseline). PURE. */
+export function realityInterface(key) {
+  return REALITY_INTERFACES[key] ?? REALITY_INTERFACES.FULL_HUD_WIDEBAND;
+}
+
+/**
+ * Reflex/Control systems (MM p.65). They regulate how the pilot drives the suit: a REF modifier
+ * (`refMod`) plus a hard cap (`maxRef`) on the operating Reflex. They take NO spaces. Basic is the
+ * civilian "idiot-proof" system (REF−2, and −3 on STR42+ frames — modelled via refModHeavy); Advanced
+ * is the free military standard; Low/High Boost raise the cap (Boost cannot be "on" while plugged in
+ * to PA — the suit's reflex/control replaces cyberware reflexes). PURE.
+ */
+export const REFLEX_CONTROLS = {
+  BASIC:      { key: "BASIC",      label: "Basic",      refMod: -2, refModHeavy: -3, maxRef: 8,  cost: -2000, weight: 0, spaces: 0 },
+  ADVANCED:   { key: "ADVANCED",   label: "Advanced",   refMod:  0, refModHeavy:  0, maxRef: 10, cost: 0,     weight: 0, spaces: 0 },
+  LOW_BOOST:  { key: "LOW_BOOST",  label: "Low Boost",  refMod:  1, refModHeavy:  1, maxRef: 11, cost: 3000,  weight: 0, spaces: 0 },
+  HIGH_BOOST: { key: "HIGH_BOOST", label: "High Boost", refMod:  2, refModHeavy:  2, maxRef: 12, cost: 9000,  weight: 0, spaces: 0 },
+};
+
+/** Reflex/Control row for a key (defaults to Advanced — the free military standard, full REF / max 10). PURE. */
+export function reflexControl(key) {
+  return REFLEX_CONTROLS[key] ?? REFLEX_CONTROLS.ADVANCED;
+}
+
+/**
+ * Effective operating REF in the suit (MM p.65): clamp(pilotRef + refMod, 0..maxRef), then subtract
+ * accumulated suit-REF critical damage (refDamage). PURE.
+ */
+export function acpaEffectiveRef({ pilotRef = 0, refMod = 0, maxRef = 10, refDamage = 0 } = {}) {
+  const capped = Math.min(Math.max(0, (Number(pilotRef) || 0) + (Number(refMod) || 0)), Math.max(0, Number(maxRef) || 0));
+  return Math.max(0, capped - (Number(refDamage) || 0));
+}
+
 /* ------------------------------ Linear Frame (naked) (MM p.56) ------------------------------ */
 
 /**
