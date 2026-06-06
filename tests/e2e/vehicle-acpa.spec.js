@@ -588,3 +588,35 @@ test("Phase 6 polish: external systems take hits and shield the suit (live)", as
   console.log("Phase 6 polish ext:", JSON.stringify(R));
   expect(R.anyExtDamaged).toBe(true);   // external hits now damage external-mounted systems
 });
+
+/**
+ * Phase 6 polish #2 — cooling failure → heatstroke escalation (MM p.55), reconciling the minutes vs
+ * rounds scales. The 2d10-minute build-up ticks down in real round-time (0.05 min/round); on expiry
+ * the pilot makes an escalating Stun/Shock Save each round (Serious → Critical → Mortal → out). PURE.
+ */
+test("Phase 6 polish: cooling → heatstroke escalation (per-round, pure)", async ({ page }) => {
+  await login(page, ACCOUNTS.gm);
+
+  const R = await evalGameOrThrow(page, async () => {
+    const A = await import("/systems/cyberpunk2020/module/vehicle/vehicle-acpa.js");
+    const out = {};
+    out.cool1 = A.acpaTickStatus({ coolingTimer: 0.1 }).updates["system.coolingTimer"];   // 0.05 (counts down)
+    const exp = A.acpaTickStatus({ coolingTimer: 0.05 });
+    out.expCool = exp.updates["system.coolingTimer"];        // 0
+    out.expHeat = exp.updates["system.heatstrokeLevel"];     // 1 (Serious)
+    out.heat2 = A.acpaTickStatus({ coolingTimer: 0, heatstrokeLevel: 1 }).updates["system.heatstrokeLevel"]; // 2
+    out.heat3 = A.acpaTickStatus({ coolingTimer: 0, heatstrokeLevel: 2 }).updates["system.heatstrokeLevel"]; // 3
+    out.heatCap = A.acpaTickStatus({ coolingTimer: 0, heatstrokeLevel: 9 }).updates["system.heatstrokeLevel"]; // 4 (capped)
+    out.noneKeys = Object.keys(A.acpaTickStatus({}).updates).length;  // 0 (no cooling/heat → no updates)
+    return out;
+  });
+
+  console.log("Phase 6 polish cooling:", JSON.stringify(R));
+  expect(R.cool1).toBe(0.05);
+  expect(R.expCool).toBe(0);
+  expect(R.expHeat).toBe(1);
+  expect(R.heat2).toBe(2);
+  expect(R.heat3).toBe(3);
+  expect(R.heatCap).toBe(4);
+  expect(R.noneKeys).toBe(0);
+});

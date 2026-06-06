@@ -186,6 +186,7 @@ export class CyberpunkVehicleActorData extends foundry.abstract.TypeDataModel {
       refDamage:    numberField(0),    // accumulated Suit REF loss (already ÷2 per the chart)
       powerHours:   numberField(24),   // remaining power-cell life in hours (24h default)
       coolingTimer: numberField(0),    // minutes until heatstroke (0 = cooling OK)
+      heatstrokeLevel: numberField(0), // 0 = none; ≥1 escalating Stun-save level after build-up (Serious→…)
       interfaceOut: numberField(0),    // rounds the interface/electronics are out
       seizeUp:      numberField(0),    // rounds a body area is seized up
 

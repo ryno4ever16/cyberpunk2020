@@ -127,15 +127,25 @@ export function acpaCriticalUpdate(sys, effect, amount) {
   }
 }
 
+/** Minutes of real time per CP2020 combat round (3-second Friday Night Firefight rounds). */
+export const ACPA_ROUND_MINUTES = 0.05;
+/** Heatstroke escalation after a cooling failure (MM p.55): Stun/Shock Saves "starting at Serious,
+ *  progressing one level per turn until he passes out." Index by heatstrokeLevel. */
+export const HEATSTROKE_LEVELS = ["", "Serious", "Critical", "Mortal", "unconscious (heatstroke — death in 15 min if not removed)"];
+
 /**
  * One combat round of ACPA status decay (MM p.55-56). PURE — pass the suit's system, get the actor
  * update + narration lines. Round-based timers (seize-up, interface-out) count down; seize-up ending
- * restores mobility. (Cooling is tracked in minutes and left for the GM / the sheet readout.)
+ * restores mobility. Cooling reconciles the minutes-vs-rounds scales: the 2d10-minute heat build-up
+ * ticks down in real round-time (3s/round), and once it expires the pilot makes an escalating
+ * Stun/Shock Save each round (Serious → Critical → Mortal → out), tracked in heatstrokeLevel.
  * @returns {{updates:object, lines:string[]}}
  */
 export function acpaTickStatus(sys) {
   const seize = Number(sys?.seizeUp) || 0;
   const iface = Number(sys?.interfaceOut) || 0;
+  const cool = Number(sys?.coolingTimer) || 0;
+  const heat = Number(sys?.heatstrokeLevel) || 0;
   const updates = {};
   const lines = [];
   if (seize > 0) {
@@ -148,6 +158,21 @@ export function acpaTickStatus(sys) {
     const next = iface - 1;
     updates["system.interfaceOut"] = next;
     lines.push(next <= 0 ? "interface/electronics restored" : `interface out (${next} round${next !== 1 ? "s" : ""} left)`);
+  }
+  // Cooling failure → heat build-up (minutes) → escalating heatstroke Stun/Shock Saves (per round).
+  if (cool > 0) {
+    const next = Math.max(0, Math.round((cool - ACPA_ROUND_MINUTES) * 100) / 100);
+    updates["system.coolingTimer"] = next;
+    if (next <= 0) {
+      updates["system.heatstrokeLevel"] = 1;
+      lines.push("heat build-up complete — heatstroke begins: pilot Stun/Shock Save at Serious");
+    } else {
+      lines.push(`overheating (${next} min to heatstroke)`);
+    }
+  } else if (heat > 0) {
+    const lvl = Math.min(heat + 1, HEATSTROKE_LEVELS.length - 1);
+    updates["system.heatstrokeLevel"] = lvl;
+    lines.push(`heatstroke worsens — pilot Stun/Shock Save at ${HEATSTROKE_LEVELS[lvl]}`);
   }
   return { updates, lines };
 }

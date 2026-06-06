@@ -102,7 +102,7 @@ export async function repairAcpa(actor) {
     "system.frameSOP": { ...(sys.frameSOPMax ?? {}) },
     "system.sdp": { value: sdpMax, max: sdpMax },
     "system.strDamage": 0, "system.refDamage": 0, "system.powerHours": 24,
-    "system.coolingTimer": 0, "system.interfaceOut": 0, "system.seizeUp": 0,
+    "system.coolingTimer": 0, "system.heatstrokeLevel": 0, "system.interfaceOut": 0, "system.seizeUp": 0,
     "system.destroyed": false, "system.immobilized": false, "system.onFire": false,
   });
   ui.notifications?.info?.(`${actor.name} fully repaired (frame SOP & systems restored).`);
