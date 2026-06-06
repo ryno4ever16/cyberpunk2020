@@ -9,6 +9,7 @@
 
 import { acpaMeleeDamage, acpaTickStatus } from "./vehicle-acpa.js";
 import { penetrationFactor } from "./vehicle-weapons.js";
+import { postStunSavePrompt } from "../combat/save-rolls.js";
 import { openSingletonDialog } from "../utils.js";
 
 const SCOPE = "cyberpunk2020";
@@ -120,19 +121,34 @@ export async function repairAcpa(actor) {
  * round for every ACPA combatant; seize-up ending restores mobility. Active GM only (so N GMs don't
  * multiply the decrement). Cooling (minutes) is shown on the sheet and left for the GM to adjudicate.
  */
+/**
+ * One ACPA combatant's per-round upkeep: decay seize-up / interface-out / cooling, then — once the
+ * heat build-up completes — post the linked pilot's escalating Stun/Shock Save. Exported so it's
+ * directly testable without driving a full combat. Safe to call on any actor (no-ops on non-ACPA).
+ */
+export async function tickAcpaCombatant(actor) {
+  if (!actor || actor.type !== "vehicle" || !actor.system?.isACPA) return;
+  const { updates, lines } = acpaTickStatus(actor.system);
+  // Capture this BEFORE the update — actor.update() expands the dot-keys in `updates` in place.
+  const heatstrokeFired = updates["system.heatstrokeLevel"] != null;
+  if (Object.keys(updates).length) await actor.update(updates);
+  if (lines.length) await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor }),
+    content: `<div class="cyberpunk save-prompt"><h3>⚙ ${actor.name}</h3><div class="save-info">${lines.join("; ")}.</div></div>`,
+  });
+  // Heatstroke: once the build-up completes, the linked pilot makes a real Stun/Shock Save each round.
+  if (heatstrokeFired && actor.system?.pilotId) {
+    const pilot = game.actors?.get(actor.system.pilotId);
+    if (pilot) await postStunSavePrompt(pilot);
+  }
+}
+
 export function registerAcpaCombatHooks() {
   Hooks.on("updateCombat", async (combat, changed) => {
     if (!game.user?.isGM || game.users?.activeGM?.id !== game.user.id) return;
     if (changed.round === undefined) return;   // once per round
     for (const c of combat.combatants ?? []) {
-      const a = c.actor;
-      if (!a || a.type !== "vehicle" || !a.system?.isACPA) continue;
-      const { updates, lines } = acpaTickStatus(a.system);
-      if (Object.keys(updates).length) await a.update(updates);
-      if (lines.length) await ChatMessage.create({
-        speaker: ChatMessage.getSpeaker({ actor: a }),
-        content: `<div class="cyberpunk save-prompt"><h3>⚙ ${a.name}</h3><div class="save-info">${lines.join("; ")}.</div></div>`,
-      });
+      await tickAcpaCombatant(c.actor);
     }
   });
 }

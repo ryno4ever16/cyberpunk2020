@@ -294,6 +294,7 @@ async function _resolveAcpaSopDamage(actor, sys, { pen, rawDamage, str }, rolls)
   const updates = {};
   const itemUpdates = [];
   let pilotDamage = 0;   // frame-breach overflow that reaches the wearer (applied to a linked pilot)
+  let pilotStun = false; // a Mechanical Shock critical stuns the pilot → Stun/Shock Save
   const damaged = Array.isArray(sys.damagedSystems) ? [...sys.damagedSystems] : [];
 
   const incoming = (rawDamage != null) ? Math.max(0, Number(rawDamage) || 0) : Math.max(0, pen * 10);
@@ -348,6 +349,7 @@ async function _resolveAcpaSopDamage(actor, sys, { pen, rawDamage, str }, rolls)
       const { updates: cu, note } = acpaCriticalUpdate(sys, eff, amt);
       Object.assign(updates, cu);
       lines += `<br><span style="color:#ff3030;font-weight:bold;">CRITICAL</span> — ${eff.label}: ${note}.`;
+      if (eff.type === "mechShock") pilotStun = true;   // mechanical shock stuns the pilot
     } else if (cat === "enclosed") {
       // Per-system SOP (D-4d): the SOP damages a specific mounted, enclosed system in the struck area.
       const r = hitMountedSystem(i => i.type === "acpaSystem" && i.system?.mount !== "external");
@@ -411,7 +413,7 @@ async function _resolveAcpaSopDamage(actor, sys, { pen, rawDamage, str }, rolls)
       }
     }
   }
-  return { body, lines, updates, itemUpdates, pilotDamage };
+  return { body, lines, updates, itemUpdates, pilotDamage, pilotStun };
 }
 
 /**
@@ -451,6 +453,12 @@ export async function applyVehicleDamageMM(actor, { basePen = 0, facing = "front
     if (r.pilotDamage > 0 && sys.pilotId) {
       const pilot = game.actors?.get(sys.pilotId);
       if (pilot) await pilot.update({ "system.damage": (Number(pilot.system?.damage) || 0) + r.pilotDamage });
+    }
+    // A Mechanical Shock critical stuns the pilot → post their Stun/Shock Save (no damage, so the
+    // updateActor hook above wouldn't fire it).
+    if (r.pilotStun && sys.pilotId) {
+      const pilot = game.actors?.get(sys.pilotId);
+      if (pilot) { const { postStunSavePrompt } = await import("../combat/save-rolls.js"); await postStunSavePrompt(pilot); }
     }
   } else {
     sev = mmDamageSeverity({ pen, effectiveArmorValue: effAV, bodyValue, d10: await d10() });

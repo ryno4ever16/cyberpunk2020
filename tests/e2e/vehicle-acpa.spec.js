@@ -782,3 +782,43 @@ test("Phase 6 deferral B: a 'weapons' System Hit damages a SOP-tracked ACPA weap
   expect(R.anyWpnDamaged).toBe(true);      // a SOP-tracked weapon took the "internal weapon" hit
   expect(R.afterRepairDamaged).toBe(0);    // repair restored the weapons
 });
+
+/**
+ * Phase 6 deferral C — heatstroke fires the linked pilot's real Stun/Shock Save (MM p.55). When the
+ * cooling build-up completes (per-round tick), the pilot gets an actual stun-save prompt that escalates
+ * each round. (Mech-shock uses the same postStunSavePrompt path in the resolver.)
+ */
+test("Phase 6 deferral C: heatstroke fires the linked pilot's Stun/Shock Save (live)", async ({ page }) => {
+  await login(page, ACCOUNTS.gm);
+  await cleanupTestData(page).catch(() => {});
+
+  const R = await evalGameOrThrow(page, async () => {
+    const AC = await import("/systems/cyberpunk2020/module/vehicle/vehicle-acpa-combat.js");
+    const flags = { cyberpunk2020: { __pwtest: true } };
+    const out = {};
+    let pilot, acpa;
+    try {
+      pilot = await Actor.create({ name: "__PW__HeatPilot", type: "character", flags, system: { stats: { ref: { base: 7 }, bt: { base: 8 } } } });
+      acpa = await Actor.create({ name: "__PW__ACPA_HEAT", type: "vehicle", flags,
+        system: { isACPA: true, str: 40, pilotId: pilot.id, coolingTimer: 0.05 } });   // about to expire
+
+      const before = new Set(game.messages.contents.map(m => m.id));
+      await AC.tickAcpaCombatant(acpa);                         // build-up completes → heatstroke begins
+      out.heatLevel = acpa.system.heatstrokeLevel;             // 1 (Serious)
+      out.pilotSavePosted = game.messages.contents.some(m =>
+        !before.has(m.id) && (m.content || "").includes("Stun / Shock Save") && (m.content || "").includes(pilot.name));
+
+      await AC.tickAcpaCombatant(acpa);                         // next round escalates
+      out.heatLevel2 = acpa.system.heatstrokeLevel;            // 2 (Critical)
+    } finally {
+      if (acpa) await acpa.delete().catch(() => {});
+      if (pilot) await pilot.delete().catch(() => {});
+    }
+    return out;
+  });
+
+  console.log("Phase 6 deferral C:", JSON.stringify(R));
+  expect(R.heatLevel).toBe(1);
+  expect(R.pilotSavePosted).toBe(true);   // the linked pilot got a real Stun/Shock Save prompt
+  expect(R.heatLevel2).toBe(2);
+});
