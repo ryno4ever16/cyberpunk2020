@@ -17,6 +17,8 @@ test("Phase 6 D-4d-1: ACPA systems catalog + spaces + per-system SOP damage (pur
     // Catalog + SOP rule.
     out.radarExists = !!S.acpaSystemDef("RADAR");
     out.unknownNull = S.acpaSystemDef("NOPE") === null;
+    out.defensiveCat = S.acpaSystemDef("ECM_SUITE")?.category;   // "defensive" (catalog expansion)
+    out.catalogSize = Object.keys(S.ACPA_SYSTEMS).length;        // 20
     out.radarSop    = S.acpaSystemSop(S.acpaSystemDef("RADAR"));     // 15 (direct)
     out.spOnlySop   = S.acpaSystemSop({ sp: 10, sop: 0 });           // 30 (3× SP)
     out.zeroSop     = S.acpaSystemSop({ sp: 0, sop: 0 });            // 0
@@ -66,6 +68,8 @@ test("Phase 6 D-4d-1: ACPA systems catalog + spaces + per-system SOP damage (pur
   console.log("Phase 6 D-4d-1:", JSON.stringify(R));
   expect(R.radarExists).toBe(true);
   expect(R.unknownNull).toBe(true);
+  expect(R.defensiveCat).toBe("defensive");
+  expect(R.catalogSize).toBe(20);
   expect(R.radarSop).toBe(15);
   expect(R.spOnlySop).toBe(30);
   expect(R.zeroSop).toBe(0);

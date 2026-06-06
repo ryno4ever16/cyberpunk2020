@@ -41,6 +41,14 @@ export const ACPA_SYSTEMS = {
   ESCAPE_HATCH:       { key: "ESCAPE_HATCH",       label: "Escape Hatch",          category: "safety",   weight: 1,  spaces: 0.5, sp: 0,  sop: 30, cost: 500,  mount: "internal" },
   LIFE_SUPPORT:       { key: "LIFE_SUPPORT",       label: "Extended Life Support", category: "safety",   weight: 2,  spaces: 0.5, sp: 0,  sop: 10, cost: 400,  mount: "internal" },
   SELF_SEAL:          { key: "SELF_SEAL",          label: "Self-Seal Compression", category: "safety",   weight: 5,  spaces: 4,   sp: 0,  sop: 50, cost: 6000, mount: "internal" },
+
+  // ── Defensive / countermeasures (ACPA Defensive Systems, p.79 / charts p.97) ──
+  EMP_SPONGE:         { key: "EMP_SPONGE",         label: "EMP Sponge",            category: "defensive", weight: 2, spaces: 0.5, sp: 0,  sop: 30, cost: 500,    mount: "internal" },  // one-shot EMP protection
+  SMOKE_CANNISTER:    { key: "SMOKE_CANNISTER",    label: "Smoke Cannister",       category: "defensive", weight: 2, spaces: 1,   sp: 0,  sop: 10, cost: 1500,   mount: "internal" },  // −3 to-hit vs visual guidance
+  IR_BAFFLING:        { key: "IR_BAFFLING",        label: "IR Baffling",           category: "defensive", weight: 6, spaces: 1,   sp: 20, sop: 20, cost: 300,    mount: "external" },  // vs thermal/IR
+  GHOST_DECOY:        { key: "GHOST_DECOY",        label: "Ghost Decoy Cannister", category: "defensive", weight: 2, spaces: 0.5, sp: 20, sop: 25, cost: 500,    mount: "external" },  // one-shot ECM decoy (~1 min)
+  AGAMS:              { key: "AGAMS",              label: "AGAMS Anti-Missile",    category: "defensive", weight: 4, spaces: 0.5, sp: 20, sop: 10, cost: 3000,   mount: "external" },  // shoots down inbound missiles
+  ECM_SUITE:          { key: "ECM_SUITE",          label: "ECM Suite",             category: "defensive", weight: 5, spaces: 1,   sp: 0,  sop: 15, cost: 100000, mount: "internal" },  // jamming, 100m radius
 };
 
 /** Catalog entry for a key (or null). PURE. */

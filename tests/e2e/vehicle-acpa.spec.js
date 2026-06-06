@@ -418,9 +418,13 @@ test("Phase 6 D-4d-2: acpaSystem Items on an ACPA — weight→SIB + compendium 
   const R = await evalGameOrThrow(page, async () => {
     const out = {};
     out.typeRegistered = (game.documentTypes?.Item ?? []).includes("acpaSystem");
+    const Sys = await import("/systems/cyberpunk2020/module/vehicle/vehicle-acpa-systems.js");
+    const Cat = await import("/systems/cyberpunk2020/module/vehicle/vehicle-acpa-catalog.js");
+    out.catalogSize = Object.keys(Sys.ACPA_SYSTEMS).length;     // full catalog (core + defensive)
+    await Cat.seedAcpaSystemCompendium();                       // idempotent: back-fills any new entries
     const pack = game.packs?.get("cyberpunk2020.acpa-systems");
     out.packExists = !!pack;
-    out.seededCount = pack ? (await pack.getIndex()).size : 0;   // 14 (core catalog)
+    out.seededCount = pack ? (await pack.getIndex()).size : 0;
 
     const flags = { cyberpunk2020: { __pwtest: true } };
     let acpa;
@@ -450,7 +454,8 @@ test("Phase 6 D-4d-2: acpaSystem Items on an ACPA — weight→SIB + compendium 
   console.log("Phase 6 D-4d-2:", JSON.stringify(R));
   expect(R.typeRegistered).toBe(true);
   expect(R.packExists).toBe(true);
-  expect(R.seededCount).toBe(14);
+  expect(R.catalogSize).toBe(20);                // 14 core + 6 defensive/countermeasure
+  expect(R.seededCount).toBe(R.catalogSize);     // compendium seeded to the full catalog
   expect(R.baseTotal).toBe(516);
   expect(R.baseSib).toBe(3);
   expect(R.baseMounted).toBe(0);
