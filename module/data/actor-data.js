@@ -11,7 +11,7 @@ import {
   stringField
 } from "./schema-helpers.js";
 
-import { acpaAreaSOP, chassisStats, realityInterface, reflexControl, acpaEffectiveRef, acpaArmorWeight, acpaArmorCost, acpaSib } from "../vehicle/vehicle-acpa.js";
+import { acpaAreaSOP, chassisStats, realityInterface, reflexControl, acpaReflexMod, acpaEffectiveRef, acpaArmorWeight, acpaArmorCost, acpaSib } from "../vehicle/vehicle-acpa.js";
 
 function hasOwn(source, key) {
   return Object.prototype.hasOwnProperty.call(source, key);
@@ -271,7 +271,8 @@ export class CyberpunkVehicleActorData extends foundry.abstract.TypeDataModel {
       this.interfaceSib = ri.sib;
       this.interfaceSop = ri.sop;
       this.maxRef = rc.maxRef;
-      this.refMod = rc.refMod;
+      // Basic control on a military STR42+ frame is stricter (REF−3 not −2) — acpaReflexMod handles it.
+      this.refMod = acpaReflexMod(this.reflexControl, str);
       // A linked pilot actor supplies the base REF; otherwise the manual pilotRef field is the fallback.
       let pilotRef = Number(this.pilotRef) || 0;
       try {
@@ -282,7 +283,7 @@ export class CyberpunkVehicleActorData extends foundry.abstract.TypeDataModel {
         }
       } catch (e) { /* actors not ready */ }
       this.effectiveRef = acpaEffectiveRef({
-        pilotRef, refMod: rc.refMod, maxRef: rc.maxRef, refDamage: this.refDamage
+        pilotRef, refMod: this.refMod, maxRef: rc.maxRef, refDamage: this.refDamage
       });
 
       // Weight budget + Suit Initiative Bonus (Maximum Metal p.61-62). Total loaded weight = chassis

@@ -705,3 +705,42 @@ test("Phase 6 polish: real rolled damage threads to the ACPA SOP flow (live)", a
   expect(R.noRawDestroyed).toBe(false);
   expect(R.rawDestroyed).toBe(true);    // threaded real damage (500) penetrates + destroys the frame
 });
+
+/**
+ * Phase 6 polish — Basic Reflex/Control is stricter on a military STR42+ frame: REF−3 instead of −2
+ * (MM p.65). acpaReflexMod applies the heavy-frame variant; the suit's refMod/effectiveRef reflect it.
+ */
+test("Phase 6 polish: Basic control is REF-3 on STR42+ frames (pure + derived)", async ({ page }) => {
+  await login(page, ACCOUNTS.gm);
+  await cleanupTestData(page).catch(() => {});
+
+  const R = await evalGameOrThrow(page, async () => {
+    const A = await import("/systems/cyberpunk2020/module/vehicle/vehicle-acpa.js");
+    const out = { pure: {}, actor: {} };
+    out.pure.basicLight = A.acpaReflexMod("BASIC", 40);    // -2 (< STR42)
+    out.pure.basicHeavy = A.acpaReflexMod("BASIC", 42);    // -3 (STR42+ military frame)
+    out.pure.advHeavy   = A.acpaReflexMod("ADVANCED", 50); // 0 (only Basic has the heavy penalty)
+
+    const flags = { cyberpunk2020: { __pwtest: true } };
+    let acpa;
+    try {
+      acpa = await Actor.create({ name: "__PW__ACPA_BASIC", type: "vehicle", flags,
+        system: { isACPA: true, str: 42, reflexControl: "BASIC", pilotRef: 9 } });
+      out.actor.refMod42 = acpa.system.refMod;        // -3
+      out.actor.eff42    = acpa.system.effectiveRef;  // clamp(9 − 3, 0..8) = 6
+      await acpa.update({ "system.str": 40 });
+      out.actor.refMod40 = acpa.system.refMod;        // -2 (light frame)
+      out.actor.eff40    = acpa.system.effectiveRef;  // clamp(9 − 2, 0..8) = 7
+    } finally { if (acpa) await acpa.delete().catch(() => {}); }
+    return out;
+  });
+
+  console.log("Phase 6 polish basic:", JSON.stringify(R));
+  expect(R.pure.basicLight).toBe(-2);
+  expect(R.pure.basicHeavy).toBe(-3);
+  expect(R.pure.advHeavy).toBe(0);
+  expect(R.actor.refMod42).toBe(-3);
+  expect(R.actor.eff42).toBe(6);
+  expect(R.actor.refMod40).toBe(-2);
+  expect(R.actor.eff40).toBe(7);
+});

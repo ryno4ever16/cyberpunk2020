@@ -294,6 +294,15 @@ export function reflexControl(key) {
 }
 
 /**
+ * The REF modifier from a Reflex/Control system, applying the heavy-frame variant: Basic control on a
+ * military linear frame of STR 42+ is even stricter — REF−3 instead of −2 (MM p.65). PURE.
+ */
+export function acpaReflexMod(key, str) {
+  const rc = reflexControl(key);
+  return (rc.key === "BASIC" && (Number(str) || 0) >= 42) ? rc.refModHeavy : rc.refMod;
+}
+
+/**
  * Effective operating REF in the suit (MM p.65): clamp(pilotRef + refMod, 0..maxRef), then subtract
  * accumulated suit-REF critical damage (refDamage). PURE.
  */
