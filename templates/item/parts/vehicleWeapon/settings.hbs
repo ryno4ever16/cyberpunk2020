@@ -135,3 +135,26 @@
         <label>Spaces</label><input type="number" name="system.space" value="{{system.space}}"/>
     </div>
 </div>
+
+{{!-- Shell / warhead variants — selectable shells offered at fire time (artillery / bombs / HE). --}}
+<h3 class="cyber-section-header" style="margin-top:8px;">Shell Variants</h3>
+<p style="opacity:0.6; font-size:0.78em; margin:0 0 4px;">Offered when firing. The warhead drives the effect: HEAT (shaped charge, halved by composite), WP (3D6 burn), Cluster (×3 burst, Pen 4), Chemical (gas cloud, no Pen). Leave empty for a plain HE round.</p>
+<div class="cp-shellvariants">
+    {{#each system.shellVariants as |v i|}}
+    <div class="cp-shellvar" data-index="{{i}}" style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-bottom:3px;">
+        <input type="text" class="cp-sv" data-field="name" value="{{v.name}}" placeholder="Name" style="flex:1 1 120px;"/>
+        <label style="font-size:0.8em;">Pen <input type="number" class="cp-sv" data-field="pen" value="{{v.pen}}" style="width:44px;"/></label>
+        <label style="font-size:0.8em;">Burst <input type="number" class="cp-sv" data-field="burst" value="{{v.burst}}" style="width:44px;"/></label>
+        <select class="cp-sv" data-field="warhead" style="font-size:0.8em;">
+            <option value="" {{#if (equals v.warhead "")}}selected{{/if}}>HE</option>
+            <option value="heat" {{#if (equals v.warhead "heat")}}selected{{/if}}>HEAT</option>
+            <option value="wp" {{#if (equals v.warhead "wp")}}selected{{/if}}>WP</option>
+            <option value="cluster" {{#if (equals v.warhead "cluster")}}selected{{/if}}>Cluster</option>
+            <option value="chemical" {{#if (equals v.warhead "chemical")}}selected{{/if}}>Chemical</option>
+        </select>
+        <label style="font-size:0.8em;" title="Armor-piercing">AP <input type="checkbox" class="cp-sv" data-field="ap" {{#if v.ap}}checked{{/if}}/></label>
+        <button type="button" class="cp-sv-remove" data-index="{{i}}" title="Remove this shell" style="padding:0 6px;">✕</button>
+    </div>
+    {{/each}}
+    <button type="button" class="cp-sv-add" style="margin-top:2px;">＋ Add Shell Variant</button>
+</div>

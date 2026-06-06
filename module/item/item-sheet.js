@@ -782,6 +782,35 @@ async _prepareCyberware(sheet) {
       }
     });
 
+    // Vehicle weapon shell/warhead variants (array of {name, pen, burst, warhead, ap}). Edited in
+    // place like the ammo blast-multipliers: read the array, mutate, write it back.
+    const _svArray = () => Array.isArray(this.item.system?.shellVariants) ? foundry.utils.duplicate(this.item.system.shellVariants) : [];
+    html.on("click", ".cp-sv-add", async (ev) => {
+      if (this.item.type !== "vehicleWeapon") return;
+      ev.preventDefault();
+      const arr = _svArray();
+      arr.push({ name: "New Shell", pen: Number(this.item.system?.penetration) || 0, burst: Number(this.item.system?.burst) || 0, warhead: "", ap: false });
+      await this.item.update({ "system.shellVariants": arr });
+    });
+    html.on("click", ".cp-sv-remove", async (ev) => {
+      if (this.item.type !== "vehicleWeapon") return;
+      ev.preventDefault();
+      const idx = Number(ev.currentTarget.dataset.index);
+      const arr = _svArray();
+      if (Number.isFinite(idx) && idx >= 0 && idx < arr.length) { arr.splice(idx, 1); await this.item.update({ "system.shellVariants": arr }); }
+    });
+    html.on("change", ".cp-sv", async (ev) => {
+      if (this.item.type !== "vehicleWeapon") return;
+      const idx = Number(ev.currentTarget.closest(".cp-shellvar")?.dataset?.index);
+      const field = ev.currentTarget.dataset.field;
+      const arr = _svArray();
+      if (!Number.isFinite(idx) || !field || idx < 0 || idx >= arr.length) return;
+      const el = ev.currentTarget;
+      arr[idx][field] = el.type === "checkbox" ? !!el.checked
+        : (el.type === "number" ? (Number(String(el.value).replace(",", ".")) || 0) : el.value);
+      await this.item.update({ "system.shellVariants": arr }, { render: false });
+    });
+
     // Ammo Blast Multipliers
     html.on("change", "input.ammo-blast-mult", async (ev) => {
       if (this.item.type !== "ammo") return;
