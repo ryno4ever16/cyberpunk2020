@@ -36,6 +36,9 @@ export async function seedAcpaSystemCompendium({ force = false } = {}) {
   const wasLocked = !!pack.locked;
   try {
     if (wasLocked) await pack.configure({ locked: false });
+    // On a brand-new pack the unlock can lose a race with the ready hook. If it didn't take, skip
+    // quietly (retried next launch) rather than letting createDocuments raise a locked-pack warning.
+    if (pack.locked) return { ok: false, reason: "locked" };
     const index = await pack.getIndex();
     const existing = new Set(index.map(e => e.name));
     const toCreate = Object.values(ACPA_SYSTEMS)

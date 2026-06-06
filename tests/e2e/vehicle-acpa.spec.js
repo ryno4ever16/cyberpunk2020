@@ -405,3 +405,57 @@ test("Phase 6 D-4c: combat wiring — SIB→initiative, DFB→to-hit, REF cap", 
   expect(R.actor.rdImplantCmd).toBe(1);
   expect(R.actor.plainHasInitMod).toBe(false);
 });
+
+/**
+ * Phase 6 D-4d-2 — acpaSystem Items (LIVE; requires the type registered by a world relaunch). Confirms
+ * the type + "ACPA Systems (MM)" compendium (seeded with the 14-entry core catalog), and that mounting
+ * system Items on an ACPA flows their weight into mountedSystemsWeight → total weight → SIB.
+ */
+test("Phase 6 D-4d-2: acpaSystem Items on an ACPA — weight→SIB + compendium seeded", async ({ page }) => {
+  await login(page, ACCOUNTS.gm);
+  await cleanupTestData(page).catch(() => {});
+
+  const R = await evalGameOrThrow(page, async () => {
+    const out = {};
+    out.typeRegistered = (game.documentTypes?.Item ?? []).includes("acpaSystem");
+    const pack = game.packs?.get("cyberpunk2020.acpa-systems");
+    out.packExists = !!pack;
+    out.seededCount = pack ? (await pack.getIndex()).size : 0;   // 14 (core catalog)
+
+    const flags = { cyberpunk2020: { __pwtest: true } };
+    let acpa;
+    try {
+      // STR40 + SP40 → baseline SIB 3, total 516 (chassis 200 + armor 200 + trooper 114 + Full-HUD 2).
+      acpa = await Actor.create({ name: "__PW__ACPA_D4d2", type: "vehicle", flags,
+        system: { isACPA: true, str: 40, sp: { front: 40, side: 0, rear: 0, top: 0, bottom: 0 } } });
+      out.baseTotal   = acpa.system.totalWeight;          // 516
+      out.baseSib     = acpa.system.sib;                  // 3
+      out.baseMounted = acpa.system.mountedSystemsWeight; // 0
+
+      // Mount a 50 kg Swimmer + a 20 kg Fire Extinguisher = 70 kg of systems → total 586.
+      await acpa.createEmbeddedDocuments("Item", [
+        { name: "Swimmer Unit",     type: "acpaSystem", system: { category: "movement", weight: 50, spaces: 2, sop: 60, area: "torso" } },
+        { name: "Fire Extinguisher", type: "acpaSystem", system: { category: "utility",  weight: 20, spaces: 1, sop: 40, area: "torso" } },
+      ]);
+      out.sysCount     = acpa.itemTypes.acpaSystem.length;  // 2
+      out.mounted      = acpa.system.mountedSystemsWeight;  // 70
+      out.totalWithSys = acpa.system.totalWeight;           // 586
+      out.sibWithSys   = acpa.system.sib;                   // 2000/586 = 3.41 → 3 − 1 = 2
+    } finally {
+      if (acpa) await acpa.delete().catch(() => {});
+    }
+    return out;
+  });
+
+  console.log("Phase 6 D-4d-2:", JSON.stringify(R));
+  expect(R.typeRegistered).toBe(true);
+  expect(R.packExists).toBe(true);
+  expect(R.seededCount).toBe(14);
+  expect(R.baseTotal).toBe(516);
+  expect(R.baseSib).toBe(3);
+  expect(R.baseMounted).toBe(0);
+  expect(R.sysCount).toBe(2);
+  expect(R.mounted).toBe(70);
+  expect(R.totalWithSys).toBe(586);
+  expect(R.sibWithSys).toBe(2);
+});
