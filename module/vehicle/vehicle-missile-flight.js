@@ -37,9 +37,9 @@ const _headingDeg = (from, to) => Math.atan2(to.y - from.y, to.x - from.x) * 180
  * @returns {Promise<TokenDocument|null>}
  */
 export async function launchMissile({ scene: sceneArg, shooterToken, targetToken, missile = {} } = {}) {
-  if (!mmEnabled()) return null;
+  if (!mmEnabled()) { ui.notifications?.warn?.("Maximum Metal is disabled — enable it in the settings to fire guided missiles."); return null; }
   const scene = sceneArg ?? canvas?.scene;
-  if (!scene || !shooterToken || !targetToken) return null;
+  if (!scene || !shooterToken || !targetToken) { ui.notifications?.warn?.("Missile launch needs both the firer and the target on the canvas."); return null; }
   const sDoc = shooterToken.document ?? shooterToken;
   const tDoc = targetToken.document ?? targetToken;
   const gs = _gridSize(scene);
@@ -70,13 +70,37 @@ export async function launchMissile({ scene: sceneArg, shooterToken, targetToken
     flags: { [SCOPE]: { missile: flight } },
   }]);
 
+  // A missile only flies on combat-round changes; out of combat it needs the manual ▶ control.
+  const inCombat = !!game.combat?.started;
+  const noCombatHint = inCombat ? "" :
+    `<div style="margin-top:4px;font-size:0.82em;color:#e0a020;">⚠ No active encounter — start one for automatic flight, or advance the missile manually with ▶ in the <b>Missiles in Flight</b> panel (Combat tab).</div>`;
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: shooterToken.actor ?? undefined }),
-    content: `<div class="cyberpunk save-prompt"><h3>🚀 ${flight.weaponName} launched</h3><div class="save-info">${sDoc.name ?? "Firer"} → ${tDoc.name ?? "target"}. Impact in <b>${tti}</b> turn${tti !== 1 ? "s" : ""} (${flight.guidance}).</div></div>`,
+    content: `<div class="cyberpunk save-prompt"><h3>🚀 ${flight.weaponName} launched</h3><div class="save-info">${sDoc.name ?? "Firer"} → ${tDoc.name ?? "target"}. Impact in <b>${tti}</b> turn${tti !== 1 ? "s" : ""} (${flight.guidance}).</div>${noCombatHint}</div>`,
   });
+  if (!inCombat) ui.notifications?.info?.("Missile launched — start an encounter for better missile controls, or advance it manually in the Combat tab's Missiles in Flight panel.");
   await _tryDetect(tok, scene);   // can the target spot it now? (sensors auto / Notice-Awareness)
   ui.combat?.render();
   return tok;
+}
+
+/** Advance ONE in-flight missile a single step: move toward its target, or resolve on impact. */
+async function _stepMissile(mt, scene, gs) {
+  const f = mt?.flags?.[SCOPE]?.missile;
+  if (!f) return;
+  const targetDoc = scene.tokens.get(f.targetTokenId);
+  if (!targetDoc) { await mt.delete().catch(() => {}); return; }   // target gone → missile lost
+  if (!f.detected) await _tryDetect(mt, scene);    // retry detection while inbound
+  const tti = Number(f.turnsToImpact) || 1;
+  const tc = _docCenter(targetDoc, gs);
+  if (tti <= 1) {
+    await _resolveMissileImpact(f, targetDoc, scene, gs);
+    await mt.delete().catch(() => {});
+  } else {
+    const cur = { x: mt.x + (mt.width * gs) / 2, y: mt.y + (mt.height * gs) / 2 };
+    const nx = mt.x + (tc.x - cur.x) / tti, ny = mt.y + (tc.y - cur.y) / tti;
+    await mt.update({ x: nx, y: ny, rotation: _headingDeg(cur, tc) + MISSILE_ART_OFFSET, [`flags.${SCOPE}.missile.turnsToImpact`]: tti - 1 });
+  }
 }
 
 /** Advance every in-flight missile one combat round; resolve those reaching impact. (Active GM.) */
@@ -84,22 +108,16 @@ export async function advanceMissiles(scene = canvas?.scene) {
   if (!scene) return;
   const gs = _gridSize(scene);
   const missiles = scene.tokens.filter(t => t.flags?.[SCOPE]?.missile);
-  for (const mt of missiles) {
-    const f = mt.flags[SCOPE].missile;
-    const targetDoc = scene.tokens.get(f.targetTokenId);
-    if (!targetDoc) { await mt.delete().catch(() => {}); continue; }   // target gone → missile lost
-    if (!f.detected) await _tryDetect(mt, scene);    // retry detection while inbound
-    const tti = Number(f.turnsToImpact) || 1;
-    const tc = _docCenter(targetDoc, gs);
-    if (tti <= 1) {
-      await _resolveMissileImpact(f, targetDoc, scene, gs);
-      await mt.delete().catch(() => {});
-    } else {
-      const cur = { x: mt.x + (mt.width * gs) / 2, y: mt.y + (mt.height * gs) / 2 };
-      const nx = mt.x + (tc.x - cur.x) / tti, ny = mt.y + (tc.y - cur.y) / tti;
-      await mt.update({ x: nx, y: ny, rotation: _headingDeg(cur, tc) + MISSILE_ART_OFFSET, [`flags.${SCOPE}.missile.turnsToImpact`]: tti - 1 });
-    }
-  }
+  for (const mt of missiles) await _stepMissile(mt, scene, gs);
+  ui.combat?.render();
+}
+
+/** Advance a SINGLE missile one step by token id — the manual control for out-of-combat play. */
+export async function advanceOneMissile(scene, tokenId) {
+  const sc = scene ?? canvas?.scene;
+  const mt = sc?.tokens?.get(tokenId);
+  if (!sc || !mt) return;
+  await _stepMissile(mt, sc, _gridSize(sc));
   ui.combat?.render();
 }
 
@@ -228,7 +246,8 @@ export function registerMissileFlightHooks() {
     const ev2 = ev.target.closest?.(".cp-missile-evade");
     const ic = ev.target.closest?.(".cp-missile-intercept");
     const rv = ev.target.closest?.(".cp-missile-reveal");
-    const btn = cm || ev2 || ic || rv;
+    const st = ev.target.closest?.(".cp-missile-step");
+    const btn = cm || ev2 || ic || rv || st;
     if (!btn || btn.disabled) return;
     ev.preventDefault();
     btn.disabled = true;
@@ -236,6 +255,7 @@ export function registerMissileFlightHooks() {
     if (cm) await _applyMissileReaction(tokenId, "countermeasure");
     else if (ev2) await _applyMissileReaction(tokenId, "evade");
     else if (ic) await _applyMissileReaction(tokenId, "intercept");
+    else if (st) await advanceOneMissile(canvas?.scene, tokenId);
     else if (rv) {
       const mt = canvas?.scene?.tokens?.get(tokenId);
       const f = mt?.flags?.[SCOPE]?.missile;
@@ -262,13 +282,17 @@ export function registerMissileFlightHooks() {
       const det = f.detected ? "" : (game.user.isGM
         ? ` <span style="opacity:0.6;">(undetected)</span> <button class="cp-missile-reveal" data-token-id="${mt.id}" title="Reveal this missile to its target (GM)" style="font-size:0.72em;padding:0 4px;">👁</button>`
         : ' <span style="opacity:0.6;">(undetected)</span>');
-      return `<li class="cp-missile-row" data-token-id="${mt.id}" style="cursor:pointer;font-size:0.82em;padding:2px 4px;">🚀 <b>${f.weaponName}</b> → ${tgt} · ${f.guidance} · <b>${f.turnsToImpact}</b>t${det}</li>`;
+      const adv = game.user.isGM
+        ? ` <button class="cp-missile-step" data-token-id="${mt.id}" title="Advance this missile one turn (manual)" style="font-size:0.72em;padding:0 4px;">▶</button>`
+        : "";
+      return `<li class="cp-missile-row" data-token-id="${mt.id}" style="cursor:pointer;font-size:0.82em;padding:2px 4px;">🚀 <b>${f.weaponName}</b> → ${tgt} · ${f.guidance} · <b>${f.turnsToImpact}</b>t${det}${adv}</li>`;
     }).join("");
     const panel = document.createElement("div");
     panel.className = "cp-missiles-panel";
     panel.innerHTML = `<h4 style="margin:6px 0 2px;border-top:1px solid var(--color-border-dark-tertiary);padding-top:4px;">🚀 Missiles in Flight</h4><ul style="list-style:none;margin:0;padding:0;">${rows}</ul>`;
     (root.querySelector("#combat-tracker") ?? root.querySelector(".combat-tracker") ?? root).appendChild(panel);
-    panel.querySelectorAll(".cp-missile-row").forEach(el => el.addEventListener("click", () => {
+    panel.querySelectorAll(".cp-missile-row").forEach(el => el.addEventListener("click", (ev) => {
+      if (ev.target.closest("button")) return;   // row buttons (reveal/advance) handle their own clicks
       const t = canvas?.tokens?.get(el.dataset.tokenId);
       if (t) { try { t.control({ releaseOthers: true }); canvas.animatePan({ x: t.center.x, y: t.center.y }); } catch {} }
     }));

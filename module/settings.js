@@ -11,6 +11,11 @@ export function effectiveVehicleRuleSystem() {
   catch { return "Core"; }
 }
 
+/** Mount-arc enforcement: "free" (warn-but-allow, default) or "strict" (block out-of-arc shots). */
+export function vehicleArcEnforcement() {
+  try { return game.settings.get(SCOPE, "vehicleArcEnforcement") || "free"; } catch { return "free"; }
+}
+
 export function registerSystemSettings() {
    /**
    * Track the system version upon which point a migration was last applied
@@ -540,6 +545,20 @@ export function registerSystemSettings() {
     default: true,
   });
 
+  // --- Vehicles: Weapon mount arc enforcement (Phase 5) ---
+  game.settings.register("cyberpunk2020", "vehicleArcEnforcement", {
+    name: "Vehicles: Weapon Mount Arc Enforcement",
+    hint: "How a weapon mount's firing arc (turret 360° / front / side / rear) is enforced when the target lies outside it. Token facing defines 'front' — rotate a vehicle with Ctrl+scroll (Foundry's 0° points north). Free (default): the Fire dialog only WARNS that the target is outside the mount's arc; you can still fire (GM discretion). Strict: an out-of-arc shot is blocked until the mount can bear — rotate the firing vehicle to face the target, or use a turret. Applies to all vehicle/ACPA weapon mounts, missiles included.",
+    scope:   "world",
+    config:  true,
+    type:    String,
+    choices: {
+      "free":   "Free (warn only — discretionary override, default)",
+      "strict": "Strict (block out-of-arc shots — keep mounts within bounds)",
+    },
+    default: "free",
+  });
+
   // --- Combat: Detailed explosives / HEP concussion (Listen Up, optional) ---
   game.settings.register("cyberpunk2020", "explosivesDetailed", {
     name: "Combat: Detailed Explosives — HEP Concussion (Listen Up)",
@@ -554,7 +573,7 @@ export function registerSystemSettings() {
   Hooks.on("renderSettingsConfig", (app, html) => {
     const root = html instanceof jQuery ? html[0] : (Array.isArray(html) ? html[0] : html);
     if (!root?.querySelector) return;
-    const MM_KEYS = ["mmEnabled", "vehicleRuleSystem", "vehicleControlEnabled", "vehicleDamageEnabled"];
+    const MM_KEYS = ["mmEnabled", "vehicleRuleSystem", "vehicleControlEnabled", "vehicleDamageEnabled", "vehicleArcEnforcement"];
     const groupOf = (k) => {
       const el = root.querySelector(`[name="${SCOPE}.${k}"], [data-setting-id="${SCOPE}.${k}"]`);
       return el?.closest(".form-group") ?? el?.closest(".setting") ?? null;

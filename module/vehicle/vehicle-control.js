@@ -232,7 +232,7 @@ function _candidateDrivers(actor) {
   const boarded = (canvas?.tokens?.placeables ?? [])
     .filter(t => t.document?.flags?.[SCOPE]?.boardedVehicle === actor.id && t.actor)
     .map(t => t.actor);
-  const owned = game.actors.filter(a => (a.type === "character" || a.type === "npc") && a.isOwner);
+  const owned = game.actors.filter(a => (a.type === "character" || a.type === "npc") && a.isOwner && !a.getFlag(SCOPE, "missileProxy"));
   const seen = new Set();
   const out = [];
   for (const a of [...boarded, ...owned]) {

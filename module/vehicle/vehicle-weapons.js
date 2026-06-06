@@ -17,7 +17,7 @@
  */
 
 import { openSingletonDialog } from "../utils.js";
-import { effectiveVehicleRuleSystem } from "../settings.js";
+import { effectiveVehicleRuleSystem, vehicleArcEnforcement } from "../settings.js";
 
 /** Average of a CP2020 damage formula ("2d6+1", "5d6", "1d10", "3d6+2"). PURE. */
 export function averageDamageFromFormula(formula) {
@@ -197,7 +197,7 @@ function _candidateGunners(actor) {
   const boarded = (canvas?.tokens?.placeables ?? [])
     .filter(t => t.document?.flags?.[SCOPE]?.boardedVehicle === actor.id && t.actor)
     .map(t => t.actor);
-  const owned = game.actors.filter(a => (a.type === "character" || a.type === "npc") && a.isOwner);
+  const owned = game.actors.filter(a => (a.type === "character" || a.type === "npc") && a.isOwner && !a.getFlag(SCOPE, "missileProxy"));
   const out = [], seen = new Set();
   for (const a of [...boarded, ...owned]) { if (!seen.has(a.id)) { seen.add(a.id); out.push(a); } }
   return out;
@@ -242,16 +242,32 @@ export async function openVehicleFireDialog(actor, mount = {}) {
 
   // Diegetic facing + range band + arc check from the tokens (auto; facing/range overridable below).
   const VT = await import("./vehicle-targeting.js");
-  const firerTok = canvas?.tokens?.placeables?.find(t => t.actor?.id === actor.id) ?? null;
+  // Resolve the FIRING token. A vehicle can have several tokens on the scene (duplicates), so prefer
+  // the token the user has SELECTED, and never treat the targeted token as the firer. Falling back to
+  // the first matching placeable keeps single-token vehicles working. (Picking the first blindly is
+  // the bug that made facing/arc read a stale token's rotation no matter which one you spun.)
+  const firerCandidates = (canvas?.tokens?.placeables ?? []).filter(t => t.actor?.id === actor.id && t !== targetTok);
+  const controlledFirer = (canvas?.tokens?.controlled ?? []).find(t => t.actor?.id === actor.id && t !== targetTok);
+  const firerTok = controlledFirer ?? firerCandidates[0] ?? null;
+  if (firerCandidates.length > 1 && !controlledFirer) {
+    ui.notifications?.info?.(`${actor.name} has multiple tokens on this scene — select the one you're firing from so facing and arc use the right token.`);
+  }
+  const strictArc = vehicleArcEnforcement() === "strict";
+  // Builds the arc message for a given bearing/bears result. Shared by the initial render and the
+  // live recheck (below) so spinning the firing vehicle updates the warning in real time.
+  const arcWarnHtml = (bearing, bears) => {
+    if (bears) return "";
+    return strictArc
+      ? `<div style="color:#ff5555;font-size:0.82em;margin-top:2px;">⛔ Target is to the <b>${bearing}</b> of the firer — outside the <b>${arc}</b> mount's arc. <b>Strict arc</b> blocks this shot: rotate the firing vehicle to face the target (Ctrl+scroll), or use a turret mount.</div>`
+      : `<div style="color:#e0a020;font-size:0.82em;margin-top:2px;">⚠ Target is to the <b>${bearing}</b> of the firer — outside the <b>${arc}</b> mount's arc. You can still fire (override).</div>`;
+  };
   let detFacing = "front", detRange = "normal", arcWarn = "";
   if (firerTok && targetTok) {
     detFacing = VT.detectFacingFromTokens(firerTok, targetTok);
     const dist = (() => { try { return canvas.grid.measureDistance(firerTok.center, targetTok.center); } catch { return 0; } })();
     detRange = VT.rangeBand(dist, weaponRange);
     const bearing = VT.bearingFromFirer(firerTok, targetTok);
-    if (!VT.mountArcBears(bearing, arc)) {
-      arcWarn = `<div style="color:#e0a020;font-size:0.82em;margin-top:2px;">⚠ Target is to the <b>${bearing}</b> of the firer — outside the <b>${arc}</b> mount's arc. You can still fire (override).</div>`;
-    }
+    arcWarn = arcWarnHtml(bearing, VT.mountArcBears(bearing, arc));
   }
 
   const isTurret = String(arc).toLowerCase().includes("turret");
@@ -271,7 +287,7 @@ export async function openVehicleFireDialog(actor, mount = {}) {
   const content = `
 <div class="cyberpunk vehicle-fire-dialog" style="display:flex;flex-direction:column;gap:4px;">
   <div style="opacity:0.7;font-size:0.85em;">${actor.name} fires <b>${wName}</b>${targetActor ? ` at <b>${targetActor.name}</b>` : " (no target — apply from the chat card afterward)"}.${wa ? ` <span style="opacity:0.8;">WA ${wa >= 0 ? "+" : ""}${wa} auto-applied.</span>` : ""}</div>
-  ${arcWarn}
+  <div id="cp-vf-arcwarn">${arcWarn}</div>
   <label>Gunner <select id="cp-vf-gunner" style="margin-left:6px;">${gunnerOpts}</select></label>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
     <label>Gunner REF <input type="number" id="cp-vf-ref" value="${ref0}" style="width:48px;"></label>
@@ -306,6 +322,14 @@ export async function openVehicleFireDialog(actor, mount = {}) {
           const root = html instanceof jQuery ? html[0] : html;
           const num = (id) => Number(root.querySelector(id)?.value) || 0;
           const chk = (id) => !!root.querySelector(id)?.checked;
+          // Strict arc: re-check at fire time (the firer may have been rotated while the dialog was open).
+          if (strictArc && firerTok && targetTok) {
+            const bearing = VT.bearingFromFirer(firerTok, targetTok);
+            if (!VT.mountArcBears(bearing, arc)) {
+              ui.notifications?.warn?.(`Strict arc — target is to the ${bearing} of the firer, outside the ${arc} mount's arc. Rotate to bear or use a turret.`);
+              return;
+            }
+          }
           await _executeVehicleFire(actor, targetActor, {
             ref: num("#cp-vf-ref"), skill: num("#cp-vf-skill"), targetNumber: num("#cp-vf-tn"),
             penetration: num("#cp-vf-pen"), rof: num("#cp-vf-rof"),
@@ -341,6 +365,37 @@ export async function openVehicleFireDialog(actor, mount = {}) {
         if (refIn) refIn.value = Number(g.system?.stats?.ref?.total) || 0;
         if (skillIn) skillIn.value = g.getSkillVal?.(GUNNER_SKILL) ?? 0;
       });
+      // Live arc recheck: spin/move the firing vehicle (or the target) and the warning updates in
+      // place — no need to close and reopen. Under strict arc, also enable/disable the Fire button.
+      if (firerTok && targetTok) {
+        const appEl = () => { const e = dialog.element; return (e instanceof jQuery ? e[0] : e) ?? root; };
+        const refreshArc = () => {
+          const bearing = VT.bearingFromFirer(firerTok, targetTok);
+          const bears = VT.mountArcBears(bearing, arc);
+          const el = appEl();
+          const warnEl = el?.querySelector("#cp-vf-arcwarn");
+          if (warnEl) warnEl.innerHTML = arcWarnHtml(bearing, bears);
+          if (strictArc) { const fb = el?.querySelector('button[data-button="fire"]'); if (fb) fb.disabled = !bears; }
+        };
+        const onTokUpdate = (doc, change) => {
+          if (doc.id !== firerTok.id && doc.id !== targetTok.id) return;
+          if (change.rotation === undefined && change.x === undefined && change.y === undefined && change.elevation === undefined) return;
+          refreshArc();
+        };
+        Hooks.on("updateToken", onTokUpdate);
+        dialog._cpArcHook = onTokUpdate;
+        // Clean the hook up on ANY close path (✕, Escape, or a button) by wrapping the instance
+        // close() — the single path every Application close goes through. Guard against re-wraps.
+        if (!dialog._cpCloseWrapped) {
+          dialog._cpCloseWrapped = true;
+          const origClose = dialog.close.bind(dialog);
+          dialog.close = async (...args) => {
+            if (dialog._cpArcHook) { Hooks.off("updateToken", dialog._cpArcHook); dialog._cpArcHook = null; }
+            return origClose(...args);
+          };
+        }
+        refreshArc();   // sync once on render (also corrects a stale singleton that was re-shown)
+      }
     },
   });
   return openSingletonDialog(`vehicle-fire:${actor.id}`, () => dialog);
