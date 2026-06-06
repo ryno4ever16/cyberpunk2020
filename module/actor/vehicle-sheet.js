@@ -27,6 +27,19 @@ export class CyberpunkVehicleSheet extends ActorSheet {
     });
   }
 
+  /**
+   * @override
+   * Powered armor (isACPA) renders a dedicated ACPA layout; standard vehicles render the vehicle
+   * sheet. Same actor type + data model + combat code — only the template differs, so there is no
+   * new document type, no migration, and no relaunch. Toggling the ACPA box swaps the sheet on
+   * the next render.
+   */
+  get template() {
+    return this.actor?.system?.isACPA
+      ? "systems/cyberpunk2020/templates/actor/acpa-sheet.hbs"
+      : "systems/cyberpunk2020/templates/actor/vehicle-sheet.hbs";
+  }
+
   /** @override */
   getData(options) {
     const data = super.getData(options);

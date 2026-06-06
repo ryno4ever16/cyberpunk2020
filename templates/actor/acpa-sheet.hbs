@@ -1,0 +1,131 @@
+<form class="{{cssClass}} flexcol acpa-sheet" autocomplete="off">
+    {{!-- ACPA (powered armor) sheet — rendered for isACPA vehicles via the sheet's get template().
+          Same actor type + data model + combat code as a vehicle; this is a powered-armor LAYOUT.
+          The detailed design/construction system (frame, Reality Interface, Reflex/Control, systems)
+          is being added incrementally below the existing combat fields. --}}
+    <header class="cyberheader">
+        <div class="flexrow">
+            <img class="profile-img" src="{{actor.img}}" data-edit="img" title="{{actor.name}}" height="64" width="64"/>
+            <div class="flexcol" style="flex:1; margin-left:8px;">
+                <h1 class="title"><input type="text" class="field-value" name="name" value="{{actor.name}}"/></h1>
+                <div class="fieldrow">
+                    <div class="field" title="Powered Armor (ACPA). Uncheck to turn this back into a standard vehicle (the sheet switches automatically).">
+                        <label>ACPA</label>
+                        <input type="checkbox" name="system.isACPA" {{#if system.isACPA}}checked{{/if}}/>
+                    </div>
+                    <div class="field" title="Active vehicle ruleset (world setting)">
+                        <label>Ruleset</label>
+                        <input type="text" class="not-editable" value="{{ruleSystem}}" readonly/>
+                    </div>
+                    {{#if controlEnabled}}
+                    <div class="field cp-header-action">
+                        <button type="button" class="cp-control-roll" title="Roll a Control / Maneuver check (REF + Pilot + 1d10 vs Difficulty Value). On failure, rolls the loss/failure table for the active ruleset.">🎲 Control</button>
+                    </div>
+                    {{/if}}
+                    {{#if damageEnabled}}
+                    <div class="field cp-header-action">
+                        <button type="button" class="cp-vehicle-damage" title="Resolve damage against this suit. Maximum Metal compares Penetration to Armor Value, then rolls the powered-armor System Hit / Critical Hit / Integrity flow.">💥 Damage</button>
+                    </div>
+                    {{/if}}
+                    {{#if mmOn}}
+                    <div class="field cp-header-action">
+                        <button type="button" class="cp-acpa-melee" title="ACPA hand-to-hand (Maximum Metal p.58): Punch / Crush / Kick → vehicle-scale Penetration through the dispatcher. Target a token first.">🤜 Melee</button>
+                    </div>
+                    {{/if}}
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="sheet-body flexcol" style="overflow-y:auto;">
+
+        {{!-- Chassis & Armor --}}
+        <h2 class="cyber-section-header">Chassis &amp; Armor</h2>
+        <div class="field-list">
+            <div class="field" title="Chassis Strength (Linear Frame). Drives Body Value (STR ÷ 20), melee damage and lift (Maximum Metal p.5/61).">
+                <label>Chassis STR</label><input type="number" name="system.str" value="{{system.str}}"/></div>
+            <div class="field" title="Body Value = chassis STR ÷ 20 (rounded). Subtracted on the MM damage-severity roll. Read-only.">
+                <label>Body Value</label><input type="number" class="not-editable" value="{{system.bodyValue}}" readonly/></div>
+        </div>
+        <div class="field-list">
+            <div class="field" title="Armor-shell Stopping Power. ACPA armor is equal on every side (no flank rules); SP ≤ 2× chassis STR (MM p.61).">
+                <label>Armor SP</label><input type="number" name="system.sp.front" value="{{system.sp.front}}"/></div>
+            <div class="field" title="Armor Value = SP ÷ 20 (MM p.4). A weapon's Penetration is compared to this. Read-only.">
+                <label>Armor Value</label><input type="number" class="not-editable" value="{{system.armorValue.front}}" readonly/></div>
+        </div>
+        <div class="field-list">
+            <div class="field" title="Structural Damage Points — the suit's structural hit points.">
+                <label>SDP (current)</label><input type="number" name="system.sdp.value" value="{{system.sdp.value}}"/></div>
+            <div class="field" title="Maximum SDP.">
+                <label>SDP (max)</label><input type="number" name="system.sdp.max" value="{{system.sdp.max}}"/></div>
+            {{#if system.destroyed}}<div class="field"><label style="color:#ff4040;font-weight:bold;">DESTROYED</label></div>{{/if}}
+        </div>
+
+        {{!-- Pilot & Systems --}}
+        <h2 class="cyber-section-header">Pilot &amp; Systems</h2>
+        <div class="field-list">
+            <div class="field" title="Cyberlinked controls: +2 to control / maneuver / weapon rolls. ACPA are normally linked.">
+                <label>Cyberlinked</label><input type="checkbox" name="system.vehicleLink" {{#if system.vehicleLink}}checked{{/if}}/></div>
+            <div class="field" title="Targeting-computer / fire-control bonus added to weapon to-hit rolls.">
+                <label>Fire Control</label><input type="number" name="system.fireControl" value="{{system.fireControl}}"/></div>
+        </div>
+        {{#if mmOn}}
+        <div class="field-list">
+            <div class="field" title="Damage Control: a hit system keeps working on a 1d10 of 6-10 (MM p.4).">
+                <label>Damage Control</label><input type="checkbox" name="system.damageControl" {{#if system.damageControl}}checked{{/if}}/></div>
+            <div class="field" title="Composite armor: halves shaped-charge (HEAT) Penetration (MM p.23).">
+                <label>Composite Armor</label><input type="checkbox" name="system.compositeArmor" {{#if system.compositeArmor}}checked{{/if}}/></div>
+            <div class="field" title="Sensors / radar: auto-detect inbound missiles (90%).">
+                <label>Sensors / Radar</label><input type="checkbox" name="system.sensors" {{#if system.sensors}}checked{{/if}}/></div>
+            <div class="field" title="Anti-missile (AGAMS): may shoot down a detected missile.">
+                <label>Anti-Missile</label><input type="checkbox" name="system.antiMissile" {{#if system.antiMissile}}checked{{/if}}/></div>
+        </div>
+        {{/if}}
+
+        {{!-- ACPA Combat Status (written by the damage resolver + per-round ticks; editable for field repairs). --}}
+        {{#if mmOn}}
+        <h2 class="cyber-section-header">Combat Status</h2>
+        <div class="field-list">
+            <div class="field" title="Suit Strength lost to Critical Hits (reduces melee damage and lift). 0 = undamaged.">
+                <label>STR damage</label><input type="number" name="system.strDamage" value="{{system.strDamage}}"/></div>
+            <div class="field" title="Suit Reflexes lost to Critical Hits (reduces the pilot's REF / control). 0 = undamaged.">
+                <label>REF damage</label><input type="number" name="system.refDamage" value="{{system.refDamage}}"/></div>
+            <div class="field" title="Remaining power-cell life in hours (24h normal). Drained by power-unit criticals.">
+                <label>Power (hrs)</label><input type="number" name="system.powerHours" value="{{system.powerHours}}"/></div>
+            <div class="field" title="Minutes until heatstroke after a cooling-system critical (0 = OK).">
+                <label>Cooling (min)</label><input type="number" name="system.coolingTimer" value="{{system.coolingTimer}}"/></div>
+            <div class="field" title="Rounds the interface/electronics are out (counts down each combat round).">
+                <label>Interface out</label><input type="number" name="system.interfaceOut" value="{{system.interfaceOut}}"/></div>
+            <div class="field" title="Rounds a body area is seized up / immobile (counts down each round; mobility restored at 0).">
+                <label>Seized (rds)</label><input type="number" name="system.seizeUp" value="{{system.seizeUp}}"/></div>
+        </div>
+        {{/if}}
+
+        {{!-- Weapons = embedded vehicleWeapon Items. --}}
+        {{#if mmOn}}
+        <h2 class="cyber-section-header">Weapons</h2>
+        <div class="cp-weapons">
+            {{#each weapons as |weapon|}}
+            <div class="field-list cp-weapon-row">
+                <img class="cp-weapon-img" src="{{weapon.img}}" width="24" height="24"/>
+                <span class="cp-weapon-name" title="{{weapon.system.weaponClass}} · {{weapon.system.mountType}} mount"><b>{{weapon.name}}</b></span>
+                <span class="cp-weapon-stat" title="Vehicle Penetration">Pen {{weapon.system.penetration}}{{#if weapon.system.ap}} AP{{/if}}{{#if weapon.system.heat}} HEAT{{/if}}</span>
+                <span class="cp-weapon-stat" title="Rate of fire">ROF {{weapon.system.rof}}</span>
+                <span class="cp-weapon-stat" title="Firing arc">{{weapon.system.arc}}</span>
+                {{#if @root.damageEnabled}}<button type="button" class="cp-weapon-fire" data-weapon-id="{{weapon.id}}" title="Fire this weapon at the target (to-hit roll → resolver)">🎯</button>{{/if}}
+                <button type="button" class="cp-weapon-edit" data-weapon-id="{{weapon.id}}" title="Edit this weapon">✎</button>
+                <button type="button" class="cp-weapon-delete" data-weapon-id="{{weapon.id}}" title="Remove this weapon">✕</button>
+            </div>
+            {{/each}}
+            <button type="button" class="cp-weapon-add" title="Create a blank weapon to edit.">＋ Add Weapon</button>
+            <p style="opacity:0.6; font-size:0.78em; margin-top:2px;">Drag weapons from the <b>Vehicle Weapons (MM)</b> compendium onto this sheet, or add a blank one and edit it.</p>
+        </div>
+        {{/if}}
+
+        {{!-- Notes --}}
+        <h2 class="cyber-section-header">Notes</h2>
+        <textarea name="system.notes" rows="4" style="width:100%;">{{system.notes}}</textarea>
+
+        <p style="opacity:0.6; font-size:0.8em; margin-top:6px;">Powered armor (ACPA). Combat — Penetration damage, the System Hit / Critical Hit chart, and melee — is fully functional. The detailed build/construction system (Linear Frame &amp; Toughness, Reality Interface, Reflex/Control, derived SIB, per-area SOP, the systems catalog) is being added here next.</p>
+    </div>
+</form>
