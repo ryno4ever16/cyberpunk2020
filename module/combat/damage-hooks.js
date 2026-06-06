@@ -275,7 +275,12 @@ function _hookWeaponFired() {
       u => u.active && attackerActor.testUserPermission(u, "OWNER")
     );
     const isMyShot  = !game.user.isGM && (attackerActor?.isOwner ?? false);
-    const gmHandles = game.user.isGM  && !ownerOnline;
+    // Only the PRIMARY (active) GM handles NPC / offline-owner shots. weaponFired fires on every
+    // connected GM client; without the activeGM check, N GMs each open a DamageDialog (and, with
+    // auto-apply on, each apply the damage → N× HP loss). It also guarantees exactly one client
+    // reaches dispatchAttack per shot, which the vehicle-damage relay below relies on to avoid
+    // double-applying to a vehicle. Single-GM tables are unaffected (the lone GM is the active GM).
+    const gmHandles = game.user.isGM && !ownerOnline && game.users.activeGM?.id === game.user.id;
     if (!isMyShot && !gmHandles) return;
     if (!payload.areaDamages || Object.keys(payload.areaDamages).length === 0) return;
 

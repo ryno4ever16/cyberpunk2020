@@ -169,6 +169,13 @@ export async function postLuckSavePrompt(targetActor, payload = {}) {
 async function _executeLuckSave({ actorId, tokenId, pen, weaponName }) {
   const actor = game.actors.get(actorId);
   if (!actor) return;
+  // Only the victim's owner or the GM may roll/apply this save — it writes the actor's damage/armor.
+  // Mirrors the stun/death-save owner gate (save-rolls.js _assertCanResolveSave); without it a
+  // non-owner clicking the button hits a permission error trying to write an actor they don't own.
+  if (!(game.user.isGM || actor.isOwner)) {
+    ui.notifications?.warn?.(`You don't own ${actor.name} — only its owner or the GM can roll this save.`);
+    return;
+  }
   const luck = Number(actor.system?.stats?.luck?.total) || 0;
   const roll = await new Roll("1d10 + @luck", { luck }).evaluate();
   const av = personnelArmorValue(actor);
@@ -209,6 +216,14 @@ async function _executeLuckSave({ actorId, tokenId, pen, weaponName }) {
   <div style="margin-top:4px;">${detail}</div>
 </div>`
   });
+
+  // An anti-vehicle hit can wound or kill — prompt the appropriate consciousness/death save, exactly
+  // like the personnel damage pipeline does after applying damage (no-op if the victim is unhurt).
+  try {
+    const { postSavePrompts } = await import("../combat/save-rolls.js");
+    const tok = tokenId ? canvas?.tokens?.get(tokenId) : null;
+    await postSavePrompts(actor, tok ?? null);
+  } catch (e) { /* saves are a courtesy prompt — never block damage on them */ }
 }
 
 /** Register the LUCK-save chat-button handler (all users; the owner/GM who clicks resolves it). */
@@ -223,9 +238,42 @@ export function registerVehicleTargetingHandlers() {
       pen: Number(btn.dataset.pen) || 0, weaponName: btn.dataset.weapon || "anti-vehicle weapon"
     });
   });
+
+  // GM-side relay: a player firing at a GM-owned vehicle can't write it, so they emit a vehicleDamage
+  // request (see _relayVehicleAttack). The socket fires on every connected GM — only the active GM
+  // applies (else N GMs apply N×). The active GM re-runs dispatchAttack, which writes directly here.
+  game.socket.on(`system.${SCOPE}`, async (data) => {
+    if (data?.type !== "vehicleDamage") return;
+    if (!game.user?.isGM || game.users?.activeGM?.id !== game.user.id) return;
+    const target = game.actors.get(data.targetActorId);
+    if (!target) return;
+    await dispatchAttack(data.payload ?? {}, target);
+  });
 }
 
 /* ------------------------------- The 4-way dispatcher ------------------------------- */
+
+/** Can this client write the target's documents (apply vehicle damage directly)? GM or owner. */
+function _canModifyTarget(target) {
+  return game.user?.isGM || (target?.isOwner ?? false);
+}
+
+/**
+ * Relay a resolved vehicle attack to the active GM, who applies it. Mirrors the personnel damage
+ * relay (damage-hooks `_autoApply` → `_hookSocketRelay`): a player firing at a GM-owned vehicle
+ * cannot call `actor.update()` on it, so the attack is sent over the socket and the active GM runs
+ * `dispatchAttack` with the same payload. Facing is resolved HERE (the firing client has the tokens)
+ * so the GM doesn't re-derive it from a possibly-different active scene. See [[combat-data-hazards]].
+ */
+function _relayVehicleAttack(payload, target) {
+  if (!game.users?.activeGM) { ui.notifications?.warn?.(`No GM is connected to apply damage to ${target?.name ?? "the vehicle"}.`); return; }
+  const facing = resolveFacing(payload, target);
+  game.socket.emit(`system.${SCOPE}`, {
+    type: "vehicleDamage", targetActorId: target.id,
+    payload: { ...payload, facing }, requesterId: game.user.id,
+  });
+  ui.notifications?.info?.(`Vehicle damage sent to the GM (${target?.name ?? "target"}).`);
+}
 
 /**
  * Route an attack to the correct resolver by (source scale × target type). Returns true if it
@@ -237,6 +285,11 @@ export async function dispatchAttack(payload, target) {
   const isPen = payload?.scale === "penetration";
 
   if (target.type === "vehicle") {
+    // Multiplayer: applying vehicle damage writes the vehicle actor. A player firing at a GM-owned
+    // vehicle can't write it (permission error → damage silently lost), so relay to the active GM.
+    // GMs (and owners of the vehicle) apply directly. The weaponFired hook is gated to the active GM,
+    // and a fire dialog runs only on the clicking client, so exactly one client applies → no double.
+    if (!_canModifyTarget(target)) { _relayVehicleAttack(payload, target); return true; }
     if (isPen) {
       const VD = await import("./vehicle-damage.js");
       const ruleSystem = effectiveVehicleRuleSystem();
