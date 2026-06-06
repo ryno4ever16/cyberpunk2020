@@ -238,3 +238,89 @@ test("Phase 6 D-4a: Reality Interface + Reflex/Control (pure lookups + derived s
   expect(R.actor.basicEff).toBe(7);
   expect(R.actor.dmgEff).toBe(6);
 });
+
+/**
+ * Phase 6 D-4b — SIB derivation + Armor Inventory weight/cost (Maximum Metal p.61-62). The SIB is the
+ * power-to-weight initiative bonus: round(chassis Lift/Cap ÷ total loaded weight, 0.8 threshold) − 1 +
+ * interface SIB. Verified vs the book's data-form worked example (cap≈2500 / 1235 kg → SIB +1).
+ */
+test("Phase 6 D-4b: SIB derivation + Armor Inventory weight/cost (MM p.61-62)", async ({ page }) => {
+  await login(page, ACCOUNTS.gm);
+  await cleanupTestData(page).catch(() => {});
+
+  const R = await evalGameOrThrow(page, async () => {
+    const A = await import("/systems/cyberpunk2020/module/vehicle/vehicle-acpa.js");
+    const out = { pure: {}, actor: {} };
+
+    // PURE SIB (MM p.61). The 0.8 rounding threshold + "fraction-only → 0" + the −1.
+    out.pure.sibBook    = A.acpaSib({ chassisCapacity: 2500, totalWeight: 1235, interfaceSib: 0 }); // 1 (2.02→2−1)
+    out.pure.sibBook2   = A.acpaSib({ chassisCapacity: 2250, totalWeight: 1235, interfaceSib: 0 }); // 1 (1.82→2−1)
+    out.pure.sibRoundUp = A.acpaSib({ chassisCapacity: 385,  totalWeight: 100 });                   // 3 (3.85→4−1)
+    out.pure.sibRoundDn = A.acpaSib({ chassisCapacity: 379,  totalWeight: 100 });                   // 2 (3.79→3−1)
+    out.pure.sibFrac    = A.acpaSib({ chassisCapacity: 50,   totalWeight: 100 });                   // -1 (0.5→0−1)
+    out.pure.sibIface   = A.acpaSib({ chassisCapacity: 2000, totalWeight: 516, interfaceSib: 3 });  // 6 (3.88→4−1+3)
+
+    // PURE Armor Inventory interpolation (MM p.62).
+    out.pure.aw40    = A.acpaArmorWeight(40);    // 200
+    out.pure.aw50    = A.acpaArmorWeight(50);    // 250
+    out.pure.aw80    = A.acpaArmorWeight(80);    // 400
+    out.pure.awClamp = A.acpaArmorWeight(100);   // 400 (clamped)
+    out.pure.aw35    = A.acpaArmorWeight(35);    // 175 (interp 30→40)
+    out.pure.ac40    = A.acpaArmorCost(40);      // 9600
+    out.pure.ac80    = A.acpaArmorCost(80);      // 25600
+
+    // DERIVED on a real ACPA: STR40 (chassis 200 kg, Lift/Cap 2000), shell SP40 (200 kg), Full-HUD (2 kg).
+    const flags = { cyberpunk2020: { __pwtest: true } };
+    let acpa;
+    try {
+      acpa = await Actor.create({ name: "__PW__ACPA_D4b", type: "vehicle", flags,
+        system: { isACPA: true, str: 40, sp: { front: 40, side: 0, rear: 0, top: 0, bottom: 0 } } });
+      out.actor.armorWeight = acpa.system.armorWeight;   // 200
+      out.actor.totalDef    = acpa.system.totalWeight;   // 200 + 200 + 114 + 2 = 516
+      out.actor.sibDef      = acpa.system.sib;           // 2000/516 = 3.88 → 4 − 1 = 3
+
+      // +200 kg of systems → total 716 → ratio 2.79 (rounds down) → SIB 1.
+      await acpa.update({ "system.systemsWeight": 200 });
+      out.actor.totalSys = acpa.system.totalWeight;      // 716
+      out.actor.sibSys   = acpa.system.sib;              // 1
+
+      // Switch interface to Russian Arms VRI (3 kg, SIB +3) → total 717 → base 1 + 3 = SIB 4.
+      await acpa.update({ "system.realityInterface": "RUSSIAN_ARMS_VRI" });
+      out.actor.totalVri = acpa.system.totalWeight;      // 717
+      out.actor.sibVri   = acpa.system.sib;              // 4
+
+      // Command Computer adds 1 kg to the loaded weight.
+      await acpa.update({ "system.commandComputer": true });
+      out.actor.totalCmd = acpa.system.totalWeight;      // 718
+    } finally {
+      if (acpa) await acpa.delete().catch(() => {});
+    }
+    return out;
+  });
+
+  console.log("Phase 6 D-4b:", JSON.stringify(R));
+  // PURE SIB
+  expect(R.pure.sibBook).toBe(1);
+  expect(R.pure.sibBook2).toBe(1);
+  expect(R.pure.sibRoundUp).toBe(3);
+  expect(R.pure.sibRoundDn).toBe(2);
+  expect(R.pure.sibFrac).toBe(-1);
+  expect(R.pure.sibIface).toBe(6);
+  // PURE armor
+  expect(R.pure.aw40).toBe(200);
+  expect(R.pure.aw50).toBe(250);
+  expect(R.pure.aw80).toBe(400);
+  expect(R.pure.awClamp).toBe(400);
+  expect(R.pure.aw35).toBe(175);
+  expect(R.pure.ac40).toBe(9600);
+  expect(R.pure.ac80).toBe(25600);
+  // DERIVED
+  expect(R.actor.armorWeight).toBe(200);
+  expect(R.actor.totalDef).toBe(516);
+  expect(R.actor.sibDef).toBe(3);
+  expect(R.actor.totalSys).toBe(716);
+  expect(R.actor.sibSys).toBe(1);
+  expect(R.actor.totalVri).toBe(717);
+  expect(R.actor.sibVri).toBe(4);
+  expect(R.actor.totalCmd).toBe(718);
+});

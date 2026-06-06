@@ -120,6 +120,21 @@
             <div class="field" title="Command &amp; Control Computer (C3): squad-coordination option, +1 to Initiative and Awareness while linked. Integrable with any Reflex/Control system.">
                 <label>Command Computer</label><input type="checkbox" name="system.commandComputer" {{#if system.commandComputer}}checked{{/if}}/></div>
         </div>
+        <p style="opacity:0.6; font-size:0.78em; margin:2px 0;">Suit Initiative Bonus (SIB) = round(chassis Lift/Cap ÷ total loaded weight) − 1, plus the Reality Interface SIB. Total weight = chassis + armor shell + Trooper capacity + interface + systems.</p>
+        <div class="field-list">
+            <div class="field" title="Suit Initiative Bonus (SIB) — added to the pilot's initiative in ACPA combat. Derived from the power-to-weight ratio + the Reality Interface. Read-only.">
+                <label>SIB (initiative)</label><input type="number" class="not-editable" value="{{system.sib}}" readonly/></div>
+            <div class="field" title="Total fully-loaded weight (kg). Derived; drives the SIB. Read-only.">
+                <label>Total Wt (kg)</label><input type="number" class="not-editable" value="{{system.totalWeight}}" readonly/></div>
+            <div class="field" title="Armor-shell weight (kg), from the chosen shell SP via the Armor Inventory Table. Derived. Read-only.">
+                <label>Armor Wt (kg)</label><input type="number" class="not-editable" value="{{system.armorWeight}}" readonly/></div>
+        </div>
+        <div class="field-list">
+            <div class="field" title="Trooper Capacity — the weight budget set aside for the pilot and personal gear (counts toward total weight for SIB). 114 kg standard; Russian frames 136; elite 80-91.">
+                <label>Trooper Cap (kg)</label><input type="number" name="system.trooperCapacity" value="{{system.trooperCapacity}}"/></div>
+            <div class="field" title="Aggregate weight of mounted systems (utility/offensive/defensive/sensors). The systems catalog will compute this automatically; set it manually for now.">
+                <label>Systems Wt (kg)</label><input type="number" name="system.systemsWeight" value="{{system.systemsWeight}}"/></div>
+        </div>
         {{/if}}
 
         {{!-- Pilot & Systems --}}

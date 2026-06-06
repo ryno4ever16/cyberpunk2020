@@ -11,7 +11,7 @@ import {
   stringField
 } from "./schema-helpers.js";
 
-import { acpaAreaSOP, chassisStats, realityInterface, reflexControl, acpaEffectiveRef } from "../vehicle/vehicle-acpa.js";
+import { acpaAreaSOP, chassisStats, realityInterface, reflexControl, acpaEffectiveRef, acpaArmorWeight, acpaArmorCost, acpaSib } from "../vehicle/vehicle-acpa.js";
 
 function hasOwn(source, key) {
   return Object.prototype.hasOwnProperty.call(source, key);
@@ -200,6 +200,8 @@ export class CyberpunkVehicleActorData extends foundry.abstract.TypeDataModel {
       reflexControl:    stringField("ADVANCED"),
       commandComputer:  booleanField(false),   // C3: +1 initiative/awareness while linked (integrable with any)
       pilotRef:         numberField(0),         // pilot base REF (until a pilot actor is linked)
+      trooperCapacity:  numberField(114),       // pilot+gear weight set aside for SIB (114 std; Russian 136; elite 80-91)
+      systemsWeight:    numberField(0),          // aggregate weight of mounted systems (D-4d computes this; manual for now)
 
       // Derived (recomputed each prepare; stored so they're available to templates/rolls)
       armorValue: objectField({ front: 0, side: 0, rear: 0, top: 0, bottom: 0 }),
@@ -218,6 +220,11 @@ export class CyberpunkVehicleActorData extends foundry.abstract.TypeDataModel {
       maxRef:       numberField(10),   // operating-REF cap from the Reflex/Control system
       refMod:       numberField(0),    // REF modifier from the Reflex/Control system
       effectiveRef: numberField(0),    // clamp(pilotRef + refMod, 0..maxRef) − refDamage
+      // ACPA-derived weight + initiative (from the Armor Inventory + SIB derivation, MM p.61-62).
+      armorWeight:  numberField(0),    // armor-shell weight (kg) from the chosen shell SP
+      armorCost:    numberField(0),    // armor-shell cost (eb) from the chosen shell SP
+      totalWeight:  numberField(0),    // total fully-loaded weight (chassis + armor + trooper + systems)
+      sib:          numberField(0),    // Suit Initiative Bonus = round(cap ÷ totalWeight) − 1 + interface SIB
 
       notes: htmlField("")
     };
@@ -263,6 +270,17 @@ export class CyberpunkVehicleActorData extends foundry.abstract.TypeDataModel {
       this.effectiveRef = acpaEffectiveRef({
         pilotRef: this.pilotRef, refMod: rc.refMod, maxRef: rc.maxRef, refDamage: this.refDamage
       });
+
+      // Weight budget + Suit Initiative Bonus (Maximum Metal p.61-62). Total loaded weight = chassis
+      // + armor shell + Trooper capacity + interface + mounted systems (+1kg for a Command Computer).
+      const armorSP = Number(this.sp?.front) || 0;
+      this.armorWeight = acpaArmorWeight(armorSP);
+      this.armorCost = acpaArmorCost(armorSP);
+      const trooper = Number(this.trooperCapacity) || 0;
+      const sysW = Number(this.systemsWeight) || 0;
+      const cmdW = this.commandComputer ? 1 : 0;
+      this.totalWeight = cs.weight + this.armorWeight + trooper + ri.weight + sysW + cmdW;
+      this.sib = acpaSib({ chassisCapacity: cs.lift, totalWeight: this.totalWeight, interfaceSib: ri.sib });
     }
   }
 }

@@ -277,6 +277,65 @@ export function acpaEffectiveRef({ pilotRef = 0, refMod = 0, maxRef = 10, refDam
   return Math.max(0, capped - (Number(refDamage) || 0));
 }
 
+/* ------------------------------ Armor Inventory + SIB (MM p.61-62) ------------------------------ */
+
+/**
+ * Armor Inventory Table (MM p.62): the suit's armor "shell" SP → weight(kg)/cost(eb). The shell
+ * protects equally on all sides; a chassis cannot carry a shell with SP > 2× its STR. NOTE: the SP25
+ * row is the lightweight MetalGear comparison variant — the real ACPA shells run SP30-80 (~5kg & 400eb
+ * per SP), so interpolating across 25→30 is intentionally steep. PURE table.
+ */
+export const ARMOR_INVENTORY = [
+  { sp: 25, weight: 36,  cost: 1200  },
+  { sp: 30, weight: 150, cost: 5600  },
+  { sp: 40, weight: 200, cost: 9600  },
+  { sp: 50, weight: 250, cost: 13600 },
+  { sp: 65, weight: 330, cost: 19600 },
+  { sp: 80, weight: 400, cost: 25600 },
+];
+
+/** Piecewise-linear interpolation of an Armor Inventory column for an arbitrary SP (clamped). PURE. */
+function interpArmor(sp, field) {
+  const s = Math.max(0, Number(sp) || 0);
+  const T = ARMOR_INVENTORY;
+  if (s <= 0) return 0;
+  if (s <= T[0].sp) return Math.round(T[0][field] * (s / T[0].sp));      // scale down from the lightest row
+  if (s >= T[T.length - 1].sp) return T[T.length - 1][field];            // clamp at the heaviest
+  for (let i = 0; i < T.length - 1; i++) {
+    const a = T[i], b = T[i + 1];
+    if (s >= a.sp && s <= b.sp) {
+      const t = (s - a.sp) / (b.sp - a.sp);
+      return Math.round(a[field] + t * (b[field] - a[field]));
+    }
+  }
+  return T[T.length - 1][field];
+}
+
+/** Armor-shell weight (kg) for a shell SP, from the Armor Inventory Table (interpolated). PURE. */
+export function acpaArmorWeight(sp) { return interpArmor(sp, "weight"); }
+/** Armor-shell cost (eb) for a shell SP, from the Armor Inventory Table (interpolated). PURE. */
+export function acpaArmorCost(sp)   { return interpArmor(sp, "cost"); }
+
+/**
+ * Suit Initiative Bonus — SIB (MM p.61). Reflects the suit's power-to-weight agility. PURE.
+ *   1. ratio = chassisCapacity (the Lift/Cap. column) ÷ total fully-loaded weight.
+ *   2. round: if the ratio has a whole part, round to nearest using a 0.8 threshold (frac < 0.8 → down,
+ *      ≥ 0.8 → up); if it is only a fraction (ratio < 1), treat it as 0. Then subtract 1.
+ *   3. add the Reality Interface's SIB bonus.
+ * Verified against the MM worked example (data form: cap≈2500 / total 1235 kg, Full-HUD → SIB +1).
+ */
+export function acpaSib({ chassisCapacity = 0, totalWeight = 0, interfaceSib = 0 } = {}) {
+  const cap = Math.max(0, Number(chassisCapacity) || 0);
+  const tw = Math.max(0, Number(totalWeight) || 0);
+  const iface = Number(interfaceSib) || 0;
+  if (tw <= 0) return iface - 1;          // degenerate (no weight) — base rounds to 0
+  const ratio = cap / tw;
+  const whole = Math.floor(ratio);
+  const frac = ratio - whole;
+  const rounded = (whole >= 1) ? (frac < 0.8 ? whole : whole + 1) : 0;   // <1 → "treat as 0"
+  return (rounded - 1) + iface;
+}
+
 /* ------------------------------ Linear Frame (naked) (MM p.56) ------------------------------ */
 
 /**
