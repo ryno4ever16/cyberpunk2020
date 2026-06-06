@@ -1,0 +1,93 @@
+/**
+ * vehicle-acpa-combat.js — Phase 6: stateful ACPA combat (melee dialog + per-turn ticks).
+ *
+ * ACPA hand-to-hand (MM p.58) strikes at VEHICLE scale: Punch/Crush/Kick roll Nd10, which we convert
+ * to a vehicle Penetration (Penetration Factor = round(avgDamage/10)) and route through the unified
+ * dispatcher — vehicle/ACPA target → Pen vs Armor Value, personnel target → MM p.8. Suit STR damaged
+ * by criticals (strDamage) reduces the effective STR.
+ */
+
+import { acpaMeleeDamage } from "./vehicle-acpa.js";
+import { penetrationFactor } from "./vehicle-weapons.js";
+import { openSingletonDialog } from "../utils.js";
+
+const SCOPE = "cyberpunk2020";
+const _enabled = (k, d = true) => { try { return game.settings.get(SCOPE, k); } catch { return d; } };
+
+/** The acting suit's token: prefer the selected one, else any of its tokens. */
+function _firerTokenOf(actor) {
+  return (canvas?.tokens?.controlled ?? []).find(t => t.actor?.id === actor.id)
+      ?? canvas?.tokens?.placeables?.find(t => t.actor?.id === actor.id) ?? null;
+}
+
+/** Average of an Nd10 = N × 5.5. ACPA melee Penetration = round(avg/10). */
+function _meleePen(dice) {
+  return penetrationFactor({ avgDamage: (Number(dice) || 0) * 5.5 });
+}
+
+/**
+ * ACPA melee dialog (MM p.58). Strike a targeted token with Punch / Crush / Kick; on a hit, the
+ * vehicle-scale Penetration routes through the dispatcher. To-hit = 1d10 + pilot REF + melee skill.
+ */
+export async function openAcpaMeleeDialog(actor) {
+  if (!actor || actor.type !== "vehicle" || !actor.system?.isACPA) { ui.notifications?.warn?.("ACPA melee is for powered-armor actors (tick the ACPA box)."); return null; }
+  if (!_enabled("vehicleDamageEnabled")) { ui.notifications?.warn?.("Vehicle damage automation is disabled in the settings."); return null; }
+
+  const targets = [...(game.user?.targets ?? [])];
+  const targetTok = targets.length === 1 ? targets[0] : null;
+  if (!targetTok) { ui.notifications?.warn?.("Target the token you're striking first."); return null; }
+  const targetActor = targetTok.actor;
+  const firerTok = _firerTokenOf(actor);
+  const strDmg = Number(actor.system?.strDamage) || 0;
+  const effStr = Math.max(0, (Number(actor.system?.str) || 0) - strDmg);
+
+  const content = `
+<div class="cyberpunk vehicle-fire-dialog" style="display:flex;flex-direction:column;gap:4px;">
+  <div style="opacity:0.7;font-size:0.85em;">${actor.name} (Suit STR <b>${effStr}</b>${strDmg ? ` after −${strDmg} damage` : ""}) strikes <b>${targetActor?.name ?? targetTok.name}</b>.</div>
+  <label>Strike
+    <select id="cp-am-kind">
+      <option value="punch">Punch — round(STR/9) d10</option>
+      <option value="crush">Crush — (X+1) d10</option>
+      <option value="kick">Kick — round(1.5×X) d10</option>
+    </select>
+  </label>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <label>Pilot REF <input type="number" id="cp-am-ref" value="0" style="width:48px;"></label>
+    <label>Melee skill <input type="number" id="cp-am-skill" value="0" style="width:48px;"></label>
+    <label>Target DV <input type="number" id="cp-am-dv" value="15" style="width:48px;"></label>
+  </div>
+</div>`;
+
+  const dialog = new Dialog({
+    title: `🤜 ACPA Melee — ${actor.name}`,
+    content,
+    default: "strike",
+    buttons: {
+      strike: { label: "🤜 Strike", callback: async (html) => {
+        const root = html instanceof jQuery ? html[0] : html;
+        const kind = root.querySelector("#cp-am-kind")?.value || "punch";
+        const ref = Number(root.querySelector("#cp-am-ref")?.value) || 0;
+        const skill = Number(root.querySelector("#cp-am-skill")?.value) || 0;
+        const dv = Number(root.querySelector("#cp-am-dv")?.value) || 15;
+        const dmg = acpaMeleeDamage(effStr, kind);
+        const pen = _meleePen(dmg.dice);
+        const d10 = (await new Roll("1d10").evaluate());
+        const total = d10.total + ref + skill;
+        const hit = total >= dv;
+        const verdict = hit ? `<span style="color:#3ad13a;font-weight:bold;">HIT</span>` : `<span style="color:#ff6060;font-weight:bold;">MISS</span>`;
+        const kindLabel = kind.charAt(0).toUpperCase() + kind.slice(1);
+        await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} — ACPA ${kind}`, rolls: [d10], content:
+          `<div class="cyberpunk vehicle-fire-result"><h3>🤜 ACPA ${kindLabel}</h3>
+             <div>To-hit: 1d10 ${d10.total} + REF ${ref} + skill ${skill} = <b>${total}</b> vs ${dv} — ${verdict}</div>
+             <div style="margin-top:2px;">Damage <b>${dmg.formula}</b> → Penetration <b>${pen}</b> (vehicle scale).</div></div>` });
+        if (hit && targetActor) {
+          const { dispatchAttack, detectFacingFromTokens } = await import("./vehicle-targeting.js");
+          const facing = (firerTok && targetTok) ? detectFacingFromTokens(firerTok, targetTok) : "front";
+          await dispatchAttack({ scale: "penetration", penetration: pen, facing, targetTokenId: targetTok.id, weaponName: `ACPA ${kindLabel}` }, targetActor);
+        }
+      } },
+      cancel: { label: "Cancel" },
+    },
+  });
+  return openSingletonDialog(`acpa-melee:${actor.id}`, () => dialog);
+}

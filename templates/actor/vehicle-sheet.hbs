@@ -30,6 +30,11 @@
                         <button type="button" class="cp-vehicle-damage" title="Resolve damage against this vehicle. Core subtracts SP and reduces SDP; Maximum Metal compares Penetration to Armor Value, rolls Surface/Minor/Major/Catastrophic and a hit location with fuel-fire / ammo-cookoff / crew effects.">💥 Damage</button>
                     </div>
                     {{/if}}
+                    {{#if mmOn}}{{#if system.isACPA}}
+                    <div class="field cp-header-action">
+                        <button type="button" class="cp-acpa-melee" title="ACPA hand-to-hand (Maximum Metal p.58): Punch / Crush / Kick → vehicle-scale Penetration through the dispatcher. Target a token first.">🤜 Melee</button>
+                    </div>
+                    {{/if}}{{/if}}
                 </div>
             </div>
         </div>

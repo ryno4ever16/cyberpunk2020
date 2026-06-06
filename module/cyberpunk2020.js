@@ -30,6 +30,7 @@ import { weaponToPenetration, vehicleToHitModifier, openVehicleFireDialog, regis
 import { seedVehicleWeaponCompendium, ensureVehicleWeaponSeed } from "./vehicle/vehicle-weapon-catalog.js";
 import { registerVehicleTargetingHandlers } from "./vehicle/vehicle-targeting.js";
 import { registerMissileFlightHooks } from "./vehicle/vehicle-missile-flight.js";
+import { openAcpaMeleeDialog } from "./vehicle/vehicle-acpa-combat.js";
 
 Hooks.once('init', async function () {
 
@@ -42,7 +43,7 @@ Hooks.once('init', async function () {
         // A manual migrateworld.
         migrateWorld: migrations.migrateWorld,
         // Vehicle API: deploy a scalable handle token, board/disembark crew, and roll control/maneuver.
-        vehicles: { deploy: deployVehicleToScene, board: boardVehicle, disembark, controlRoll: openControlRollDialog, applyDamage: openVehicleDamageDialog, weaponToPen: weaponToPenetration, toHitMod: vehicleToHitModifier, fire: openVehicleFireDialog, seedWeapons: seedVehicleWeaponCompendium }
+        vehicles: { deploy: deployVehicleToScene, board: boardVehicle, disembark, controlRoll: openControlRollDialog, applyDamage: openVehicleDamageDialog, weaponToPen: weaponToPenetration, toHitMod: vehicleToHitModifier, fire: openVehicleFireDialog, seedWeapons: seedVehicleWeaponCompendium, acpaMelee: openAcpaMeleeDialog }
     };
 
     // Define custom Document classes
