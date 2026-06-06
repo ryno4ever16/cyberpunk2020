@@ -187,7 +187,143 @@ export const SEED_VEHICLE_WEAPONS = [
   { name: "Large Power Saw", img: ICON, system: {
       weaponClass: "melee", mountType: "articulated", arc: "front", wa: -2,
       penetration: 6, damage: "8D6AP", ap: true, rof: 1, shots: 1, range: 2, reliability: "ST",
-      space: 1, cost: 1250, sp: 20, sop: 25, area: "rArm", source: SOURCE } }
+      space: 1, cost: 1250, sp: 20, sop: 25, area: "rArm", source: SOURCE } },
+
+  // ═════════════════ NON-ACPA VEHICLE WEAPON TABLES (Maximum Metal p.16-23, verified) ═════════════════
+  // Decoded from the MM weapon charts + their descriptions. DAMAGE dice drive the PC↔vehicle bridge and the
+  // ACPA SOP flow; the (Pen) is the book's pre-derived Vehicle Penetration. HEAT/Hi-Ex Penetration ignores
+  // range (hefPenetrator) and HEAT is halved by Composite Armor; cannons carry Hi-Ex/HEAT shell variants.
+  // (Weapons already covered by the ACPA roster above — 20mm/27-30mm autocannon, 75mm recoilless, EMG-83,
+  // 12.7/14.5mm heavy MG, 40mm Auto-GL, 2.75" rocket, Light ATGM, Spectre ATGM, 105mm Howitzer — are not repeated.)
+
+  // ── Machine guns, miniguns & gatlings (p.17). Small-arms D6 weapons; the book Pen already halves the factor. ──
+  { name: "5.56mm Minigun", img: ICON, system: { weaponClass:"directFire", mountType:"pintle", arc:"turret",
+      wa:0, penetration:2, damage:"5D6", rof:100, shots:1000, range:450, reliability:"ST", space:1, cost:2000, source:SOURCE } },
+  { name: "5.56mm Machinegun", img: ICON, system: { weaponClass:"directFire", mountType:"pintle", arc:"turret",
+      wa:1, penetration:2, damage:"5D6", rof:10, shots:100, range:500, reliability:"VR", space:1, cost:1200, source:SOURCE } },
+  { name: "7.62mm Minigun", img: ICON, system: { weaponClass:"directFire", mountType:"pintle", arc:"turret",
+      wa:0, penetration:2, damage:"6D6+2", rof:100, shots:2000, range:600, reliability:"VR", space:1, cost:4000, source:SOURCE } },
+  { name: "7.62mm Machinegun", img: ICON, system: { weaponClass:"directFire", mountType:"pintle", arc:"turret",
+      wa:0, penetration:2, damage:"6D6+2", rof:10, shots:100, range:500, reliability:"VR", space:1, cost:1200, source:SOURCE } },
+  { name: "12.7mm Gatling", img: ICON, system: { weaponClass:"directFire", mountType:"turret", arc:"turret",
+      wa:0, penetration:3, damage:"6D10", rof:100, shots:1000, range:600, reliability:"ST", space:1, cost:6000, source:SOURCE } },
+  { name: "12.7mm Machinegun", img: ICON, system: { weaponClass:"directFire", mountType:"pintle", arc:"turret",
+      wa:0, penetration:3, damage:"6D10", rof:10, shots:100, range:800, reliability:"VR", space:1, cost:2000, source:SOURCE } },
+  { name: "20mm Gatling", img: ICON, system: { weaponClass:"directFire", mountType:"turret", arc:"turret",
+      wa:0, penetration:4, damage:"8D10", rof:100, shots:1000, range:500, reliability:"VR", space:2, cost:6000, source:SOURCE } },
+  // 30mm Gatling fires depleted-uranium slugs — high-density AP (full damage through armor, errata p.107).
+  { name: "30mm Gatling", img: ICON, system: { weaponClass:"directFire", mountType:"turret", arc:"turret",
+      wa:0, penetration:6, damage:"6D10AP", ap:true, rof:30, shots:1200, range:750, reliability:"VR", space:4, cost:25000, source:SOURCE } },
+
+  // ── Anti-tank guns & grenade launchers (p.17). ──
+  { name: "LATG 37mm", img: ICON, system: { weaponClass:"directFire", mountType:"turret", arc:"turret",
+      wa:3, penetration:6, damage:"6D10AP", ap:true, rof:1, shots:10, range:800, reliability:"VR", space:2, cost:10000, source:SOURCE } },
+  { name: "40mm Grenade Launcher", img: ICON, system: { weaponClass:"burst", mountType:"articulated", arc:"front",
+      wa:1, penetration:2, damage:"", hiEx:true, burst:5, rof:1, shots:1, range:500, reliability:"VR", space:1, cost:500, source:SOURCE,
+      shellVariants:[{ name:"40mm HEDP (anti-tank)", pen:4, burst:1, heat:true, ap:true }] } },
+
+  // ── Cannons (p.17). Base line = the solid round (Pen); Hi-Ex + HEAT are shell variants. ──
+  { name: "75mm Cannon", img: ICON, system: { weaponClass:"directFire", mountType:"turret", arc:"turret",
+      wa:1, penetration:7, damage:"", rof:2, shots:10, range:1500, reliability:"VR", space:4, cost:75000, source:SOURCE,
+      shellVariants:[{ name:"75mm Hi-Ex", pen:4, burst:5, hiEx:true }, { name:"75mm HEAT", pen:8, burst:2, heat:true, ap:true }] } },
+  { name: "90mm Cannon", img: ICON, system: { weaponClass:"directFire", mountType:"turret", arc:"turret",
+      wa:0, penetration:9, damage:"", rof:1, shots:1, range:500, reliability:"VR", space:7, cost:150000, source:SOURCE,
+      shellVariants:[{ name:"90mm Hi-Ex", pen:5, burst:6, hiEx:true }, { name:"90mm HEAT", pen:10, burst:2, heat:true, ap:true }] } },
+  { name: "120mm Cannon", img: ICON, system: { weaponClass:"directFire", mountType:"turret", arc:"turret",
+      wa:0, penetration:13, damage:"", rof:1, shots:1, range:1000, reliability:"VR", space:14, cost:500000, source:SOURCE,
+      shellVariants:[{ name:"120mm Hi-Ex", pen:7, burst:6, hiEx:true }, { name:"120mm HEAT", pen:12, burst:2, heat:true, ap:true }] } },
+  { name: "140mm Cannon", img: ICON, system: { weaponClass:"directFire", mountType:"turret", arc:"turret",
+      wa:0, penetration:16, damage:"", rof:1, shots:1, range:1000, reliability:"ST", space:20, cost:1000000, source:SOURCE,
+      shellVariants:[{ name:"140mm Hi-Ex", pen:7, burst:6, hiEx:true }, { name:"140mm HEAT", pen:18, burst:3, heat:true, ap:true }] } },
+  // 105mm Recoilless — backblast 6D6 to the rear, totally-sealed armor only; external mount (p.17).
+  { name: "105mm Recoilless", img: ICON, system: { weaponClass:"directFire", mountType:"open", arc:"front",
+      wa:0, penetration:11, damage:"10D10AP", ap:true, heat:true, rof:1, shots:1, range:1000, reliability:"VR", space:5, cost:30000, source:SOURCE } },
+
+  // ── Railguns / gauss cannon (p.18). Inherently armor-piercing. ──
+  { name: "1cm Rail Cannon", img: ICON, system: { weaponClass:"directFire", mountType:"turret", arc:"turret",
+      wa:2, penetration:10, damage:"10D10AP", ap:true, rof:2, shots:50, range:1500, reliability:"ST", space:5, cost:750000, source:SOURCE } },
+  { name: "2cm Rail Gun", img: ICON, system: { weaponClass:"directFire", mountType:"turret", arc:"turret",
+      wa:1, penetration:17, damage:"16D10AP", ap:true, rof:1, shots:50, range:2000, reliability:"ST", space:9, cost:1500000, source:SOURCE } },
+  { name: "3cm Rail Gun", img: ICON, system: { weaponClass:"directFire", mountType:"turret", arc:"turret",
+      wa:0, penetration:22, damage:"20D10AP", ap:true, rof:1, shots:50, range:3000, reliability:"UR", space:15, cost:3000000, source:SOURCE } },
+  { name: "EMG-84 Railgun", img: ICON, system: { weaponClass:"directFire", mountType:"turret", arc:"turret",
+      wa:1, penetration:7, damage:"5D10+10AP", ap:true, rof:10, shots:500, range:1000, reliability:"UR", space:2, cost:25000, source:SOURCE } },
+  { name: "EMG-85 Railgun", img: ICON, system: { weaponClass:"directFire", mountType:"articulated", arc:"front",
+      wa:3, penetration:7, damage:"5D10+10AP", ap:true, rof:1, shots:5, range:1500, reliability:"ST", space:1, cost:11370, source:SOURCE } },
+  // E-Harpoon: effective Pen 20 IGNORING armor (composite/Body still apply); damage is temporary (backup circuits).
+  { name: "E-Harpoon", img: ICON, system: { weaponClass:"special", mountType:"pod", arc:"front",
+      wa:1, penetration:20, damage:"", ap:true, rof:1, shots:1, range:500, reliability:"ST", space:2, cost:20000, source:SOURCE } },
+
+  // ── Unguided rockets (p.19). High-explosive: Penetration is range-immune (hefPenetrator), scatter on a miss. ──
+  { name: "2\" Rocket", img: ICON, system: { weaponClass:"rocket", mountType:"pod", arc:"front",
+      wa:-2, penetration:3, damage:"6D10", hiEx:true, burst:4, rof:1, shots:1, range:500, reliability:"VR", space:1, cost:100, source:SOURCE } },
+  { name: "3.5\" Rocket", img: ICON, system: { weaponClass:"rocket", mountType:"pod", arc:"front",
+      wa:-2, penetration:5, damage:"9D10", hiEx:true, burst:8, rof:1, shots:1, range:2000, reliability:"VR", space:1, cost:400, source:SOURCE } },
+  { name: "5\" Rocket", img: ICON, system: { weaponClass:"rocket", mountType:"pod", arc:"front",
+      wa:-2, penetration:7, damage:"13D10", hiEx:true, burst:15, rof:1, shots:1, range:2000, reliability:"VR", space:1, cost:1000, source:SOURCE } },
+  // One-shot HEAT launchers (p.19). Pen = the book's value, matching the AP-dice factor (LAW 4D10AP→4, etc.).
+  { name: "LAW", img: ICON, system: { weaponClass:"rocket", mountType:"pod", arc:"front",
+      wa:-2, penetration:4, damage:"4D10AP", ap:true, heat:true, burst:2, rof:1, shots:1, range:200, reliability:"VR", space:1, cost:300, source:SOURCE } },
+  { name: "HLAW", img: ICON, system: { weaponClass:"rocket", mountType:"pod", arc:"front",
+      wa:-2, penetration:12, damage:"11D10AP", ap:true, heat:true, burst:4, rof:1, shots:1, range:200, reliability:"VR", space:1, cost:800, source:SOURCE } },
+  { name: "Militech RPG-A", img: ICON, system: { weaponClass:"rocket", mountType:"pod", arc:"front",
+      wa:-2, penetration:6, damage:"6D10AP", ap:true, heat:true, burst:4, rof:1, shots:1, range:200, reliability:"VR", space:1, cost:1500, source:SOURCE,
+      shellVariants:[{ name:"RPG-A H-E", pen:3, burst:6, hiEx:true }] } },
+  { name: "Militech RPG-B", img: ICON, system: { weaponClass:"rocket", mountType:"pod", arc:"front",
+      wa:-2, penetration:10, damage:"9D10AP", ap:true, heat:true, burst:4, rof:1, shots:1, range:200, reliability:"VR", space:1, cost:1500, source:SOURCE } },
+
+  // ── Guided missiles (p.19). HEAT warheads; guidance/homing set the to-hit method (missiles fly via the
+  //    flight tracker). Heavy ATGM ≈ TOW/Songbird (wire-guided, semi-active). SAMs/AAMs ignore aerial-target
+  //    movement penalties and are +10/+20 vs ground. Pen derived from the clean damage dice per MM p.4 (HEAT ×2). ──
+  { name: "Heavy ATGM", img: ICON, system: { weaponClass:"missile", mountType:"pod", arc:"front", guidance:"semiActive", homingMethod:"wire",
+      wa:2, penetration:18, damage:"18D10AP", ap:true, heat:true, burst:4, rof:1, shots:1, range:3000, minRange:300, reliability:"VR", space:5, cost:10000, source:SOURCE } },
+  { name: "SAM (Scorpion)", img: ICON, system: { weaponClass:"missile", mountType:"pod", arc:"front", guidance:"active", homingMethod:"radar", guidanceSkill:0,
+      wa:-1, penetration:7, damage:"7D10", heat:true, burst:4, rof:1, shots:1, range:5000, minRange:500, reliability:"VR", space:1, cost:1000, source:SOURCE } },
+  { name: "VSAM", img: ICON, system: { weaponClass:"missile", mountType:"pod", arc:"front", guidance:"active", homingMethod:"radar", guidanceSkill:15,
+      wa:0, penetration:15, damage:"15D10", heat:true, burst:4, rof:1, shots:1, range:8000, minRange:800, reliability:"VR", space:1, cost:10000, source:SOURCE } },
+  { name: "AAM (short-ranged)", img: ICON, system: { weaponClass:"missile", mountType:"pod", arc:"front", guidance:"active", homingMethod:"infrared", guidanceSkill:15,
+      wa:2, penetration:15, damage:"15D10", heat:true, burst:4, rof:1, shots:1, range:15000, minRange:1500, reliability:"VR", space:1, cost:15000, source:SOURCE } },
+  { name: "AAMRAM", img: ICON, system: { weaponClass:"missile", mountType:"pod", arc:"front", guidance:"active", homingMethod:"radar", guidanceSkill:20,
+      wa:0, penetration:17, damage:"17D10", heat:true, burst:4, rof:1, shots:1, range:80000, minRange:8000, reliability:"VR", space:3, cost:250000, source:SOURCE } },
+
+  // ── Artillery / indirect (p.20). Mortars 400 m/turn, howitzers/rockets 600 m/turn; spotter-corrected To-Hit.
+  //    Mortars have a minimum range of 1/100 their max. Shell variants cover the artillery ammunition (p.21). ──
+  { name: "60mm Mortar", img: ICON, system: { weaponClass:"artillery", mountType:"fixed", arc:"front",
+      wa:0, penetration:4, hiEx:true, burst:5, rof:2, shots:1, range:2000, minRange:20, reliability:"VR", space:1, cost:750, source:SOURCE,
+      shellVariants:[{ name:"60mm WP", pen:0, burst:15, warhead:"wp" }, { name:"60mm Chemical", pen:0, burst:15, warhead:"chemical" }] } },
+  { name: "80mm Mortar", img: ICON, system: { weaponClass:"artillery", mountType:"fixed", arc:"front",
+      wa:0, penetration:5, hiEx:true, burst:6, rof:1, shots:1, range:3500, minRange:35, reliability:"VR", space:1, cost:1500, source:SOURCE,
+      shellVariants:[{ name:"80mm WP", pen:0, burst:18, warhead:"wp" }, { name:"80mm Cluster", pen:4, burst:18, warhead:"cluster" }] } },
+  { name: "120mm Mortar", img: ICON, system: { weaponClass:"artillery", mountType:"fixed", arc:"front",
+      wa:0, penetration:7, hiEx:true, burst:6, rof:1, shots:1, range:6000, minRange:60, reliability:"VR", space:3, cost:5000, source:SOURCE,
+      shellVariants:[{ name:"120mm Cluster", pen:4, burst:18, warhead:"cluster" }, { name:"120mm Chemical", pen:0, burst:18, warhead:"chemical" }] } },
+  // Howitzer AP doubles Pen / triples on 150-200mm and drops the burst to 0 (howitzers only).
+  { name: "150mm Howitzer", img: ICON, system: { weaponClass:"artillery", mountType:"fixed", arc:"front",
+      wa:1, penetration:7, hiEx:true, burst:6, rof:1, shots:1, range:24000, reliability:"VR", space:20, cost:150000, source:SOURCE,
+      shellVariants:[{ name:"150mm AP", pen:21, burst:0, ap:true }, { name:"150mm WP", pen:0, burst:18, warhead:"wp" }, { name:"150mm Cluster", pen:4, burst:18, warhead:"cluster" }] } },
+  { name: "200mm Howitzer", img: ICON, system: { weaponClass:"artillery", mountType:"fixed", arc:"front",
+      wa:0, penetration:15, hiEx:true, burst:8, rof:1, shots:1, range:20000, reliability:"VR", space:30, cost:250000, source:SOURCE,
+      shellVariants:[{ name:"200mm AP", pen:45, burst:0, ap:true }, { name:"200mm Chemical", pen:0, burst:24, warhead:"chemical" }] } },
+  // 230mm Rocket — a 12-rocket pod with multiple-bomblet (cluster) warheads; covers a huge area.
+  { name: "230mm Rocket", img: ICON, system: { weaponClass:"artillery", mountType:"pod", arc:"front",
+      wa:0, penetration:4, heat:true, burst:45, rof:3, shots:12, range:28000, reliability:"VR", space:30, cost:175000, source:SOURCE } },
+
+  // ── Bombs (p.22). Direct hit ×5 Pen (range-immune); a miss deviates with altitude. Options p.22. ──
+  { name: "100-lb Bomb", img: ICON, system: { weaponClass:"bomb", mountType:"pod", arc:"front",
+      wa:-3, penetration:5, hiEx:true, burst:10, rof:1, shots:1, range:0, reliability:"VR", space:1, cost:250, source:SOURCE,
+      shellVariants:[{ name:"100-lb Anti-Tank", pen:5, burst:4, warhead:"heat", heat:true, ap:true }, { name:"100-lb Incendiary", pen:0, burst:10, warhead:"wp" }] } },
+  { name: "500-lb Bomb", img: ICON, system: { weaponClass:"bomb", mountType:"pod", arc:"front",
+      wa:-3, penetration:8, hiEx:true, burst:48, rof:1, shots:1, range:0, reliability:"VR", space:3, cost:1000, source:SOURCE,
+      shellVariants:[{ name:"500-lb Cluster", pen:4, burst:48, warhead:"cluster" }, { name:"500-lb Anti-Tank", pen:8, burst:4, warhead:"heat", heat:true, ap:true }, { name:"500-lb Incendiary", pen:0, burst:48, warhead:"wp" }] } },
+  { name: "1000-lb Bomb", img: ICON, system: { weaponClass:"bomb", mountType:"pod", arc:"front",
+      wa:-3, penetration:10, hiEx:true, burst:72, rof:1, shots:1, range:0, reliability:"VR", space:5, cost:2000, source:SOURCE,
+      shellVariants:[{ name:"1000-lb Cluster", pen:4, burst:72, warhead:"cluster" }, { name:"1000-lb FAE", pen:10, burst:144, warhead:"chemical" }] } },
+  { name: "2000-lb Bomb", img: ICON, system: { weaponClass:"bomb", mountType:"pod", arc:"front",
+      wa:-3, penetration:11, hiEx:true, burst:96, rof:1, shots:1, range:0, reliability:"VR", space:6, cost:3000, source:SOURCE } },
+
+  // ── Lasers (p.22). The only viable battlefield laser is the painting laser — no damage; it guides paint missiles. ──
+  { name: "Painting Laser", img: ICON, system: { weaponClass:"special", mountType:"turret", arc:"turret",
+      wa:3, penetration:0, damage:"", rof:1, shots:1, range:1000, reliability:"VR", space:1, cost:1000, source:SOURCE } }
 ];
 
 const PACK_ID = "cyberpunk2020.vehicle-weapons";

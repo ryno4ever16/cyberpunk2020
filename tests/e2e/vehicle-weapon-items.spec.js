@@ -40,6 +40,16 @@ test("Phase 5b: vehicleWeapon data model + verified seed catalog", async ({ page
     out.rocketHiEx = !!byName["2.75\" Rocket"]?.system.hiEx;                     // true
     out.coneAngle = byName["BRP Ripple Flechette Pack"]?.system.coneAngle;       // 60
 
+    // ── Non-ACPA vehicle weapon tables (MM p.16-23) — verified source values ──
+    out.cannon120Pen = byName["120mm Cannon"]?.system.penetration;               // 13
+    out.railgun3cmPen = byName["3cm Rail Gun"]?.system.penetration;              // 22
+    out.lawHeat = (() => { const w = byName["LAW"]?.system; return !!(w?.heat && w?.penetration === 4 && w?.weaponClass === "rocket"); })();
+    out.minigunSmallArms = /d6/i.test(byName["5.56mm Minigun"]?.system.damage ?? "");   // small-arms D6
+    out.howitzer150AP = !!byName["150mm Howitzer"]?.system.shellVariants?.some(v => v.ap && v.pen === 21);
+    out.aamramActive = byName["AAMRAM"]?.system.guidance;                        // "active"
+    out.bomb1000Burst = byName["1000-lb Bomb"]?.system.burst;                    // 72
+    out.paintingLaserPen = byName["Painting Laser"]?.system.penetration;         // 0 (guides, no damage)
+
     // ── Data model registration (set at init from system JS — always live) ──
     const DM = CONFIG.Item?.dataModels?.vehicleWeapon;
     out.modelRegistered = !!DM;
@@ -79,8 +89,8 @@ test("Phase 5b: vehicleWeapon data model + verified seed catalog", async ({ page
 
   console.log("Phase 5b vehicleWeapon:", JSON.stringify(R));
 
-  // Seed catalog — verified against MM (always asserted). Expanded with the ACPA weapon roster.
-  expect(R.seedCount).toBe(24);
+  // Seed catalog — verified against MM (always asserted). ACPA roster + full non-ACPA p.16-23 tables.
+  expect(R.seedCount).toBe(68);
   expect(R.classSet).toEqual(["artillery", "bomb", "burst", "cone", "directFire", "melee", "missile", "rocket", "special"]);
   expect(R.autocannonPen).toBe(4);
   expect(R.cannonVariants).toBe(2);
@@ -89,6 +99,16 @@ test("Phase 5b: vehicleWeapon data model + verified seed catalog", async ({ page
   expect(R.hellfirePen).toBe(21);
   expect(R.rocketHiEx).toBe(true);
   expect(R.coneAngle).toBe(60);
+
+  // Non-ACPA vehicle weapon tables (MM p.16-23).
+  expect(R.cannon120Pen).toBe(13);
+  expect(R.railgun3cmPen).toBe(22);
+  expect(R.lawHeat).toBe(true);
+  expect(R.minigunSmallArms).toBe(true);
+  expect(R.howitzer150AP).toBe(true);
+  expect(R.aamramActive).toBe("active");
+  expect(R.bomb1000Burst).toBe(72);
+  expect(R.paintingLaserPen).toBe(0);
 
   // Data model registered with the expected fields (always asserted).
   expect(R.modelRegistered).toBe(true);
