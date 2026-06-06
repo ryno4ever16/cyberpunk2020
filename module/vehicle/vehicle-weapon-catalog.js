@@ -60,13 +60,36 @@ export const SEED_VEHICLE_WEAPONS = [
     }
   },
   // E — Artillery / indirect (HE, burst). 105mm Howitzer (MM p.20: WA +1, Pen 6, 6m burst, 17000m).
+  // Shell variants cover the artillery ammunition types (MM p.21): the warhead drives the resolver
+  // (cluster/chemical ×3 the burst; WP burns; AP doubles Pen and drops the burst, howitzers only).
   {
     name: "105mm Howitzer", img: ICON,
     system: {
       weaponClass: "artillery", mountType: "fixed", arc: "front",
       wa: 1, penetration: 6, hiEx: true, burst: 6,
       rof: 1, shots: 1, range: 17000, reliability: "VR",
-      space: 6, cost: 100000, source: SOURCE
+      space: 6, cost: 100000, source: SOURCE,
+      shellVariants: [
+        { name: "105mm AP", pen: 12, burst: 0, ap: true },                  // ×2 Pen on the 105mm, Burst 0
+        { name: "105mm WP", pen: 0, burst: 6, warhead: "wp" },              // burn DOT, no Pen
+        { name: "105mm Cluster", pen: 4, burst: 6, warhead: "cluster" },    // ×3 burst (→18m), Pen 4
+        { name: "105mm Chemical", pen: 0, burst: 6, warhead: "chemical" }   // ×3 burst (→18m), gas cloud
+      ]
+    }
+  },
+  // D — Bomb (direct hit ×5 Pen). 250-lb GP bomb (MM p.22: WA −3, Pen 6, 16m burst).
+  {
+    name: "250-lb Bomb", img: ICON,
+    system: {
+      weaponClass: "bomb", mountType: "pod", arc: "front",
+      wa: -3, penetration: 6, hiEx: true, burst: 16,
+      rof: 1, shots: 1, range: 0, reliability: "VR",
+      space: 3, cost: 600, source: SOURCE,
+      shellVariants: [
+        { name: "250-lb Cluster", pen: 4, burst: 16, warhead: "cluster" },   // ×3 burst, Pen 4
+        { name: "250-lb Anti-Tank", pen: 6, burst: 4, warhead: "heat", heat: true, ap: true },
+        { name: "250-lb Incendiary", pen: 0, burst: 16, warhead: "wp" }      // fire (reuses WP ignition)
+      ]
     }
   },
   // F — Cone / scatter-pack (ACPA). BRP Ripple Flechette Pack (MM p.73: WA +4, Pen 3 AP, 60° cone, 24 proj, 15m).
@@ -118,8 +141,10 @@ export async function ensureVehicleWeaponSeed() {
   const pack = game.packs?.get(PACK_ID);
   if (!pack) return;
   try {
-    const index = await pack.getIndex();
-    if (index.size === 0) await seedVehicleWeaponCompendium();
+    // Idempotent by name: seeds the catalog and back-fills any newly added entries (e.g. when the
+    // catalog gains a weapon like the 250-lb Bomb) without duplicating ones already present. Use
+    // game.cyberpunk.vehicles.seedWeapons({ force: true }) to also refresh existing entries' stats.
+    await seedVehicleWeaponCompendium();
   } catch (err) {
     console.warn("Cyberpunk2020 | ensureVehicleWeaponSeed failed", err);
   }

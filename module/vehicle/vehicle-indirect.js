@@ -107,6 +107,30 @@ export function bombFallTurns(heightM, opts) {
   return bombFallSchedule(heightM, opts).length;
 }
 
+/* ------------------------------ Landing points (PIXELS) ------------------------------ */
+
+/**
+ * Where an indirect shell lands, in pixel space, from the aim point + the roll. PURE.
+ * A hit (total ≥ number) lands on the aim point; a miss deviates missedBy × (range/100) m on the d10
+ * Grenade-Table heading. `ppm` = pixels per metre on the scene. `aim` = {x,y} pixels.
+ */
+export function indirectLanding({ aim = { x: 0, y: 0 }, rangeM = 0, toHitTotal = 0, toHitNumber = 25, d10dir = 1, ppm = 1 } = {}) {
+  const missedBy = Math.max(0, (Number(toHitNumber) || 0) - (Number(toHitTotal) || 0));
+  if (missedBy <= 0) return { hit: true, point: { x: aim.x, y: aim.y }, deviationM: 0, dirDeg: 0, missedBy: 0 };
+  const distM = indirectDeviationM(rangeM, missedBy);
+  const v = deviationVector({ distanceM: distM, d10: d10dir });
+  return { hit: false, point: { x: aim.x + v.dx * ppm, y: aim.y + v.dy * ppm }, deviationM: distM, dirDeg: v.dirDeg, missedBy };
+}
+
+/** Where a bomb lands, in pixel space (deviation = missedBy × 10 × height/100 m, MM p.9). PURE. */
+export function bombLanding({ aim = { x: 0, y: 0 }, heightM = 0, toHitTotal = 0, toHitNumber = 25, d10dir = 1, ppm = 1 } = {}) {
+  const missedBy = Math.max(0, (Number(toHitNumber) || 0) - (Number(toHitTotal) || 0));
+  if (missedBy <= 0) return { hit: true, point: { x: aim.x, y: aim.y }, deviationM: 0, dirDeg: 0, missedBy: 0 };
+  const distM = bombDeviationM(heightM, missedBy);
+  const v = deviationVector({ distanceM: distM, d10: d10dir });
+  return { hit: false, point: { x: aim.x + v.dx * ppm, y: aim.y + v.dy * ppm }, deviationM: distM, dirDeg: v.dirDeg, missedBy };
+}
+
 /* ------------------------------ Warheads (MM p.20-22) ------------------------------ */
 
 /**

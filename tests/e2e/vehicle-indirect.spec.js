@@ -42,6 +42,10 @@ test("Phase 5g-1: indirect/bomb math (pure, MM p.8-9)", async ({ page }) => {
       whCluster: M.warheadProfile("cluster", { pen: 8, burstM: 2 }),
       whChem: M.warheadProfile("chemical", { pen: 6, burstM: 3 }),
       whHE: M.warheadProfile("he", { pen: 6, burstM: 6 }),
+      // Landing points (pixels): hit lands on aim; a miss deviates by the book formula × ppm.
+      landHit: M.indirectLanding({ aim: { x: 1000, y: 1000 }, rangeM: 500, toHitTotal: 30, toHitNumber: 25, d10dir: 1, ppm: 50 }),
+      landMiss: M.indirectLanding({ aim: { x: 1000, y: 1000 }, rangeM: 500, toHitTotal: 13, toHitNumber: 25, d10dir: 1, ppm: 50 }),
+      bombLand: M.bombLanding({ aim: { x: 1000, y: 1000 }, heightM: 500, toHitTotal: 24, toHitNumber: 25, d10dir: 1, ppm: 50 }),
     };
   });
 
@@ -74,4 +78,12 @@ test("Phase 5g-1: indirect/bomb math (pure, MM p.8-9)", async ({ page }) => {
   expect(R.whCluster).toEqual({ pen: 4, burstM: 6, cluster: true });   // ×3 burst, Pen capped at 4
   expect(R.whChem).toEqual({ pen: 0, burstM: 9, gas: true });          // ×3 burst, no Pen
   expect(R.whHE).toEqual({ pen: 6, burstM: 6 });
+  // Landing: hit on aim (no deviation); miss deviates 60m (=12×500/100) east → +3000px at ppm 50.
+  expect(R.landHit.hit).toBe(true);
+  expect(R.landHit.deviationM).toBe(0);
+  expect(R.landMiss.hit).toBe(false);
+  expect(R.landMiss.deviationM).toBe(60);
+  expect(Math.round(R.landMiss.point.x)).toBe(4000);
+  expect(R.bombLand.deviationM).toBe(50);            // 1×10×500/100
+  expect(Math.round(R.bombLand.point.x)).toBe(3500);
 });

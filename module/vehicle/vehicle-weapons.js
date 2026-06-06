@@ -231,6 +231,10 @@ export async function openVehicleFireDialog(actor, mount = {}) {
   const burst = Number(w.burst) || 0;             // Class B area weapons (HE/HEAT shells, GLs, rockets)
   const coneAngle = Number(w.coneAngle) || 0;     // Class F scatter-packs
   const weaponClass = w.weaponClass ?? "directFire";
+  // Indirect artillery and bombs use their own guided helpers (5g) — delegate before building the
+  // direct-fire dialog.
+  if (weaponClass === "artillery") { const { openIndirectFireDialog } = await import("./vehicle-ordnance.js"); return openIndirectFireDialog(actor, mount); }
+  if (weaponClass === "bomb")      { const { openBombDialog } = await import("./vehicle-ordnance.js"); return openBombDialog(actor, mount); }
   const guidance = w.guidance ?? "none";          // Class C guided missiles
   const guidanceSkill = Number(w.guidanceSkill) || 0;
   const homingMethod = w.homingMethod ?? "radar";
