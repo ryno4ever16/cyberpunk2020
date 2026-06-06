@@ -214,9 +214,9 @@ async function _postIncomingCard(mt, f, targetDoc, how = "") {
   });
 }
 
-/** Apply a deliberate reaction to an in-flight missile. (Applied by the GM / a permitted client.) */
-async function _applyMissileReaction(tokenId, kind) {
-  const scene = canvas?.scene;
+/** Apply a deliberate reaction to an in-flight missile. (Applied by the active GM, who owns the token.) */
+async function _applyMissileReaction(tokenId, kind, sceneArg = null) {
+  const scene = sceneArg ?? canvas?.scene ?? game.scenes?.find(s => s.tokens.get(tokenId));
   const mt = scene?.tokens?.get(tokenId);
   const f = mt?.flags?.[SCOPE]?.missile;
   if (!mt || !f) return;
@@ -248,8 +248,32 @@ async function _applyMissileReaction(tokenId, kind) {
   await ChatMessage.create({ content: `<div class="cyberpunk save-prompt"><h3>🎆 Countermeasure — ${label}</h3><div class="save-info">vs ${f.weaponName}: to-hit Difficulty now +${cur + add}.</div></div>` });
 }
 
+/**
+ * A defender's missile reaction: the GM applies it directly; a player (who owns the targeted vehicle
+ * and saw the whispered card) relays it to the active GM, who owns the missile token. Mirrors the
+ * combat socket relay — see [[combat-data-hazards]].
+ */
+async function _reactOrRelay(tokenId, kind) {
+  if (game.user?.isGM) { await _applyMissileReaction(tokenId, kind); return; }
+  game.socket.emit(`system.${SCOPE}`, { type: "missileReaction", tokenId, kind, sceneId: canvas?.scene?.id, requesterId: game.user.id });
+  ui.notifications?.info?.("Reaction sent to the GM.");
+}
+
 /** Auto-advance missiles each combat round (active GM only) + inject the Missiles-in-Flight panel. */
 export function registerMissileFlightHooks() {
+  // Player → GM relay for deliberate missile reactions (only the active GM applies; verify the
+  // requester actually owns the targeted vehicle so a stray socket can't trigger a reaction).
+  game.socket.on(`system.${SCOPE}`, async (data) => {
+    if (data?.type !== "missileReaction") return;
+    if (!game.user?.isGM || game.users?.activeGM?.id !== game.user.id) return;
+    const scene = (data.sceneId ? game.scenes.get(data.sceneId) : null) ?? canvas?.scene ?? game.scenes?.find(s => s.tokens.get(data.tokenId));
+    const f = scene?.tokens?.get(data.tokenId)?.flags?.[SCOPE]?.missile;
+    const target = f ? scene.tokens.get(f.targetTokenId)?.actor : null;
+    const requester = game.users?.get(data.requesterId);
+    if (target && requester && !target.testUserPermission(requester, "OWNER")) return;   // not their missile
+    await _applyMissileReaction(data.tokenId, data.kind, scene);
+  });
+
   // Reaction buttons on the Incoming-Missile card (+ GM reveal from the tracker panel).
   document.addEventListener("click", async (ev) => {
     const cm = ev.target.closest?.(".cp-missile-cm");
@@ -262,9 +286,9 @@ export function registerMissileFlightHooks() {
     ev.preventDefault();
     btn.disabled = true;
     const tokenId = btn.dataset.tokenId;
-    if (cm) await _applyMissileReaction(tokenId, "countermeasure");
-    else if (ev2) await _applyMissileReaction(tokenId, "evade");
-    else if (ic) await _applyMissileReaction(tokenId, "intercept");
+    if (cm) await _reactOrRelay(tokenId, "countermeasure");
+    else if (ev2) await _reactOrRelay(tokenId, "evade");
+    else if (ic) await _reactOrRelay(tokenId, "intercept");
     else if (st) await advanceOneMissile(canvas?.scene, tokenId);
     else if (rv) {
       const mt = canvas?.scene?.tokens?.get(tokenId);
