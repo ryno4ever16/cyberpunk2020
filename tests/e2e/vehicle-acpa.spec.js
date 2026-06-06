@@ -554,3 +554,37 @@ test("Phase 6 D-5: build validation + total cost (pure + derived)", async ({ pag
   expect(R.actor.withExtras).toBe(85000);
   expect(R.actor.mountedCost).toBe(2000);
 });
+
+/**
+ * Phase 6 polish #1 — external systems take hits and shield the suit (MM p.55). The 50% "external
+ * system" branch now routes SOP to an external-mounted system in the struck area (instead of a GM
+ * note); a surviving external system spares the suit proper, a destroyed one overflows to the frame.
+ */
+test("Phase 6 polish: external systems take hits and shield the suit (live)", async ({ page }) => {
+  await login(page, ACCOUNTS.gm);
+  await cleanupTestData(page).catch(() => {});
+
+  const R = await evalGameOrThrow(page, async () => {
+    const VD = await import("/systems/cyberpunk2020/module/vehicle/vehicle-damage.js");
+    const flags = { cyberpunk2020: { __pwtest: true } };
+    const out = {};
+    let acpa;
+    try {
+      acpa = await Actor.create({ name: "__PW__ACPA_EXT", type: "vehicle", flags,
+        system: { isACPA: true, str: 40, sp: { front: 0, side: 0, rear: 0, top: 0, bottom: 0 }, sdp: { value: 100, max: 100 } } });
+      // One EXTERNAL system per area; over many hits the external branch routes SOP to them.
+      const areas = ["head", "rArm", "lArm", "rLeg", "lLeg", "torso"];
+      await acpa.createEmbeddedDocuments("Item", areas.map(a => ({
+        name: `Ext-${a}`, type: "acpaSystem", system: { category: "sensor", mount: "external", area: a, sop: 40, weight: 1 }
+      })));
+      for (let i = 0; i < 70; i++) await VD.applyVehicleDamageMM(acpa, { rawDamage: 40, basePen: 50 });
+      const ext = acpa.itemTypes.acpaSystem;
+      out.extDamaged = ext.filter(it => (Number(it.system?.sopDamage) || 0) > 0 || it.system?.destroyed).length;
+      out.anyExtDamaged = out.extDamaged > 0;
+    } finally { if (acpa) await acpa.delete().catch(() => {}); }
+    return out;
+  });
+
+  console.log("Phase 6 polish ext:", JSON.stringify(R));
+  expect(R.anyExtDamaged).toBe(true);   // external hits now damage external-mounted systems
+});
