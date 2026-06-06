@@ -293,6 +293,7 @@ async function _resolveAcpaSopDamage(actor, sys, { pen, rawDamage, str }, rolls)
   const d10 = async () => (await roll("1d10")).total;
   const updates = {};
   const itemUpdates = [];
+  let pilotDamage = 0;   // frame-breach overflow that reaches the wearer (applied to a linked pilot)
   const damaged = Array.isArray(sys.damagedSystems) ? [...sys.damagedSystems] : [];
 
   const incoming = (rawDamage != null) ? Math.max(0, Number(rawDamage) || 0) : Math.max(0, pen * 10);
@@ -381,9 +382,8 @@ async function _resolveAcpaSopDamage(actor, sys, { pen, rawDamage, str }, rolls)
     const remaining = before - frameDamage;
     cur[areaKey] = Math.max(0, remaining);
     updates["system.frameSOP"] = cur;
-    lines += (remaining < 0)
-      ? `<br>${areaName} frame SOP ${before} → 0; <b>${-remaining}</b> overflows to the <b>pilot</b>.`
-      : `<br>${areaName} frame SOP ${before} → ${cur[areaKey]}.`;
+    if (remaining < 0) { pilotDamage = -remaining; lines += `<br>${areaName} frame SOP ${before} → 0; <b>${-remaining}</b> overflows to the <b>pilot</b>.`; }
+    else lines += `<br>${areaName} frame SOP ${before} → ${cur[areaKey]}.`;
 
     if (cur[areaKey] === 0) {
       lines += `<br><span style="color:#e07b00;">${areaName} frame destroyed — its systems are inoperable.</span>`;
@@ -397,7 +397,7 @@ async function _resolveAcpaSopDamage(actor, sys, { pen, rawDamage, str }, rolls)
       }
     }
   }
-  return { body, lines, updates, itemUpdates };
+  return { body, lines, updates, itemUpdates, pilotDamage };
 }
 
 /**
@@ -433,6 +433,11 @@ export async function applyVehicleDamageMM(actor, { basePen = 0, facing = "front
     Object.assign(updates, r.updates);
     // Per-system SOP: apply damage/destruction to the struck embedded acpaSystem Item(s).
     if (r.itemUpdates?.length) await actor.updateEmbeddedDocuments("Item", r.itemUpdates);
+    // Frame-breach overflow wounds the linked pilot (fires the normal stun/death saves via updateActor).
+    if (r.pilotDamage > 0 && sys.pilotId) {
+      const pilot = game.actors?.get(sys.pilotId);
+      if (pilot) await pilot.update({ "system.damage": (Number(pilot.system?.damage) || 0) + r.pilotDamage });
+    }
   } else {
     sev = mmDamageSeverity({ pen, effectiveArmorValue: effAV, bodyValue, d10: await d10() });
     body = `Pen <b>${pen}</b> (base ${basePen}${composite ? ", ½ vs Composite" : ""}) vs AV <b>${effAV}</b>${facing !== "front" ? ` (${facing} flank)` : ""} − Body ${bodyValue}`;

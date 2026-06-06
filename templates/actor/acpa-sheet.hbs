@@ -113,10 +113,24 @@
                 <label>Max REF</label><input type="number" class="not-editable" value="{{system.maxRef}}" readonly/></div>
         </div>
         <div class="field-list">
-            <div class="field" title="Pilot's base Reflex (REF). Until a pilot actor is linked, set it here; the suit's effective REF derives from it, the Reflex/Control modifier and cap, minus critical REF damage.">
-                <label>Pilot REF</label><input type="number" name="system.pilotRef" value="{{system.pilotRef}}"/></div>
+            <div class="field" title="Link the pilot character actor. Its REF drives the suit's effective REF, and it takes frame-breach / overflow damage (firing the normal stun/death saves). Leave as (none) to use the manual Pilot REF.">
+                <label>Pilot</label>
+                <select name="system.pilotId">
+                    <option value="" {{#unless system.pilotId}}selected{{/unless}}>(none — use manual REF)</option>
+                    {{#each pilotChoices}}<option value="{{id}}" {{#if (equals ../system.pilotId id)}}selected{{/if}}>{{name}}</option>{{/each}}
+                </select>
+            </div>
+            {{#if linkedPilotName}}
+            <div class="field" title="The linked pilot's base REF (from their character sheet), used as the suit's base REF.">
+                <label>{{linkedPilotName}} REF</label><input type="number" class="not-editable" value="{{linkedPilotRef}}" readonly/></div>
+            {{else}}
+            <div class="field" title="Manual fallback base Reflex (REF), used when no pilot actor is linked.">
+                <label>Pilot REF (manual)</label><input type="number" name="system.pilotRef" value="{{system.pilotRef}}"/></div>
+            {{/if}}
             <div class="field" title="Effective operating REF = clamp(pilot REF + Reflex/Control mod, 0..max) − suit REF critical damage. Derived. Read-only.">
                 <label>Effective REF</label><input type="number" class="not-editable" value="{{system.effectiveRef}}" readonly/></div>
+        </div>
+        <div class="field-list">
             <div class="field" title="Command &amp; Control Computer (C3): squad-coordination option, +1 to Initiative and Awareness while linked. Integrable with any Reflex/Control system.">
                 <label>Command Computer</label><input type="checkbox" name="system.commandComputer" {{#if system.commandComputer}}checked{{/if}}/></div>
         </div>

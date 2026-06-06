@@ -200,7 +200,8 @@ export class CyberpunkVehicleActorData extends foundry.abstract.TypeDataModel {
       realityInterface: stringField("FULL_HUD_WIDEBAND"),
       reflexControl:    stringField("ADVANCED"),
       commandComputer:  booleanField(false),   // C3: +1 initiative/awareness while linked (integrable with any)
-      pilotRef:         numberField(0),         // pilot base REF (until a pilot actor is linked)
+      pilotId:          stringField(""),        // linked pilot character actor (its REF + takes overflow damage)
+      pilotRef:         numberField(0),         // fallback pilot base REF when no pilot actor is linked
       trooperCapacity:  numberField(114),       // pilot+gear weight set aside for SIB (114 std; Russian 136; elite 80-91)
       systemsWeight:    numberField(0),          // aggregate weight of mounted systems (D-4d computes this; manual for now)
 
@@ -271,8 +272,17 @@ export class CyberpunkVehicleActorData extends foundry.abstract.TypeDataModel {
       this.interfaceSop = ri.sop;
       this.maxRef = rc.maxRef;
       this.refMod = rc.refMod;
+      // A linked pilot actor supplies the base REF; otherwise the manual pilotRef field is the fallback.
+      let pilotRef = Number(this.pilotRef) || 0;
+      try {
+        if (this.pilotId) {
+          const pilot = game.actors?.get(this.pilotId);
+          const r = Number(pilot?.system?.stats?.ref?.total);
+          if (Number.isFinite(r)) pilotRef = r;
+        }
+      } catch (e) { /* actors not ready */ }
       this.effectiveRef = acpaEffectiveRef({
-        pilotRef: this.pilotRef, refMod: rc.refMod, maxRef: rc.maxRef, refDamage: this.refDamage
+        pilotRef, refMod: rc.refMod, maxRef: rc.maxRef, refDamage: this.refDamage
       });
 
       // Weight budget + Suit Initiative Bonus (Maximum Metal p.61-62). Total loaded weight = chassis

@@ -620,3 +620,44 @@ test("Phase 6 polish: cooling → heatstroke escalation (per-round, pure)", asyn
   expect(R.heatCap).toBe(4);
   expect(R.noneKeys).toBe(0);
 });
+
+/**
+ * Phase 6 polish #3 — pilot-actor link (LIVE). A linked pilot character drives the suit's effective
+ * REF (over the manual fallback), and frame-breach overflow wounds that pilot (firing the normal
+ * stun/death-save automation via the updateActor hook).
+ */
+test("Phase 6 polish: pilot link drives REF + takes frame-overflow damage (live)", async ({ page }) => {
+  await login(page, ACCOUNTS.gm);
+  await cleanupTestData(page).catch(() => {});
+
+  const R = await evalGameOrThrow(page, async () => {
+    const VD = await import("/systems/cyberpunk2020/module/vehicle/vehicle-damage.js");
+    const flags = { cyberpunk2020: { __pwtest: true } };
+    const out = {};
+    let pilot, acpa;
+    try {
+      pilot = await Actor.create({ name: "__PW__Pilot", type: "character", flags, system: { stats: { ref: { base: 8 } } } });
+      out.pilotRefTotal = Number(pilot.system?.stats?.ref?.total) || 0;   // 8
+
+      // Manual pilotRef is deliberately 5 — the linked pilot's REF (8) must win.
+      acpa = await Actor.create({ name: "__PW__ACPA_PILOT", type: "vehicle", flags,
+        system: { isACPA: true, str: 40, sp: { front: 0, side: 0, rear: 0, top: 0, bottom: 0 }, sdp: { value: 100, max: 100 }, pilotId: pilot.id, pilotRef: 5 } });
+      out.effRefLinked = acpa.system.effectiveRef;   // clamp(8 + 0 Advanced, 0..10) = 8
+
+      // Hammer the (armor-stripped) suit; frame overflow wounds the pilot.
+      const before = Number(game.actors.get(pilot.id)?.system?.damage) || 0;
+      for (let i = 0; i < 60; i++) await VD.applyVehicleDamageMM(acpa, { rawDamage: 999, basePen: 99 });
+      out.pilotDmgAfter = Number(game.actors.get(pilot.id)?.system?.damage) || 0;
+      out.pilotTookDamage = out.pilotDmgAfter > before;
+    } finally {
+      if (acpa) await acpa.delete().catch(() => {});
+      if (pilot) await pilot.delete().catch(() => {});
+    }
+    return out;
+  });
+
+  console.log("Phase 6 polish pilot:", JSON.stringify(R));
+  expect(R.pilotRefTotal).toBe(8);
+  expect(R.effRefLinked).toBe(8);       // linked pilot REF used, not the manual fallback (5)
+  expect(R.pilotTookDamage).toBe(true); // frame-breach overflow wounded the pilot
+});

@@ -72,6 +72,14 @@ export class CyberpunkVehicleSheet extends ActorSheet {
     data.reflexControlChoices = Object.values(REFLEX_CONTROLS)
       .map(r => ({ key: r.key, label: `${r.label} (REF ${r.refMod >= 0 ? "+" : ""}${r.refMod}, max ${r.maxRef})` }));
 
+    // ACPA pilot link (polish #3): choose a character actor whose REF drives the suit + takes overflow.
+    try {
+      data.pilotChoices = (game.actors?.filter(a => a.type === "character") ?? []).map(a => ({ id: a.id, name: a.name }));
+      const linkedPilot = this.actor.system?.pilotId ? game.actors?.get(this.actor.system.pilotId) : null;
+      data.linkedPilotName = linkedPilot?.name ?? "";
+      data.linkedPilotRef = linkedPilot ? (Number(linkedPilot.system?.stats?.ref?.total) || 0) : null;
+    } catch (e) { data.pilotChoices = []; data.linkedPilotName = ""; data.linkedPilotRef = null; }
+
     // ACPA non-weapon systems = embedded acpaSystem Items (D-4d). List + per-area spaces budget.
     const sysItems = (this.actor.itemTypes?.acpaSystem ?? this.actor.items.filter(i => i.type === "acpaSystem"));
     data.acpaSystems = sysItems.map(i => ({ id: i.id, name: i.name, img: i.img, system: i.system }));
