@@ -312,10 +312,10 @@ async function _resolveAcpaSopDamage(actor, sys, { pen, rawDamage, str }, rolls)
   // spared) or, when destroyed, pass its overflow on.
   let frameDamage = sop;
 
-  // Hit the first live mounted acpaSystem matching `filterFn` in the struck area; records the Item
-  // update and returns the outcome (or null if none is there). `sop` is the incoming SOP.
+  // Hit the first live mounted Item (acpaSystem or ACPA weapon) matching `filterFn` in the struck
+  // area; records the Item update and returns the outcome (or null if none is there). `sop` is incoming.
   const hitMountedSystem = (filterFn) => {
-    const sysItems = (actor.items?.filter(i => i.type === "acpaSystem" && filterFn(i)) ?? []);
+    const sysItems = (actor.items?.filter(i => filterFn(i)) ?? []);
     const mounted = sysItems.map(it => ({ id: it.id, key: it.system?.catalogKey, area: it.system?.area, sop: it.system?.sop, sp: it.system?.sp, sopDamage: it.system?.sopDamage, destroyed: it.system?.destroyed }));
     const hit = acpaHitSystem(mounted, areaKey, sop);
     if (hit.index < 0) return null;
@@ -327,7 +327,7 @@ async function _resolveAcpaSopDamage(actor, sys, { pen, rawDamage, str }, rolls)
 
   // 50% (5-in-10): the hit struck an EXTERNAL (unarmored) system instead of the suit proper (MM p.55).
   if (externalSystemHit(await d10())) {
-    const r = hitMountedSystem(i => i.system?.mount === "external");
+    const r = hitMountedSystem(i => i.type === "acpaSystem" && i.system?.mount === "external");
     if (!r) return { body, lines: lines + `<br>An <b>external system</b> on the ${areaName} took it (none mounted there — GM adjudicates).`, updates, itemUpdates };
     if (!r.destroyed) {
       lines += `<br>An <b>external system</b> (<b>${r.name}</b>) on the ${areaName} absorbed <b>${sop}</b> SOP (now ${r.struck.sopDamage}/${r.total}). Suit proper spared.`;
@@ -350,7 +350,7 @@ async function _resolveAcpaSopDamage(actor, sys, { pen, rawDamage, str }, rolls)
       lines += `<br><span style="color:#ff3030;font-weight:bold;">CRITICAL</span> — ${eff.label}: ${note}.`;
     } else if (cat === "enclosed") {
       // Per-system SOP (D-4d): the SOP damages a specific mounted, enclosed system in the struck area.
-      const r = hitMountedSystem(i => i.system?.mount !== "external");
+      const r = hitMountedSystem(i => i.type === "acpaSystem" && i.system?.mount !== "external");
       if (r) {
         if (r.destroyed) {
           lines += `<br>System Hit: <b>${r.name}</b> (${areaName}) — <span style="color:#e07b00;font-weight:bold;">DESTROYED</span>.`;
@@ -364,9 +364,23 @@ async function _resolveAcpaSopDamage(actor, sys, { pen, rawDamage, str }, rolls)
         lines += `<br>System Hit: <b>an enclosed system</b> in the ${areaName} (none mounted there — hits the frame).`;
       }
     } else if (cat === "weapons") {
-      lines += `<br>System Hit: <b>an internal weapon</b> in the ${areaName}.`;
-      const dname = `${areaName} weapon`;
-      if (!damaged.includes(dname)) { damaged.push(dname); updates["system.damagedSystems"] = damaged; }
+      // Per-weapon SOP (deferral B): a SOP-tracked ACPA weapon (system.sop > 0) in the struck area
+      // takes the hit; weapons without SOP data fall through to the frame.
+      const r = hitMountedSystem(i => i.type === "vehicleWeapon" && (Number(i.system?.sop) || 0) > 0);
+      if (r) {
+        if (r.destroyed) {
+          lines += `<br>System Hit: <b>${r.name}</b> (weapon, ${areaName}) — <span style="color:#e07b00;font-weight:bold;">DESTROYED</span>.`;
+          frameDamage = r.overflow;
+          if (r.overflow > 0) lines += ` ${r.overflow} SOP overflows to the frame.`;
+          const dn = `${r.name} (destroyed)`;
+          if (!damaged.includes(dn)) { damaged.push(dn); updates["system.damagedSystems"] = damaged; }
+        } else {
+          lines += `<br>System Hit: <b>${r.name}</b> (weapon, ${areaName}) absorbed <b>${sop}</b> SOP (now ${r.struck.sopDamage}/${r.total}). Frame spared.`;
+          frameDamage = 0;
+        }
+      } else {
+        lines += `<br>System Hit: <b>an internal weapon</b> in the ${areaName} (none mounted there — hits the frame).`;
+      }
     } else {
       lines += `<br>System Hit: <b>frame (chassis)</b> in the ${areaName}.`;
     }

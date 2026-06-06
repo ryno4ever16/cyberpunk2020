@@ -744,3 +744,41 @@ test("Phase 6 polish: Basic control is REF-3 on STR42+ frames (pure + derived)",
   expect(R.actor.refMod40).toBe(-2);
   expect(R.actor.eff40).toBe(7);
 });
+
+/**
+ * Phase 6 deferral B — per-weapon SOP. A SOP-tracked ACPA weapon (vehicleWeapon with system.sop > 0,
+ * mounted in a body area) takes damage when the "internal weapon" System-Hit branch lands in its area,
+ * and repairAcpa restores it. Weapons without SOP data still fall through to the frame.
+ */
+test("Phase 6 deferral B: a 'weapons' System Hit damages a SOP-tracked ACPA weapon (live)", async ({ page }) => {
+  await login(page, ACCOUNTS.gm);
+  await cleanupTestData(page).catch(() => {});
+
+  const R = await evalGameOrThrow(page, async () => {
+    const VD = await import("/systems/cyberpunk2020/module/vehicle/vehicle-damage.js");
+    const AC = await import("/systems/cyberpunk2020/module/vehicle/vehicle-acpa-combat.js");
+    const flags = { cyberpunk2020: { __pwtest: true } };
+    const out = {};
+    let acpa;
+    try {
+      acpa = await Actor.create({ name: "__PW__ACPA_WPN", type: "vehicle", flags,
+        system: { isACPA: true, str: 40, sp: { front: 0, side: 0, rear: 0, top: 0, bottom: 0 }, sdp: { value: 100, max: 100 } } });
+      const areas = ["head", "rArm", "lArm", "rLeg", "lLeg", "torso"];
+      await acpa.createEmbeddedDocuments("Item", areas.map(a => ({
+        name: `Gun-${a}`, type: "vehicleWeapon", system: { penetration: 4, area: a, sop: 40 }
+      })));
+      out.wpnCount = acpa.itemTypes.vehicleWeapon.length;   // 6
+      for (let i = 0; i < 80; i++) await VD.applyVehicleDamageMM(acpa, { rawDamage: 40, basePen: 50 });
+      const wpns = acpa.itemTypes.vehicleWeapon;
+      out.anyWpnDamaged = wpns.some(w => (Number(w.system?.sopDamage) || 0) > 0 || w.system?.destroyed);
+      await AC.repairAcpa(acpa);
+      out.afterRepairDamaged = acpa.itemTypes.vehicleWeapon.filter(w => (Number(w.system?.sopDamage) || 0) > 0 || w.system?.destroyed).length; // 0
+    } finally { if (acpa) await acpa.delete().catch(() => {}); }
+    return out;
+  });
+
+  console.log("Phase 6 deferral B:", JSON.stringify(R));
+  expect(R.wpnCount).toBe(6);
+  expect(R.anyWpnDamaged).toBe(true);      // a SOP-tracked weapon took the "internal weapon" hit
+  expect(R.afterRepairDamaged).toBe(0);    // repair restored the weapons
+});

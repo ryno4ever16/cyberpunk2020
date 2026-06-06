@@ -107,7 +107,12 @@ export async function repairAcpa(actor) {
     "system.coolingTimer": 0, "system.heatstrokeLevel": 0, "system.interfaceOut": 0, "system.seizeUp": 0,
     "system.destroyed": false, "system.immobilized": false, "system.onFire": false,
   });
-  ui.notifications?.info?.(`${actor.name} fully repaired (frame SOP & systems restored).`);
+  // Un-damage every mounted system + ACPA weapon (per-system / per-weapon SOP).
+  const itemRepairs = (actor.items ?? [])
+    .filter(i => (i.type === "acpaSystem" || i.type === "vehicleWeapon") && ((Number(i.system?.sopDamage) || 0) > 0 || i.system?.destroyed))
+    .map(i => ({ _id: i.id, "system.sopDamage": 0, "system.destroyed": false }));
+  if (itemRepairs.length) await actor.updateEmbeddedDocuments("Item", itemRepairs);
+  ui.notifications?.info?.(`${actor.name} fully repaired (frame SOP, systems & weapons restored).`);
 }
 
 /**

@@ -517,7 +517,13 @@ export class CyberpunkVehicleWeaponData extends CyberpunkBaseItemData {
       shellVariants: arrayField(null, []),
       activeShell:   stringField(""),            // selected variant name ("" = base stats)
       // Construction.
-      space:       numberField(0)
+      space:       numberField(0),
+      // ACPA mounting (Maximum Metal p.95-96): which body area, and the weapon's own SOP so a
+      // System Hit can knock out this specific weapon (additive — schema defaults; no migration).
+      area:        stringField("torso"),   // head|rArm|lArm|rLeg|lLeg|torso (when mounted on an ACPA)
+      sop:         numberField(0),          // structural points (0 = no per-weapon tracking → frame)
+      sopDamage:   numberField(0),
+      destroyed:   booleanField(false)
     };
   }
 
@@ -527,6 +533,7 @@ export class CyberpunkVehicleWeaponData extends CyberpunkBaseItemData {
     normalizeBooleanIfPresent(source, "heat", false);
     normalizeBooleanIfPresent(source, "hiEx", false);
     normalizeBooleanIfPresent(source, "highDensityAP", false);
+    normalizeBooleanIfPresent(source, "destroyed", false);
     normalizeArrayIfPresent(source, "shellVariants", []);
     return super.migrateData(source);
   }
