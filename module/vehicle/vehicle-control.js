@@ -26,6 +26,7 @@
  */
 
 import { localize, openSingletonDialog } from "../utils.js";
+import { effectiveVehicleRuleSystem } from "../settings.js";
 
 const SCOPE = "cyberpunk2020";
 
@@ -261,7 +262,7 @@ export async function openControlRollDialog(actor, opts = {}) {
   if (!actor || actor.type !== "vehicle") return null;
   const enabled = (() => { try { return game.settings.get(SCOPE, "vehicleControlEnabled"); } catch { return true; } })();
   if (!enabled) { ui.notifications?.warn?.("Vehicle control rolls are disabled in the system settings."); return null; }
-  const ruleSystem = (() => { try { return game.settings.get(SCOPE, "vehicleRuleSystem"); } catch { return "Core"; } })();
+  const ruleSystem = (() => { try { return effectiveVehicleRuleSystem(); } catch { return "Core"; } })();   // Core whenever Maximum Metal is off
   const isMM = ruleSystem === "MaximumMetal";
 
   const sys = actor.system ?? {};

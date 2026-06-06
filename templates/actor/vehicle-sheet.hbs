@@ -21,12 +21,12 @@
                         <input type="text" class="not-editable" value="{{ruleSystem}}" readonly/>
                     </div>
                     {{#if controlEnabled}}
-                    <div class="field">
+                    <div class="field cp-header-action">
                         <button type="button" class="cp-control-roll" title="Roll a Control / Maneuver check (REF + Driving/Pilot + 1d10 vs Difficulty Value). On failure, rolls the Control Loss / Failure table for the active ruleset.">🎲 Control Roll</button>
                     </div>
                     {{/if}}
                     {{#if damageEnabled}}
-                    <div class="field">
+                    <div class="field cp-header-action">
                         <button type="button" class="cp-vehicle-damage" title="Resolve damage against this vehicle. Core subtracts SP and reduces SDP; Maximum Metal compares Penetration to Armor Value, rolls Surface/Minor/Major/Catastrophic and a hit location with fuel-fire / ammo-cookoff / crew effects.">💥 Damage</button>
                     </div>
                     {{/if}}

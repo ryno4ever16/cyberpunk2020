@@ -499,6 +499,27 @@ export function registerSystemSettings() {
     default: true,
   });
 
+  // --- Vehicles (Core CP2020 "Vehicles in FNFF", p.112) — available WITHOUT Maximum Metal ---
+  // These two are core vehicle automation; they default ON and work under the Core ruleset on their
+  // own. They live above the Maximum Metal header so they stay configurable when MM is off.
+  game.settings.register("cyberpunk2020", "vehicleControlEnabled", {
+    name: "Vehicles: Movement & Control Rolls",
+    hint: "When enabled, vehicles get a 🎲 Control Roll button (sheet header) and the game.cyberpunk.vehicles.controlRoll API. It opens a dialog to roll REF + Driving/Pilot + 1d10 vs a Difficulty Value (Simple 15 / Difficult 20 / Very Difficult 25), and on failure rolls the Control Loss (Core p.112) or Failure (Maximum Metal p.10) table — whichever the active ruleset selects. Works in Core mode without Maximum Metal. Default ON.",
+    scope:   "world",
+    config:  true,
+    type:    Boolean,
+    default: true,
+  });
+
+  game.settings.register("cyberpunk2020", "vehicleDamageEnabled", {
+    name: "Vehicles: Damage Resolver",
+    hint: "When enabled, vehicles get a 💥 Damage button (sheet header) and the game.cyberpunk.vehicles.applyDamage API. Core (p.112) subtracts SP and reduces SDP; Maximum Metal (p.4-6) compares Penetration to Armor Value, rolls the Surface/Minor/Major/Catastrophic damage table, then a hit location with fuel-fire / ammo-cookoff / crew-damage effects (and honors a Damage Control system). The active branch follows the ruleset (Core when Maximum Metal is off). Default ON.",
+    scope:   "world",
+    config:  true,
+    type:    Boolean,
+    default: true,
+  });
+
   // ===================== MAXIMUM METAL (master + overlay) =====================
   // Master switch. Everything registered from here down belongs to the Maximum Metal layer; the
   // renderSettingsConfig hook (end of this function) groups them under a "Maximum Metal" header.
@@ -523,26 +544,6 @@ export function registerSystemSettings() {
       "MaximumMetal": "Maximum Metal (detailed — Penetration/Armor Value)",
     },
     default: "Core",
-  });
-
-  // --- Vehicles: Movement & Control rolls (Phase 3) ---
-  game.settings.register("cyberpunk2020", "vehicleControlEnabled", {
-    name: "Vehicles: Movement & Control Rolls",
-    hint: "When enabled, vehicles get a 🎲 Control Roll button (sheet header) and the game.cyberpunk.vehicles.controlRoll API. It opens a dialog to roll REF + Driving/Pilot + 1d10 vs a Difficulty Value (Simple 15 / Difficult 20 / Very Difficult 25), and on failure rolls the Control Loss (Core p.112) or Failure (Maximum Metal p.10) table — whichever the Vehicles Rule System setting selects. Default ON.",
-    scope:   "world",
-    config:  true,
-    type:    Boolean,
-    default: true,
-  });
-
-  // --- Vehicles: Damage resolver (Phase 4) ---
-  game.settings.register("cyberpunk2020", "vehicleDamageEnabled", {
-    name: "Vehicles: Damage Resolver",
-    hint: "When enabled, vehicles get a 💥 Damage button (sheet header) and the game.cyberpunk.vehicles.applyDamage API. Core (p.112) subtracts SP and reduces SDP; Maximum Metal (p.4-6) compares Penetration to Armor Value, rolls the Surface/Minor/Major/Catastrophic damage table, then a hit location with fuel-fire / ammo-cookoff / crew-damage effects (and honors a Damage Control system). The active branch follows the Vehicles Rule System setting. Default ON.",
-    scope:   "world",
-    config:  true,
-    type:    Boolean,
-    default: true,
   });
 
   // --- Vehicles: Weapon mount arc enforcement (Phase 5) ---
@@ -573,7 +574,7 @@ export function registerSystemSettings() {
   Hooks.on("renderSettingsConfig", (app, html) => {
     const root = html instanceof jQuery ? html[0] : (Array.isArray(html) ? html[0] : html);
     if (!root?.querySelector) return;
-    const MM_KEYS = ["mmEnabled", "vehicleRuleSystem", "vehicleControlEnabled", "vehicleDamageEnabled", "vehicleArcEnforcement"];
+    const MM_KEYS = ["mmEnabled", "vehicleRuleSystem", "vehicleArcEnforcement"];
     const groupOf = (k) => {
       const el = root.querySelector(`[name="${SCOPE}.${k}"], [data-setting-id="${SCOPE}.${k}"]`);
       return el?.closest(".form-group") ?? el?.closest(".setting") ?? null;

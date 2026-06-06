@@ -60,6 +60,9 @@ export async function launchMissile({ scene: sceneArg, shooterToken, targetToken
     targetNumber: Number(missile.targetNumber) || 0,
     speed, turnsToImpact: tti, totalTurns: tti, detected: false,
     difficultyMods: 0, intercepted: null, reactions: [], launchRound: game.combat?.round ?? 0,
+    // Was it launched during an active encounter? If not, the first combat round ADOPTS it (re-baselines
+    // its flight) instead of resolving it on the spot — so an out-of-combat missile carries into combat.
+    combatAdopted: !!game.combat?.started,
   };
 
   const [tok] = await scene.createEmbeddedDocuments("Token", [{
@@ -84,10 +87,16 @@ export async function launchMissile({ scene: sceneArg, shooterToken, targetToken
   return tok;
 }
 
-/** Advance ONE in-flight missile a single step: move toward its target, or resolve on impact. */
-async function _stepMissile(mt, scene, gs) {
+/** Advance ONE in-flight missile a single step: move toward its target, or resolve on impact.
+ *  When `round` is a combat round number, a not-yet-adopted (out-of-combat) missile is ADOPTED into
+ *  the encounter — re-baselined to this round and held for one round — rather than advanced/resolved. */
+async function _stepMissile(mt, scene, gs, round = null) {
   const f = mt?.flags?.[SCOPE]?.missile;
   if (!f) return;
+  if (round !== null && f.combatAdopted === false) {
+    await mt.update({ [`flags.${SCOPE}.missile.combatAdopted`]: true, [`flags.${SCOPE}.missile.launchRound`]: round });
+    return;   // give it its full remaining flight inside the encounter; don't consume a turn now
+  }
   const targetDoc = scene.tokens.get(f.targetTokenId);
   if (!targetDoc) { await mt.delete().catch(() => {}); return; }   // target gone → missile lost
   if (!f.detected) await _tryDetect(mt, scene);    // retry detection while inbound
@@ -103,12 +112,13 @@ async function _stepMissile(mt, scene, gs) {
   }
 }
 
-/** Advance every in-flight missile one combat round; resolve those reaching impact. (Active GM.) */
-export async function advanceMissiles(scene = canvas?.scene) {
+/** Advance every in-flight missile one combat round; resolve those reaching impact. (Active GM.)
+ *  Pass the current combat `round` so missiles launched outside combat are adopted, not resolved. */
+export async function advanceMissiles(scene = canvas?.scene, round = null) {
   if (!scene) return;
   const gs = _gridSize(scene);
   const missiles = scene.tokens.filter(t => t.flags?.[SCOPE]?.missile);
-  for (const mt of missiles) await _stepMissile(mt, scene, gs);
+  for (const mt of missiles) await _stepMissile(mt, scene, gs, round);
   ui.combat?.render();
 }
 
@@ -266,7 +276,7 @@ export function registerMissileFlightHooks() {
   Hooks.on("updateCombat", async (combat, changed) => {
     if (!game.user?.isGM || game.users?.activeGM?.id !== game.user.id) return;
     if (changed.round === undefined) return;    // once per round
-    await advanceMissiles();
+    await advanceMissiles(undefined, Number(combat.round) || 0);
   });
 
   Hooks.on("renderCombatTracker", (tracker, html) => {

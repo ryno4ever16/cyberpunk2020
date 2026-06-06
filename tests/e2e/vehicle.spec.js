@@ -26,7 +26,9 @@ test("Phase 1: vehicle actor type, ruleset toggle, derived Armor/Body Value", as
     const out = {};
     out.typeRegistered = (game.documentTypes?.Actor ?? []).includes("vehicle");
     out.dataModelRegistered = !!CONFIG.Actor.dataModels?.vehicle;
-    try { out.ruleDefault = game.settings.get("cyberpunk2020", "vehicleRuleSystem"); out.settingExists = true; }
+    // Read the REGISTERED default, not the live value — a playtest world may have toggled the
+    // setting to MaximumMetal, which must not fail this "the default is Core" check.
+    try { const cfg = game.settings.settings.get("cyberpunk2020.vehicleRuleSystem"); out.ruleDefault = cfg?.default; out.settingExists = !!cfg; }
     catch (e) { out.settingExists = false; }
 
     if (!out.typeRegistered) return out;   // can't create the actor without the registered type
