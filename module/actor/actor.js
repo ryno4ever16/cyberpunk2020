@@ -3,12 +3,26 @@ import { isFumbleRoll, buildSkillFumbleData } from "../utils.js";
 import { SortOrders, sortSkills } from "./skill-sort.js";
 import { btmFromBT, MARTIAL_ART_KEY_BY_ID, MARTIAL_ART_ID_BY_KEY, FNFF2_ONLY_MARTIAL_ART_IDS, FNFF2_ONLY_MARTIAL_ART_KEYS, isFnff2Enabled, isMartialArtSkillItem, martialArtDisplayName } from "../lookups.js";
 import { properCase, localize, getDefaultSkills, cwHasType, cwIsEnabled } from "../utils.js"
+import { acpaInitiativeRollData } from "../vehicle/vehicle-acpa.js";
 
 /**
  * Extend the base Actor document by defining a custom roll data structure which is ideal for the Simple system.
  * @extends {Actor}
  */
 export class CyberpunkActor extends Actor {
+
+  /**
+   * @override
+   * Powered armor (ACPA) rolls initiative as 1d10 + effective REF + SIB (+1 Command Computer). The
+   * shared system initiative formula reads @stats.ref.total/@CombatSenseMod/@initiativeMod/
+   * @initiativeImplantMod, which a vehicle has none of, so map the suit's derived stats onto those
+   * terms. Strictly gated to ACPA vehicles — every other actor uses the default roll data unchanged.
+   */
+  getRollData() {
+    const data = super.getRollData();
+    if (this.type === "vehicle" && this.system?.isACPA) Object.assign(data, acpaInitiativeRollData(this.system));
+    return data;
+  }
 
 
   /** @override */

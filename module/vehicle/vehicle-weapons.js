@@ -77,6 +77,7 @@ export function vehicleToHitModifier({
   turret = false, targetingComputer = 0,
   firerMoving = false, turningToFace = false, vehicleLink = false,
   darkObscured = false, heatSeekerVsAV = false, rocketSalvo = false,
+  dfb = 0,
 } = {}) {
   let mod = 0;
   if (!isACPATarget) {
@@ -94,6 +95,7 @@ export function vehicleToHitModifier({
   if (darkObscured) mod -= 3;
   if (heatSeekerVsAV) mod += 4;
   if (rocketSalvo) mod -= 2;
+  mod += Number(dfb) || 0;          // ACPA Direct-Fire Bonus (Reality Interface) when the suit fires
   return mod;
 }
 
@@ -283,7 +285,10 @@ export async function openVehicleFireDialog(actor, mount = {}) {
   const gunners = _candidateGunners(actor);
   const gunnersById = Object.fromEntries(gunners.map(a => [a.id, a]));
   const firstGunner = gunners[0] ?? null;
-  const ref0 = Number(firstGunner?.system?.stats?.ref?.total) || 0;
+  const isAcpaFirer = !!actor.system?.isACPA;
+  const acpaDfb = isAcpaFirer ? (Number(actor.system?.dfb) || 0) : 0;
+  // An ACPA fires with the pilot's capped effective REF when no separate gunner is boarded.
+  const ref0 = Number(firstGunner?.system?.stats?.ref?.total) || (isAcpaFirer ? (Number(actor.system?.effectiveRef) || 0) : 0);
   const skill0 = firstGunner ? (firstGunner.getSkillVal?.(GUNNER_SKILL) ?? 0) : 0;
   const gunnerOpts = gunners.length
     ? gunners.map(a => `<option value="${a.id}">${a.name}</option>`).join("")
@@ -314,6 +319,7 @@ export async function openVehicleFireDialog(actor, mount = {}) {
     <label><input type="checkbox" id="cp-vf-moving"> Firer moving, unstabilized (−3)</label><br>
     <label><input type="checkbox" id="cp-vf-dark"> Dark / obscured (−3)</label>
     <label style="margin-left:8px;" title="The vehicle's fire-control / targeting-computer bonus (system.fireControl), auto-applied. Edit to add an ad-hoc bonus on top.">Fire control <input type="number" id="cp-vf-other" value="${Number(actor.system?.fireControl) || 0}" style="width:44px;"></label>
+    ${isAcpaFirer ? `<label style="margin-left:8px;" title="ACPA Direct-Fire Bonus from the suit's Reality Interface (system.dfb), auto-applied when the suit fires its own weapons (replaces a smartgun bonus).">DFB (interface) <input type="number" id="cp-vf-dfb" value="${acpaDfb}" style="width:44px;"></label>` : ""}
   </fieldset>
 </div>`;
 
@@ -350,7 +356,7 @@ export async function openVehicleFireDialog(actor, mount = {}) {
               stationary: chk("#cp-vf-stationary"), targetSpeedMph: num("#cp-vf-tspeed"),
               turret: chk("#cp-vf-turret"), vehicleLink: chk("#cp-vf-link"),
               firerMoving: chk("#cp-vf-moving"), darkObscured: chk("#cp-vf-dark"),
-              targetingComputer: num("#cp-vf-other"),
+              targetingComputer: num("#cp-vf-other"), dfb: num("#cp-vf-dfb"),
             }),
             mountName: wName,
           });

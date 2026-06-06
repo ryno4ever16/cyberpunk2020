@@ -324,3 +324,84 @@ test("Phase 6 D-4b: SIB derivation + Armor Inventory weight/cost (MM p.61-62)", 
   expect(R.actor.sibVri).toBe(4);
   expect(R.actor.totalCmd).toBe(718);
 });
+
+/**
+ * Phase 6 D-4c — combat wiring. The derived build stats feed the resolvers: SIB + effective REF
+ * drive ACPA initiative (via the actor's getRollData mapping onto the shared system formula), DFB
+ * adds to the vehicle to-hit total, and the REF cap is the effective-REF prefill. Strictly gated to
+ * ACPA — a plain vehicle's roll data is untouched.
+ */
+test("Phase 6 D-4c: combat wiring — SIB→initiative, DFB→to-hit, REF cap", async ({ page }) => {
+  await login(page, ACCOUNTS.gm);
+  await cleanupTestData(page).catch(() => {});
+
+  const R = await evalGameOrThrow(page, async () => {
+    const A = await import("/systems/cyberpunk2020/module/vehicle/vehicle-acpa.js");
+    const W = await import("/systems/cyberpunk2020/module/vehicle/vehicle-weapons.js");
+    const out = { pure: {}, actor: {} };
+
+    // PURE initiative roll-data mapping (suit derived stats → shared formula terms).
+    const ird = A.acpaInitiativeRollData({ effectiveRef: 9, sib: 3, commandComputer: true });
+    out.pure.irRef     = ird.stats.ref.total;        // 9
+    out.pure.irMod     = ird.initiativeMod;          // 3 (SIB)
+    out.pure.irImplant = ird.initiativeImplantMod;   // 1 (Command Computer)
+    out.pure.irCombat  = ird.CombatSenseMod;         // 0
+
+    // PURE DFB in the to-hit modifier total.
+    out.pure.dfbAcpaTarget  = W.vehicleToHitModifier({ isACPATarget: true, dfb: 2 });  // 2 (no size mod)
+    out.pure.dfbLargeTarget = W.vehicleToHitModifier({ targetLarge: true, dfb: 3 });   // 4 + 3 = 7
+    out.pure.noDfb          = W.vehicleToHitModifier({ targetLarge: true });           // 4
+
+    const flags = { cyberpunk2020: { __pwtest: true } };
+    let acpa, plain;
+    try {
+      // ACPA: STR40 + SP40 → SIB 3 (D-4b); pilotRef 9 + Advanced (mod 0 / cap 10) → effective REF 9.
+      acpa = await Actor.create({ name: "__PW__ACPA_D4c", type: "vehicle", flags,
+        system: { isACPA: true, str: 40, sp: { front: 40, side: 0, rear: 0, top: 0, bottom: 0 }, pilotRef: 9 } });
+      out.actor.sib    = acpa.system.sib;            // 3
+      out.actor.effRef = acpa.system.effectiveRef;   // 9
+      const rd = acpa.getRollData();
+      out.actor.rdRef     = rd.stats?.ref?.total;      // 9
+      out.actor.rdMod     = rd.initiativeMod;          // 3
+      out.actor.rdImplant = rd.initiativeImplantMod;   // 0 (no Command Computer yet)
+
+      // The shared initiative formula resolves the @-terms to effRef + SIB (+cmd) = 12; only the 1d10
+      // is random. Evaluate and subtract the die result to confirm the fixed bonus.
+      const formula = "1d10 + @stats.ref.total + @CombatSenseMod + @initiativeMod + @initiativeImplantMod";
+      const roll = await new Roll(formula, acpa.getRollData()).evaluate();
+      out.actor.initFixed = roll.total - roll.dice[0].total;   // 12
+
+      // Command Computer adds +1 to the implant term.
+      await acpa.update({ "system.commandComputer": true });
+      out.actor.rdImplantCmd = acpa.getRollData().initiativeImplantMod;  // 1
+
+      // A plain (non-ACPA) vehicle is untouched by the override (no injected initiative term).
+      plain = await Actor.create({ name: "__PW__VEH_D4c", type: "vehicle", flags,
+        system: { isACPA: false, sdp: { value: 50, max: 50 } } });
+      out.actor.plainHasInitMod = (plain.getRollData().initiativeMod !== undefined);  // false
+    } finally {
+      if (acpa) await acpa.delete().catch(() => {});
+      if (plain) await plain.delete().catch(() => {});
+    }
+    return out;
+  });
+
+  console.log("Phase 6 D-4c:", JSON.stringify(R));
+  // PURE
+  expect(R.pure.irRef).toBe(9);
+  expect(R.pure.irMod).toBe(3);
+  expect(R.pure.irImplant).toBe(1);
+  expect(R.pure.irCombat).toBe(0);
+  expect(R.pure.dfbAcpaTarget).toBe(2);
+  expect(R.pure.dfbLargeTarget).toBe(7);
+  expect(R.pure.noDfb).toBe(4);
+  // DERIVED + getRollData
+  expect(R.actor.sib).toBe(3);
+  expect(R.actor.effRef).toBe(9);
+  expect(R.actor.rdRef).toBe(9);
+  expect(R.actor.rdMod).toBe(3);
+  expect(R.actor.rdImplant).toBe(0);
+  expect(R.actor.initFixed).toBe(12);
+  expect(R.actor.rdImplantCmd).toBe(1);
+  expect(R.actor.plainHasInitMod).toBe(false);
+});

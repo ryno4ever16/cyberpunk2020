@@ -40,6 +40,7 @@ export async function openAcpaMeleeDialog(actor) {
   const firerTok = _firerTokenOf(actor);
   const strDmg = Number(actor.system?.strDamage) || 0;
   const effStr = Math.max(0, (Number(actor.system?.str) || 0) - strDmg);
+  const effRef = Number(actor.system?.effectiveRef) || 0;   // pilot REF capped by the Reflex/Control system
 
   const content = `
 <div class="cyberpunk vehicle-fire-dialog" style="display:flex;flex-direction:column;gap:4px;">
@@ -52,7 +53,7 @@ export async function openAcpaMeleeDialog(actor) {
     </select>
   </label>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
-    <label>Pilot REF <input type="number" id="cp-am-ref" value="0" style="width:48px;"></label>
+    <label title="Pilot REF, capped by the suit's Reflex/Control system (derived effective REF). Override if a different pilot is driving.">Pilot REF <input type="number" id="cp-am-ref" value="${effRef}" style="width:48px;"></label>
     <label>Melee skill <input type="number" id="cp-am-skill" value="0" style="width:48px;"></label>
     <label>Target DV <input type="number" id="cp-am-dv" value="15" style="width:48px;"></label>
   </div>

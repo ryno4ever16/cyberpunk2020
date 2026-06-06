@@ -268,7 +268,8 @@ export async function openControlRollDialog(actor, opts = {}) {
   const sys = actor.system ?? {};
   const drivers = _candidateDrivers(actor);
   const firstDriver = drivers[0] ?? null;
-  const ref0 = Number(firstDriver?.system?.stats?.ref?.total) || 0;
+  // An ACPA pilots with the suit's capped effective REF when no separate driver is boarded.
+  const ref0 = Number(firstDriver?.system?.stats?.ref?.total) || (sys.isACPA ? (Number(sys.effectiveRef) || 0) : 0);
   const skill0 = firstDriver ? (firstDriver.getSkillVal?.("Driving") ?? 0) : 0;
   const handling0 = Number(sys.controlMod) || defaultControlMod(sys.vehicleType, ruleSystem);
   const speedRef = isMM ? (Number(sys.topSpeed) || 0) : (Number(sys.safeSpeed) || 0);

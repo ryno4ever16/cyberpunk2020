@@ -336,6 +336,23 @@ export function acpaSib({ chassisCapacity = 0, totalWeight = 0, interfaceSib = 0
   return (rounded - 1) + iface;
 }
 
+/**
+ * Roll-data terms so the shared system initiative formula
+ *   "1d10 + @stats.ref.total + @CombatSenseMod + @initiativeMod + @initiativeImplantMod"
+ * evaluates, for an ACPA suit, to 1d10 + effective REF + SIB (+1 Command Computer). Vehicles have
+ * none of these stats natively, so the actor's getRollData() maps the suit's derived values here. PURE.
+ * @param {object} sys  the ACPA actor's system (reads effectiveRef / sib / commandComputer)
+ */
+export function acpaInitiativeRollData(sys) {
+  const s = sys ?? {};
+  return {
+    stats: { ref: { total: Number(s.effectiveRef) || 0 } },
+    CombatSenseMod: 0,
+    initiativeMod: Number(s.sib) || 0,
+    initiativeImplantMod: s.commandComputer ? 1 : 0,
+  };
+}
+
 /* ------------------------------ Linear Frame (naked) (MM p.56) ------------------------------ */
 
 /**
