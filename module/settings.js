@@ -530,6 +530,11 @@ export function registerSystemSettings() {
     config:  true,
     type:    Boolean,
     default: false,
+    onChange: () => {
+      // Live-apply the MM hide/show: refresh the compendium sidebar + any open vehicle sheets.
+      try { ui.compendium?.render(); } catch (e) { /* sidebar not ready */ }
+      try { for (const a of game.actors) if (a.type === "vehicle" && a.sheet?.rendered) a.sheet.render(false); } catch (e) { /* no actors */ }
+    },
   });
 
   // --- Vehicles: which ruleset the vehicle resolver uses ---
@@ -598,6 +603,14 @@ export function registerSystemSettings() {
     setEnabled(mmEnabled());
     const masterInput = first.querySelector(`[name="${SCOPE}.mmEnabled"]`);
     masterInput?.addEventListener("change", () => setEnabled(!!masterInput.checked));
+  });
+
+  // --- Maximum Metal: hide the MM weapon compendium from the sidebar when MM is off ---
+  Hooks.on("renderCompendiumDirectory", (app, html) => {
+    const root = html instanceof jQuery ? html[0] : (Array.isArray(html) ? html[0] : html);
+    if (!root?.querySelector || mmEnabled()) return;          // MM on → show it normally
+    const li = root.querySelector(`[data-pack="${SCOPE}.vehicle-weapons"]`);
+    if (li) li.style.display = "none";
   });
 
 }
