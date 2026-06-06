@@ -149,7 +149,9 @@ export function acpaHitSystem(mounted = [], area, sopDamage = 0) {
   const index = updated.findIndex(m => m?.area === area && !m?.destroyed);
   if (index < 0) return { index: -1, hitKey: null, destroyed: false, overflow: dmg, updated };
   const m = updated[index];
-  const sop = acpaSystemSop(acpaSystemDef(m.key));
+  // Prefer the mounted entry's own SOP/SP (a placed Item may be edited); fall back to the catalog.
+  const def = acpaSystemDef(m.key) ?? {};
+  const sop = acpaSystemSop({ sop: m.sop ?? def.sop, sp: m.sp ?? def.sp });
   const prev = Math.max(0, Number(m.sopDamage) || 0);
   const total = prev + dmg;
   const destroyed = sop > 0 && total >= sop;

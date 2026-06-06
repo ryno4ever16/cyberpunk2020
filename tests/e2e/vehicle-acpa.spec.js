@@ -459,3 +459,49 @@ test("Phase 6 D-4d-2: acpaSystem Items on an ACPA — weight→SIB + compendium 
   expect(R.totalWithSys).toBe(586);
   expect(R.sibWithSys).toBe(2);
 });
+
+/**
+ * Phase 6 D-4d-3 — per-system SOP damage wired into the resolver (LIVE). The System Hit category is
+ * random, so we mount an enclosed system in every body area, strip the armor, and hammer the suit;
+ * over many hits the "enclosed system" branch routes SOP to the struck area's mounted Item (damage +
+ * destruction tracked on the Item). The exact absorb/destroy/overflow mechanics are pure-tested in 4d-1.
+ */
+test("Phase 6 D-4d-3: a System Hit damages a specific mounted system (live)", async ({ page }) => {
+  await login(page, ACCOUNTS.gm);
+  await cleanupTestData(page).catch(() => {});
+
+  const R = await evalGameOrThrow(page, async () => {
+    const VD = await import("/systems/cyberpunk2020/module/vehicle/vehicle-damage.js");
+    const flags = { cyberpunk2020: { __pwtest: true } };
+    const out = {};
+    let acpa;
+    try {
+      acpa = await Actor.create({ name: "__PW__ACPA_D4d3", type: "vehicle", flags,
+        system: { isACPA: true, str: 40, sp: { front: 0, side: 0, rear: 0, top: 0, bottom: 0 }, sdp: { value: 100, max: 100 } } });
+      // One enclosed system in every area (SOP 40: a single ~30-SOP hit accumulates without destroying;
+      // a repeat to the same area destroys it and overflows to the frame).
+      const areas = ["head", "rArm", "lArm", "rLeg", "lLeg", "torso"];
+      await acpa.createEmbeddedDocuments("Item", areas.map(a => ({
+        name: `Sys-${a}`, type: "acpaSystem", system: { category: "sensor", mount: "internal", area: a, sop: 40, weight: 1 }
+      })));
+      out.sysCountBefore = acpa.itemTypes.acpaSystem.length;  // 6
+
+      // Hammer it: rawDamage 40 → SOP = 40 − 0 armor − 10 toughness = 30 per penetrating hit. Over many
+      // hits ~15% route to the enclosed path and damage a mounted system in the struck area.
+      for (let i = 0; i < 70; i++) {
+        await VD.applyVehicleDamageMM(acpa, { rawDamage: 40, basePen: 50 });
+      }
+      const sysItems = acpa.itemTypes.acpaSystem;
+      out.damagedCount  = sysItems.filter(it => (Number(it.system?.sopDamage) || 0) > 0 || it.system?.destroyed).length;
+      out.destroyedCount = sysItems.filter(it => it.system?.destroyed).length;
+      out.anyDamaged = out.damagedCount > 0;
+    } finally {
+      if (acpa) await acpa.delete().catch(() => {});
+    }
+    return out;
+  });
+
+  console.log("Phase 6 D-4d-3:", JSON.stringify(R));
+  expect(R.sysCountBefore).toBe(6);
+  expect(R.anyDamaged).toBe(true);   // the resolver routed SOP to specific mounted system Items
+});
