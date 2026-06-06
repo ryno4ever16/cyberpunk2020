@@ -30,7 +30,7 @@ import { weaponToPenetration, vehicleToHitModifier, openVehicleFireDialog, regis
 import { seedVehicleWeaponCompendium, ensureVehicleWeaponSeed } from "./vehicle/vehicle-weapon-catalog.js";
 import { registerVehicleTargetingHandlers } from "./vehicle/vehicle-targeting.js";
 import { registerMissileFlightHooks } from "./vehicle/vehicle-missile-flight.js";
-import { openAcpaMeleeDialog } from "./vehicle/vehicle-acpa-combat.js";
+import { openAcpaMeleeDialog, registerAcpaCombatHooks } from "./vehicle/vehicle-acpa-combat.js";
 
 Hooks.once('init', async function () {
 
@@ -189,6 +189,9 @@ Hooks.once("ready", async function () {
 
   // Register guided-missile multi-turn flight (auto-advance per round + Missiles-in-Flight panel)
   registerMissileFlightHooks();
+
+  // Register ACPA per-round status ticks (seize-up / interface-out countdowns).
+  registerAcpaCombatHooks();
 
   // Seed the Vehicle Weapons (MM) compendium from the verified catalog if it's empty (active GM only).
   ensureVehicleWeaponSeed();

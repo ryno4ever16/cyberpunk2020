@@ -7,7 +7,7 @@
  * by criticals (strDamage) reduces the effective STR.
  */
 
-import { acpaMeleeDamage } from "./vehicle-acpa.js";
+import { acpaMeleeDamage, acpaTickStatus } from "./vehicle-acpa.js";
 import { penetrationFactor } from "./vehicle-weapons.js";
 import { openSingletonDialog } from "../utils.js";
 
@@ -90,4 +90,26 @@ export async function openAcpaMeleeDialog(actor) {
     },
   });
   return openSingletonDialog(`acpa-melee:${actor.id}`, () => dialog);
+}
+
+/**
+ * Per-round ACPA status ticks (MM p.55-56): seize-up and interface-out timers count down each combat
+ * round for every ACPA combatant; seize-up ending restores mobility. Active GM only (so N GMs don't
+ * multiply the decrement). Cooling (minutes) is shown on the sheet and left for the GM to adjudicate.
+ */
+export function registerAcpaCombatHooks() {
+  Hooks.on("updateCombat", async (combat, changed) => {
+    if (!game.user?.isGM || game.users?.activeGM?.id !== game.user.id) return;
+    if (changed.round === undefined) return;   // once per round
+    for (const c of combat.combatants ?? []) {
+      const a = c.actor;
+      if (!a || a.type !== "vehicle" || !a.system?.isACPA) continue;
+      const { updates, lines } = acpaTickStatus(a.system);
+      if (Object.keys(updates).length) await a.update(updates);
+      if (lines.length) await ChatMessage.create({
+        speaker: ChatMessage.getSpeaker({ actor: a }),
+        content: `<div class="cyberpunk save-prompt"><h3>⚙ ${a.name}</h3><div class="save-info">${lines.join("; ")}.</div></div>`,
+      });
+    }
+  });
 }

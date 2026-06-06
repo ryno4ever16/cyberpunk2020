@@ -40,6 +40,10 @@ test("Phase 6-1: ACPA combat math (pure, MM p.52-60)", async ({ page }) => {
       cuPower: A.acpaCriticalUpdate({ powerHours: 24 }, A.acpaCriticalEffect(8), 3),
       cuIface: A.acpaCriticalUpdate({ interfaceOut: 0 }, A.acpaCriticalEffect(9), 4),
       cuShock: A.acpaCriticalUpdate({ sdp: { value: 50, max: 50 } }, A.acpaCriticalEffect(10), 3),
+      // Per-round status decay.
+      tick1: A.acpaTickStatus({ seizeUp: 2, interfaceOut: 1 }),
+      tickEnd: A.acpaTickStatus({ seizeUp: 1 }),
+      tickNone: A.acpaTickStatus({}),
     };
   });
 
@@ -67,6 +71,12 @@ test("Phase 6-1: ACPA combat math (pure, MM p.52-60)", async ({ page }) => {
   expect(R.cuPower.updates["system.powerHours"]).toBe(18);    // 24 − 3×2
   expect(R.cuIface.updates["system.interfaceOut"]).toBe(4);
   expect(R.cuShock.updates["system.sdp"].value).toBe(47);     // 50 − 3
+  // Per-round decay: seize 2→1 (still seized), interface 1→0 (restored); seize 1→0 restores mobility.
+  expect(R.tick1.updates["system.seizeUp"]).toBe(1);
+  expect(R.tick1.updates["system.interfaceOut"]).toBe(0);
+  expect(R.tickEnd.updates["system.seizeUp"]).toBe(0);
+  expect(R.tickEnd.updates["system.immobilized"]).toBe(false);
+  expect(Object.keys(R.tickNone.updates).length).toBe(0);
 });
 
 test("Phase 6-2: ACPA penetrating damage applies + catastrophic destroys", async ({ page }) => {

@@ -127,6 +127,31 @@ export function acpaCriticalUpdate(sys, effect, amount) {
   }
 }
 
+/**
+ * One combat round of ACPA status decay (MM p.55-56). PURE — pass the suit's system, get the actor
+ * update + narration lines. Round-based timers (seize-up, interface-out) count down; seize-up ending
+ * restores mobility. (Cooling is tracked in minutes and left for the GM / the sheet readout.)
+ * @returns {{updates:object, lines:string[]}}
+ */
+export function acpaTickStatus(sys) {
+  const seize = Number(sys?.seizeUp) || 0;
+  const iface = Number(sys?.interfaceOut) || 0;
+  const updates = {};
+  const lines = [];
+  if (seize > 0) {
+    const next = seize - 1;
+    updates["system.seizeUp"] = next;
+    if (next <= 0) { updates["system.immobilized"] = false; lines.push("seize-up ends — mobility restored"); }
+    else lines.push(`seized up (${next} round${next !== 1 ? "s" : ""} left)`);
+  }
+  if (iface > 0) {
+    const next = iface - 1;
+    updates["system.interfaceOut"] = next;
+    lines.push(next <= 0 ? "interface/electronics restored" : `interface out (${next} round${next !== 1 ? "s" : ""} left)`);
+  }
+  return { updates, lines };
+}
+
 /* ------------------------------- Hand-to-hand (MM p.58) ------------------------------- */
 
 /**
