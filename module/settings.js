@@ -170,7 +170,7 @@ export function registerSystemSettings() {
     scope:   "world",
     config:  true,
     type:    Boolean,
-    default: true,
+    default: false,
   });
 
   game.settings.register("cyberpunk2020", "damageAutoApply", {
@@ -199,7 +199,7 @@ export function registerSystemSettings() {
     scope:   "world",
     config:  true,
     type:    Boolean,
-    default: true,
+    default: false,
   });
 
   game.settings.register("cyberpunk2020", "limbLossEnabled", {
@@ -208,7 +208,7 @@ export function registerSystemSettings() {
     scope:   "world",
     config:  true,
     type:    Boolean,
-    default: true,
+    default: false,
   });
 
   game.settings.register("cyberpunk2020", "suppressiveFireSaves", {
@@ -217,7 +217,7 @@ export function registerSystemSettings() {
     scope:   "world",
     config:  true,
     type:    Boolean,
-    default: true,
+    default: false,
   });
 
   // --- Combat Tracker: per-turn saves ---
@@ -227,7 +227,7 @@ export function registerSystemSettings() {
     scope:   "world",
     config:  true,
     type:    Boolean,
-    default: true,
+    default: false,
   });
 
   game.settings.register("cyberpunk2020", "autoSaveRePrompt", {
@@ -236,7 +236,7 @@ export function registerSystemSettings() {
     scope:   "world",
     config:  true,
     type:    Boolean,
-    default: true,
+    default: false,
   });
 
   // --- Optional rules: Layer rule system (Core vs Chromebook 4) ---
@@ -260,7 +260,7 @@ export function registerSystemSettings() {
     scope:   "world",
     config:  true,
     type:    Boolean,
-    default: true,
+    default: false,
   });
 
   // --- Combat Automation: Dodge / Parry active defense ---
@@ -389,7 +389,7 @@ export function registerSystemSettings() {
     scope: "world",
     config: true,
     type: Boolean,
-    default: true,
+    default: false,
   });
 
   game.settings.register("cyberpunk2020", "multiActionAutoTrack", {
@@ -398,7 +398,7 @@ export function registerSystemSettings() {
     scope: "world",
     config: true,
     type: Boolean,
-    default: true,
+    default: false,
   });
 
   // --- Optional rules: Armor Layers ---
@@ -418,7 +418,7 @@ export function registerSystemSettings() {
     scope:   "world",
     config:  true,
     type:    Boolean,
-    default: true,
+    default: false,
   });
 
   // --- Combat: Detailed crippling injuries (Listen Up, optional) ---

@@ -28,10 +28,10 @@ import { dispatchAttack }                                     from "../vehicle/v
 let _pendingPayload = null;
 
 function _isMultiActionEnabled() {
-  try { return game.settings.get("cyberpunk2020", "multiActionPenaltyEnabled"); } catch { return true; }
+  try { return game.settings.get("cyberpunk2020", "multiActionPenaltyEnabled"); } catch { return false; }
 }
 function _isMultiActionAutoTrack() {
-  try { return game.settings.get("cyberpunk2020", "multiActionAutoTrack"); } catch { return true; }
+  try { return game.settings.get("cyberpunk2020", "multiActionAutoTrack"); } catch { return false; }
 }
 function _getActionCount(actor) {
   const round = game?.combat?.round ?? 0;
@@ -401,7 +401,7 @@ function _hookSuppressiveFire() {
   Hooks.on("cyberpunk2020.suppressiveFire", async (payload) => {
     const suppressiveSaves = (() => {
       try { return game.settings.get("cyberpunk2020", "suppressiveFireSaves"); }
-      catch { return true; }
+      catch { return false; }
     })();
     if (!suppressiveSaves) return;
 
@@ -1809,12 +1809,13 @@ function _hookAutomationMigrationNotice() {
     const content = `
 <div style="padding:8px 4px; font-size:0.9em; line-height:1.5;">
   <p style="margin:0 0 10px;">
-    This world now has the <b>Cyberpunk 2020 combat automation system</b> active.
-    Several features are <b>on by default</b>. Review the settings before your next session.
+    This world now has the <b>Cyberpunk 2020 combat automation system</b> available.
+    To protect existing characters, all combat automation is <b>OFF by default</b> — enable only what
+    your table wants in <b>Game Settings → Configure Settings → System</b>.
   </p>
 
-  <div style="background:rgba(180,60,30,0.12); border:1px solid rgba(180,60,30,0.4); border-radius:4px; padding:8px 10px; margin-bottom:8px;">
-    <p style="font-weight:bold; margin:0 0 6px;">⚠ Active by default — check these before playing</p>
+  <div style="background:rgba(30,100,180,0.10); border:1px solid rgba(30,100,180,0.3); border-radius:4px; padding:8px 10px; margin-bottom:8px;">
+    <p style="font-weight:bold; margin:0 0 6px;">⚙ Opt-in automation — all OFF by default; enable what you want</p>
     <table style="width:100%; border-collapse:collapse; font-size:0.87em;">
       <tr>
         <td style="padding:2px 10px 2px 0; white-space:nowrap; font-weight:bold;">Armor Ablation</td>

@@ -122,7 +122,7 @@ export function activeLimbModel() {
  * @param {string}  location
  */
 export function computeNetDamage(afterSP, btm, penetrates, location) {
-  let headDoubling = true;
+  let headDoubling = false;
   try { headDoubling = game.settings.get("cyberpunk2020", "headHitDoubling"); } catch (e) { /* default */ }
   // Only Listen Up doubles limb damage. W4RST4R (and Core) do not — they use the raw post-BTM net.
   const detailedLimb = activeLimbModel() === "ListenUp";
@@ -148,7 +148,7 @@ export async function assessWoundSeverity(target, location, netDamage, { token =
   // Vehicles have no limbs/head/death saves — never run wound severity on them (they use the
   // vehicle resolver). Defense in depth alongside the applyAreaDamages redirect.
   if (target?.type === "vehicle") return;
-  let limbLoss = true;
+  let limbLoss = false;
   try { limbLoss = game.settings.get("cyberpunk2020", "limbLossEnabled"); } catch (e) { /* default */ }
   if (!limbLoss) return;
   const model = activeLimbModel();   // "W4RST4R" | "ListenUp" | "Core"

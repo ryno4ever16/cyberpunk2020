@@ -23,7 +23,7 @@ R. Talsorian Games’ [Cyberpunk 2020](https://talsorianstore.com/products/cyber
 * The **beginning of the melee system**: cyberlimb damage bonuses and martial-arts bonuses are already in.
 * **Solo professional ability** is factored into initiative and awareness rolls.
 * **Ammo tracking & quick reloads** directly from chat.
-* **Automated combat**: target selection and one-click damage application, per-shot armour ablation, hit locations, automatic rangefinding & cover, and stun / death / stabilization save prompts.
+* **Automated combat**: target selection and one-click damage application, per-shot armour ablation, hit locations, automatic rangefinding & cover, and stun / death / stabilization save prompts. *(all combat-automation rules are **off by default** — enable what your table wants in the system settings.)*
 * **Maximum Metal (vehicles & powered armour)**: vehicle and ACPA "mech" sheets with penetration → hit-location damage, vehicle-weapon & ACPA-system compendia, composite & reactive armour, and missiles / area fire. *(beta)*
 * **Netrunning**: major core functionality — deck builder with configuration, purchased program list, active program panel, automatic RAM usage & total cost, and one-click *Interface* rolls from the Netrunning tab.
 * **Full Russian localisation**.

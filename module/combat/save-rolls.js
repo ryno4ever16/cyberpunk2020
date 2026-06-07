@@ -627,7 +627,7 @@ export function registerSaveRollHandlers() {
     // Death Save each turn (CP2020 p.105): Mortal + unstabilized
     const deathPerTurn = (() => {
       try { return game.settings.get("cyberpunk2020", "autoDeathSavePerTurn"); }
-      catch { return true; }
+      catch { return false; }
     })();
     if (deathPerTurn && woundState >= 4) {
       const isStabilized = actor.getFlag?.("cyberpunk2020", "stabilized");
@@ -639,7 +639,7 @@ export function registerSaveRollHandlers() {
     // Stun Save recovery (CP2020 p.104): unconscious characters re-roll each turn
     const stunRecovery = (() => {
       try { return game.settings.get("cyberpunk2020", "autoSaveRePrompt"); }
-      catch { return true; }
+      catch { return false; }
     })();
     if (stunRecovery) {
       const isUnconscious = actor.statuses?.has("unconscious") ?? false;  // Set<string> in Foundry v11+

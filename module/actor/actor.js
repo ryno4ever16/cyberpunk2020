@@ -376,7 +376,7 @@ export class CyberpunkActor extends Actor {
     let layerEVPenalty = 0;
     const applyLayerEV = (() => {
       try { return !!game.settings.get("cyberpunk2020", "applyLayerEVPenalty"); }
-      catch { return true; }
+      catch { return false; }
     })();
     if (applyLayerEV) {
       for (const count of Object.values(armorLayerCountByArea)) {
@@ -529,8 +529,8 @@ export class CyberpunkActor extends Actor {
 
     // Cyberpsychosis state (CP2020 p.73) — derived from effective Empathy after humanity loss.
     // Humanity loss is always tracked above; this readout is gated by a setting some tables skip.
-    let cpTracking = true;
-    try { cpTracking = game.settings.get("cyberpunk2020", "cyberpsychosisTracking"); } catch (e) { cpTracking = true; }
+    let cpTracking = false;
+    try { cpTracking = game.settings.get("cyberpunk2020", "cyberpsychosisTracking"); } catch (e) { cpTracking = false; }
     if (cpTracking) {
       const e = emp.total;
       let state, label;
