@@ -418,6 +418,7 @@
     "CYBERPUNK.AmmoBought": "Bought a box of {count} round(s) for {cost}eb.",
     "CYBERPUNK.AmmoBoughtNoCharge": "Stocked a box of {count} round(s).",
     "CYBERPUNK.MigrateError": "Only the GM can migrate the world",
+    "CYBERPUNK.MigrationBegin": "Cyberpunk2020 System Migration to version {version} starting — please wait…",
     "CYBERPUNK.MigrationComplete": "Cyberpunk2020 System Migration to version {version} completed!",
     "CYBERPUNK.MigrationFailed": "Cyberpunk2020 System Migration failed :( Please see console log for details",
     "CYBERPUNK.SkillNotFound": "Skill not found",

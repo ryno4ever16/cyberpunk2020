@@ -1796,7 +1796,9 @@ function _hookMultiActionPenalty() {
  * and which settings are active by default. Sets a world flag so it only fires once.
  */
 function _hookAutomationMigrationNotice() {
-  Hooks.on("ready", () => {
+  // Invoked from registerDamageHooks(), which already runs INSIDE the "ready" hook — so run the body
+  // directly. Registering another Hooks.on("ready") here was too late to ever fire (Foundry does not
+  // re-fire "ready" for listeners added during the ready emission); that is why this notice never appeared.
     if (!game.user.isGM) return;
     let shown = false;
     try { shown = game.settings.get("cyberpunk2020", "automationMigrationShown"); } catch { return; }
@@ -1897,7 +1899,6 @@ function _hookAutomationMigrationNotice() {
         html.closest(".dialog").css("min-width", "480px");
       },
     }).render(true);
-  });
 }
 
 /**
