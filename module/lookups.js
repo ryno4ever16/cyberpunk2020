@@ -521,7 +521,7 @@ export { rangeDCs, rangeResolve }
  */
 export const ANATOMY_IMAGES = {
   male:   { label: "Male",   src: "systems/cyberpunk2020/img/male-anatomy-unsegmented.svg", svg: true  },
-  female: { label: "Female", src: "systems/cyberpunk2020/img/female-anatomy.png",            svg: false },
+  female: { label: "Female", src: "systems/cyberpunk2020/img/female-anatomy-unsegmented.png", svg: false },
 };
 export const DEFAULT_ANATOMY_KEY = "male";
 

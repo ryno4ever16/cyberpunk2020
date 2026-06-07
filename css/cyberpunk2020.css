@@ -1150,6 +1150,14 @@ img#anatomy-img {
   z-index: 2;
   width: auto;
   font-size: 0.75rem;
+  /* The picker sits on the dark gridded anatomy panel, so its text must be light to read. */
+  color: whitesmoke;
+  background-color: #1a1a1a;
+  border: 1px solid #555;
+}
+.anatomy-container .anatomy-select option {
+  color: whitesmoke;
+  background-color: #1a1a1a;
 }
 
 @container (max-width: 760px) {
