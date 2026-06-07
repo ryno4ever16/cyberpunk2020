@@ -551,6 +551,26 @@ export function registerSystemSettings() {
     default: "Core",
   });
 
+  // --- Maximum Metal optional rule: Armor Damage via Penetration (errata p.107) ---
+  game.settings.register("cyberpunk2020", "vehicleArmorDamageEnabled", {
+    name: "Maximum Metal: Armor Damage via Penetration (errata)",
+    hint: "Optional errata rule (Maximum Metal p.107). A heavy round (>20mm) erodes the struck facing's SP whether or not it penetrates: SP removed = factor × Penetration (HE ×½, AP/DPU ×0.6, HEAT ×¾, HESH ×1.0). Because Armor Value is derived from SP (SP÷20), sustained fire grinds armor down over time — addressing 'hard to knock down' heavy armor. Applies only under the Maximum Metal resolver. Default OFF; intended for >20mm vehicle weapons (the GM enables it deliberately).",
+    scope:   "world",
+    config:  true,
+    type:    Boolean,
+    default: false,
+  });
+
+  // --- Maximum Metal optional rule: Crew Morale (MM optional) ---
+  game.settings.register("cyberpunk2020", "vehicleMoraleEnabled", {
+    name: "Maximum Metal: Crew Morale",
+    hint: "Optional rule. After a vehicle takes a Minor-or-worse penetrating hit, its crew must pass a morale check — Leadership + 1d10 vs 15 — or bail out / disengage. The damage card shows the 1d10 result and the Leadership needed to hold; the GM adjudicates the consequence. Applies only under the Maximum Metal resolver. Default OFF.",
+    scope:   "world",
+    config:  true,
+    type:    Boolean,
+    default: false,
+  });
+
   // --- Vehicles: Weapon mount arc enforcement (Phase 5) ---
   game.settings.register("cyberpunk2020", "vehicleArcEnforcement", {
     name: "Vehicles: Weapon Mount Arc Enforcement",
@@ -579,7 +599,7 @@ export function registerSystemSettings() {
   Hooks.on("renderSettingsConfig", (app, html) => {
     const root = html instanceof jQuery ? html[0] : (Array.isArray(html) ? html[0] : html);
     if (!root?.querySelector) return;
-    const MM_KEYS = ["mmEnabled", "vehicleRuleSystem", "vehicleArcEnforcement"];
+    const MM_KEYS = ["mmEnabled", "vehicleRuleSystem", "vehicleArmorDamageEnabled", "vehicleMoraleEnabled", "vehicleArcEnforcement"];
     const groupOf = (k) => {
       const el = root.querySelector(`[name="${SCOPE}.${k}"], [data-setting-id="${SCOPE}.${k}"]`);
       return el?.closest(".form-group") ?? el?.closest(".setting") ?? null;

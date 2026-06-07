@@ -65,13 +65,16 @@ export function coreCrashDamage({ speed = 0, weightClass = "light", rolled = nul
  *   - Good Shot: +½ base Pen per full 10 the to-hit cleared the target number (per step).
  *   - Multiple rounds: +¼ base Pen per extra round hitting the same area (round off).
  *   - Range: −25% at Long, −50% at Extreme (applied last), unless HE penetrators.
+ *   - High-density AP (errata p.110): a dense kinetic penetrator does "full damage through armor like
+ *     HEAT" → its Penetration is range-immune too (full Pen at every band). Unlike HEAT it is kinetic,
+ *     so Composite/Reactive armor (handled by the caller) do not reduce it.
  */
-export function mmEffectivePenetration({ basePen = 0, goodShotSteps = 0, extraRounds = 0, range = "normal", hefPenetrator = false } = {}) {
+export function mmEffectivePenetration({ basePen = 0, goodShotSteps = 0, extraRounds = 0, range = "normal", hefPenetrator = false, highDensityAP = false } = {}) {
   const base = Math.max(0, Number(basePen) || 0);
   let pen = base;
   pen += Math.round(base * 0.5) * Math.max(0, Number(goodShotSteps) || 0);
   pen += Math.round(base * 0.25) * Math.max(0, Number(extraRounds) || 0);
-  if (!hefPenetrator) {
+  if (!hefPenetrator && !highDensityAP) {
     if (range === "long") pen = Math.round(pen * 0.75);
     else if (range === "extreme") pen = Math.round(pen * 0.5);
   }
@@ -462,7 +465,14 @@ async function _resolveAcpaSopDamage(actor, sys, { pen, rawDamage, str }, rolls)
  * flow; powered armor (isACPA) uses the faithful SOP-damage flow (MM p.54-56). `rawDamage` is the
  * actual rolled weapon damage when the caller has it (used for ACPA); else ACPA estimates it from Pen.
  */
-export async function applyVehicleDamageMM(actor, { basePen = 0, facing = "front", goodShotSteps = 0, extraRounds = 0, range = "normal", hefPenetrator = false, heat = false, rawDamage = null } = {}) {
+export async function applyVehicleDamageMM(actor, { basePen = 0, facing = "front", goodShotSteps = 0, extraRounds = 0, range = "normal", hefPenetrator = false, heat = false, highDensityAP = false, ap = false, rawDamage = null } = {}) {
+  // Master toggle. The weaponFired auto-dispatch (dispatchAttack) reaches this resolver directly,
+  // bypassing the dialog's own pre-check — so without this guard, auto-fire would write the vehicle
+  // even when the GM has vehicle-damage automation disabled. No warning here (the manual dialog warns);
+  // the auto-path simply no-ops.
+  const _vdEnabled = (() => { try { return game.settings.get(SCOPE, "vehicleDamageEnabled"); } catch { return true; } })();
+  if (!_vdEnabled) return null;
+
   const sys = actor.system ?? {};
   const isACPA = !!sys.isACPA;
   const avKey = _facingKey(facing);
@@ -473,8 +483,9 @@ export async function applyVehicleDamageMM(actor, { basePen = 0, facing = "front
   const d10 = async () => { const r = await new Roll("1d10").evaluate(); rolls.push(r); return r.total; };
   const updates = {};
 
-  const penRaw = mmEffectivePenetration({ basePen, goodShotSteps, extraRounds, range, hefPenetrator });
-  // Composite Armor halves the Penetration of shaped-charge (HEAT) weapons (MM p.23).
+  const penRaw = mmEffectivePenetration({ basePen, goodShotSteps, extraRounds, range, hefPenetrator, highDensityAP });
+  // Composite Armor halves the Penetration of shaped-charge (HEAT) weapons (MM p.23). High-density AP
+  // is kinetic, so Composite never applies to it (the !!heat gate already excludes it).
   const composite = !isACPA && !!sys.compositeArmor && !!heat;
   let pen = composite ? Math.ceil(penRaw / 2) : penRaw;
 
@@ -519,7 +530,7 @@ export async function applyVehicleDamageMM(actor, { basePen = 0, facing = "front
     }
   } else {
     sev = mmDamageSeverity({ pen, effectiveArmorValue: effAV, bodyValue, d10: await d10() });
-    body = `Pen <b>${pen}</b> (base ${basePen}${composite ? ", ½ vs Composite" : ""}${reactiveNote}) vs AV <b>${effAV}</b>${facing !== "front" ? ` (${facing} flank)` : ""} − Body ${bodyValue}`;
+    body = `Pen <b>${pen}</b> (base ${basePen}${highDensityAP ? ", high-density AP (range-immune)" : ""}${composite ? ", ½ vs Composite" : ""}${reactiveNote}) vs AV <b>${effAV}</b>${facing !== "front" ? ` (${facing} flank)` : ""} − Body ${bodyValue}`;
 
     if (!sev.penetrated) {
       const surf = mmSurfaceDamage(await d10(), basePen);
@@ -565,6 +576,33 @@ export async function applyVehicleDamageMM(actor, { basePen = 0, facing = "front
         const sysName = subLoc ?? loc;
         if (!damaged.includes(sysName)) { damaged.push(sysName); updates["system.damagedSystems"] = damaged; }
         lines += `<br>Crew in that area take <b>${crit.crewDice}</b>; ${crit.destroyPct}% the system is destroyed (else damaged until repaired).`;
+      }
+
+      // Crew Morale (optional MM rule): a Minor-or-worse penetrating hit shakes the crew. Roll 1d10;
+      // the crew holds if their Leadership ≥ (15 − roll). The GM adjudicates a bail-out / disengage.
+      const moraleOn = (() => { try { return game.settings.get(SCOPE, "vehicleMoraleEnabled"); } catch { return false; } })();
+      if (moraleOn) {
+        const m = await d10();
+        const need = Math.max(0, 15 - m);
+        lines += `<br><span style="color:#7aa7ff;">Crew morale (Leadership + 1d10 vs 15): rolled <b>${m}</b> → crew holds if Leadership ≥ <b>${need}</b>, else they bail / disengage (GM adjudicates).</span>`;
+      }
+    }
+
+    // Armor Damage via Penetration (errata p.107, optional): a heavy round (>20mm) strips SP from the
+    // struck facing whether or not it penetrated — SP removed = factor × Pen (HE ½, AP/DPU 0.6, HEAT ¾,
+    // HESH 1.0). Since Armor Value is derived from SP (SP/20), sustained fire erodes AV over time.
+    // Off by default; gated behind Maximum Metal being the active rule system (we are in the MM branch).
+    const armorDmgOn = (() => { try { return game.settings.get(SCOPE, "vehicleArmorDamageEnabled"); } catch { return false; } })();
+    if (armorDmgOn) {
+      const factor = heat ? 0.75 : (heHit ? 0.5 : ((ap || highDensityAP) ? 0.6 : 0.5)); // heHit = Hi-Ex (non-shaped)
+      const curSP = Number(sys.sp?.[avKey]) || 0;
+      const stripped = Math.min(curSP, Math.round(factor * pen));
+      if (stripped > 0) {
+        // Write the WHOLE sp object — a dot-path update on this ObjectField would wipe the other facings.
+        const newSP = { ...(sys.sp ?? {}) };
+        newSP[avKey] = curSP - stripped;
+        updates["system.sp"] = newSP;
+        lines += `<br><span style="color:#caa54a;">Armor erosion (errata) — <b>−${stripped} SP</b> at ${facing} (now ${newSP[avKey]} SP / AV ${Math.round(newSP[avKey] / 20)}).</span>`;
       }
     }
   }

@@ -66,14 +66,15 @@ export function interceptResult(d10, extraMissiles = 0) {
 
 /** +Difficulty a countermeasure imposes on a missile by its homing method (MM p.9-10). */
 const CM_EFFECT = {
-  chaff:      { radar: 10, laser: 10 },
-  flares:     { thermal: 10 },
-  irBaffling: { thermal: 5 },
-  irSmoke:    { thermal: 15, optical: 15 },
-  jamming:    { radar: 15 },
-  ecm:        { radar: 15 },
-  smoke:      { optical: 15 },
-  stealth:    { radar: 15 },
+  chaff:            { radar: 10 },               // anti-radar only (chaff does not defeat laser homing)
+  flares:           { thermal: 10 },
+  irBaffling:       { thermal: 5 },
+  irSmoke:          { thermal: 15, optical: 15 },
+  jamming:          { radar: 15 },
+  ecm:              { radar: 15 },
+  smoke:            { optical: 15 },
+  stealth:          { radar: 15 },
+  antiLaserAerosol: { laser: 15 },               // MM: anti-laser aerosol blocks laser homing (~90%)
 };
 
 /** Total +Difficulty the active countermeasures impose on a missile of the given homing method. PURE. */

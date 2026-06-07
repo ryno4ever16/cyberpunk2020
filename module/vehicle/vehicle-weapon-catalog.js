@@ -211,9 +211,9 @@ export const SEED_VEHICLE_WEAPONS = [
       wa:0, penetration:3, damage:"6D10", rof:10, shots:100, range:800, reliability:"VR", space:1, cost:2000, source:SOURCE } },
   { name: "20mm Gatling", img: ICON, system: { weaponClass:"directFire", mountType:"turret", arc:"turret",
       wa:0, penetration:4, damage:"8D10", rof:100, shots:1000, range:500, reliability:"VR", space:2, cost:6000, source:SOURCE } },
-  // 30mm Gatling fires depleted-uranium slugs — high-density AP (full damage through armor, errata p.107).
+  // 30mm Gatling fires depleted-uranium slugs — high-density AP (full damage through armor, errata p.107/110).
   { name: "30mm Gatling", img: ICON, system: { weaponClass:"directFire", mountType:"turret", arc:"turret",
-      wa:0, penetration:6, damage:"6D10AP", ap:true, rof:30, shots:1200, range:750, reliability:"VR", space:4, cost:25000, source:SOURCE } },
+      wa:0, penetration:6, damage:"6D10AP", ap:true, highDensityAP:true, rof:30, shots:1200, range:750, reliability:"VR", space:4, cost:25000, source:SOURCE } },
 
   // ── Anti-tank guns & grenade launchers (p.17). ──
   { name: "LATG 37mm", img: ICON, system: { weaponClass:"directFire", mountType:"turret", arc:"turret",
