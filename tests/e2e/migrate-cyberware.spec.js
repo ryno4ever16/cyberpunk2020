@@ -95,3 +95,60 @@ test("migration preserves cyberware placement + custom names, and won't substitu
   expect(R.r3_replaced).toBe(false);
   expect(R.r3_nameOverwritten).toBe(false);
 });
+
+test("cyberware migration preserves the full runtime-state allowlist (install/links/chip/humanity)", async ({ page }) => {
+  await login(page, ACCOUNTS.gm);
+  await cleanupTestData(page).catch(() => {});
+
+  const R = await evalGameOrThrow(page, async () => {
+    const { migrateItem } = await import("/systems/cyberpunk2020/module/migrate.js");
+    const out = {};
+    let entry = null, packCol = null;
+    for (const n of ["cyberlimbs", "cyberware", "implants", "bioware", "cyberoptic"]) {
+      const p = game.packs.get(`cyberpunk2020.${n}`);
+      if (!p) continue;
+      const idx = await p.getIndex();
+      const arr = idx.contents ?? [...idx];
+      const cw = arr.find(e => (e.type ?? "cyberware") === "cyberware");
+      if (cw) { entry = cw; packCol = p.collection; break; }
+    }
+    if (!entry) return out;
+    const sourceId = `Compendium.${packCol}.Item.${entry._id}`;
+
+    let actor;
+    try {
+      actor = await Actor.create({ name: "__PW__CWRUNTIME", type: "character", flags: { cyberpunk2020: { __pwtest: true } } });
+      const [cw] = await actor.createEmbeddedDocuments("Item", [{
+        name: entry.name, type: "cyberware",
+        flags: { core: { sourceId } },
+        system: {
+          equipped: false, EffectActive: true, MountZone: "Arm",
+          humanityLoss: 7, cost: 1500, weight: 2,
+          CyberBodyType: { Type: "Arm", Location: "Right" },
+          Module: { IsModule: true, ParentId: "PARENT123", SlotsTaken: 2 },
+          CyberWorkType: { ChipActive: true, ChipSkills: { SKILLABC: 3 }, ItemId: "WPN42" }
+        }
+      }]);
+      const u = await migrateItem(cw);
+      out.matched = !!(u?.system);
+      const s = u?.system ?? {};
+      out.equipped = s.equipped; out.effectActive = s.EffectActive; out.mountZone = s.MountZone;
+      out.humanityLoss = s.humanityLoss; out.cost = s.cost; out.weight = s.weight;
+      out.modIsModule = s.Module?.IsModule; out.modParent = s.Module?.ParentId; out.modSlots = s.Module?.SlotsTaken;
+      out.chipActive = s.CyberWorkType?.ChipActive; out.chipSkill = s.CyberWorkType?.ChipSkills?.SKILLABC; out.linkItemId = s.CyberWorkType?.ItemId;
+      out.cbtLoc = s.CyberBodyType?.Location;
+    } finally {
+      if (actor) await actor.delete().catch(() => {});
+    }
+    return out;
+  });
+
+  console.log("CW runtime preserve:", JSON.stringify(R));
+  expect(R.matched).toBe(true);
+  expect(R).toMatchObject({
+    equipped: false, effectActive: true, mountZone: "Arm",
+    humanityLoss: 7, cost: 1500, weight: 2,
+    modIsModule: true, modParent: "PARENT123", modSlots: 2,
+    chipActive: true, chipSkill: 3, linkItemId: "WPN42", cbtLoc: "Right"
+  });
+});
