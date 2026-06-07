@@ -57,6 +57,11 @@ export class CyberpunkVehicleSheet extends ActorSheet {
     try { data.controlEnabled = game.settings.get("cyberpunk2020", "vehicleControlEnabled"); } catch (e) { data.controlEnabled = true; }
     try { data.damageEnabled = game.settings.get("cyberpunk2020", "vehicleDamageEnabled"); } catch (e) { data.damageEnabled = true; }
 
+    // Reactive Armor wear (MM p.23): the deflection roll drops 1 per two absorbed shaped/HE hits.
+    const rHits = Number(this.actor.system?.reactiveHits) || 0;
+    data.reactiveWear = Math.floor(rHits / 2);
+    data.oneReactiveHit = rHits === 1;
+
     // "acpa" is intentionally NOT a vehicle type — Powered Armor is marked by the ACPA checkbox
     // (system.isACPA), which is what the data model + resolver key on. Having both was redundant.
     data.vehicleTypes = ["car", "sportscar", "limo", "AV-4", "AV-6", "AV-7", "cycle", "truck", "rotor", "osprey", "boat", "tank", "APC"];
@@ -132,6 +137,11 @@ export class CyberpunkVehicleSheet extends ActorSheet {
     root?.querySelector?.(".cp-acpa-repair")?.addEventListener("click", (ev) => {
       ev.preventDefault();
       repairAcpa(this.actor);
+    });
+    // Reactive Armor: rearm the tile array after a battle (reset the wear counter to 0) — MM p.23.
+    root?.querySelector?.(".cp-reactive-replace")?.addEventListener("click", async (ev) => {
+      ev.preventDefault();
+      await this.actor.update({ "system.reactiveHits": 0 });
     });
 
     // ── Weapon mounts = embedded vehicleWeapon Items (Phase 5b) ─────────────

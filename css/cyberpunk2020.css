@@ -2077,5 +2077,20 @@ img#anatomy-img {
   padding: 2px 8px;
   cursor: pointer;
 }
+.cyberpunk.vehicle .cp-reactive-wear {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.cyberpunk.vehicle .cp-reactive-replace {
+  flex: 0 0 auto;
+  width: auto;
+  height: 20px;
+  padding: 0 8px;
+  line-height: 18px;
+  font-size: 0.85em;
+  cursor: pointer;
+}
 
 /*# sourceMappingURL=cyberpunk2020.css.map */

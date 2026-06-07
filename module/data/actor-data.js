@@ -169,6 +169,8 @@ export class CyberpunkVehicleActorData extends foundry.abstract.TypeDataModel {
       vehicleLink:   booleanField(false),
       damageControl: booleanField(false),
       compositeArmor: booleanField(false),   // halves shaped-charge (HEAT) Penetration (MM p.23)
+      reactiveArmor: booleanField(false),    // explosive tiles: 1d10 (2-10) halves shaped-charge Pen, degrades w/ hits (MM p.23)
+      reactiveHits:  numberField(0),         // shaped/HE hits absorbed; −1 to the deflect roll per 2; reset by "Replace"
       sensors:       booleanField(false),    // radar/detectors: auto-detect inbound missiles (90%)
       antiMissile:   booleanField(false),    // AGAMS/AEAMS: can attempt to shoot down inbound missiles
       fireControl:   numberField(0),

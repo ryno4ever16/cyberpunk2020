@@ -239,3 +239,19 @@
     padding: 2px 8px;
     cursor: pointer;
 }
+/* Reactive Armor wear: inline count + a small "Replace" button (not full-width). */
+.cyberpunk.vehicle .cp-reactive-wear {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+}
+.cyberpunk.vehicle .cp-reactive-replace {
+    flex: 0 0 auto;
+    width: auto;
+    height: 20px;
+    padding: 0 8px;
+    line-height: 18px;
+    font-size: 0.85em;
+    cursor: pointer;
+}

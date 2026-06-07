@@ -146,6 +146,15 @@
             <div class="field" title="Composite armor (metals + plastics + ceramics + depleted heavy metals): halves the Penetration of shaped-charge HEAT weapons, but penetrating damage is not halved (Maximum Metal, p.23). Used by the damage resolver.">
                 <label>Composite Armor</label><input type="checkbox" name="system.compositeArmor" {{#if system.compositeArmor}}checked{{/if}}/>
             </div>
+            <div class="field" title="Reactive armor: explosive tiles that detonate against shaped-charge (HEAT) attacks. On a HEAT hit, roll 1d10 — 2-10 halves Penetration, minus 1 per two prior shaped-charge / high-explosive hits the array has absorbed. Tiles are consumed each hit; press Replace to rearm after a battle (Maximum Metal, p.23). Stacks with Composite (¼ Pen if both fire). Used by the damage resolver.">
+                <label>Reactive Armor</label><input type="checkbox" name="system.reactiveArmor" {{#if system.reactiveArmor}}checked{{/if}}/>
+            </div>
+            {{#if system.reactiveArmor}}
+            <div class="field" title="Shaped-charge / high-explosive hits absorbed by the reactive tiles. The deflection roll drops 1 for every two hits. Replace rearms the array (resets wear to 0).">
+                <label>Reactive Wear</label>
+                <span class="cp-reactive-wear">{{system.reactiveHits}} hit{{#unless oneReactiveHit}}s{{/unless}}{{#if reactiveWear}} (−{{reactiveWear}}){{/if}}<button type="button" class="cp-reactive-replace" title="Rearm the reactive array (reset wear to 0)">↻ Replace</button></span>
+            </div>
+            {{/if}}
             <div class="field" title="Sensors / radar: automatically detect an inbound missile (90%) so the crew can react. Without sensors, detection falls back to a Notice/Awareness roll (Maximum Metal, p.10/25-26).">
                 <label>Sensors / Radar</label><input type="checkbox" name="system.sensors" {{#if system.sensors}}checked{{/if}}/>
             </div>

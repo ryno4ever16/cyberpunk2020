@@ -78,6 +78,29 @@ export function mmEffectivePenetration({ basePen = 0, goodShotSteps = 0, extraRo
   return Math.max(0, pen);
 }
 
+/**
+ * Reactive Armor (MM p.23). Explosive tiles that detonate outward against a shaped-charge jet.
+ * Only a shaped-charge (HEAT) attack triggers the deflection roll: roll 1D10, and on a 2-10 the
+ * tile fires and halves the Penetration. The roll is reduced by 1 for every TWO prior shaped-charge
+ * OR high-explosive hits the vehicle has absorbed (the tiles are consumed), so a fresh array is ~90%
+ * effective and degrades toward useless until rearmed ("Replace"). High-explosive hits do not fire a
+ * tile but still consume one (they count toward the wear). PURE: takes the d10 value, returns the
+ * outcome + the new running hit count; the caller rolls, applies the halving, and persists the count.
+ *
+ *   reactiveDeflection({ installed, heat, hiEx, priorHits, d10 })
+ *     → { fired, deflected, subtract, newHits }
+ */
+export function reactiveDeflection({ installed = false, heat = false, hiEx = false, priorHits = 0, d10 = 0 } = {}) {
+  const prior = Math.max(0, Math.floor(Number(priorHits) || 0));
+  const consumes = installed && (!!heat || !!hiEx);          // shaped OR high-explosive wears a tile
+  const newHits = prior + (consumes ? 1 : 0);
+  // Only a shaped-charge (HEAT) attack actually triggers the deflection roll.
+  if (!installed || !heat) return { fired: false, deflected: false, subtract: 0, newHits };
+  const subtract = Math.floor(prior / 2);
+  const deflected = ((Number(d10) || 0) - subtract) >= 2;    // 2-10 after wear → tile fires
+  return { fired: true, deflected, subtract, newHits };
+}
+
 /** Flank armor (MM p.4 step 2C): side = 75% (round up), top/rear/bottom = 50% (round up). PURE. */
 export function mmEffectiveArmor(armorValue, facing = "front") {
   const av = Math.max(0, Number(armorValue) || 0);
@@ -446,17 +469,33 @@ export async function applyVehicleDamageMM(actor, { basePen = 0, facing = "front
   const av = isACPA ? (Number(sys.armorValue?.front) || 0) : (Number(sys.armorValue?.[avKey]) || 0);
   const bodyValue = Number(sys.bodyValue) || 0;
 
+  const rolls = [];
+  const d10 = async () => { const r = await new Roll("1d10").evaluate(); rolls.push(r); return r.total; };
+  const updates = {};
+
   const penRaw = mmEffectivePenetration({ basePen, goodShotSteps, extraRounds, range, hefPenetrator });
   // Composite Armor halves the Penetration of shaped-charge (HEAT) weapons (MM p.23).
   const composite = !isACPA && !!sys.compositeArmor && !!heat;
-  const pen = composite ? Math.ceil(penRaw / 2) : penRaw;
+  let pen = composite ? Math.ceil(penRaw / 2) : penRaw;
+
+  // Reactive Armor (MM p.23): explosive tiles that may halve a shaped-charge attack on a 1d10 (2-10),
+  // degraded −1 per two prior shaped/HE hits and consumed per hit (the counter persists until "Replace").
+  // Stacks with Composite — each is an independent layer, so both firing → ¼ Pen. Vehicles only (!isACPA).
+  const heHit = !isACPA && !!hefPenetrator && !heat;          // high-explosive (non-shaped): wears tiles only
+  const reactiveOn = !isACPA && !!sys.reactiveArmor;
+  let reactiveNote = "";
+  if (reactiveOn && (heat || heHit)) {
+    const rd = reactiveDeflection({ installed: true, heat: !!heat, hiEx: heHit, priorHits: Number(sys.reactiveHits) || 0, d10: heat ? await d10() : 0 });
+    updates["system.reactiveHits"] = rd.newHits;             // a tile is consumed by every shaped/HE hit
+    if (rd.fired) {
+      if (rd.deflected) { pen = Math.ceil(pen / 2); reactiveNote = `, ½ Reactive${rd.subtract ? ` (worn −${rd.subtract})` : ""}`; }
+      else reactiveNote = `, Reactive failed${rd.subtract ? ` (worn −${rd.subtract})` : ""}`;
+    }
+  }
+
   const effAV = isACPA ? av : mmEffectiveArmor(av, facing);
 
-  const rolls = [];
-  const d10 = async () => { const r = await new Roll("1d10").evaluate(); rolls.push(r); return r.total; };
-
   let body = "", lines = "", sev = null;
-  const updates = {};
   const damaged = Array.isArray(sys.damagedSystems) ? [...sys.damagedSystems] : [];
 
   if (isACPA) {
@@ -480,7 +519,7 @@ export async function applyVehicleDamageMM(actor, { basePen = 0, facing = "front
     }
   } else {
     sev = mmDamageSeverity({ pen, effectiveArmorValue: effAV, bodyValue, d10: await d10() });
-    body = `Pen <b>${pen}</b> (base ${basePen}${composite ? ", ½ vs Composite" : ""}) vs AV <b>${effAV}</b>${facing !== "front" ? ` (${facing} flank)` : ""} − Body ${bodyValue}`;
+    body = `Pen <b>${pen}</b> (base ${basePen}${composite ? ", ½ vs Composite" : ""}${reactiveNote}) vs AV <b>${effAV}</b>${facing !== "front" ? ` (${facing} flank)` : ""} − Body ${bodyValue}`;
 
     if (!sev.penetrated) {
       const surf = mmSurfaceDamage(await d10(), basePen);
