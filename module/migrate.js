@@ -431,6 +431,23 @@ function preserveCyberwareRuntimeState({ oldSystem, newSystem }) {
   const oldMountZone = String(oldSystem?.MountZone ?? "").trim();
   if (oldMountZone) newSystem.MountZone = oldMountZone;
 
+  // Preserve the player's installed body LOCATION (which arm/leg + side) and the cyberware's body
+  // type. These are user placement choices the compendium template cannot know — without preserving
+  // them, migration resets every cyberware to the template default (everything piling onto one
+  // location). Only override when the old item actually has a value, so unplaced items still inherit
+  // the template default.
+  if (oldSystem?.CyberBodyType && typeof oldSystem.CyberBodyType === "object") {
+    newSystem.CyberBodyType = (newSystem.CyberBodyType && typeof newSystem.CyberBodyType === "object")
+      ? newSystem.CyberBodyType
+      : {};
+    const cbtType = String(oldSystem.CyberBodyType.Type ?? "").trim();
+    const cbtLoc = String(oldSystem.CyberBodyType.Location ?? "").trim();
+    if (cbtType) newSystem.CyberBodyType.Type = cbtType;
+    if (cbtLoc) newSystem.CyberBodyType.Location = cbtLoc;
+  }
+  const oldCyberwareType = String(oldSystem?.cyberwareType ?? "").trim();
+  if (oldCyberwareType) newSystem.cyberwareType = oldCyberwareType;
+
   if (oldSystem?.CyberWorkType) {
     newSystem.CyberWorkType = newSystem.CyberWorkType ?? {};
 
@@ -517,10 +534,16 @@ export async function migrateItem(item) {
     // Primary path: stable id/source id. This is the normal multilingual architecture.
     let template = await getCyberwareTemplateByIds(stableIds);
 
-    // Exceptional final fallback: old pre-refactor cyberware in existing worlds may
-    // have neither matching _id nor sourceId. Name matching is kept only here to
-    // maximize seamless migration from the old implant structure.
-    if (!template) template = await getCyberwareTemplateByName(item.name);
+    // Is the current name a recognized stock cyberware name? If so it is safe to relocalize; if not,
+    // the player renamed it (or it is homebrew), so we PRESERVE the name — and for items lacking a
+    // stable id we do NOT replace at all. (An unrecognized name cannot reliably identify a template;
+    // replacing on a name guess is what substituted wrong items and clobbered homebrew packs.)
+    await ensureCyberwareIndex();
+    const nameIsCustom = !_cyberwareNameToRef.has(normalizeName(item.name));
+
+    // Name fallback (old data with no stable id) is trusted ONLY when the name is a recognized stock
+    // name — never on a custom/homebrew name.
+    if (!template && !nameIsCustom) template = await getCyberwareTemplateByName(item.name);
 
     if (template) {
       const tpl = template.toObject();
@@ -530,7 +553,8 @@ export async function migrateItem(item) {
       transferCyberwareUserValues({ oldSystem, newSystem });
       preserveCyberwareRuntimeState({ oldSystem, newSystem });
 
-      updateData.name = tpl.name;
+      // Relocalize stock names; keep a player's custom rename untouched.
+      updateData.name = nameIsCustom ? (itemData.name ?? tpl.name) : tpl.name;
       updateData.img = tpl.img;
       updateData.type = tpl.type;
       updateData.system = newSystem;
