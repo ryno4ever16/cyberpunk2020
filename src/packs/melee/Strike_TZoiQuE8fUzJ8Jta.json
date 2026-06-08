@@ -1,0 +1,54 @@
+{
+  "_id": "TZoiQuE8fUzJ8Jta",
+  "name": "Strike",
+  "type": "weapon",
+  "img": "systems/cyberpunk2020/img/punch-icon.svg",
+  "system": {
+    "flavor": "",
+    "notes": "",
+    "cost": null,
+    "weight": null,
+    "equipped": true,
+    "source": "Cyberpunk 2020",
+    "weaponType": "Melee",
+    "accuracy": null,
+    "concealability": "ConcealPocket",
+    "availability": "Excellent",
+    "ammoType": "NA",
+    "ammoItemId": "",
+    "damage": "1D6/2",
+    "rangeDamages": {
+      "pointBlank": "",
+      "close": "",
+      "medium": "",
+      "far": ""
+    },
+    "ap": false,
+    "shotsLeft": 1,
+    "shots": 1,
+    "rof": 1,
+    "reliability": "VeryReliable",
+    "range": 1,
+    "attackType": "Martial",
+    "attackSkill": "Драка"
+  },
+  "effects": [],
+  "ownership": {
+    "default": 0
+  },
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null
+  },
+  "folder": null,
+  "sort": 0,
+  "flags": {},
+  "_key": "!items!TZoiQuE8fUzJ8Jta"
+}

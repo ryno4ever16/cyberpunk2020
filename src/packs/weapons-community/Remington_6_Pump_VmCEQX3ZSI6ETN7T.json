@@ -1,0 +1,71 @@
+{
+  "name": "Remington 6-Pump",
+  "type": "weapon",
+  "img": "systems/cyberpunk2020/img/weapon-icon.svg",
+  "effects": [],
+  "sort": 0,
+  "flags": {},
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": {
+      "worldId": "cyberpunk_2020",
+      "uuid": null,
+      "coreVersion": "0.7.9",
+      "systemId": "cyberpunk2020",
+      "systemVersion": "0.2.6"
+    },
+    "coreVersion": "13.350",
+    "systemId": "cyberpunk2020",
+    "systemVersion": "1.1.1-beta",
+    "createdTime": 1780817896354,
+    "modifiedTime": 1780817896354,
+    "lastModifiedBy": "HAGE0F9Z3ttltmt9"
+  },
+  "ownership": {
+    "default": 0,
+    "VTdezBIy0FQgKDge": 3,
+    "HAGE0F9Z3ttltmt9": 3
+  },
+  "system": {
+    "flavor": "Hunting rifle made in USA",
+    "notes": "",
+    "cost": 400,
+    "weight": 3.5,
+    "equipped": true,
+    "source": "http://cyberpunk.asia/",
+    "weaponType": "Rifle",
+    "accuracy": 1,
+    "concealability": "",
+    "availability": "undefined",
+    "ammoType": ".30-06",
+    "ammoItemId": "",
+    "damage": "5D6+3",
+    "rangeDamages": {
+      "pointBlank": "",
+      "close": "",
+      "medium": "",
+      "far": "",
+      "short": "",
+      "extreme": ""
+    },
+    "ap": false,
+    "shotsLeft": 6,
+    "shots": 6,
+    "rof": 1,
+    "reliability": "Standard",
+    "range": 500,
+    "attackType": "Auto",
+    "attackSkill": "Rifle",
+    "name": "Common",
+    "fullAutoCapable": true,
+    "burstCapable": true,
+    "lastOwnerId": "",
+    "loadedAmmoId": "",
+    "loadedAmmo": {},
+    "isEdged": false
+  },
+  "_id": "VmCEQX3ZSI6ETN7T",
+  "folder": null,
+  "_key": "!items!VmCEQX3ZSI6ETN7T"
+}

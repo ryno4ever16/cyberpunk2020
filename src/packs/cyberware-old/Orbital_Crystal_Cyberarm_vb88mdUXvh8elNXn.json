@@ -1,0 +1,94 @@
+{
+  "name": "Orbital Crystal Cyberarm",
+  "type": "cyberware",
+  "_id": "vb88mdUXvh8elNXn",
+  "effects": [],
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null
+  },
+  "ownership": {
+    "default": 0
+  },
+  "system": {
+    "flavor": "50/60 SDP; 4 option spaces; 1d6 punch",
+    "notes": "",
+    "cost": 7000,
+    "weight": 0,
+    "equipped": true,
+    "source": "Chromebook 1 pg.57",
+    "surgCode": "CR",
+    "humanityCost": "2d6",
+    "cyberwareType": "CYBERLIMB",
+    "cyberwareSubtype": "",
+    "abbrev": "",
+    "humanityLoss": 0,
+    "MountZone": "",
+    "EffectMode": "Permanent",
+    "EffectActive": false,
+    "Module": {
+      "IsModule": false,
+      "AllowedParentCyberwareType": "",
+      "SlotsTaken": 1,
+      "ParentId": ""
+    },
+    "CyberBodyType": {
+      "Type": "",
+      "Location": ""
+    },
+    "CyberWorkType": {
+      "Type": "Descriptive",
+      "Stat": {},
+      "Skill": {},
+      "Checks": {},
+      "Locations": {},
+      "Encumbrance": 0,
+      "Penalties": {},
+      "Link": "",
+      "ItemId": "",
+      "OptionsAvailable": 0,
+      "SDP": 0,
+      "ChipSkills": {},
+      "ChipActive": false,
+      "Types": [],
+      "Weapon": {
+        "weaponType": "Pistol",
+        "accuracy": 0,
+        "concealability": "P",
+        "availability": "common",
+        "ammoType": "9mm",
+        "ammoItemId": "",
+        "damage": "2d6+1",
+        "rangeDamages": {
+          "pointBlank": "",
+          "close": "",
+          "medium": "",
+          "far": ""
+        },
+        "ap": false,
+        "shotsLeft": 0,
+        "shots": 0,
+        "rof": 0,
+        "reliability": "ST",
+        "range": 0,
+        "attackType": "",
+        "attackSkill": "ref"
+      }
+    },
+    "slots": 4,
+    "spaces": 0,
+    "flags": {}
+  },
+  "img": "icons/svg/item-bag.svg",
+  "folder": null,
+  "sort": 0,
+  "flags": {},
+  "_key": "!items!vb88mdUXvh8elNXn"
+}

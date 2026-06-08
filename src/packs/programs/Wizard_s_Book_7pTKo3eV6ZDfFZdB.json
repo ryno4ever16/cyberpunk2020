@@ -1,0 +1,43 @@
+{
+  "_id": "7pTKo3eV6ZDfFZdB",
+  "name": "Wizard’s Book",
+  "type": "program",
+  "flags": {},
+  "img": "systems/cyberpunk2020/img/program-icon-1.svg",
+  "effects": [],
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": {
+      "worldId": "edgrunners",
+      "uuid": null,
+      "coreVersion": "12.331",
+      "systemId": "cyberpunk2020",
+      "systemVersion": "0.3.12"
+    }
+  },
+  "ownership": {
+    "default": 0
+  },
+  "system": {
+    "flavor": "Cracks Code Gates (STR 6) and File Locks (STR 4) with arcane flair.",
+    "notes": "",
+    "cost": "400",
+    "weight": "0",
+    "equipped": true,
+    "source": "",
+    "power": "4",
+    "mu": "2",
+    "programType": "Decryption",
+    "actionFormula": ""
+  },
+  "folder": null,
+  "sort": 0,
+  "_key": "!items!7pTKo3eV6ZDfFZdB"
+}

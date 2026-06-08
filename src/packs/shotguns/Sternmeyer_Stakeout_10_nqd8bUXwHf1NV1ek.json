@@ -1,0 +1,64 @@
+{
+  "_id": "nqd8bUXwHf1NV1ek",
+  "name": "Sternmeyer Stakeout 10",
+  "type": "weapon",
+  "img": "systems/cyberpunk2020/img/weapon-icon.svg",
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "flags": {},
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": {
+      "worldId": "cyberpunk_2020",
+      "uuid": null,
+      "coreVersion": "0.7.9",
+      "systemId": "cyberpunk2020",
+      "systemVersion": "0.2.6"
+    }
+  },
+  "ownership": {
+    "default": 0,
+    "VTdezBIy0FQgKDge": 3
+  },
+  "system": {
+    "flavor": "Light duty stakeout shotgun, used by city police departments.",
+    "notes": "",
+    "cost": "450",
+    "weight": "3",
+    "equipped": true,
+    "source": "Cyberpunk 2020",
+    "weaponType": "Rifle",
+    "accuracy": "-2",
+    "concealability": "ConcealNoHide",
+    "availability": "Rare",
+    "ammoType": "00",
+    "ammoItemId": "",
+    "damage": "4D6",
+    "rangeDamages": {
+      "pointBlank": "",
+      "close": "",
+      "medium": "",
+      "far": "",
+      "short": "",
+      "extreme": ""
+    },
+    "ap": false,
+    "shotsLeft": "10",
+    "shots": "10",
+    "rof": "2",
+    "reliability": "Standard",
+    "range": "50",
+    "attackType": "Autoshotgun",
+    "attackSkill": "Rifle",
+    "name": "Common"
+  },
+  "_key": "!items!nqd8bUXwHf1NV1ek"
+}

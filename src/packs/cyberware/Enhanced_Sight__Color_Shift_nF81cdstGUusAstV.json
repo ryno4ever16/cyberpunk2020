@@ -1,0 +1,91 @@
+{
+  "name": "Enhanced Sight: Color Shift",
+  "type": "cyberware",
+  "_id": "nF81cdstGUusAstV",
+  "effects": [],
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null
+  },
+  "ownership": {
+    "default": 0
+  },
+  "system": {
+    "flavor": "Max of 2 Enhanced Sight",
+    "notes": "",
+    "cost": 1200,
+    "weight": 0,
+    "equipped": true,
+    "source": "Deep Space pg.60",
+    "surgCode": "M",
+    "humanityCost": "2",
+    "cyberwareType": "BIOWARE",
+    "cyberwareSubtype": "NEURAL ENHANCEMENT",
+    "abbrev": "",
+    "humanityLoss": 0,
+    "MountZone": "",
+    "Module": {
+      "IsModule": false,
+      "AllowedParentCyberwareType": "",
+      "SlotsTaken": 1,
+      "ParentId": ""
+    },
+    "CyberBodyType": {
+      "Type": "",
+      "Location": ""
+    },
+    "CyberWorkType": {
+      "Type": "Descriptive",
+      "Stat": {},
+      "Skill": {},
+      "Checks": {},
+      "Locations": {},
+      "Encumbrance": 0,
+      "Penalties": {},
+      "Link": "",
+      "ItemId": "",
+      "OptionsAvailable": 0,
+      "SDP": 0,
+      "ChipSkills": {},
+      "ChipActive": false,
+      "Types": [],
+      "Weapon": {
+        "weaponType": "Pistol",
+        "accuracy": 0,
+        "concealability": "P",
+        "availability": "common",
+        "ammoType": "9mm",
+        "damage": "2d6+1",
+        "rangeDamages": {
+          "pointBlank": "",
+          "close": "",
+          "medium": "",
+          "far": ""
+        },
+        "ap": false,
+        "shotsLeft": 0,
+        "shots": 0,
+        "rof": 0,
+        "reliability": "ST",
+        "range": 0,
+        "attackType": "",
+        "attackSkill": "ref"
+      }
+    },
+    "slots": 0,
+    "spaces": 0,
+    "flags": {}
+  },
+  "img": "icons/svg/item-bag.svg",
+  "folder": null,
+  "sort": 0,
+  "flags": {},
+  "_key": "!items!nF81cdstGUusAstV"
+}

@@ -1,0 +1,67 @@
+{
+  "_id": "ammoShotgunSlug1",
+  "name": "Shotgun Slug",
+  "type": "ammo",
+  "img": "systems/cyberpunk2020/img/weapon-icon.svg",
+  "system": {
+    "flavor": "",
+    "notes": "Single solid slug for shotguns: standard damage, no spread. Buckshot/spread shells are planned for the comprehensive ammo set.",
+    "cost": 0,
+    "weight": 0,
+    "equipped": true,
+    "source": "Cyberpunk 2020 Core",
+    "ammoType": "Slug",
+    "quantity": 0,
+    "armorMultSoft": 1,
+    "armorMultHard": 1,
+    "rawDamageMult": 1,
+    "penDamageMult": 1,
+    "bonusDamageFormula": "",
+    "accuracyMod": 0,
+    "stunSaveOnHit": false,
+    "stunSaveMod": 0,
+    "dotEnabled": false,
+    "dotTurns": 0,
+    "dotDamageFormula": "",
+    "blastRadius": 0,
+    "blastFullDamageWithin": 1,
+    "blastZones": 4,
+    "blastShrapnel": false,
+    "blastMultipliers": [
+      0.5,
+      0.25,
+      0.125,
+      0.0625
+    ],
+    "spreadMode": "single",
+    "spreadDistance": 0,
+    "spreadDamageShort": "",
+    "spreadDamageMedium": "",
+    "spreadDamageLong": "",
+    "spreadWidthShort": 1,
+    "spreadWidthMedium": 2,
+    "spreadWidthLong": 3,
+    "effectTypes": [
+      "None"
+    ]
+  },
+  "effects": [],
+  "folder": null,
+  "flags": {},
+  "ownership": {
+    "default": 0
+  },
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null
+  },
+  "sort": 0,
+  "_key": "!items!ammoShotgunSlug1"
+}

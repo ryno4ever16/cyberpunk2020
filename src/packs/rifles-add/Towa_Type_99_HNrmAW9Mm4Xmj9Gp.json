@@ -1,0 +1,64 @@
+{
+  "_id": "HNrmAW9Mm4Xmj9Gp",
+  "name": "Towa Type 99",
+  "type": "weapon",
+  "img": "systems/cyberpunk2020/img/weapon-icon.svg",
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "flags": {},
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": {
+      "worldId": "cyberpunk_2020",
+      "uuid": null,
+      "coreVersion": "0.7.9",
+      "systemId": "cyberpunk2020",
+      "systemVersion": "0.2.6"
+    }
+  },
+  "ownership": {
+    "default": 0,
+    "VTdezBIy0FQgKDge": 3
+  },
+  "system": {
+    "flavor": "Assault rifle made in Japan",
+    "notes": "",
+    "cost": "1500",
+    "weight": "4",
+    "equipped": true,
+    "source": "Pacific Rim",
+    "weaponType": "Rifle",
+    "accuracy": "1",
+    "concealability": "",
+    "availability": "undefined",
+    "ammoType": "5.56C",
+    "ammoItemId": "",
+    "damage": "5D6",
+    "rangeDamages": {
+      "pointBlank": "",
+      "close": "",
+      "medium": "",
+      "far": "",
+      "short": "",
+      "extreme": ""
+    },
+    "ap": false,
+    "shotsLeft": "50",
+    "shots": "50",
+    "rof": "25",
+    "reliability": "Standard",
+    "range": "400",
+    "attackType": "Auto",
+    "attackSkill": "Rifle",
+    "name": "Common"
+  },
+  "_key": "!items!HNrmAW9Mm4Xmj9Gp"
+}

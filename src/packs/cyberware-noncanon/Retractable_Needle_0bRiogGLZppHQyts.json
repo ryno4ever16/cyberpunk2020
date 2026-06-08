@@ -1,0 +1,106 @@
+{
+  "name": "Retractable Needle",
+  "type": "cyberware",
+  "effects": [],
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null,
+    "coreVersion": "13.350",
+    "systemId": "cyberpunk2020",
+    "systemVersion": "1.1.1-beta",
+    "createdTime": 1780817899863,
+    "modifiedTime": 1780817899863,
+    "lastModifiedBy": "HAGE0F9Z3ttltmt9"
+  },
+  "ownership": {
+    "default": 0,
+    "HAGE0F9Z3ttltmt9": 3
+  },
+  "system": {
+    "flavor": "Mounted in finger; connected to poison sac/gland",
+    "notes": "",
+    "cost": 650,
+    "weight": 0,
+    "equipped": true,
+    "source": "When Gravity Fails pg.59",
+    "surgCode": "M",
+    "humanityCost": "2d6",
+    "cyberwareType": "IMPLANT",
+    "cyberwareSubtype": "",
+    "abbrev": "",
+    "humanityLoss": 0,
+    "MountZone": "",
+    "EffectMode": "Permanent",
+    "EffectActive": false,
+    "Module": {
+      "IsModule": false,
+      "AllowedParentCyberwareType": "",
+      "SlotsTaken": 1,
+      "ParentId": ""
+    },
+    "CyberBodyType": {
+      "Type": "",
+      "Location": ""
+    },
+    "CyberWorkType": {
+      "Type": "Descriptive",
+      "Stat": {},
+      "Skill": {},
+      "Checks": {},
+      "Locations": {},
+      "Encumbrance": 0,
+      "Penalties": {},
+      "Link": "",
+      "ItemId": "",
+      "OptionsAvailable": 0,
+      "SDP": 0,
+      "ChipSkills": {},
+      "ChipActive": false,
+      "Types": [
+        "Descriptive"
+      ],
+      "Weapon": {
+        "weaponType": "Pistol",
+        "accuracy": 0,
+        "concealability": "P",
+        "availability": "common",
+        "ammoType": "9mm",
+        "ammoItemId": "",
+        "damage": "2d6+1",
+        "rangeDamages": {
+          "pointBlank": "",
+          "close": "",
+          "medium": "",
+          "far": "",
+          "short": "",
+          "extreme": ""
+        },
+        "ap": false,
+        "shotsLeft": 0,
+        "shots": 0,
+        "rof": 0,
+        "reliability": "ST",
+        "range": 0,
+        "attackType": "",
+        "attackSkill": "ref",
+        "fullAutoCapable": false,
+        "burstCapable": false
+      }
+    },
+    "slots": 0,
+    "spaces": 0,
+    "lastOwnerId": "",
+    "cwTypeLabel": "",
+    "cwSubtypeLabel": "",
+    "effectTypes": [
+      "None"
+    ]
+  },
+  "img": "icons/svg/item-bag.svg",
+  "sort": 0,
+  "flags": {},
+  "_id": "0bRiogGLZppHQyts",
+  "folder": null,
+  "_key": "!items!0bRiogGLZppHQyts"
+}

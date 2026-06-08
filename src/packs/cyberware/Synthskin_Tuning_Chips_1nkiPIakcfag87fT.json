@@ -1,0 +1,91 @@
+{
+  "name": "Synthskin Tuning Chips",
+  "type": "cyberware",
+  "_id": "1nkiPIakcfag87fT",
+  "effects": [],
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null
+  },
+  "ownership": {
+    "default": 0
+  },
+  "system": {
+    "flavor": "Stores different patterns/colors for Synthskin",
+    "notes": "",
+    "cost": 100,
+    "weight": 0,
+    "equipped": true,
+    "source": "Cyberpunk 2020 2nd ed. pg.80",
+    "surgCode": "N",
+    "humanityCost": "0",
+    "cyberwareType": "FASHIONWARE",
+    "cyberwareSubtype": "",
+    "abbrev": "SYNC",
+    "humanityLoss": 0,
+    "MountZone": "",
+    "Module": {
+      "IsModule": false,
+      "AllowedParentCyberwareType": "",
+      "SlotsTaken": 1,
+      "ParentId": ""
+    },
+    "CyberBodyType": {
+      "Type": "",
+      "Location": ""
+    },
+    "CyberWorkType": {
+      "Type": "Descriptive",
+      "Stat": {},
+      "Skill": {},
+      "Checks": {},
+      "Locations": {},
+      "Encumbrance": 0,
+      "Penalties": {},
+      "Link": "",
+      "ItemId": "",
+      "OptionsAvailable": 0,
+      "SDP": 0,
+      "ChipSkills": {},
+      "ChipActive": false,
+      "Types": [],
+      "Weapon": {
+        "weaponType": "Pistol",
+        "accuracy": 0,
+        "concealability": "P",
+        "availability": "common",
+        "ammoType": "9mm",
+        "damage": "2d6+1",
+        "rangeDamages": {
+          "pointBlank": "",
+          "close": "",
+          "medium": "",
+          "far": ""
+        },
+        "ap": false,
+        "shotsLeft": 0,
+        "shots": 0,
+        "rof": 0,
+        "reliability": "ST",
+        "range": 0,
+        "attackType": "",
+        "attackSkill": "ref"
+      }
+    },
+    "slots": 0,
+    "spaces": 0,
+    "flags": {}
+  },
+  "img": "icons/svg/item-bag.svg",
+  "folder": null,
+  "sort": 0,
+  "flags": {},
+  "_key": "!items!1nkiPIakcfag87fT"
+}

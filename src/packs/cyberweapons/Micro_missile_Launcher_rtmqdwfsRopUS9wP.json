@@ -1,0 +1,95 @@
+{
+  "name": "Micro-missile Launcher",
+  "type": "cyberware",
+  "effects": [],
+  "system": {
+    "flavor": "4 mini-missiles; 4D6 damage",
+    "notes": "",
+    "cost": 900,
+    "weight": null,
+    "equipped": true,
+    "source": "Cyberpunk 2020 2nd ed. pg.91",
+    "surgCode": "N",
+    "humanityCost": "2d6",
+    "cyberwareType": "CYBERLIMB",
+    "cyberwareSubtype": "WEAPON",
+    "abbrev": "MML",
+    "humanityLoss": null,
+    "MountZone": "Arm",
+    "EffectMode": "Activatable",
+    "EffectActive": true,
+    "Module": {
+      "IsModule": true,
+      "AllowedParentCyberwareType": "CyberArm",
+      "SlotsTaken": 1,
+      "ParentId": ""
+    },
+    "CyberBodyType": {
+      "Type": "",
+      "Location": "Left"
+    },
+    "CyberWorkType": {
+      "Type": "Descriptive",
+      "Stat": {},
+      "Skill": {},
+      "Checks": {},
+      "Locations": {},
+      "Encumbrance": 0,
+      "Penalties": {},
+      "Link": "",
+      "ItemId": "",
+      "OptionsAvailable": 0,
+      "SDP": 0,
+      "ChipSkills": {},
+      "ChipActive": false,
+      "Types": [
+        "Weapon"
+      ],
+      "Weapon": {
+        "weaponType": "Heavy",
+        "accuracy": 2,
+        "concealability": "P",
+        "availability": "common",
+        "ammoType": "",
+        "ammoItemId": "",
+        "damage": "4D6",
+        "rangeDamages": {
+          "pointBlank": "",
+          "close": "",
+          "medium": "",
+          "far": ""
+        },
+        "ap": false,
+        "shotsLeft": 4,
+        "shots": 4,
+        "rof": 1,
+        "reliability": "VeryReliable",
+        "range": 200,
+        "attackType": "Missile",
+        "attackSkill": "Тяжёлое оружие"
+      }
+    },
+    "slots": 0,
+    "spaces": 0
+  },
+  "img": "systems/cyberpunk2020/img/implant-icon-1.svg",
+  "folder": null,
+  "flags": {},
+  "_id": "rtmqdwfsRopUS9wP",
+  "ownership": {
+    "default": 0
+  },
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null
+  },
+  "sort": 0,
+  "_key": "!items!rtmqdwfsRopUS9wP"
+}

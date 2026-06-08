@@ -1,0 +1,71 @@
+{
+  "name": "Luigi Franchi Gavil Z11",
+  "type": "weapon",
+  "img": "systems/cyberpunk2020/img/weapon-icon.svg",
+  "effects": [],
+  "sort": 0,
+  "flags": {},
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": {
+      "worldId": "cyberpunk_2020",
+      "uuid": null,
+      "coreVersion": "0.7.9",
+      "systemId": "cyberpunk2020",
+      "systemVersion": "0.2.6"
+    },
+    "coreVersion": "13.350",
+    "systemId": "cyberpunk2020",
+    "systemVersion": "1.1.1-beta",
+    "createdTime": 1780817894250,
+    "modifiedTime": 1780817894250,
+    "lastModifiedBy": "HAGE0F9Z3ttltmt9"
+  },
+  "ownership": {
+    "default": 0,
+    "VTdezBIy0FQgKDge": 3,
+    "HAGE0F9Z3ttltmt9": 3
+  },
+  "system": {
+    "flavor": "Light revolver made in Italy",
+    "notes": "",
+    "cost": 340,
+    "weight": 0.75,
+    "equipped": true,
+    "source": "https://datafortress2020.com/",
+    "weaponType": "Pistol",
+    "accuracy": 0,
+    "concealability": "",
+    "availability": "undefined",
+    "ammoType": "7 mm",
+    "ammoItemId": "",
+    "damage": "1D6+2",
+    "rangeDamages": {
+      "pointBlank": "",
+      "close": "",
+      "medium": "",
+      "far": "",
+      "short": "",
+      "extreme": ""
+    },
+    "ap": false,
+    "shotsLeft": 6,
+    "shots": 6,
+    "rof": 1,
+    "reliability": "very reliable",
+    "range": 50,
+    "attackType": "Auto",
+    "attackSkill": "Handgun",
+    "name": "Common",
+    "fullAutoCapable": true,
+    "burstCapable": true,
+    "lastOwnerId": "",
+    "loadedAmmoId": "",
+    "loadedAmmo": {},
+    "isEdged": false
+  },
+  "_id": "m0UPNqf4DV2GqeFC",
+  "folder": null,
+  "_key": "!items!m0UPNqf4DV2GqeFC"
+}

@@ -1,0 +1,43 @@
+{
+  "_id": "xvuw51KDn5M0Cn72",
+  "name": "ElectroLock",
+  "type": "program",
+  "flags": {},
+  "img": "systems/cyberpunk2020/img/program-icon-1.svg",
+  "effects": [],
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": {
+      "worldId": "edgrunners",
+      "uuid": null,
+      "coreVersion": "12.331",
+      "systemId": "cyberpunk2020",
+      "systemVersion": "0.3.12"
+    }
+  },
+  "ownership": {
+    "default": 0
+  },
+  "system": {
+    "flavor": "Locks a file behind a STR 3 Code Gate.",
+    "notes": "",
+    "cost": "170",
+    "weight": "0",
+    "equipped": true,
+    "source": "",
+    "power": "7",
+    "mu": "2",
+    "programType": "Utility",
+    "actionFormula": ""
+  },
+  "folder": null,
+  "sort": 0,
+  "_key": "!items!xvuw51KDn5M0Cn72"
+}

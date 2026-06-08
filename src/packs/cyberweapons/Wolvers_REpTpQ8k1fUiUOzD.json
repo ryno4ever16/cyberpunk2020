@@ -1,0 +1,95 @@
+{
+  "name": "Wolvers",
+  "type": "cyberware",
+  "effects": [],
+  "system": {
+    "flavor": "3d6* damage",
+    "notes": "",
+    "cost": 600,
+    "weight": null,
+    "equipped": true,
+    "source": "Cyberpunk 2020 2nd ed. pg.86",
+    "surgCode": "M",
+    "humanityCost": "3d6+1",
+    "cyberwareType": "CYBERWEAPON",
+    "cyberwareSubtype": "",
+    "abbrev": "WLV",
+    "humanityLoss": null,
+    "MountZone": "Arm",
+    "EffectMode": "Permanent",
+    "EffectActive": false,
+    "Module": {
+      "IsModule": false,
+      "AllowedParentCyberwareType": "",
+      "SlotsTaken": 0,
+      "ParentId": ""
+    },
+    "CyberBodyType": {
+      "Type": "",
+      "Location": "Left"
+    },
+    "CyberWorkType": {
+      "Type": "Descriptive",
+      "Stat": {},
+      "Skill": {},
+      "Checks": {},
+      "Locations": {},
+      "Encumbrance": 0,
+      "Penalties": {},
+      "Link": "",
+      "ItemId": "",
+      "OptionsAvailable": 0,
+      "SDP": 0,
+      "ChipSkills": {},
+      "ChipActive": false,
+      "Types": [
+        "Weapon"
+      ],
+      "Weapon": {
+        "weaponType": "Melee",
+        "accuracy": null,
+        "concealability": "P",
+        "availability": "common",
+        "ammoType": "",
+        "ammoItemId": "",
+        "damage": "3D6",
+        "rangeDamages": {
+          "pointBlank": "",
+          "close": "",
+          "medium": "",
+          "far": ""
+        },
+        "ap": true,
+        "shotsLeft": 1,
+        "shots": 1,
+        "rof": 1,
+        "reliability": "VeryReliable",
+        "range": 1,
+        "attackType": "Melee",
+        "attackSkill": "Драка"
+      }
+    },
+    "slots": 0,
+    "spaces": 0
+  },
+  "img": "systems/cyberpunk2020/img/implant-icon-1.svg",
+  "folder": null,
+  "flags": {},
+  "_id": "REpTpQ8k1fUiUOzD",
+  "ownership": {
+    "default": 0
+  },
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null
+  },
+  "sort": 0,
+  "_key": "!items!REpTpQ8k1fUiUOzD"
+}

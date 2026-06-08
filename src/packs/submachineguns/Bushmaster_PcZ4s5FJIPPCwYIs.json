@@ -1,0 +1,64 @@
+{
+  "_id": "PcZ4s5FJIPPCwYIs",
+  "name": "Bushmaster",
+  "type": "weapon",
+  "img": "systems/cyberpunk2020/img/weapon-icon.svg",
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "flags": {},
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": {
+      "worldId": "cyberpunk_2020",
+      "uuid": null,
+      "coreVersion": "0.7.9",
+      "systemId": "cyberpunk2020",
+      "systemVersion": "0.2.6"
+    }
+  },
+  "ownership": {
+    "default": 0,
+    "VTdezBIy0FQgKDge": 3
+  },
+  "system": {
+    "flavor": "A bull pup configured SMG designed to be fired one handed. The Bushmaster uses the M-1 6A 1 clip, making it technically closer to an assault rifle than a submachinegun.",
+    "notes": "",
+    "cost": "",
+    "weight": "1",
+    "equipped": true,
+    "source": "Cyberpunk 2020",
+    "weaponType": "SMG",
+    "accuracy": "",
+    "concealability": "ConcealNoHide",
+    "availability": "Rare",
+    "ammoType": "5.56",
+    "ammoItemId": "",
+    "damage": "4d6",
+    "rangeDamages": {
+      "pointBlank": "",
+      "close": "",
+      "medium": "",
+      "far": "",
+      "short": "",
+      "extreme": ""
+    },
+    "ap": false,
+    "shotsLeft": "30",
+    "shots": "30",
+    "rof": "20",
+    "reliability": "Standard",
+    "range": "200",
+    "attackType": "Auto",
+    "attackSkill": "Submachinegun",
+    "name": "Common"
+  },
+  "_key": "!items!PcZ4s5FJIPPCwYIs"
+}

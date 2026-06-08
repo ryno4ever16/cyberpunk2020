@@ -1,0 +1,102 @@
+{
+  "name": "Upgraded Skinweave SP6",
+  "type": "cyberware",
+  "effects": [],
+  "system": {
+    "flavor": "6SP; no ATTR loss; DIFF 30 to spot",
+    "notes": "",
+    "cost": 1000,
+    "weight": null,
+    "equipped": true,
+    "source": "Chromebook 2 pg.9",
+    "surgCode": "N",
+    "humanityCost": "1d6",
+    "cyberwareType": "BIOWARE",
+    "cyberwareSubtype": "SKINWEAVE",
+    "abbrev": "SKW6",
+    "humanityLoss": null,
+    "MountZone": "Torso",
+    "EffectMode": "Permanent",
+    "EffectActive": false,
+    "Module": {
+      "IsModule": false,
+      "AllowedParentCyberwareType": "",
+      "SlotsTaken": 0,
+      "ParentId": ""
+    },
+    "CyberBodyType": {
+      "Type": "",
+      "Location": ""
+    },
+    "CyberWorkType": {
+      "Type": "Descriptive",
+      "Stat": {},
+      "Skill": {},
+      "Checks": {},
+      "Locations": {
+        "Head": 6,
+        "Torso": 6,
+        "lArm": 6,
+        "rArm": 6,
+        "lLeg": 6,
+        "rLeg": 6
+      },
+      "Encumbrance": null,
+      "Penalties": {},
+      "Link": "",
+      "ItemId": "",
+      "OptionsAvailable": 0,
+      "SDP": 0,
+      "ChipSkills": {},
+      "ChipActive": false,
+      "Types": [
+        "Armor"
+      ],
+      "Weapon": {
+        "weaponType": "Pistol",
+        "accuracy": 0,
+        "concealability": "P",
+        "availability": "common",
+        "ammoType": "9mm",
+        "ammoItemId": "",
+        "damage": "2d6+1",
+        "rangeDamages": {
+          "pointBlank": "",
+          "close": "",
+          "medium": "",
+          "far": ""
+        },
+        "ap": false,
+        "shotsLeft": 0,
+        "shots": 0,
+        "rof": 0,
+        "reliability": "ST",
+        "range": 0,
+        "attackType": "",
+        "attackSkill": "ref"
+      }
+    },
+    "slots": 0,
+    "spaces": 0
+  },
+  "img": "systems/cyberpunk2020/img/implant-icon-2.svg",
+  "folder": null,
+  "flags": {},
+  "_id": "IVZjbGFbFgupfelO",
+  "ownership": {
+    "default": 0
+  },
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null
+  },
+  "sort": 0,
+  "_key": "!items!IVZjbGFbFgupfelO"
+}

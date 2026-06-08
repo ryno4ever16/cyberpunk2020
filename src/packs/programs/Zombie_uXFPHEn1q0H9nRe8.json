@@ -1,0 +1,43 @@
+{
+  "_id": "uXFPHEn1q0H9nRe8",
+  "name": "Zombie",
+  "type": "program",
+  "flags": {},
+  "img": "systems/cyberpunk2020/img/program-icon-1.svg",
+  "effects": [],
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": {
+      "worldId": "edgrunners",
+      "uuid": null,
+      "coreVersion": "12.331",
+      "systemId": "cyberpunk2020",
+      "systemVersion": "0.3.12"
+    }
+  },
+  "ownership": {
+    "default": 0
+  },
+  "system": {
+    "flavor": "Lowers the runner’s INT by 1D6 per round, leaving them brain‑dead.",
+    "notes": "",
+    "cost": "7500",
+    "weight": "0",
+    "equipped": true,
+    "source": "",
+    "power": "5",
+    "mu": "4",
+    "programType": "Anti-Personnel",
+    "actionFormula": "1D6"
+  },
+  "folder": null,
+  "sort": 0,
+  "_key": "!items!uXFPHEn1q0H9nRe8"
+}

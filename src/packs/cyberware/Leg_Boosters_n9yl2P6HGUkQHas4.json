@@ -1,0 +1,91 @@
+{
+  "name": "Leg Boosters",
+  "type": "cyberware",
+  "_id": "n9yl2P6HGUkQHas4",
+  "effects": [],
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null
+  },
+  "ownership": {
+    "default": 0
+  },
+  "system": {
+    "flavor": "+3m leaps (2 spaces)",
+    "notes": "",
+    "cost": 500,
+    "weight": 0,
+    "equipped": true,
+    "source": "Chromebook 3 pg.24",
+    "surgCode": "N",
+    "humanityCost": "1d6",
+    "cyberwareType": "CYBERLIMB",
+    "cyberwareSubtype": "OPTION",
+    "abbrev": "LB",
+    "humanityLoss": 0,
+    "MountZone": "",
+    "Module": {
+      "IsModule": false,
+      "AllowedParentCyberwareType": "",
+      "SlotsTaken": 1,
+      "ParentId": ""
+    },
+    "CyberBodyType": {
+      "Type": "",
+      "Location": ""
+    },
+    "CyberWorkType": {
+      "Type": "Descriptive",
+      "Stat": {},
+      "Skill": {},
+      "Checks": {},
+      "Locations": {},
+      "Encumbrance": 0,
+      "Penalties": {},
+      "Link": "",
+      "ItemId": "",
+      "OptionsAvailable": 0,
+      "SDP": 0,
+      "ChipSkills": {},
+      "ChipActive": false,
+      "Types": [],
+      "Weapon": {
+        "weaponType": "Pistol",
+        "accuracy": 0,
+        "concealability": "P",
+        "availability": "common",
+        "ammoType": "9mm",
+        "damage": "2d6+1",
+        "rangeDamages": {
+          "pointBlank": "",
+          "close": "",
+          "medium": "",
+          "far": ""
+        },
+        "ap": false,
+        "shotsLeft": 0,
+        "shots": 0,
+        "rof": 0,
+        "reliability": "ST",
+        "range": 0,
+        "attackType": "",
+        "attackSkill": "ref"
+      }
+    },
+    "slots": 0,
+    "spaces": 1,
+    "flags": {}
+  },
+  "img": "icons/svg/item-bag.svg",
+  "folder": null,
+  "sort": 0,
+  "flags": {},
+  "_key": "!items!n9yl2P6HGUkQHas4"
+}

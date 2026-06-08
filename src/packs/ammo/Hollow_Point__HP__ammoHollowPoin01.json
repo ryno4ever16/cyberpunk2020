@@ -1,0 +1,67 @@
+{
+  "_id": "ammoHollowPoin01",
+  "name": "Hollow-Point (HP)",
+  "type": "ammo",
+  "img": "systems/cyberpunk2020/img/weapon-icon.svg",
+  "system": {
+    "flavor": "",
+    "notes": "Armor counts as 2x SP; penetrating damage x1.5 (Chromebook 1 & 2 / Blackhand's Guide). Devastating vs unarmored, poor vs armor. Cost ~1.125x standard.",
+    "cost": 0,
+    "weight": 0,
+    "equipped": true,
+    "source": "Chromebook 1 & 2",
+    "ammoType": "Hollow-Point",
+    "quantity": 0,
+    "armorMultSoft": 2,
+    "armorMultHard": 2,
+    "rawDamageMult": 1,
+    "penDamageMult": 1.5,
+    "bonusDamageFormula": "",
+    "accuracyMod": 0,
+    "stunSaveOnHit": false,
+    "stunSaveMod": 0,
+    "dotEnabled": false,
+    "dotTurns": 0,
+    "dotDamageFormula": "",
+    "blastRadius": 0,
+    "blastFullDamageWithin": 1,
+    "blastZones": 4,
+    "blastShrapnel": false,
+    "blastMultipliers": [
+      0.5,
+      0.25,
+      0.125,
+      0.0625
+    ],
+    "spreadMode": "single",
+    "spreadDistance": 0,
+    "spreadDamageShort": "",
+    "spreadDamageMedium": "",
+    "spreadDamageLong": "",
+    "spreadWidthShort": 1,
+    "spreadWidthMedium": 2,
+    "spreadWidthLong": 3,
+    "effectTypes": [
+      "CoreMods"
+    ]
+  },
+  "effects": [],
+  "folder": null,
+  "flags": {},
+  "ownership": {
+    "default": 0
+  },
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null
+  },
+  "sort": 0,
+  "_key": "!items!ammoHollowPoin01"
+}

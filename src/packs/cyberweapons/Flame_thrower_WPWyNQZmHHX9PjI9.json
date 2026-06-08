@@ -1,0 +1,95 @@
+{
+  "name": "Flame thrower",
+  "type": "cyberware",
+  "effects": [],
+  "system": {
+    "flavor": "2d6 damage turn 1; 1d6/2 for 2 more turns",
+    "notes": "",
+    "cost": 600,
+    "weight": null,
+    "equipped": true,
+    "source": "Cyberpunk 2020 2nd ed. pg.91",
+    "surgCode": "N",
+    "humanityCost": "2d6",
+    "cyberwareType": "CYBERLIMB",
+    "cyberwareSubtype": "WEAPON",
+    "abbrev": "FTH",
+    "humanityLoss": null,
+    "MountZone": "Arm",
+    "EffectMode": "Permanent",
+    "EffectActive": false,
+    "Module": {
+      "IsModule": true,
+      "AllowedParentCyberwareType": "CyberArm",
+      "SlotsTaken": 1,
+      "ParentId": ""
+    },
+    "CyberBodyType": {
+      "Type": "",
+      "Location": "Left"
+    },
+    "CyberWorkType": {
+      "Type": "Descriptive",
+      "Stat": {},
+      "Skill": {},
+      "Checks": {},
+      "Locations": {},
+      "Encumbrance": 0,
+      "Penalties": {},
+      "Link": "",
+      "ItemId": "",
+      "OptionsAvailable": 0,
+      "SDP": 0,
+      "ChipSkills": {},
+      "ChipActive": false,
+      "Types": [
+        "Weapon"
+      ],
+      "Weapon": {
+        "weaponType": "Heavy",
+        "accuracy": null,
+        "concealability": "P",
+        "availability": "common",
+        "ammoType": "",
+        "ammoItemId": "",
+        "damage": "2d6",
+        "rangeDamages": {
+          "pointBlank": "",
+          "close": "",
+          "medium": "",
+          "far": ""
+        },
+        "ap": false,
+        "shotsLeft": 4,
+        "shots": 4,
+        "rof": 1,
+        "reliability": "Standard",
+        "range": 1,
+        "attackType": "Flamethrow",
+        "attackSkill": "Тяжёлое оружие"
+      }
+    },
+    "slots": 0,
+    "spaces": 0
+  },
+  "img": "systems/cyberpunk2020/img/implant-icon-1.svg",
+  "folder": null,
+  "flags": {},
+  "_id": "WPWyNQZmHHX9PjI9",
+  "ownership": {
+    "default": 0
+  },
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null
+  },
+  "sort": 0,
+  "_key": "!items!WPWyNQZmHHX9PjI9"
+}

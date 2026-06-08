@@ -1,0 +1,43 @@
+{
+  "_id": "60O6npnaAng0L47T",
+  "name": "Jackhammer",
+  "type": "program",
+  "flags": {},
+  "img": "systems/cyberpunk2020/img/program-icon-1.svg",
+  "effects": [],
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": {
+      "worldId": "edgrunners",
+      "uuid": null,
+      "coreVersion": "12.331",
+      "systemId": "cyberpunk2020",
+      "systemVersion": "0.3.12"
+    }
+  },
+  "ownership": {
+    "default": 0
+  },
+  "system": {
+    "flavor": "Drills Data Walls for 1D6 damage per hit, opposed by the Wall’s STR.",
+    "notes": "Jackhammer is a stealthier variant: focused energy pulses chew through a Data Wall for 1D6 damage vs STR per round with half the noise of Hammer.",
+    "cost": "360",
+    "weight": "0",
+    "equipped": true,
+    "source": "",
+    "power": "2",
+    "mu": "2",
+    "programType": "Intrusion",
+    "actionFormula": "1D6"
+  },
+  "folder": null,
+  "sort": 0,
+  "_key": "!items!60O6npnaAng0L47T"
+}

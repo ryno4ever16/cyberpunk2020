@@ -1,0 +1,64 @@
+{
+  "_id": "PaMLMZq5IcJk4hLK",
+  "name": "Ingram MAC 14",
+  "type": "weapon",
+  "img": "systems/cyberpunk2020/img/weapon-icon.svg",
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "flags": {},
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": {
+      "worldId": "cyberpunk_2020",
+      "uuid": null,
+      "coreVersion": "0.7.9",
+      "systemId": "cyberpunk2020",
+      "systemVersion": "0.2.6"
+    }
+  },
+  "ownership": {
+    "default": 0,
+    "VTdezBIy0FQgKDge": 3
+  },
+  "system": {
+    "flavor": "Updated MAC-10, with composite body and cylindrical feeding magazine.",
+    "notes": "",
+    "cost": "650",
+    "weight": "3",
+    "equipped": true,
+    "source": "Cyberpunk 2020",
+    "weaponType": "SMG",
+    "accuracy": "-2",
+    "concealability": "ConcealLongcoat",
+    "availability": "Excellent",
+    "ammoType": "12mm",
+    "ammoItemId": "",
+    "damage": "4D6+1",
+    "rangeDamages": {
+      "pointBlank": "",
+      "close": "",
+      "medium": "",
+      "far": "",
+      "short": "",
+      "extreme": ""
+    },
+    "ap": false,
+    "shotsLeft": "20",
+    "shots": "20",
+    "rof": "10",
+    "reliability": "Standard",
+    "range": "200",
+    "attackType": "Auto",
+    "attackSkill": "Submachinegun",
+    "name": "Common"
+  },
+  "_key": "!items!PaMLMZq5IcJk4hLK"
+}

@@ -1,0 +1,67 @@
+{
+  "_id": "ammoRubberStun01",
+  "name": "Rubber / Stun Rounds",
+  "type": "ammo",
+  "img": "systems/cyberpunk2020/img/weapon-icon.svg",
+  "system": {
+    "flavor": "",
+    "notes": "Less-lethal: halves penetrating damage and forces a Stun Save on any hit (Reference Book: '1/2 Damage, 2x Stun'). The heightened stun effect is represented by always triggering a Stun Save.",
+    "cost": 0,
+    "weight": 0,
+    "equipped": true,
+    "source": "Cyberpunk 2020 / Reference Book",
+    "ammoType": "Rubber",
+    "quantity": 0,
+    "armorMultSoft": 1,
+    "armorMultHard": 1,
+    "rawDamageMult": 1,
+    "penDamageMult": 0.5,
+    "bonusDamageFormula": "",
+    "accuracyMod": 0,
+    "stunSaveOnHit": true,
+    "stunSaveMod": 0,
+    "dotEnabled": false,
+    "dotTurns": 0,
+    "dotDamageFormula": "",
+    "blastRadius": 0,
+    "blastFullDamageWithin": 1,
+    "blastZones": 4,
+    "blastShrapnel": false,
+    "blastMultipliers": [
+      0.5,
+      0.25,
+      0.125,
+      0.0625
+    ],
+    "spreadMode": "single",
+    "spreadDistance": 0,
+    "spreadDamageShort": "",
+    "spreadDamageMedium": "",
+    "spreadDamageLong": "",
+    "spreadWidthShort": 1,
+    "spreadWidthMedium": 2,
+    "spreadWidthLong": 3,
+    "effectTypes": [
+      "Stun"
+    ]
+  },
+  "effects": [],
+  "folder": null,
+  "flags": {},
+  "ownership": {
+    "default": 0
+  },
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null
+  },
+  "sort": 0,
+  "_key": "!items!ammoRubberStun01"
+}

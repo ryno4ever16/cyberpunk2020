@@ -1,0 +1,38 @@
+{
+  "name": "Combat Sense",
+  "type": "skill",
+  "img": "systems/cyberpunk2020/img/skill-icon.svg",
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "flags": {},
+  "_id": "BjBZ8zc7wh52MSwK",
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null
+  },
+  "ownership": {
+    "default": 0,
+    "5FFDbHSYUZjDW27U": 3
+  },
+  "system": {
+    "flavor": "",
+    "notes": "",
+    "level": 0,
+    "chipLevel": 0,
+    "ip": 0,
+    "diffMod": 1,
+    "isChipped": false,
+    "isRoleSkill": true,
+    "stat": "",
+    "askMods": false
+  },
+  "_key": "!items!BjBZ8zc7wh52MSwK"
+}

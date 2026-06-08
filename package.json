@@ -1,0 +1,13 @@
+{
+  "name": "cyberpunk2020-system-tools",
+  "private": true,
+  "type": "module",
+  "description": "Dev tooling for the CP2020 Foundry system: compendium pack source pipeline (Option B).",
+  "scripts": {
+    "unpack": "node tools/unpack.mjs",
+    "pack": "node tools/pack.mjs"
+  },
+  "devDependencies": {
+    "@foundryvtt/foundryvtt-cli": "^1.0.4"
+  }
+}

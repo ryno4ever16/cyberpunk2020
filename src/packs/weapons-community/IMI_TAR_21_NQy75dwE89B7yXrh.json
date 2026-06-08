@@ -1,0 +1,71 @@
+{
+  "name": "IMI TAR-21",
+  "type": "weapon",
+  "img": "systems/cyberpunk2020/img/weapon-icon.svg",
+  "effects": [],
+  "sort": 0,
+  "flags": {},
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": {
+      "worldId": "cyberpunk_2020",
+      "uuid": null,
+      "coreVersion": "0.7.9",
+      "systemId": "cyberpunk2020",
+      "systemVersion": "0.2.6"
+    },
+    "coreVersion": "13.350",
+    "systemId": "cyberpunk2020",
+    "systemVersion": "1.1.1-beta",
+    "createdTime": 1780817898121,
+    "modifiedTime": 1780817898121,
+    "lastModifiedBy": "HAGE0F9Z3ttltmt9"
+  },
+  "ownership": {
+    "default": 0,
+    "VTdezBIy0FQgKDge": 3,
+    "HAGE0F9Z3ttltmt9": 3
+  },
+  "system": {
+    "flavor": "Assault rifle made in Israel",
+    "notes": "",
+    "cost": 800,
+    "weight": 4,
+    "equipped": true,
+    "source": "http://cyberpunk.asia/",
+    "weaponType": "Rifle",
+    "accuracy": 2,
+    "concealability": "",
+    "availability": "undefined",
+    "ammoType": "5.56",
+    "ammoItemId": "",
+    "damage": "4D6",
+    "rangeDamages": {
+      "pointBlank": "",
+      "close": "",
+      "medium": "",
+      "far": "",
+      "short": "",
+      "extreme": ""
+    },
+    "ap": false,
+    "shotsLeft": 30,
+    "shots": 30,
+    "rof": 30,
+    "reliability": "VeryReliable",
+    "range": 400,
+    "attackType": "Auto",
+    "attackSkill": "Rifle",
+    "name": "Common",
+    "fullAutoCapable": true,
+    "burstCapable": true,
+    "lastOwnerId": "",
+    "loadedAmmoId": "",
+    "loadedAmmo": {},
+    "isEdged": false
+  },
+  "_id": "NQy75dwE89B7yXrh",
+  "folder": null,
+  "_key": "!items!NQy75dwE89B7yXrh"
+}

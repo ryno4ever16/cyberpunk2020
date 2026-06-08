@@ -1,0 +1,95 @@
+{
+  "name": "Hydraulic Rams",
+  "type": "cyberware",
+  "effects": [],
+  "system": {
+    "flavor": "30/40 SDP; 3x crush, punch, and kick damage",
+    "notes": "",
+    "cost": 200,
+    "weight": null,
+    "equipped": true,
+    "source": "Cyberpunk 2020 2nd ed. pg.91",
+    "surgCode": "N",
+    "humanityCost": "3",
+    "cyberwareType": "CyberArm",
+    "cyberwareSubtype": "OPTION",
+    "abbrev": "HRAM",
+    "humanityLoss": null,
+    "MountZone": "Arm",
+    "EffectMode": "Permanent",
+    "EffectActive": false,
+    "Module": {
+      "IsModule": true,
+      "AllowedParentCyberwareType": "CyberArm",
+      "SlotsTaken": 1,
+      "ParentId": ""
+    },
+    "CyberBodyType": {
+      "Type": "",
+      "Location": "Left"
+    },
+    "CyberWorkType": {
+      "Type": "Descriptive",
+      "Stat": {},
+      "Skill": {},
+      "Checks": {},
+      "Locations": {},
+      "Encumbrance": 0,
+      "Penalties": {},
+      "Link": "",
+      "ItemId": "",
+      "OptionsAvailable": null,
+      "SDP": 10,
+      "ChipSkills": {},
+      "ChipActive": false,
+      "Types": [
+        "Implant"
+      ],
+      "Weapon": {
+        "weaponType": "Pistol",
+        "accuracy": 0,
+        "concealability": "P",
+        "availability": "common",
+        "ammoType": "9mm",
+        "ammoItemId": "",
+        "damage": "2d6+1",
+        "rangeDamages": {
+          "pointBlank": "",
+          "close": "",
+          "medium": "",
+          "far": ""
+        },
+        "ap": false,
+        "shotsLeft": 0,
+        "shots": 0,
+        "rof": 0,
+        "reliability": "ST",
+        "range": 0,
+        "attackType": "",
+        "attackSkill": "ref"
+      }
+    },
+    "slots": 0,
+    "spaces": 1
+  },
+  "img": "systems/cyberpunk2020/img/implant-icon-2.svg",
+  "folder": null,
+  "flags": {},
+  "_id": "5uMbBVVC6J0Ef4qv",
+  "ownership": {
+    "default": 0
+  },
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null
+  },
+  "sort": 0,
+  "_key": "!items!5uMbBVVC6J0Ef4qv"
+}

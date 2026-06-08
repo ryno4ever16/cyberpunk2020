@@ -1,0 +1,97 @@
+{
+  "name": "Voice Stress Analyzer",
+  "type": "cyberware",
+  "effects": [],
+  "system": {
+    "flavor": "+2 to Human Perception; Interrogation skills",
+    "notes": "",
+    "cost": 200,
+    "weight": null,
+    "equipped": true,
+    "source": "Cyberpunk 2020 2nd ed. pg.88",
+    "surgCode": "N",
+    "humanityCost": "1",
+    "cyberwareType": "CYBERAUDIO",
+    "cyberwareSubtype": "OPTION",
+    "abbrev": "VSA",
+    "humanityLoss": null,
+    "MountZone": "Head",
+    "EffectMode": "Permanent",
+    "EffectActive": false,
+    "Module": {
+      "IsModule": true,
+      "AllowedParentCyberwareType": "CyberAudio",
+      "SlotsTaken": 1,
+      "ParentId": ""
+    },
+    "CyberBodyType": {
+      "Type": "",
+      "Location": ""
+    },
+    "CyberWorkType": {
+      "Type": "Descriptive",
+      "Stat": {},
+      "Skill": {
+        "4ylTN4krm7fhMYJv": 2
+      },
+      "Checks": {},
+      "Locations": {},
+      "Encumbrance": 0,
+      "Penalties": {},
+      "Link": "",
+      "ItemId": "",
+      "OptionsAvailable": 0,
+      "SDP": 0,
+      "ChipSkills": {},
+      "ChipActive": false,
+      "Types": [
+        "Characteristic"
+      ],
+      "Weapon": {
+        "weaponType": "Pistol",
+        "accuracy": 0,
+        "concealability": "P",
+        "availability": "common",
+        "ammoType": "9mm",
+        "ammoItemId": "",
+        "damage": "2d6+1",
+        "rangeDamages": {
+          "pointBlank": "",
+          "close": "",
+          "medium": "",
+          "far": ""
+        },
+        "ap": false,
+        "shotsLeft": 0,
+        "shots": 0,
+        "rof": 0,
+        "reliability": "ST",
+        "range": 0,
+        "attackType": "",
+        "attackSkill": "ref"
+      }
+    },
+    "slots": 0,
+    "spaces": 1
+  },
+  "img": "systems/cyberpunk2020/img/implant-icon-2.svg",
+  "folder": null,
+  "flags": {},
+  "_id": "jgAQuEGsaj8fykCJ",
+  "ownership": {
+    "default": 0
+  },
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null
+  },
+  "sort": 0,
+  "_key": "!items!jgAQuEGsaj8fykCJ"
+}

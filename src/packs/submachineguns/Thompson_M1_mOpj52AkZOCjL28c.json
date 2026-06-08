@@ -1,0 +1,64 @@
+{
+  "_id": "mOpj52AkZOCjL28c",
+  "name": "Thompson M1",
+  "type": "weapon",
+  "img": "systems/cyberpunk2020/img/weapon-icon.svg",
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "flags": {},
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": {
+      "worldId": "cyberpunk_2020",
+      "uuid": null,
+      "coreVersion": "0.7.9",
+      "systemId": "cyberpunk2020",
+      "systemVersion": "0.2.6"
+    }
+  },
+  "ownership": {
+    "default": 0,
+    "VTdezBIy0FQgKDge": 3
+  },
+  "system": {
+    "flavor": "Standard US military SMG during WWII, the Thompson is rugged, reliable and easy to use. The M1928 version, of gangster fame, was less reliable (UR), but could carry a 50 round drum magazine.",
+    "notes": "",
+    "cost": "",
+    "weight": "1",
+    "equipped": true,
+    "source": "Cyberpunk 2020",
+    "weaponType": "SMG",
+    "accuracy": "2",
+    "concealability": "ConcealNoHide",
+    "availability": "Common",
+    "ammoType": ".45",
+    "ammoItemId": "",
+    "damage": "2d6+2",
+    "rangeDamages": {
+      "pointBlank": "",
+      "close": "",
+      "medium": "",
+      "far": "",
+      "short": "",
+      "extreme": ""
+    },
+    "ap": false,
+    "shotsLeft": "30",
+    "shots": "30",
+    "rof": "20",
+    "reliability": "VeryReliable",
+    "range": "200",
+    "attackType": "Auto",
+    "attackSkill": "Submachinegun",
+    "name": "Common"
+  },
+  "_key": "!items!mOpj52AkZOCjL28c"
+}

@@ -1,0 +1,64 @@
+{
+  "_id": "5d4juFywt9NMCYTw",
+  "name": "Avante P-1134 Needlegun",
+  "type": "weapon",
+  "img": "systems/cyberpunk2020/img/weapon-icon.svg",
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "flags": {},
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": {
+      "worldId": "cyberpunk_2020",
+      "uuid": null,
+      "coreVersion": "0.7.9",
+      "systemId": "cyberpunk2020",
+      "systemVersion": "0.2.6"
+    }
+  },
+  "ownership": {
+    "default": 0,
+    "VTdezBIy0FQgKDge": 3
+  },
+  "system": {
+    "flavor": "Lightweight, plastic, compressed air powered. Can be doped with drugs, poison. See FNFF, pg. 107 for details.",
+    "notes": "",
+    "cost": "200",
+    "weight": "0.5",
+    "equipped": true,
+    "source": "Cyberpunk 2020",
+    "weaponType": "Pistol",
+    "accuracy": "1",
+    "concealability": "ConcealPocket",
+    "availability": "Poor",
+    "ammoType": "Needle",
+    "ammoItemId": "",
+    "damage": "Drugs",
+    "rangeDamages": {
+      "pointBlank": "",
+      "close": "",
+      "medium": "",
+      "far": "",
+      "short": "",
+      "extreme": ""
+    },
+    "ap": false,
+    "shotsLeft": "15",
+    "shots": "15",
+    "rof": "2",
+    "reliability": "Standard",
+    "range": "40",
+    "attackType": "Drugs",
+    "attackSkill": "Handgun",
+    "name": "Common"
+  },
+  "_key": "!items!5d4juFywt9NMCYTw"
+}

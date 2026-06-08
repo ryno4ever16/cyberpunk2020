@@ -1,0 +1,67 @@
+{
+  "_id": "ammoIncendiar001",
+  "name": "Incendiary",
+  "type": "ammo",
+  "img": "systems/cyberpunk2020/img/weapon-icon.svg",
+  "system": {
+    "flavor": "",
+    "notes": "Half armor SP, +1d6 damage. RAW also has a chance to ignite the target (about 1d6/2 burning per turn) - apply burning manually; not auto-tracked. (Reference Book)",
+    "cost": 0,
+    "weight": 0,
+    "equipped": true,
+    "source": "Cyberpunk 2020 / Reference Book",
+    "ammoType": "Incendiary",
+    "quantity": 0,
+    "armorMultSoft": 0.5,
+    "armorMultHard": 0.5,
+    "rawDamageMult": 1,
+    "penDamageMult": 1,
+    "bonusDamageFormula": "1d6",
+    "accuracyMod": 0,
+    "stunSaveOnHit": false,
+    "stunSaveMod": 0,
+    "dotEnabled": false,
+    "dotTurns": 0,
+    "dotDamageFormula": "",
+    "blastRadius": 0,
+    "blastFullDamageWithin": 1,
+    "blastZones": 4,
+    "blastShrapnel": false,
+    "blastMultipliers": [
+      0.5,
+      0.25,
+      0.125,
+      0.0625
+    ],
+    "spreadMode": "single",
+    "spreadDistance": 0,
+    "spreadDamageShort": "",
+    "spreadDamageMedium": "",
+    "spreadDamageLong": "",
+    "spreadWidthShort": 1,
+    "spreadWidthMedium": 2,
+    "spreadWidthLong": 3,
+    "effectTypes": [
+      "CoreMods"
+    ]
+  },
+  "effects": [],
+  "folder": null,
+  "flags": {},
+  "ownership": {
+    "default": 0
+  },
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null
+  },
+  "sort": 0,
+  "_key": "!items!ammoIncendiar001"
+}

@@ -1,0 +1,93 @@
+{
+  "name": "Skill Chip",
+  "type": "cyberware",
+  "img": "systems/cyberpunk2020/img/chip.png",
+  "system": {
+    "flavor": "Below, in the Chip section, use the selector to choose the skill you want and set the level you want for it.\n<3",
+    "notes": "",
+    "cost": 200,
+    "weight": null,
+    "equipped": true,
+    "source": "",
+    "surgCode": "N",
+    "humanityCost": "0",
+    "cyberwareType": "",
+    "cyberwareSubtype": "",
+    "abbrev": "CHP",
+    "humanityLoss": null,
+    "MountZone": "Chip",
+    "EffectMode": "Permanent",
+    "EffectActive": false,
+    "Module": {
+      "IsModule": false,
+      "AllowedParentCyberwareType": "",
+      "SlotsTaken": 0,
+      "ParentId": ""
+    },
+    "CyberBodyType": {
+      "Type": "",
+      "Location": ""
+    },
+    "CyberWorkType": {
+      "Type": "Descriptive",
+      "Stat": {},
+      "Skill": {},
+      "Checks": {},
+      "Locations": {},
+      "Encumbrance": 0,
+      "Penalties": {},
+      "Link": "",
+      "ItemId": "",
+      "OptionsAvailable": 0,
+      "SDP": 0,
+      "ChipSkills": {},
+      "ChipActive": true,
+      "Types": [
+        "Chip"
+      ],
+      "Weapon": {
+        "weaponType": "Pistol",
+        "accuracy": 0,
+        "concealability": "P",
+        "availability": "common",
+        "ammoType": "9mm",
+        "ammoItemId": "",
+        "damage": "2d6+1",
+        "rangeDamages": {
+          "pointBlank": "",
+          "close": "",
+          "medium": "",
+          "far": ""
+        },
+        "ap": false,
+        "shotsLeft": 0,
+        "shots": 0,
+        "rof": 0,
+        "reliability": "ST",
+        "range": 0,
+        "attackType": "",
+        "attackSkill": "ref"
+      }
+    }
+  },
+  "effects": [],
+  "folder": null,
+  "flags": {},
+  "_id": "kCDPboVRFehKqSvM",
+  "ownership": {
+    "default": 0
+  },
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null
+  },
+  "sort": 0,
+  "_key": "!items!kCDPboVRFehKqSvM"
+}

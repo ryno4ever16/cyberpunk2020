@@ -1,0 +1,188 @@
+{
+  "name": "Default Hit Locations",
+  "flags": {
+    "core": {}
+  },
+  "img": "icons/svg/d20-grey.svg",
+  "description": "",
+  "results": [
+    {
+      "_id": "c5Y41xyoy4FwfntK",
+      "flags": {},
+      "type": "text",
+      "img": "icons/svg/mystery-man-black.svg",
+      "weight": 1,
+      "range": [
+        1,
+        1
+      ],
+      "drawn": false,
+      "_stats": {
+        "coreVersion": "13.350",
+        "systemId": null,
+        "systemVersion": null,
+        "createdTime": null,
+        "modifiedTime": null,
+        "lastModifiedBy": null,
+        "compendiumSource": null,
+        "duplicateSource": null,
+        "exportSource": null
+      },
+      "description": "Head",
+      "name": "",
+      "_key": "!tables.results!ATaYtvCkuCwrAd9p.c5Y41xyoy4FwfntK"
+    },
+    {
+      "_id": "AcscmaSHqaieAyom",
+      "flags": {},
+      "type": "text",
+      "img": "icons/svg/statue.svg",
+      "weight": 1,
+      "range": [
+        2,
+        4
+      ],
+      "drawn": false,
+      "_stats": {
+        "coreVersion": "13.350",
+        "systemId": null,
+        "systemVersion": null,
+        "createdTime": null,
+        "modifiedTime": null,
+        "lastModifiedBy": null,
+        "compendiumSource": null,
+        "duplicateSource": null,
+        "exportSource": null
+      },
+      "description": "Torso",
+      "name": "",
+      "_key": "!tables.results!ATaYtvCkuCwrAd9p.AcscmaSHqaieAyom"
+    },
+    {
+      "_id": "HFfVhU8Kfw9552Ii",
+      "flags": {},
+      "type": "text",
+      "img": "icons/svg/d20-black.svg",
+      "weight": 1,
+      "range": [
+        5,
+        5
+      ],
+      "drawn": false,
+      "_stats": {
+        "coreVersion": "13.350",
+        "systemId": null,
+        "systemVersion": null,
+        "createdTime": null,
+        "modifiedTime": null,
+        "lastModifiedBy": null,
+        "compendiumSource": null,
+        "duplicateSource": null,
+        "exportSource": null
+      },
+      "description": "RightArm",
+      "name": "",
+      "_key": "!tables.results!ATaYtvCkuCwrAd9p.HFfVhU8Kfw9552Ii"
+    },
+    {
+      "_id": "hpd86YumXtjLbZn2",
+      "flags": {},
+      "type": "text",
+      "img": "icons/svg/d20-black.svg",
+      "weight": 1,
+      "range": [
+        6,
+        6
+      ],
+      "drawn": false,
+      "_stats": {
+        "coreVersion": "13.350",
+        "systemId": null,
+        "systemVersion": null,
+        "createdTime": null,
+        "modifiedTime": null,
+        "lastModifiedBy": null,
+        "compendiumSource": null,
+        "duplicateSource": null,
+        "exportSource": null
+      },
+      "description": "LeftArm",
+      "name": "",
+      "_key": "!tables.results!ATaYtvCkuCwrAd9p.hpd86YumXtjLbZn2"
+    },
+    {
+      "_id": "rOw92OVJpC40jGQg",
+      "flags": {},
+      "type": "text",
+      "img": "icons/svg/d20-black.svg",
+      "weight": 1,
+      "range": [
+        7,
+        8
+      ],
+      "drawn": false,
+      "_stats": {
+        "coreVersion": "13.350",
+        "systemId": null,
+        "systemVersion": null,
+        "createdTime": null,
+        "modifiedTime": null,
+        "lastModifiedBy": null,
+        "compendiumSource": null,
+        "duplicateSource": null,
+        "exportSource": null
+      },
+      "description": "RightLeg",
+      "name": "",
+      "_key": "!tables.results!ATaYtvCkuCwrAd9p.rOw92OVJpC40jGQg"
+    },
+    {
+      "_id": "xJubE1y8fETLm7JD",
+      "flags": {},
+      "type": "text",
+      "img": "icons/svg/d20-black.svg",
+      "weight": 1,
+      "range": [
+        9,
+        10
+      ],
+      "drawn": false,
+      "_stats": {
+        "coreVersion": "13.350",
+        "systemId": null,
+        "systemVersion": null,
+        "createdTime": null,
+        "modifiedTime": null,
+        "lastModifiedBy": null,
+        "compendiumSource": null,
+        "duplicateSource": null,
+        "exportSource": null
+      },
+      "description": "LeftLeg",
+      "name": "",
+      "_key": "!tables.results!ATaYtvCkuCwrAd9p.xJubE1y8fETLm7JD"
+    }
+  ],
+  "formula": "1d10",
+  "replacement": true,
+  "displayRoll": false,
+  "_id": "ATaYtvCkuCwrAd9p",
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": "RollTable.3lIU4etwc84HJmkA",
+    "duplicateSource": null,
+    "exportSource": null
+  },
+  "ownership": {
+    "default": 0,
+    "zh6bBlh6Yr7jaxT9": 3
+  },
+  "folder": null,
+  "sort": 0,
+  "_key": "!tables!ATaYtvCkuCwrAd9p"
+}

@@ -1,0 +1,63 @@
+{
+  "_id": "1FbArxKUBiR0VUPY",
+  "name": "Stein & Wasserman Bi-Power Handcannon",
+  "type": "weapon",
+  "img": "systems/cyberpunk2020/img/weapon-icon.svg",
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "flags": {},
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": {
+      "worldId": "cyberpunk_2020",
+      "uuid": null,
+      "coreVersion": "0.7.9",
+      "systemId": "cyberpunk2020",
+      "systemVersion": "0.2.6"
+    }
+  },
+  "ownership": {
+    "default": 0,
+    "VTdezBIy0FQgKDge": 3
+  },
+  "system": {
+    "flavor": "Combined gun made in Germany",
+    "notes": "",
+    "cost": "850",
+    "weight": "1",
+    "equipped": true,
+    "source": "Solo of Fortune 2",
+    "weaponType": "Pistol",
+    "accuracy": "1",
+    "concealability": "",
+    "availability": "undefined",
+    "ammoType": ".45 ACP",
+    "damage": "2D6+2",
+    "rangeDamages": {
+      "pointBlank": "",
+      "close": "",
+      "medium": "",
+      "far": "",
+      "short": "",
+      "extreme": ""
+    },
+    "ap": false,
+    "shotsLeft": "10",
+    "shots": "10",
+    "rof": "2",
+    "reliability": "standard",
+    "range": "50",
+    "attackType": "Auto",
+    "attackSkill": "Handgun",
+    "name": "Common"
+  },
+  "_key": "!items!1FbArxKUBiR0VUPY"
+}

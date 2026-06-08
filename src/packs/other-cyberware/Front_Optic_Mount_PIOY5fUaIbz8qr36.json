@@ -1,0 +1,98 @@
+{
+  "name": "Front Optic Mount",
+  "type": "cyberware",
+  "effects": [],
+  "system": {
+    "flavor": "Allows up to 5 optics to be mounted. -1 ATTR",
+    "notes": "",
+    "cost": 1000,
+    "weight": null,
+    "equipped": true,
+    "source": "Cyberpunk 2020 2nd ed. pg.93",
+    "surgCode": "MA",
+    "humanityCost": "4d6",
+    "cyberwareType": "CyberOptic",
+    "cyberwareSubtype": "OPTION",
+    "abbrev": "FOM",
+    "humanityLoss": null,
+    "MountZone": "Head",
+    "EffectMode": "Permanent",
+    "EffectActive": false,
+    "Module": {
+      "IsModule": false,
+      "AllowedParentCyberwareType": "",
+      "SlotsTaken": 0,
+      "ParentId": ""
+    },
+    "CyberBodyType": {
+      "Type": "Head",
+      "Location": ""
+    },
+    "CyberWorkType": {
+      "Type": "Descriptive",
+      "Stat": {},
+      "Skill": {},
+      "Checks": {},
+      "Locations": {},
+      "Encumbrance": null,
+      "Penalties": {
+        "attr": 1
+      },
+      "Link": "",
+      "ItemId": "",
+      "OptionsAvailable": 5,
+      "SDP": null,
+      "ChipSkills": {},
+      "ChipActive": false,
+      "Types": [
+        "Armor",
+        "Implant"
+      ],
+      "Weapon": {
+        "weaponType": "Pistol",
+        "accuracy": 0,
+        "concealability": "P",
+        "availability": "common",
+        "ammoType": "9mm",
+        "ammoItemId": "",
+        "damage": "2d6+1",
+        "rangeDamages": {
+          "pointBlank": "",
+          "close": "",
+          "medium": "",
+          "far": ""
+        },
+        "ap": false,
+        "shotsLeft": 0,
+        "shots": 0,
+        "rof": 0,
+        "reliability": "ST",
+        "range": 0,
+        "attackType": "",
+        "attackSkill": "ref"
+      }
+    },
+    "slots": 0,
+    "spaces": 1
+  },
+  "img": "systems/cyberpunk2020/img/implant-icon-2.svg",
+  "folder": null,
+  "flags": {},
+  "_id": "PIOY5fUaIbz8qr36",
+  "ownership": {
+    "default": 0
+  },
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null
+  },
+  "sort": 0,
+  "_key": "!items!PIOY5fUaIbz8qr36"
+}

@@ -1,0 +1,41 @@
+{
+  "_id": "q8dHQsSRm0nSXOBo",
+  "name": "Linozap",
+  "type": "misc",
+  "flags": {},
+  "img": "icons/svg/mystery-man.svg",
+  "effects": [],
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": {
+      "worldId": "cyberpunk_2020",
+      "uuid": null,
+      "coreVersion": "0.7.9",
+      "systemId": "cyberpunk2020",
+      "systemVersion": "0.2.6"
+    }
+  },
+  "ownership": {
+    "default": 0,
+    "VTdezBIy0FQgKDge": 3
+  },
+  "system": {
+    "flavor": "Section: Electronics. ETC. p.4 – 50KV to kill any listening device",
+    "notes": "",
+    "cost": "350",
+    "weight": "0",
+    "equipped": true,
+    "source": "Chromebook I",
+    "name": "Common"
+  },
+  "folder": null,
+  "sort": 0,
+  "_key": "!items!q8dHQsSRm0nSXOBo"
+}

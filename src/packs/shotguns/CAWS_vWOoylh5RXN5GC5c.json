@@ -1,0 +1,64 @@
+{
+  "_id": "vWOoylh5RXN5GC5c",
+  "name": "CAWS",
+  "type": "weapon",
+  "img": "systems/cyberpunk2020/img/weapon-icon.svg",
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "flags": {},
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": {
+      "worldId": "cyberpunk_2020",
+      "uuid": null,
+      "coreVersion": "0.7.9",
+      "systemId": "cyberpunk2020",
+      "systemVersion": "0.2.6"
+    }
+  },
+  "ownership": {
+    "default": 0,
+    "VTdezBIy0FQgKDge": 3
+  },
+  "system": {
+    "flavor": "Close in Assault Weapon, designed for house to house work, crowd suppression. Scope is built in, making it very accurate for type.",
+    "notes": "",
+    "cost": "",
+    "weight": "2",
+    "equipped": true,
+    "source": "Cyberpunk 2020",
+    "weaponType": "Shotgun",
+    "accuracy": "",
+    "concealability": "ConcealNoHide",
+    "availability": "Common",
+    "ammoType": "00",
+    "ammoItemId": "",
+    "damage": "4d6",
+    "rangeDamages": {
+      "pointBlank": "",
+      "close": "",
+      "medium": "",
+      "far": "",
+      "short": "",
+      "extreme": ""
+    },
+    "ap": false,
+    "shotsLeft": "10",
+    "shots": "10",
+    "rof": "10",
+    "reliability": "Standard",
+    "range": "50",
+    "attackType": "Shotgun",
+    "attackSkill": "Rifle",
+    "name": "Common"
+  },
+  "_key": "!items!vWOoylh5RXN5GC5c"
+}

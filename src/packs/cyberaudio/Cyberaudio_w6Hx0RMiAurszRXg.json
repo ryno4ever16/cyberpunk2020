@@ -1,0 +1,95 @@
+{
+  "name": "Cyberaudio",
+  "type": "cyberware",
+  "effects": [],
+  "system": {
+    "flavor": "Basic hearing module (6 option spaces)",
+    "notes": "",
+    "cost": 500,
+    "weight": null,
+    "equipped": true,
+    "source": "Cyberpunk 2020 2nd ed. pg.87",
+    "surgCode": "M",
+    "humanityCost": "2d6",
+    "cyberwareType": "CyberAudio",
+    "cyberwareSubtype": "",
+    "abbrev": "CA",
+    "humanityLoss": null,
+    "MountZone": "Head",
+    "EffectMode": "Permanent",
+    "EffectActive": false,
+    "Module": {
+      "IsModule": false,
+      "AllowedParentCyberwareType": "",
+      "SlotsTaken": 0,
+      "ParentId": ""
+    },
+    "CyberBodyType": {
+      "Type": "Head",
+      "Location": ""
+    },
+    "CyberWorkType": {
+      "Type": "Descriptive",
+      "Stat": {},
+      "Skill": {},
+      "Checks": {},
+      "Locations": {},
+      "Encumbrance": 0,
+      "Penalties": {},
+      "Link": "",
+      "ItemId": "",
+      "OptionsAvailable": 6,
+      "SDP": null,
+      "ChipSkills": {},
+      "ChipActive": false,
+      "Types": [
+        "Implant"
+      ],
+      "Weapon": {
+        "weaponType": "Pistol",
+        "accuracy": 0,
+        "concealability": "P",
+        "availability": "common",
+        "ammoType": "9mm",
+        "ammoItemId": "",
+        "damage": "2d6+1",
+        "rangeDamages": {
+          "pointBlank": "",
+          "close": "",
+          "medium": "",
+          "far": ""
+        },
+        "ap": false,
+        "shotsLeft": 0,
+        "shots": 0,
+        "rof": 0,
+        "reliability": "ST",
+        "range": 0,
+        "attackType": "",
+        "attackSkill": "ref"
+      }
+    },
+    "slots": 6,
+    "spaces": 0
+  },
+  "img": "systems/cyberpunk2020/img/implant-icon-2.svg",
+  "folder": null,
+  "flags": {},
+  "_id": "w6Hx0RMiAurszRXg",
+  "ownership": {
+    "default": 0
+  },
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null
+  },
+  "sort": 0,
+  "_key": "!items!w6Hx0RMiAurszRXg"
+}

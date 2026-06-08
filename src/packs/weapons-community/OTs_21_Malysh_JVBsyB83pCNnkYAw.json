@@ -1,0 +1,71 @@
+{
+  "name": "OTs-21 Malysh",
+  "type": "weapon",
+  "img": "systems/cyberpunk2020/img/weapon-icon.svg",
+  "effects": [],
+  "sort": 0,
+  "flags": {},
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": {
+      "worldId": "cyberpunk_2020",
+      "uuid": null,
+      "coreVersion": "0.7.9",
+      "systemId": "cyberpunk2020",
+      "systemVersion": "0.2.6"
+    },
+    "coreVersion": "13.350",
+    "systemId": "cyberpunk2020",
+    "systemVersion": "1.1.1-beta",
+    "createdTime": 1780817894250,
+    "modifiedTime": 1780817894250,
+    "lastModifiedBy": "HAGE0F9Z3ttltmt9"
+  },
+  "ownership": {
+    "default": 0,
+    "VTdezBIy0FQgKDge": 3,
+    "HAGE0F9Z3ttltmt9": 3
+  },
+  "system": {
+    "flavor": "Light semi-auto pistol made in Russia",
+    "notes": "",
+    "cost": 85,
+    "weight": 0.75,
+    "equipped": true,
+    "source": "http://cyberpunk.asia/",
+    "weaponType": "Pistol",
+    "accuracy": -1,
+    "concealability": "",
+    "availability": "undefined",
+    "ammoType": "9 mm M",
+    "ammoItemId": "",
+    "damage": "1D6+3",
+    "rangeDamages": {
+      "pointBlank": "",
+      "close": "",
+      "medium": "",
+      "far": "",
+      "short": "",
+      "extreme": ""
+    },
+    "ap": false,
+    "shotsLeft": 5,
+    "shots": 5,
+    "rof": 2,
+    "reliability": "standard",
+    "range": 25,
+    "attackType": "Auto",
+    "attackSkill": "Handgun",
+    "name": "Common",
+    "fullAutoCapable": true,
+    "burstCapable": true,
+    "lastOwnerId": "",
+    "loadedAmmoId": "",
+    "loadedAmmo": {},
+    "isEdged": false
+  },
+  "_id": "JVBsyB83pCNnkYAw",
+  "folder": null,
+  "_key": "!items!JVBsyB83pCNnkYAw"
+}

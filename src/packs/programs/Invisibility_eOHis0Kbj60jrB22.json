@@ -1,0 +1,43 @@
+{
+  "_id": "eOHis0Kbj60jrB22",
+  "name": "Invisibility",
+  "type": "program",
+  "flags": {},
+  "img": "systems/cyberpunk2020/img/program-icon-1.svg",
+  "effects": [],
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": {
+      "worldId": "edgrunners",
+      "uuid": null,
+      "coreVersion": "12.331",
+      "systemId": "cyberpunk2020",
+      "systemVersion": "0.3.12"
+    }
+  },
+  "ownership": {
+    "default": 0
+  },
+  "system": {
+    "flavor": "Masks your cyber‑signature, turning you effectively invisible to sweeps.",
+    "notes": "",
+    "cost": "300",
+    "weight": "0",
+    "equipped": true,
+    "source": "",
+    "power": "3",
+    "mu": "1",
+    "programType": "Stealth",
+    "actionFormula": ""
+  },
+  "folder": null,
+  "sort": 0,
+  "_key": "!items!eOHis0Kbj60jrB22"
+}

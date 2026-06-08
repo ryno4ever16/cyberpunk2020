@@ -1,0 +1,91 @@
+{
+  "folder": null,
+  "name": "Thermograph sensor",
+  "type": "cyberware",
+  "img": "systems/cyberpunk2020/img/implant-icon-2.svg",
+  "system": {
+    "flavor": "See heat patterns, temperature readings",
+    "notes": "",
+    "cost": 200,
+    "weight": null,
+    "equipped": true,
+    "source": "Cyberpunk 2020 2nd ed. pg.87",
+    "surgCode": "N",
+    "humanityCost": "1",
+    "cyberwareType": "",
+    "cyberwareSubtype": "",
+    "abbrev": "TH",
+    "humanityLoss": null,
+    "MountZone": "Head",
+    "EffectMode": "Permanent",
+    "EffectActive": false,
+    "Module": {
+      "IsModule": true,
+      "AllowedParentCyberwareType": "CyberOptic",
+      "SlotsTaken": 1,
+      "ParentId": ""
+    },
+    "CyberBodyType": {
+      "Type": "",
+      "Location": ""
+    },
+    "CyberWorkType": {
+      "Type": "Descriptive",
+      "Stat": {},
+      "Skill": {},
+      "Checks": {},
+      "Locations": {},
+      "Encumbrance": 0,
+      "Penalties": {},
+      "Link": "",
+      "ItemId": "",
+      "OptionsAvailable": 0,
+      "SDP": 0,
+      "ChipSkills": {},
+      "ChipActive": false,
+      "Types": [],
+      "Weapon": {
+        "weaponType": "Pistol",
+        "accuracy": 0,
+        "concealability": "P",
+        "availability": "common",
+        "ammoType": "9mm",
+        "ammoItemId": "",
+        "damage": "2d6+1",
+        "rangeDamages": {
+          "pointBlank": "",
+          "close": "",
+          "medium": "",
+          "far": ""
+        },
+        "ap": false,
+        "shotsLeft": 0,
+        "shots": 0,
+        "rof": 0,
+        "reliability": "ST",
+        "range": 0,
+        "attackType": "",
+        "attackSkill": "ref"
+      }
+    }
+  },
+  "effects": [],
+  "flags": {},
+  "_id": "yOFBoZ9tV3czAW2B",
+  "ownership": {
+    "default": 0
+  },
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null
+  },
+  "sort": 0,
+  "_key": "!items!yOFBoZ9tV3czAW2B"
+}

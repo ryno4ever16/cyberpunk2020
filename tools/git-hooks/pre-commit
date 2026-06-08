@@ -1,0 +1,30 @@
+#!/bin/sh
+# Guard: block accidental commit of hardcoded server addresses or test credentials.
+# Use environment variables instead (FVTT_URL / FVTT_PASSWORD). See tests/helpers/accounts.js.
+# Bypass for a genuine false positive: git commit --no-verify
+#
+# Active via: git config core.hooksPath tools/git-hooks   (already set on this machine)
+# NOTE: this hook's own directory is excluded from the scan so its detection patterns
+# don't self-match, and the password literal is assembled rather than written verbatim.
+
+added=$(git diff --cached -U0 --no-color -- . ':(exclude)tools/git-hooks/' | grep '^+' | grep -v '^+++')
+viol=""
+
+# Any IPv4 literal that isn't loopback / unspecified (this also catches the old leaked server IP).
+ips=$(printf '%s\n' "$added" | grep -Eo '([0-9]{1,3}\.){3}[0-9]{1,3}' \
+        | grep -Ev '^(127\.0\.0\.1|0\.0\.0\.0|255\.255\.255\.255)$')
+[ -n "$ips" ] && viol="hardcoded IP address: $(printf '%s' "$ips" | tr '\n' ' ')"
+
+# Old test-world password (assembled so this file doesn't itself contain the literal).
+pw="Bug""Tester"
+printf '%s\n' "$added" | grep -q "$pw" && viol="test-world password"
+
+if [ -n "$viol" ]; then
+  echo "" >&2
+  echo "COMMIT BLOCKED by pre-commit guard: $viol" >&2
+  echo "Do not hardcode server addresses or passwords. Read them from env vars" >&2
+  echo "(FVTT_URL / FVTT_PASSWORD). If this is a genuine false positive: git commit --no-verify" >&2
+  echo "" >&2
+  exit 1
+fi
+exit 0
