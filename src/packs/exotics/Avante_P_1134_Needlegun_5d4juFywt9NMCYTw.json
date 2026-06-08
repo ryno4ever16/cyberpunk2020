@@ -1,6 +1,6 @@
 {
   "_id": "5d4juFywt9NMCYTw",
-  "name": "Avante P-1134 Needlegun",
+  "name": "Avante P-1135 Needlegun",
   "type": "weapon",
   "img": "systems/cyberpunk2020/img/weapon-icon.svg",
   "effects": [],
@@ -34,9 +34,9 @@
     "cost": "200",
     "weight": "0.5",
     "equipped": true,
-    "source": "Cyberpunk 2020",
+    "source": "Cyberpunk 2020 p.63",
     "weaponType": "Pistol",
-    "accuracy": "1",
+    "accuracy": "0",
     "concealability": "ConcealPocket",
     "availability": "Poor",
     "ammoType": "Needle",
@@ -57,8 +57,7 @@
     "reliability": "Standard",
     "range": "40",
     "attackType": "Drugs",
-    "attackSkill": "Handgun",
-    "name": "Common"
+    "attackSkill": "Handgun"
   },
   "_key": "!items!5d4juFywt9NMCYTw"
 }

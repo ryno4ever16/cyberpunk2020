@@ -34,9 +34,9 @@
     "cost": "8000",
     "weight": "4",
     "equipped": true,
-    "source": "Cyberpunk 2020",
+    "source": "Cyberpunk 2020 p.63",
     "weaponType": "Rifle",
-    "accuracy": "1",
+    "accuracy": "0",
     "concealability": "ConcealNoHide",
     "availability": "Rare",
     "ammoType": "Special",
@@ -57,8 +57,7 @@
     "reliability": "Unreliable",
     "range": "200",
     "attackType": "Laser",
-    "attackSkill": "Rifle",
-    "name": "Common"
+    "attackSkill": "Rifle"
   },
   "_key": "!items!4AdEzzSAr2oUZPYn"
 }

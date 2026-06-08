@@ -5,10 +5,10 @@
   "system": {
     "flavor": "Good for 10 to 25 minutes",
     "notes": "",
-    "cost": 300,
+    "cost": "400",
     "weight": null,
     "equipped": true,
-    "source": "Cyberpunk 2020 2nd ed. pg.84",
+    "source": "Cyberpunk 2020 p.84",
     "surgCode": "MA",
     "humanityCost": "2d6",
     "cyberwareType": "IMPLANT",

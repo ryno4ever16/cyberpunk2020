@@ -31,10 +31,10 @@
   "system": {
     "flavor": "Standard US military SMG during WWII, the Thompson is rugged, reliable and easy to use. The M1928 version, of gangster fame, was less reliable (UR), but could carry a 50 round drum magazine.",
     "notes": "",
-    "cost": "",
+    "cost": "200",
     "weight": "1",
     "equipped": true,
-    "source": "Cyberpunk 2020",
+    "source": "Cyberpunk 2020 p.66",
     "weaponType": "SMG",
     "accuracy": "2",
     "concealability": "ConcealNoHide",
@@ -57,8 +57,7 @@
     "reliability": "VeryReliable",
     "range": "200",
     "attackType": "Auto",
-    "attackSkill": "Submachinegun",
-    "name": "Common"
+    "attackSkill": "Submachinegun"
   },
   "_key": "!items!mOpj52AkZOCjL28c"
 }

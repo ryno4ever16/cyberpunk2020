@@ -29,11 +29,10 @@
   "system": {
     "flavor": "Section: Personal Electronics .p.69",
     "notes": "",
-    "cost": 150,
+    "cost": "20",
     "weight": 0,
     "equipped": true,
-    "source": "Cyberpunk2020",
-    "name": "Common"
+    "source": "Cyberpunk 2020 p.69"
   },
   "folder": null,
   "sort": 0,

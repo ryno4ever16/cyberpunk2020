@@ -34,9 +34,9 @@
     "cost": "700",
     "weight": "3",
     "equipped": true,
-    "source": "Cyberpunk 2020",
+    "source": "Cyberpunk 2020 p.62",
     "weaponType": "SMG",
-    "accuracy": "",
+    "accuracy": "0",
     "concealability": "ConcealLongcoat",
     "availability": "Common",
     "ammoType": "12mm",
@@ -57,8 +57,7 @@
     "reliability": "Standard",
     "range": "200",
     "attackType": "Auto",
-    "attackSkill": "Submachinegun",
-    "name": "Common"
+    "attackSkill": "Submachinegun"
   },
   "_key": "!items!Y5Y4fkvE0YWeS5M8"
 }

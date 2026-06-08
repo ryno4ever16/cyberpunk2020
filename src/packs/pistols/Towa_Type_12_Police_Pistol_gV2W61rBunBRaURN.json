@@ -53,11 +53,10 @@
     "shotsLeft": "8",
     "shots": "8",
     "rof": "2",
-    "reliability": "very reliable",
+    "reliability": "VeryReliable",
     "range": "50",
     "attackType": "Auto",
-    "attackSkill": "Handgun",
-    "name": "Common"
+    "attackSkill": "Handgun"
   },
   "_key": "!items!gV2W61rBunBRaURN"
 }

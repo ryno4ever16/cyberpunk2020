@@ -5,10 +5,10 @@
   "system": {
     "flavor": "Shoots up to 20 images (2 spaces)",
     "notes": "",
-    "cost": 300,
+    "cost": "200",
     "weight": null,
     "equipped": true,
-    "source": "Cyberpunk 2020 2nd ed. pg.87",
+    "source": "Cyberpunk 2020 p.87",
     "surgCode": "N",
     "humanityCost": "0.5",
     "cyberwareType": "CYBEROPTIC",

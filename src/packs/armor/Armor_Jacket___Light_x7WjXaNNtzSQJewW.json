@@ -32,7 +32,7 @@
     "cost": "150",
     "weight": "0",
     "equipped": true,
-    "source": "undefined",
+    "source": "Cyberpunk 2020 p.66",
     "coverage": {
       "Head": {
         "stoppingPower": "0",
@@ -59,8 +59,7 @@
         "ablation": 0
       }
     },
-    "encumbrance": "0",
-    "name": "Common"
+    "encumbrance": "0"
   },
   "folder": null,
   "sort": 0,

@@ -31,10 +31,10 @@
   "system": {
     "flavor": "A very small SMG used by covert units and terrorists. It can be easily silenced. However, its very large ammo size makes it very difficult to control when on full auto.",
     "notes": "",
-    "cost": "",
+    "cost": "200",
     "weight": "1",
     "equipped": true,
-    "source": "Cyberpunk 2020",
+    "source": "Cyberpunk 2020 p.66",
     "weaponType": "SMG",
     "accuracy": "-1",
     "concealability": "ConcealJacket",
@@ -57,8 +57,7 @@
     "reliability": "Unreliable",
     "range": "200",
     "attackType": "Auto",
-    "attackSkill": "Submachinegun",
-    "name": "Common"
+    "attackSkill": "Submachinegun"
   },
   "_key": "!items!RhzsWiWK6KJwZ17m"
 }

@@ -57,8 +57,7 @@
     "reliability": "Unreliable",
     "range": "25",
     "attackType": "Shotgun",
-    "attackSkill": "Rifle",
-    "name": "Common"
+    "attackSkill": "Rifle"
   },
   "_key": "!items!KFIIiRqcfb3R8dN0"
 }

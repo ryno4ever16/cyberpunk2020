@@ -34,9 +34,9 @@
     "cost": "150",
     "weight": "3",
     "equipped": true,
-    "source": "Cyberpunk 2020",
+    "source": "Cyberpunk 2020 p.63",
     "weaponType": "Exotic",
-    "accuracy": "1",
+    "accuracy": "0",
     "concealability": "ConcealNoHide",
     "availability": "Common",
     "ammoType": "NA",
@@ -57,8 +57,7 @@
     "reliability": "VeryReliable",
     "range": "150",
     "attackType": "Archer",
-    "attackSkill": "Archery",
-    "name": "Common"
+    "attackSkill": "Archery"
   },
   "_key": "!items!wOxrlZlz79WpiWqI"
 }

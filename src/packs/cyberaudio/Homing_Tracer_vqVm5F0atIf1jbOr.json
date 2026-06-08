@@ -5,10 +5,10 @@
   "system": {
     "flavor": "Can follow tracer up to 1km distant",
     "notes": "",
-    "cost": 200,
+    "cost": "100",
     "weight": null,
     "equipped": true,
-    "source": "Cyberpunk 2020 2nd ed. pg.88",
+    "source": "Cyberpunk 2020 p.88",
     "surgCode": "N",
     "humanityCost": "0.5",
     "cyberwareType": "CYBERAUDIO",

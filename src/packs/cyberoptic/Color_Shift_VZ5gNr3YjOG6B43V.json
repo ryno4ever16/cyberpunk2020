@@ -5,10 +5,10 @@
   "system": {
     "flavor": "Allows color changes; special fashion effects",
     "notes": "",
-    "cost": 300,
+    "cost": "100",
     "weight": null,
     "equipped": true,
-    "source": "Cyberpunk 2020 2nd ed. pg.86",
+    "source": "Cyberpunk 2020 p.86",
     "surgCode": "N",
     "humanityCost": "0.5",
     "cyberwareType": "CYBEROPTIC",

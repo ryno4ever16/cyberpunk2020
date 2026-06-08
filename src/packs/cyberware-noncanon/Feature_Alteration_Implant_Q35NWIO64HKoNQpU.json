@@ -23,7 +23,7 @@
     "cost": 3500,
     "weight": 0,
     "equipped": true,
-    "source": "When Gravity Fails pg.60",
+    "source": "When Gravity Fails p.60",
     "surgCode": "N",
     "humanityCost": "1d6+1",
     "cyberwareType": "IMPLANT",

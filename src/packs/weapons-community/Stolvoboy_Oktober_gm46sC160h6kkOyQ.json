@@ -57,7 +57,6 @@
     "range": 700,
     "attackType": "Auto",
     "attackSkill": "Rifle",
-    "name": "Common",
     "fullAutoCapable": true,
     "burstCapable": true,
     "lastOwnerId": "",

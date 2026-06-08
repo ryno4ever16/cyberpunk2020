@@ -57,8 +57,7 @@
     "reliability": "Standard",
     "range": "400",
     "attackType": "Auto",
-    "attackSkill": "Rifle",
-    "name": "Common"
+    "attackSkill": "Rifle"
   },
   "_key": "!items!uw1wXiIiSZbR1c7U"
 }

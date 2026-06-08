@@ -29,11 +29,10 @@
   "system": {
     "flavor": "Section:Security p.70 - Pack Contains 12 Plastic LockingStrips",
     "notes": "",
-    "cost": "100",
+    "cost": "10",
     "weight": "0",
     "equipped": true,
-    "source": "Cyberpunk2020",
-    "name": "Common"
+    "source": "Cyberpunk 2020 p.70"
   },
   "folder": null,
   "sort": 0,

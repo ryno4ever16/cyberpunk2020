@@ -23,7 +23,7 @@
     "cost": 700,
     "weight": 0,
     "equipped": true,
-    "source": "Deep Space pg.60",
+    "source": "Deep Space p.60",
     "surgCode": "MA",
     "humanityCost": "1d6+1",
     "cyberwareType": "IMPLANT",

@@ -23,7 +23,7 @@
     "cost": 4000,
     "weight": 0,
     "equipped": true,
-    "source": "When Gravity Fails pg.53",
+    "source": "When Gravity Fails p.53",
     "surgCode": "N",
     "humanityCost": "1d6/2",
     "cyberwareType": "CHIPWARE",

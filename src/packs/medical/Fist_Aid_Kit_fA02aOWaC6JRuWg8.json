@@ -1,6 +1,6 @@
 {
   "_id": "fA02aOWaC6JRuWg8",
-  "name": "Fist Aid Kit",
+  "name": "First Aid Kit",
   "type": "misc",
   "flags": {},
   "img": "icons/svg/mystery-man.svg",
@@ -32,8 +32,7 @@
     "cost": "10",
     "weight": "0",
     "equipped": true,
-    "source": "Cyberpunk2020",
-    "name": "Common"
+    "source": "Cyberpunk 2020 p.71"
   },
   "folder": null,
   "sort": 0,

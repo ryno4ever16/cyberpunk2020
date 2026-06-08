@@ -23,7 +23,7 @@
     "cost": 4000,
     "weight": 0,
     "equipped": true,
-    "source": "Interface 1.4 pg.3",
+    "source": "Interface 1.4 p.3",
     "surgCode": "M",
     "humanityCost": "1d6",
     "cyberwareType": "IMPLANT",

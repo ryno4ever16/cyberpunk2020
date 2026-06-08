@@ -34,7 +34,7 @@
     "cost": "200",
     "weight": "0.5",
     "equipped": true,
-    "source": "Cyberpunk 2020",
+    "source": "Cyberpunk 2020 p.63",
     "weaponType": "Pistol",
     "accuracy": "-1",
     "concealability": "ConcealJacket",
@@ -57,8 +57,7 @@
     "reliability": "Unreliable",
     "range": "40",
     "attackType": "Paint",
-    "attackSkill": "Handgun",
-    "name": "Common"
+    "attackSkill": "Handgun"
   },
   "_key": "!items!7BwNLB5mEu0AbxWT"
 }

@@ -29,11 +29,10 @@
   "system": {
     "flavor": "Section: Medical p.71",
     "notes": "",
-    "cost": "50",
+    "cost": "100",
     "weight": "0",
     "equipped": true,
-    "source": "Cyberpunk2020",
-    "name": "Common"
+    "source": "Cyberpunk 2020 p.71"
   },
   "folder": null,
   "sort": 0,

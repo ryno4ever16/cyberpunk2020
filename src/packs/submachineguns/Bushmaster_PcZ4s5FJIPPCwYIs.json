@@ -31,12 +31,12 @@
   "system": {
     "flavor": "A bull pup configured SMG designed to be fired one handed. The Bushmaster uses the M-1 6A 1 clip, making it technically closer to an assault rifle than a submachinegun.",
     "notes": "",
-    "cost": "",
+    "cost": "250",
     "weight": "1",
     "equipped": true,
-    "source": "Cyberpunk 2020",
+    "source": "Cyberpunk 2020 p.66",
     "weaponType": "SMG",
-    "accuracy": "",
+    "accuracy": "0",
     "concealability": "ConcealNoHide",
     "availability": "Rare",
     "ammoType": "5.56",
@@ -57,8 +57,7 @@
     "reliability": "Standard",
     "range": "200",
     "attackType": "Auto",
-    "attackSkill": "Submachinegun",
-    "name": "Common"
+    "attackSkill": "Submachinegun"
   },
   "_key": "!items!PcZ4s5FJIPPCwYIs"
 }

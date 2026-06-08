@@ -31,14 +31,14 @@
   "system": {
     "flavor": "Heavy semi-auto pistol made in Germany",
     "notes": "",
-    "cost": "400",
+    "cost": "350",
     "weight": "1.5",
     "equipped": true,
-    "source": "Cyberpunk 2020",
+    "source": "Cyberpunk 2020 p.62",
     "weaponType": "Pistol",
     "accuracy": "0",
-    "concealability": "",
-    "availability": "undefined",
+    "concealability": "ConcealJacket",
+    "availability": "Common",
     "ammoType": "11 mm",
     "damage": "3D6",
     "rangeDamages": {
@@ -53,11 +53,10 @@
     "shotsLeft": "8",
     "shots": "8",
     "rof": "2",
-    "reliability": "very reliable",
+    "reliability": "VeryReliable",
     "range": "50",
     "attackType": "Auto",
-    "attackSkill": "Handgun",
-    "name": "Common"
+    "attackSkill": "Handgun"
   },
   "_key": "!items!Oi3PUp1Cce6HHOcU"
 }

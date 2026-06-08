@@ -34,9 +34,9 @@
     "cost": "30",
     "weight": "0.5",
     "equipped": true,
-    "source": "Cyberpunk 2020",
+    "source": "Cyberpunk 2020 p.63",
     "weaponType": "Heavy",
-    "accuracy": "1",
+    "accuracy": "0",
     "concealability": "ConcealPocket",
     "availability": "Poor",
     "ammoType": "Grenade",
@@ -57,8 +57,7 @@
     "reliability": "VeryReliable",
     "range": "50",
     "attackType": "Grenade",
-    "attackSkill": "Heavy Weapons",
-    "name": "Common"
+    "attackSkill": "Heavy Weapons"
   },
   "_key": "!items!iN1wBc0bMIf1m7kG"
 }

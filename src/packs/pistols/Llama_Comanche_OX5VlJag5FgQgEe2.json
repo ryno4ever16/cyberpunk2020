@@ -1,0 +1,61 @@
+{
+  "_id": "OX5VlJag5FgQgEe2",
+  "name": "Llama Comanche",
+  "type": "weapon",
+  "img": "systems/cyberpunk2020/img/weapon-icon.svg",
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "flags": {},
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": {
+      "worldId": "cyberpunk_2020",
+      "uuid": null,
+      "coreVersion": "0.7.9",
+      "systemId": "cyberpunk2020",
+      "systemVersion": "0.2.6"
+    }
+  },
+  "ownership": {
+    "default": 0
+  },
+  "system": {
+    "flavor": "Heavy .44 revolver (old gun).",
+    "notes": "",
+    "cost": "200",
+    "weight": "1",
+    "equipped": true,
+    "source": "Cyberpunk 2020 p.66",
+    "weaponType": "Pistol",
+    "accuracy": "0",
+    "concealability": "ConcealJacket",
+    "availability": "Common",
+    "ammoType": ".44",
+    "damage": "4D6",
+    "rangeDamages": {
+      "pointBlank": "",
+      "close": "",
+      "medium": "",
+      "far": "",
+      "short": "",
+      "extreme": ""
+    },
+    "ap": false,
+    "shotsLeft": "6",
+    "shots": "6",
+    "rof": "1",
+    "reliability": "Standard",
+    "range": "50",
+    "attackType": "SemiAuto",
+    "attackSkill": "Handgun"
+  },
+  "_key": "!items!OX5VlJag5FgQgEe2"
+}

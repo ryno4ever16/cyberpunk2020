@@ -34,11 +34,11 @@
     "cost": "",
     "weight": "2",
     "equipped": true,
-    "source": "Cyberpunk 2020",
+    "source": "Cyberpunk 2020 p.66",
     "weaponType": "Shotgun",
-    "accuracy": "",
+    "accuracy": "0",
     "concealability": "ConcealNoHide",
-    "availability": "Common",
+    "availability": "Rare",
     "ammoType": "00",
     "ammoItemId": "",
     "damage": "4d6",
@@ -57,8 +57,7 @@
     "reliability": "Standard",
     "range": "50",
     "attackType": "Shotgun",
-    "attackSkill": "Rifle",
-    "name": "Common"
+    "attackSkill": "Rifle"
   },
   "_key": "!items!vWOoylh5RXN5GC5c"
 }

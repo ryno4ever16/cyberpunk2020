@@ -28,7 +28,7 @@
     "cost": "900",
     "weight": "2",
     "equipped": true,
-    "source": "Cyberpunk 2020",
+    "source": "Cyberpunk 2020 p.63",
     "weaponType": "Melee",
     "accuracy": "-2",
     "concealability": "ConcealNoHide",
@@ -51,8 +51,7 @@
     "reliability": "VeryReliable",
     "range": "1",
     "attackType": "Melee",
-    "attackSkill": "Melee",
-    "name": "Common"
+    "attackSkill": "Melee"
   },
   "_key": "!items!8JYogeaL31Yps2zn"
 }

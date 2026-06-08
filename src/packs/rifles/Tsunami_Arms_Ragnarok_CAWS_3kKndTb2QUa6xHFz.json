@@ -56,8 +56,7 @@
     "reliability": "Standard",
     "range": "70",
     "attackType": "Autoshotgun",
-    "attackSkill": "Rifle",
-    "name": "Common"
+    "attackSkill": "Rifle"
   },
   "_key": "!items!3kKndTb2QUa6xHFz"
 }

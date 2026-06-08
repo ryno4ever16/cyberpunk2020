@@ -34,11 +34,11 @@
     "cost": "350",
     "weight": "1.5",
     "equipped": true,
-    "source": "Cyberpunk 2020",
+    "source": "Cyberpunk 2020 p.62",
     "weaponType": "Pistol",
     "accuracy": "-1",
-    "concealability": "",
-    "availability": "undefined",
+    "concealability": "ConcealJacket",
+    "availability": "Excellent",
     "ammoType": "11 mm",
     "damage": "3D6",
     "rangeDamages": {
@@ -53,11 +53,10 @@
     "shotsLeft": "8",
     "shots": "8",
     "rof": "2",
-    "reliability": "unreliable",
+    "reliability": "Unreliable",
     "range": "50",
     "attackType": "Auto",
-    "attackSkill": "Handgun",
-    "name": "Common"
+    "attackSkill": "Handgun"
   },
   "_key": "!items!A6oWzoO4tzILC00q"
 }

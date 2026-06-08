@@ -28,7 +28,7 @@
     "cost": 3000,
     "weight": 30,
     "equipped": false,
-    "source": "Chr4 (p.33)",
+    "source": "Chromebook 4 p.33",
     "sdp": {
       "value": 0,
       "max": 15
@@ -50,8 +50,7 @@
       "efficiency": 40,
       "max": 10,
       "value": 10
-    },
-    "name": "Common"
+    }
   },
   "folder": null,
   "sort": 0,

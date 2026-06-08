@@ -29,11 +29,10 @@
   "system": {
     "flavor": "Section: Tools .p.69 - Contains 2 Filters",
     "notes": "",
-    "cost": "30",
+    "cost": "200",
     "weight": "0",
     "equipped": true,
-    "source": "Cyberpunk2020",
-    "name": "Common"
+    "source": "Cyberpunk 2020 p.69"
   },
   "folder": null,
   "sort": 0,

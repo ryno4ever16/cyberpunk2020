@@ -1,6 +1,6 @@
 {
   "_id": "j8D1o1qngrZDsmaB",
-  "name": "IR Googles",
+  "name": "IR Goggles",
   "type": "misc",
   "flags": {},
   "img": "icons/svg/mystery-man.svg",
@@ -32,8 +32,7 @@
     "cost": "250",
     "weight": "0",
     "equipped": true,
-    "source": "Cyberpunk2020",
-    "name": "Common"
+    "source": "Cyberpunk 2020 p.70"
   },
   "folder": null,
   "sort": 0,

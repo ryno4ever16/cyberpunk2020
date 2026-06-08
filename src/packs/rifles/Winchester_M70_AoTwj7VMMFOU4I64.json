@@ -34,13 +34,13 @@
     "cost": "330",
     "weight": "3.5",
     "equipped": true,
-    "source": "Cyberpunk 2020",
+    "source": "Cyberpunk 2020 p.66",
     "weaponType": "Rifle",
-    "accuracy": "2",
-    "concealability": "",
-    "availability": "undefined",
+    "accuracy": "3",
+    "concealability": "ConcealNoHide",
+    "availability": "Common",
     "ammoType": ".30-06",
-    "damage": "5D6+3",
+    "damage": "5D6+1",
     "rangeDamages": {
       "pointBlank": "",
       "close": "",
@@ -56,8 +56,7 @@
     "reliability": "VeryReliable",
     "range": "400",
     "attackType": "Auto",
-    "attackSkill": "Rifle",
-    "name": "Common"
+    "attackSkill": "Rifle"
   },
   "_key": "!items!AoTwj7VMMFOU4I64"
 }

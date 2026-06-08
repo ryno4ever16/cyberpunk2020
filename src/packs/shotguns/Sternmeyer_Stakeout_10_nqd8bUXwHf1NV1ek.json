@@ -34,8 +34,8 @@
     "cost": "450",
     "weight": "3",
     "equipped": true,
-    "source": "Cyberpunk 2020",
-    "weaponType": "Rifle",
+    "source": "Cyberpunk 2020 p.63",
+    "weaponType": "Shotgun",
     "accuracy": "-2",
     "concealability": "ConcealNoHide",
     "availability": "Rare",
@@ -57,8 +57,7 @@
     "reliability": "Standard",
     "range": "50",
     "attackType": "Autoshotgun",
-    "attackSkill": "Rifle",
-    "name": "Common"
+    "attackSkill": "Rifle"
   },
   "_key": "!items!nqd8bUXwHf1NV1ek"
 }

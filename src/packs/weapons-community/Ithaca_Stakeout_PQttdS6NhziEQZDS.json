@@ -57,7 +57,6 @@
     "range": 50,
     "attackType": "Shotgun",
     "attackSkill": "Rifle",
-    "name": "Common",
     "fullAutoCapable": false,
     "burstCapable": false,
     "lastOwnerId": "",

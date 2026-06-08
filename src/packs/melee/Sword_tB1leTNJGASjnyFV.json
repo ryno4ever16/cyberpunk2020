@@ -28,9 +28,9 @@
     "cost": "200",
     "weight": "1",
     "equipped": true,
-    "source": "Cyberpunk 2020",
+    "source": "Cyberpunk 2020 p.64",
     "weaponType": "Melee",
-    "accuracy": "",
+    "accuracy": "0",
     "concealability": "ConcealNoHide",
     "availability": "Common",
     "ammoType": "NA",
@@ -51,8 +51,7 @@
     "reliability": "VeryReliable",
     "range": "1",
     "attackType": "Melee",
-    "attackSkill": "Fencing",
-    "name": "Common"
+    "attackSkill": "Fencing"
   },
   "_key": "!items!tB1leTNJGASjnyFV"
 }

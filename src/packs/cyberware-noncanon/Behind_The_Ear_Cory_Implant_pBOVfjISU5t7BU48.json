@@ -23,7 +23,7 @@
     "cost": 1000,
     "weight": 0,
     "equipped": true,
-    "source": "When Gravity Fails pg.59",
+    "source": "When Gravity Fails p.59",
     "surgCode": "MA",
     "humanityCost": "2d6",
     "cyberwareType": "NEURALWARE",

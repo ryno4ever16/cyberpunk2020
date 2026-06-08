@@ -32,7 +32,7 @@
     "cost": "1500",
     "weight": 0,
     "equipped": true,
-    "source": "Cyberpunk2020 – Section: Vehicles p.73",
+    "source": "Cyberpunk 2020 p.71",
     "sdp": {
       "value": "0",
       "max": "0"
@@ -54,8 +54,7 @@
       "efficiency": "1",
       "max": "8",
       "value": "8"
-    },
-    "name": "Common"
+    }
   },
   "folder": null,
   "sort": 0,

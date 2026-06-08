@@ -1,0 +1,61 @@
+{
+  "_id": "Mc4rglOUZNExOg3c",
+  "name": "M-16A/A2",
+  "type": "weapon",
+  "img": "systems/cyberpunk2020/img/weapon-icon.svg",
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "flags": {},
+  "_stats": {
+    "coreVersion": "13.350",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": {
+      "worldId": "cyberpunk_2020",
+      "uuid": null,
+      "coreVersion": "0.7.9",
+      "systemId": "cyberpunk2020",
+      "systemVersion": "0.2.6"
+    }
+  },
+  "ownership": {
+    "default": 0
+  },
+  "system": {
+    "flavor": "5.56 US assault rifle (old gun).",
+    "notes": "",
+    "cost": "225",
+    "weight": "1",
+    "equipped": true,
+    "source": "Cyberpunk 2020 p.66",
+    "weaponType": "Rifle",
+    "accuracy": "2",
+    "concealability": "ConcealNoHide",
+    "availability": "Common",
+    "ammoType": "5.56C",
+    "damage": "4D6",
+    "rangeDamages": {
+      "pointBlank": "",
+      "close": "",
+      "medium": "",
+      "far": "",
+      "short": "",
+      "extreme": ""
+    },
+    "ap": false,
+    "shotsLeft": "30",
+    "shots": "30",
+    "rof": "25",
+    "reliability": "Unreliable",
+    "range": "400",
+    "attackType": "Auto",
+    "attackSkill": "Rifle"
+  },
+  "_key": "!items!Mc4rglOUZNExOg3c"
+}

@@ -56,7 +56,6 @@
     "range": 50,
     "attackType": "Auto",
     "attackSkill": "Handgun",
-    "name": "Common",
     "fullAutoCapable": true,
     "burstCapable": true,
     "lastOwnerId": "",

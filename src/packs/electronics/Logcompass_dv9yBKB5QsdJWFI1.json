@@ -1,6 +1,6 @@
 {
   "_id": "dv9yBKB5QsdJWFI1",
-  "name": "Logcompass",
+  "name": "Logocompass",
   "type": "misc",
   "flags": {},
   "img": "icons/svg/mystery-man.svg",
@@ -32,8 +32,7 @@
     "cost": "50",
     "weight": "0",
     "equipped": true,
-    "source": "Cyberpunk2020",
-    "name": "Common"
+    "source": "Cyberpunk 2020 p.69"
   },
   "folder": null,
   "sort": 0,
