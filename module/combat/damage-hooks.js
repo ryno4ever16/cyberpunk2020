@@ -829,6 +829,7 @@ function _hookAimTracking() {
     const root = html instanceof jQuery ? html[0] : (Array.isArray(html) ? html[0] : html);
     const li   = root?.querySelector?.(`[data-combatant-id="${combatant.id}"]`);
     if (!li) return;
+    li.querySelectorAll(".cp-take-aim-btn").forEach(e => e.remove()); // idempotent across re-renders
 
     const controls = li.querySelector(".combatant-controls") ?? li.querySelector("menu") ?? li;
     const btn = document.createElement("a");
@@ -892,6 +893,7 @@ function _hookWaitForTurn() {
 
       const li = root.querySelector?.(`[data-combatant-id="${combatant.id}"]`);
       if (!li) continue;
+      li.querySelectorAll(".cp-wait-for-turn-btn, .cp-wait-act-btn").forEach(e => e.remove()); // idempotent across re-renders
 
       const controls = li.querySelector(".combatant-controls") ?? li.querySelector("menu") ?? li;
       const isWaiting = combatant.getFlag("cyberpunk2020", "waitingForTurn");
@@ -984,6 +986,7 @@ function _hookDodgeParry() {
 
       const li = root.querySelector?.(`[data-combatant-id="${combatant.id}"]`);
       if (!li) continue;
+      li.querySelectorAll(".cp-dodge-btn, .cp-parry-btn").forEach(e => e.remove()); // idempotent across re-renders
 
       const controls = li.querySelector(".combatant-controls") ?? li.querySelector("menu") ?? li;
       const isDodging  = actor.getFlag("cyberpunk2020", "dodging")  ?? false;
@@ -1730,6 +1733,9 @@ function _hookMultiActionPenalty() {
 
       const li = root.querySelector?.(`[data-combatant-id="${combatant.id}"]`);
       if (!li) continue;
+
+      // Idempotent: clear any badge/button left from a prior render so repeated renders don't stack duplicates.
+      li.querySelectorAll(".cp-action-count-badge, .cp-add-action-btn").forEach(e => e.remove());
 
       const actor   = combatant.actor;
       const count   = _getActionCount(actor);

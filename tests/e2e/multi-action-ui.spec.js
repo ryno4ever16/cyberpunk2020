@@ -104,7 +104,9 @@ test("§10 tracker badge shows ×count and the penalty", async () => {
 
   // The badge lives in the hover-hidden combatant-controls area, so assert it's in
   // the DOM with the right text rather than visible (same constraint as the buttons).
-  const badge = gmPage.locator(`[data-combatant-id="${ids.combatantId}"] .cp-action-count-badge`);
+  // v13 renders the tracker in two containers (#combat + #combat-popout); the badge correctly appears in
+  // both, so scope to the first (same pattern the other tracker specs use).
+  const badge = gmPage.locator(`[data-combatant-id="${ids.combatantId}"] .cp-action-count-badge`).first();
   await expect(badge, "badge appears for a combatant with actions").toBeAttached({ timeout: 15_000 });
   await expect(badge, "badge shows ×2 and the −3 penalty").toContainText("×2");
   await expect(badge).toContainText("-3");

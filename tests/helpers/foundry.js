@@ -159,9 +159,11 @@ export async function cleanupTestData(page) {
       doc?.getFlag?.(scope, key) === true || (typeof doc?.name === "string" && doc.name.startsWith(prefix));
     const report = { combats: 0, templates: 0, tokens: 0, actors: 0, scenes: 0, items: 0, messages: 0 };
 
-    // Combats first (they reference tokens/scenes)
+    // Combats first (they reference tokens/scenes). Delete tagged combats AND orphaned (sceneless) ones:
+    // once a test combat's scene/actors are cleaned, the combat is left untagged + sceneless but still
+    // "active", which hides later test combats from the tracker (root cause of flaky combat-button specs).
     for (const c of [...game.combats]) {
-      if (tagged(c) || c.combatants.some(cb => tagged(cb.actor))) { await c.delete().catch(() => {}); report.combats++; }
+      if (tagged(c) || !c.scene || c.combatants.some(cb => tagged(cb.actor))) { await c.delete().catch(() => {}); report.combats++; }
     }
     // Templates + tokens on every scene
     for (const scene of [...game.scenes]) {
