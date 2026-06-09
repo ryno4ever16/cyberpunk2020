@@ -18,6 +18,8 @@
         <label for="system.carryWeight">{{CPLocal "Weight"}}</label>
         <input class="not-editable" name="system.carryWeight" type="number" value="{{system.carryWeight}}" readonly>
     </div>
+    {{!-- Shopping now lives in the sidebar Shop tab, not on the character sheet (a sheet is "you and
+          what you own", not a portal to a store). The .cp-open-shop handler remains harmless if unused. --}}
 </div>
 
 {{#if (equals items.length 0)}}

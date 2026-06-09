@@ -1,9 +1,14 @@
 import { CyberpunkActor } from "./actor/actor.js";
 import { CyberpunkActorSheet } from "./actor/actor-sheet.js";
 import { CyberpunkVehicleSheet } from "./actor/vehicle-sheet.js";
+import { CyberpunkShopSheet } from "./actor/shop-sheet.js";
+import { registerShopHooks } from "./shop/catalog.js";
+import { registerIpHooks } from "./ip/ip.js";
+import { openIpTracker } from "./ip/tracker.js";
+import { ipSystem } from "./settings.js";
 import { CyberpunkItem } from "./item/item.js";
 import { CyberpunkItemSheet } from "./item/item-sheet.js";
-import { CyberpunkCharacterData, CyberpunkNpcData, CyberpunkVehicleActorData } from "./data/actor-data.js";
+import { CyberpunkCharacterData, CyberpunkNpcData, CyberpunkVehicleActorData, CyberpunkShopData } from "./data/actor-data.js";
 import {
     CyberpunkAcpaSystemData,
     CyberpunkAmmoData,
@@ -45,7 +50,9 @@ Hooks.once('init', async function () {
         // A manual migrateworld.
         migrateWorld: migrations.migrateWorld,
         // Vehicle API: deploy a scalable handle token, board/disembark crew, and roll control/maneuver.
-        vehicles: { deploy: deployVehicleToScene, board: boardVehicle, disembark, controlRoll: openControlRollDialog, applyDamage: openVehicleDamageDialog, weaponToPen: weaponToPenetration, toHitMod: vehicleToHitModifier, fire: openVehicleFireDialog, seedWeapons: seedVehicleWeaponCompendium, seedAcpaSystems: seedAcpaSystemCompendium, acpaMelee: openAcpaMeleeDialog, acpaRepair: repairAcpa }
+        vehicles: { deploy: deployVehicleToScene, board: boardVehicle, disembark, controlRoll: openControlRollDialog, applyDamage: openVehicleDamageDialog, weaponToPen: weaponToPenetration, toHitMod: vehicleToHitModifier, fire: openVehicleFireDialog, seedWeapons: seedVehicleWeaponCompendium, seedAcpaSystems: seedAcpaSystemCompendium, acpaMelee: openAcpaMeleeDialog, acpaRepair: repairAcpa },
+        // IP tracker API: open the GM Improvement-Points tracker.
+        ip: { openTracker: openIpTracker }
     };
 
     // Define custom Document classes
@@ -57,6 +64,7 @@ Hooks.once('init', async function () {
     CONFIG.Actor.dataModels.character = CyberpunkCharacterData;
     CONFIG.Actor.dataModels.npc = CyberpunkNpcData;
     CONFIG.Actor.dataModels.vehicle = CyberpunkVehicleActorData;
+    CONFIG.Actor.dataModels.shop = CyberpunkShopData;
 
     CONFIG.Item.dataModels.skill = CyberpunkSkillData;
     CONFIG.Item.dataModels.program = CyberpunkProgramData;
@@ -73,6 +81,9 @@ Hooks.once('init', async function () {
     Actors.unregisterSheet("core", ActorSheet);
     Actors.registerSheet("cyberpunk2020", CyberpunkActorSheet, { types: ["character", "npc"], makeDefault: true });
     Actors.registerSheet("cyberpunk2020", CyberpunkVehicleSheet, { types: ["vehicle"], makeDefault: true });
+    // Registered unconditionally like the others. (If the registration were skipped, a `shop` actor
+    // would fall back to the default actor sheet — the character sheet — and show player stats.)
+    Actors.registerSheet("cyberpunk2020", CyberpunkShopSheet, { types: ["shop"], makeDefault: true });
     Items.unregisterSheet("core", ItemSheet);
     Items.registerSheet("cyberpunk2020", CyberpunkItemSheet, { makeDefault: true });
 
@@ -196,6 +207,12 @@ Hooks.once("ready", async function () {
   // Register ACPA per-round status ticks (seize-up / interface-out countdowns).
   registerAcpaCombatHooks();
 
+  // Register shopping hooks (published-shop chat links + GM stock-depletion relay).
+  registerShopHooks();
+
+  // Register IP-tracker hooks (skill-roll auto-queue + GM relay).
+  registerIpHooks();
+
   // Seed the Vehicle Weapons (MM) compendium from the verified catalog if it's empty (active GM only).
   ensureVehicleWeaponSeed();
 
@@ -257,4 +274,23 @@ Hooks.on("updateActor", async (actor, changes, options, userId) => {
   if (options?.fromCyberpunkDamageSystem) return;
 
   await postSavePrompts(actor);
+});
+
+/**
+ * Add an "IP Tracker" button to the Actors sidebar header for the GM when the IP system is on.
+ */
+Hooks.on("renderActorDirectory", (app, html) => {
+  try {
+    if (!game.user.isGM || ipSystem() === "disabled") return;
+    const root = html instanceof jQuery ? html[0] : html;
+    if (!root || root.querySelector(".cp-ip-tracker-btn")) return;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "cp-ip-tracker-btn";
+    btn.style.cssText = "flex:0 0 auto; margin:4px;";
+    btn.innerHTML = `<i class="fas fa-graduation-cap"></i> ${game.i18n.localize("CYBERPUNK.IpTrackerTitle")}`;
+    btn.addEventListener("click", () => openIpTracker());
+    const header = root.querySelector(".directory-header") ?? root.querySelector(".header-actions") ?? root.firstElementChild ?? root;
+    header.prepend(btn);
+  } catch (e) { /* non-fatal */ }
 });

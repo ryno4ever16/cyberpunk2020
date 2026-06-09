@@ -330,6 +330,27 @@
       "system": "cyberpunk2020",
       "path": "./packs/acpa-systems.db",
       "type": "Item"
+    },
+    {
+      "name": "weapons-community",
+      "label": "Weapons (Community)",
+      "system": "cyberpunk2020",
+      "path": "./packs/weapons-community.db",
+      "type": "Item"
+    },
+    {
+      "name": "weapons-noncanon",
+      "label": "Weapons (Non-Canon)",
+      "system": "cyberpunk2020",
+      "path": "./packs/weapons-noncanon.db",
+      "type": "Item"
+    },
+    {
+      "name": "cyberware-noncanon",
+      "label": "Cyberware (Non-Canon)",
+      "system": "cyberpunk2020",
+      "path": "./packs/cyberware-noncanon.db",
+      "type": "Item"
     }
   ],
   "packFolders": [
@@ -352,6 +373,16 @@
           "smgs-add"
         ]
       }
+    ]
+  },
+  {
+    "name": "Community & Non-Canon",
+    "sorting": "m",
+    "color": "#8a6d3b",
+    "packs": [
+      "weapons-community",
+      "weapons-noncanon",
+      "cyberware-noncanon"
     ]
   },
   {
@@ -509,6 +540,9 @@
         }
       },
       "vehicle": {
+        "htmlFields": ["notes"]
+      },
+      "shop": {
         "htmlFields": ["notes"]
       }
     },

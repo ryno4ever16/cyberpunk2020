@@ -1,0 +1,292 @@
+import { localize } from "../utils.js";
+import {
+  ipEnabled, ipSystem, ipAwardModel, ipAutoBaselineAmount, ipThrottle, ipSkillLockMode
+} from "../settings.js";
+
+/**
+ * IP (Improvement Points) tracker — core logic ([[ip-tracker-design]]).
+ *
+ * Two stored layers (both additive, migration-safe):
+ *   • a skill's `ip`/`IP` = BANKED IP the owner can spend to level up;
+ *   • a skill's `ipPending` = IP the GM has attributed but NOT released (hidden from the player
+ *     until the GM clicks Apply, which moves ipPending → ip).
+ * Plus a GM-only world queue `ipQueue` of skill rolls awaiting an IP decision (the auto-queue),
+ * and `ipThrottleCounts` tracking awards-per-skill within the current Apply cycle.
+ *
+ * RAW cost to raise a skill = current level × 10 × difficulty multiplier (first level = 10;
+ * floor of 1×10×mult). Simple mode banks one `ipPool` per actor instead of per-skill IP.
+ */
+
+const SCOPE = "cyberpunk2020";
+
+/** RAW IP cost to raise this skill one level: max(1, level) × 10 × diffMod. */
+export function ipCost(skill) {
+  const level = Number(skill?.system?.level) || 0;
+  const mult = Math.max(1, Number(skill?.system?.diffMod) || 1);
+  return Math.max(1, level) * 10 * mult;
+}
+
+/* --------------------------------------------------------------------- */
+/*  Skill lock (two-tier: owner soft-lock + GM hard-lock)                 */
+/* --------------------------------------------------------------------- */
+
+/** Resolve the lock state for an actor under the active mode. */
+export function ipLockState(actor) {
+  const owner = actor?.getFlag?.(SCOPE, "ipOwnerLock") === true;
+  const gm = actor?.getFlag?.(SCOPE, "ipGmLock") === true;
+  const mode = ipSkillLockMode();
+  let locked;
+  if (mode === "gm") locked = gm;
+  else if (mode === "mutual") locked = owner || gm;
+  else locked = owner;          // "owner" (default)
+  return { owner, gm, mode, locked };
+}
+
+/** Whether raw hand-editing of skill levels/IP is currently allowed for this actor. */
+export function canEditSkillLevels(actor) {
+  if (!ipEnabled()) return true;          // lock only applies when the IP system is on
+  return !ipLockState(actor).locked;
+}
+
+/** Toggle the appropriate lock tier for the current user (owner vs GM), honoring the mode. */
+export async function toggleSkillLock(actor) {
+  if (!actor) return;
+  const { mode } = ipLockState(actor);
+  const isGM = game.user.isGM;
+  // Which flag this user controls: GM mode → GM flag; owner mode → owner flag; mutual → each their own.
+  let flag;
+  if (mode === "gm") flag = "ipGmLock";
+  else if (mode === "owner") flag = "ipOwnerLock";
+  else flag = isGM ? "ipGmLock" : "ipOwnerLock";   // mutual
+  // In gm/owner modes, only the controlling party may toggle.
+  if (mode === "gm" && !isGM) { ui.notifications?.warn(localize("IpLockGmOnly")); return; }
+  const cur = actor.getFlag(SCOPE, flag) === true;
+  await actor.setFlag(SCOPE, flag, !cur);
+}
+
+/* --------------------------------------------------------------------- */
+/*  Queue (auto-queue of skill rolls awaiting a GM IP decision)           */
+/* --------------------------------------------------------------------- */
+
+export function getQueue() {
+  try { return foundry.utils.deepClone(game.settings.get(SCOPE, "ipQueue") || []); } catch { return []; }
+}
+async function setQueue(q) {
+  try { await game.settings.set(SCOPE, "ipQueue", q); } catch (e) { console.warn("Cyberpunk2020 | IP queue write failed", e); }
+}
+
+function _isActiveGM() { return game.user.isGM && game.users.activeGM?.id === game.user.id; }
+
+/** Re-render an open IP tracker (if any) after queue/pending changes. */
+function _rerenderTracker() {
+  for (const app of Object.values(ui.windows)) {
+    if (app?.options?.classes?.includes?.("cp-ip-tracker")) app.render(false);
+  }
+}
+
+/**
+ * Record a skill roll into the auto-queue. RAW mode only (Simple mode has no per-skill attribution).
+ * Called from rollSkill; relays to the active GM if the roller isn't the GM.
+ */
+export function recordSkillRoll(payload) {
+  if (ipSystem() !== "raw") return;
+  if (_isActiveGM()) return _enqueue(payload);   // returns the write promise (await-able for tests)
+  else if (game.users.activeGM) game.socket.emit("system.cyberpunk2020", { type: "ipSkillRolled", payload });
+}
+
+async function _enqueue(row) {
+  const q = getQueue();
+  q.push({
+    id: foundry.utils.randomID(),
+    actorId: row.actorId, skillId: row.skillId,
+    actorName: row.actorName ?? "", skillName: row.skillName ?? "",
+    total: Number(row.total) || 0, ip: 0, success: false, ts: Date.now()
+  });
+  await setQueue(q);
+  _rerenderTracker();
+}
+
+/** Remove a queue row without awarding (skip). */
+export async function dismissQueueRow(rowId) {
+  await setQueue(getQueue().filter(r => r.id !== rowId));
+  _rerenderTracker();
+}
+
+/** Patch a queue row in place (e.g. the GM-entered IP amount or success tick). */
+export async function updateQueueRow(rowId, patch) {
+  const q = getQueue();
+  const row = q.find(r => r.id === rowId);
+  if (!row) return;
+  Object.assign(row, patch);
+  await setQueue(q);
+}
+
+/** Resolve every queued row (award each row's current IP/success), emptying the queue. */
+export async function resolveAllQueue() {
+  for (const row of getQueue()) await resolveQueueRow(row.id);
+}
+
+/* --------------------------------------------------------------------- */
+/*  Throttle (per-skill awards within an Apply cycle)                     */
+/* --------------------------------------------------------------------- */
+
+function getThrottleCounts() {
+  try { return foundry.utils.deepClone(game.settings.get(SCOPE, "ipThrottleCounts") || {}); } catch { return {}; }
+}
+async function setThrottleCounts(c) {
+  try { await game.settings.set(SCOPE, "ipThrottleCounts", c); } catch (e) { console.warn(e); }
+}
+export async function resetThrottle() {
+  await setThrottleCounts({});
+}
+
+/** Apply the throttle to a proposed award for a skill, updating the per-cycle counter. */
+async function _throttleAward(skillId, amount) {
+  const mode = ipThrottle();
+  if (mode === "off" || amount <= 0) return amount;
+  const counts = getThrottleCounts();
+  const n = Number(counts[skillId]) || 0;
+  let award;
+  if (mode === "hardcap") {
+    award = n >= 1 ? 0 : amount;
+  } else { // diminishing: halve per prior award this cycle, floor 1
+    award = Math.max(1, Math.floor(amount / Math.pow(2, n)));
+  }
+  counts[skillId] = n + 1;
+  await setThrottleCounts(counts);
+  return award;
+}
+
+/* --------------------------------------------------------------------- */
+/*  Awarding pending IP                                                   */
+/* --------------------------------------------------------------------- */
+
+/**
+ * Add pending IP to a skill (GM action). Honors the throttle. Used by the tracker (per row) and the
+ * manual add. `amount` is the raw figure the GM entered (or the auto-baseline amount).
+ */
+export async function awardPending(actor, skill, amount) {
+  if (!actor || !skill) return false;
+  const award = await _throttleAward(skill.id, Math.max(0, Math.floor(Number(amount) || 0)));
+  if (award <= 0) return false;
+  const cur = Number(skill.system?.ipPending) || 0;
+  await skill.update({ "system.ipPending": cur + award });
+  return true;
+}
+
+/**
+ * Resolve one queue row: award its IP (RAW = the typed amount; auto-baseline = baseline on success
+ * plus any typed bonus) to the rolled skill's pending, then drop the row.
+ */
+export async function resolveQueueRow(rowId) {
+  const q = getQueue();
+  const row = q.find(r => r.id === rowId);
+  if (!row) return;
+  const actor = game.actors.get(row.actorId);
+  const skill = actor?.items.get(row.skillId);
+  if (skill) {
+    let amount = Number(row.ip) || 0;
+    if (ipAwardModel() === "autoBaseline" && row.success) amount += ipAutoBaselineAmount();
+    if (amount > 0) await awardPending(actor, skill, amount);
+  }
+  await setQueue(q.filter(r => r.id !== rowId));
+  _rerenderTracker();
+}
+
+/* --------------------------------------------------------------------- */
+/*  Apply (release pending → banked) + reset                              */
+/* --------------------------------------------------------------------- */
+
+/**
+ * Release all pending IP to banked across every party actor (or one actor if given): for each
+ * skill, ip/IP += ipPending, ipPending = 0. Clears the queue + throttle counters (new cycle).
+ */
+export async function applyPending(actor = null) {
+  const actors = actor ? [actor] : game.actors.filter(a => a.type === "character" || a.type === "npc");
+  let released = 0;
+  for (const a of actors) {
+    const updates = [];
+    for (const skill of a.items) {
+      if (skill.type !== "skill") continue;
+      const pending = Number(skill.system?.ipPending) || 0;
+      if (pending <= 0) continue;
+      const banked = Number(skill.system?.ip) || 0;
+      updates.push({ _id: skill.id, "system.ip": banked + pending, "system.IP": banked + pending, "system.ipPending": 0 });
+      released += pending;
+    }
+    if (updates.length) await a.updateEmbeddedDocuments("Item", updates);
+  }
+  // Clear the queue + throttle for the new cycle.
+  await setQueue(actor ? getQueue().filter(r => r.actorId !== actor.id) : []);
+  await resetThrottle();
+  _rerenderTracker();
+  ui.notifications?.info(localize("IpApplied", { ip: released }));
+  return released;
+}
+
+/* --------------------------------------------------------------------- */
+/*  Level-up (player self-service, confirm dialog)                        */
+/* --------------------------------------------------------------------- */
+
+/**
+ * Raise a skill one level, spending banked IP (RAW: the skill's own ip; Simple: the actor's ipPool).
+ * Shows a confirm dialog. Honors the skill lock only for raw hand-editing — leveling via this button
+ * is always allowed.
+ */
+export async function levelUpSkill(actor, skill, { confirm = true } = {}) {
+  if (!actor || !skill || skill.type !== "skill") return false;
+  if (!ipEnabled()) return false;
+  const simple = ipSystem() === "simple";
+  const cost = ipCost(skill);
+  const have = simple ? (Number(actor.system?.ipPool) || 0) : (Number(skill.system?.ip) || 0);
+  if (have < cost) { ui.notifications?.warn(localize("IpNotEnough", { cost, have })); return false; }
+
+  if (confirm) {
+    const ok = await Dialog.confirm({
+      title: localize("IpLevelUpTitle", { skill: skill.name }),
+      content: `<p>${localize("IpLevelUpBody", { skill: skill.name, from: Number(skill.system?.level) || 0, to: (Number(skill.system?.level) || 0) + 1, cost })}</p>`,
+      defaultYes: false
+    });
+    if (!ok) return false;
+  }
+
+  const newLevel = (Number(skill.system?.level) || 0) + 1;
+  if (simple) {
+    await actor.update({ "system.ipPool": have - cost });
+    await skill.update({ "system.level": newLevel });
+  } else {
+    const banked = Number(skill.system?.ip) || 0;
+    await skill.update({ "system.level": newLevel, "system.ip": banked - cost, "system.IP": banked - cost });
+  }
+  ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor }),
+    content: localize("IpLeveledUp", { actor: actor.name, skill: skill.name, level: newLevel, cost })
+  });
+  return true;
+}
+
+/** Add IP to the Simple-mode pool (GM). */
+export async function addToPool(actor, amount) {
+  if (!actor) return false;
+  const cur = Number(actor.system?.ipPool) || 0;
+  await actor.update({ "system.ipPool": Math.max(0, cur + Math.floor(Number(amount) || 0)) });
+  return true;
+}
+
+/* --------------------------------------------------------------------- */
+/*  Hook + socket registration                                            */
+/* --------------------------------------------------------------------- */
+
+export function registerIpHooks() {
+  // Local skill-roll hook → auto-queue (RAW mode). rollSkill fires this on the roller's client.
+  Hooks.on("cyberpunkSkillRolled", (payload) => {
+    try { recordSkillRoll(payload); } catch (e) { console.warn("Cyberpunk2020 | IP queue failed", e); }
+  });
+
+  // GM-side: receive relayed rolls from players and enqueue them.
+  game.socket.on("system.cyberpunk2020", async (data) => {
+    if (data?.type !== "ipSkillRolled") return;
+    if (!_isActiveGM()) return;
+    try { await _enqueue(data.payload); } catch (e) { console.warn("Cyberpunk2020 | IP relay enqueue failed", e); }
+  });
+}

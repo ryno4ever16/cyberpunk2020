@@ -1,0 +1,85 @@
+<form class="{{cssClass}} flexcol" autocomplete="off">
+    {{!-- Header --}}
+    <header class="cyberheader">
+        <div class="flexrow">
+            <img class="profile-img" src="{{actor.img}}" data-edit="img" title="{{actor.name}}" height="64" width="64"/>
+            <div class="flexcol" style="flex:1; margin-left:8px;">
+                <h1 class="title"><input type="text" class="field-value" name="name" value="{{actor.name}}"/></h1>
+                {{#if manage}}
+                <div class="fieldrow" style="gap:6px; align-items:center;">
+                    <span style="opacity:0.85; font-size:0.85em;">{{#if system.open}}🟢 {{localize "CYBERPUNK.ShopStatusOpen"}}{{else}}⚫ {{localize "CYBERPUNK.ShopStatusClosed"}}{{/if}}</span>
+                    <span class="flex-pad" style="flex:1;"></span>
+                    <button type="button" class="cp-shop-publish" title="Open the shop to players and post a chat link they can click to browse and buy.">📢 {{localize "CYBERPUNK.ShopShowToPlayers"}}</button>
+                    {{#if system.open}}<button type="button" class="cp-shop-close" title="Close the shop to players.">{{localize "CYBERPUNK.ShopClose"}}</button>{{/if}}
+                </div>
+                {{/if}}
+                {{#if buyerName}}
+                <p style="opacity:0.7; font-size:0.82em; margin:2px 0 0;">Buying as <b>{{buyerName}}</b> — {{buyerFunds}}eb</p>
+                {{else}}
+                <p style="opacity:0.7; font-size:0.82em; margin:2px 0 0; color:#c0a062;">{{localize "CYBERPUNK.ShopBuyerNeeded"}}</p>
+                {{/if}}
+            </div>
+        </div>
+    </header>
+
+    <div class="sheet-body flexcol" style="overflow-y:auto;">
+        <h2 class="cyber-section-header">{{localize "CYBERPUNK.ShopStock"}}</h2>
+
+        {{#if stock.length}}
+        <div class="cp-shop-stock">
+            {{#each stock as |row|}}
+            <div class="cp-shop-row{{#if row.soldOut}} cp-shop-soldout{{/if}}" data-item-id="{{row.id}}">
+                <span class="cp-shop-col-name">
+                    <img class="cp-shop-img" src="{{row.img}}" width="22" height="22"/>
+                    <span class="cp-shop-name" title="{{row.type}} · catalog {{row.catalog}}eb">{{row.name}}</span>
+                    {{#unless row.unlimited}}<span class="cp-shop-stockcount" title="Units in stock">({{row.qty}})</span>{{/unless}}
+                </span>
+
+                {{#if @root.manage}}
+                <span class="cp-shop-col-stock">
+                    <label title="Per-item price (blank = catalog {{row.catalog}}eb).">eb <input type="number" class="cp-shop-price" value="{{row.override}}" placeholder="{{row.catalog}}" min="0" style="width:64px;"/></label>
+                    <label title="Unlimited stock — never depletes."><input type="checkbox" class="cp-shop-unlimited" {{#if row.unlimited}}checked{{/if}}/> {{localize "CYBERPUNK.ShopUnlimited"}}</label>
+                    {{#unless row.unlimited}}<input type="number" class="cp-shop-stock-qty" value="{{row.qty}}" min="0" style="width:48px;" title="Units in stock"/>{{/unless}}
+                    <label title="Style-priced clothing: buyer picks a fashion tier (×1–×4) at purchase."><input type="checkbox" class="cp-shop-fashion" {{#if row.fashion}}checked{{/if}}/> {{localize "CYBERPUNK.ShopFashion"}}</label>
+                </span>
+                {{else}}
+                <span class="cp-shop-col-price"><b>{{row.price}}</b>eb</span>
+                {{/if}}
+
+                <span class="cp-shop-col-buy">
+                    {{#if row.fashion}}
+                    <select class="cp-shop-style" title="{{localize "CYBERPUNK.ShopStyle"}}">
+                        {{#each @root.fashionStyles}}<option value="{{this.key}}">{{this.label}} ×{{this.mult}}</option>{{/each}}
+                    </select>
+                    {{/if}}
+                    <input type="number" class="cp-shop-qty" value="1" min="1" style="width:42px;" title="{{localize "CYBERPUNK.ShopQty"}}"/>
+                    <button type="button" class="cp-shop-buy" {{#if row.soldOut}}disabled{{/if}} title="Buy (deducts eurobucks)">{{localize "CYBERPUNK.ShopBuy"}}{{#if @root.manage}} {{row.price}}eb{{/if}}</button>
+                    {{#if @root.manage}}
+                    <button type="button" class="cp-shop-item-edit" title="Edit item">✎</button>
+                    <button type="button" class="cp-shop-item-delete" title="Remove from shop">✕</button>
+                    {{/if}}
+                </span>
+            </div>
+            {{/each}}
+        </div>
+        {{else}}
+        <p style="opacity:0.7; font-size:0.85em;">{{localize "CYBERPUNK.ShopEmpty"}}</p>
+        {{/if}}
+
+        {{#if manage}}
+        {{#if badItems.length}}
+        <p style="color:#c0a062; font-size:0.8em; margin-top:6px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <span>{{localize "CYBERPUNK.ShopBadItems"}}</span>
+            <button type="button" class="cp-shop-baditems-clear">{{localize "CYBERPUNK.ShopBadItemsClear" count=badItems.length}} ✕</button>
+        </p>
+        <p style="font-size:0.8em; margin:2px 0 0; display:flex; flex-wrap:wrap; gap:4px;">
+            {{#each badItems}}<button type="button" class="cp-shop-item-delete" data-item-id="{{id}}" title="Remove">{{name}} [{{type}}] ✕</button>{{/each}}
+        </p>
+        {{/if}}
+        <p style="opacity:0.6; font-size:0.78em; margin-top:6px;">Drag gear/weapons/armor/cyberware/programs/vehicles onto this shop to stock it (skills and ammo can't be sold). Set a per-item price (blank = catalog cost), mark <b>Unlimited</b> or a finite quantity, and tick <b>Style-priced</b> for clothing.</p>
+
+        <h2 class="cyber-section-header">{{localize "CYBERPUNK.ShopNotes"}}</h2>
+        <textarea name="system.notes" rows="3" style="width:100%;">{{system.notes}}</textarea>
+        {{/if}}
+    </div>
+</form>

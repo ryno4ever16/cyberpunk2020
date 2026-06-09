@@ -15,6 +15,14 @@
   {{else}}
     {{> (template "fields/number") label="HumanityLoss" edit="system.humanityLoss" readOnly=true}}
   {{/if}}
+
+  {{#if item.isEmbedded}}
+  <div class="field">
+    <label>{{CPLocal "CyberInstall"}}</label>
+    <span class="flex-pad"></span>
+    <button type="button" class="cyber-install" title="Pay surgery cost, roll Humanity loss, and apply surgical damage to the owner, then mark this installed.">🔧 {{CPLocal "CyberInstall"}}</button>
+  </div>
+  {{/if}}
   {{> (template "fields/string") label="Abbrev" edit="system.abbrev"}}
 
   {{!-- Module toggle --}}

@@ -6,6 +6,10 @@ import { getHtmlElement, getRichEditorHTML, itemFromDropData, saveRichEditorHTML
 import { resolveAttackRange } from "../combat/rangefinding.js";
 import { getAutoLayerOrder } from "../combat/armor-layers.js";
 import { openBuyAmmoDialog, ammoBuyButtonEnabled } from "../dialog/buy-ammo.js";
+import { openShopForPlayer } from "../shop/catalog.js";
+import { classifyService, payService } from "../shop/services.js";
+import { ipCost, ipLockState, canEditSkillLevels, levelUpSkill, toggleSkillLock } from "../ip/ip.js";
+import { shoppingEnabled, ipEnabled, ipSystem, ipShowPending } from "../settings.js";
 
 /** @extends {ActorSheet} */
 export class CyberpunkActorSheet extends ActorSheet {
@@ -56,6 +60,8 @@ export class CyberpunkActorSheet extends ActorSheet {
       sheetData.ammoTracking = this.actor.getFlag("cyberpunk2020", "ammoTracking") ?? true;
       // Whether to show the "Buy Ammo" button (world setting; default on).
       sheetData.showBuyAmmo = ammoBuyButtonEnabled();
+      // Whether to show the "Shop" button on the gear tab (world setting; default off).
+      sheetData.showShop = shoppingEnabled();
     }
 
     sheetData.cyberwareSegmentsRight = [
@@ -126,6 +132,38 @@ export class CyberpunkActorSheet extends ActorSheet {
     sheetData.skillDisplayList = sheetData.filteredSkillIDs
       .map(id => this.actor.items.get(id))
       .filter(Boolean);
+
+    // IP tracker (feature [[ip-tracker-design]]): per-skill banked/pending/level-up data + global flags.
+    this._prepareIp(sheetData);
+  }
+
+  /** Build the IP display data (global flags + per-skill cost/banked/pending/canLevel). */
+  _prepareIp(sheetData) {
+    let on = false;
+    try { on = ipEnabled(); } catch (e) { on = false; }
+    if (!on) { sheetData.ip = { enabled: false }; sheetData.ipBySkill = {}; return; }
+
+    const simple = ipSystem() === "simple";
+    const isGM = game.user.isGM;
+    const lock = ipLockState(this.actor);
+    const pool = Number(this.actor.system?.ipPool) || 0;
+    sheetData.ip = {
+      enabled: true, simple, isGM,
+      showPending: isGM && ipShowPending(),
+      locked: !canEditSkillLevels(this.actor),
+      lockOwner: lock.owner, lockGm: lock.gm, lockMode: lock.mode,
+      pool
+    };
+
+    const map = {};
+    for (const s of sheetData.skillDisplayList) {
+      if (s.type !== "skill") continue;
+      const cost = ipCost(s);
+      const banked = Number(s.system?.ip) || 0;
+      const have = simple ? pool : banked;
+      map[s.id] = { cost, banked, pending: Number(s.system?.ipPending) || 0, canLevel: have >= cost };
+    }
+    sheetData.ipBySkill = map;
   }
   _getSortedSkillIDs(sheetData) {
     const system = sheetData?.system ?? this.actor.system;
@@ -179,9 +217,14 @@ export class CyberpunkActorSheet extends ActorSheet {
     // As per https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/Collator
     // Compares locale-compatibly, and pretty fast too apparently.
     let hideThese = new Set(["cyberware", "skill", "program"]);
+    // Recurring services move to the Services tab — but ONLY when shopping is enabled (that tab is
+    // shown). With shopping off there is no Services tab, so leave them here or they'd be unreachable.
+    let hideServices = false;
+    try { hideServices = shoppingEnabled(); } catch (e) { hideServices = false; }
     let nameSorter = new Intl.Collator();
     let showItems = allItems
       .filter((item) => !hideThese.has(item.type))
+      .filter((item) => !(hideServices && item.type === "misc" && classifyService(item) === "recurring"))
       .sort((a, b) => nameSorter.compare(a.name, b.name));
     return showItems;
   }
@@ -197,6 +240,17 @@ export class CyberpunkActorSheet extends ActorSheet {
     let sortedItems = sheetData.actor.itemTypes;
 
     sheetData.gearTabItems = this._gearTabItems(sheetData.actor.items);
+
+    // Services tab (Shopping #15): recurring-service misc items, shown only when shopping is on.
+    let shopOn = false;
+    try { shopOn = shoppingEnabled(); } catch (e) { shopOn = false; }
+    if (shopOn) {
+      const recurring = sheetData.actor.items.filter(i => i.type === "misc" && classifyService(i) === "recurring");
+      sheetData.services = recurring
+        .map(i => ({ id: i.id, name: i.name, img: i.img, cost: Number(i.system?.cost) || 0, period: i.system?.servicePeriod || "month" }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      sheetData.servicesTotal = sheetData.services.reduce((s, x) => s + x.cost, 0);
+    }
 
     sheetData.gear = {
       weapons: sortedItems.weapon,
@@ -657,6 +711,49 @@ export class CyberpunkActorSheet extends ActorSheet {
     html.find(".cp-buy-ammo").on("click", async ev => {
       ev.preventDefault();
       await openBuyAmmoDialog(this.actor);
+    });
+
+    // Shop button -> opens the catalog browser or a published shop (gated by the shopping setting).
+    html.find(".cp-open-shop").on("click", ev => {
+      ev.preventDefault();
+      openShopForPlayer(this.actor);
+    });
+
+    // ── Services tab (recurring bills) ──────────────────────────────────────
+    const getServiceItem = (ev) => this.actor.items.get(ev.currentTarget.closest("[data-item-id]")?.dataset?.itemId);
+    html.find(".cp-service-add").on("click", async ev => {
+      ev.preventDefault();
+      const [created] = await this.actor.createEmbeddedDocuments("Item", [{
+        name: "New Service", type: "misc", system: { serviceMode: "recurring", servicePeriod: "month", cost: 0 }
+      }]);
+      created?.sheet?.render(true);
+    });
+    html.find(".cp-service-pay").on("click", async ev => {
+      ev.preventDefault();
+      const item = getServiceItem(ev);
+      if (item) await payService(this.actor, item);
+    });
+    html.find(".cp-service-edit").on("click", ev => {
+      ev.preventDefault();
+      getServiceItem(ev)?.sheet?.render(true);
+    });
+    html.find(".cp-service-delete").on("click", async ev => {
+      ev.preventDefault();
+      const item = getServiceItem(ev);
+      if (item) await item.delete();
+    });
+
+    // ── IP tracker: self-service level-up + skill-lock toggle ───────────────
+    html.find(".ip-level-up").on("click", async ev => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const skill = this.actor.items.get(ev.currentTarget.dataset.skillId);
+      if (skill) await levelUpSkill(this.actor, skill);
+    });
+    html.find(".ip-lock-toggle").on("click", async ev => {
+      ev.preventDefault();
+      await toggleSkillLock(this.actor);
+      this.render(false);
     });
 
     // Stun/Death save

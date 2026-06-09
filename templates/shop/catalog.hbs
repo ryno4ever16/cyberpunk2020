@@ -1,0 +1,171 @@
+<div class="cp-catalog-window flexcol" style="height:100%;">
+
+    {{!-- Build mode: shop config toolbar --}}
+    {{#if isBuild}}
+    <div class="cp-shop-config flexrow" style="align-items:center; gap:8px; flex-wrap:wrap;">
+        <input type="text" class="cp-shop-name" value="{{shop.name}}" title="{{localize "CYBERPUNK.ShopName"}}" style="flex:1; min-width:140px;"/>
+        <span class="cp-shop-status" title="{{localize "CYBERPUNK.ShopStockCount" n=stockCount}}">{{#if shop.open}}🟢 {{localize "CYBERPUNK.ShopStatusOpen"}}{{else}}⚫ {{localize "CYBERPUNK.ShopStatusClosed"}}{{/if}} · {{stockCount}}</span>
+        <label title="{{localize "CYBERPUNK.ShopFullSearchHint"}}"><input type="checkbox" class="cp-shop-fullsearch" {{#if shop.fullSearch}}checked{{/if}}/> {{localize "CYBERPUNK.ShopFullSearch"}}</label>
+        <label title="{{localize "CYBERPUNK.ShopOnlyHint"}}"><input type="checkbox" class="cp-shop-only" {{#if shopOnly}}checked{{/if}}/> {{localize "CYBERPUNK.ShopOnlyFilter"}}</label>
+        <button type="button" class="cp-shop-preview" title="{{localize "CYBERPUNK.ShopPreviewHint"}}">👁 {{localize "CYBERPUNK.ShopPreview"}}</button>
+        <button type="button" class="cp-shop-publish" title="{{localize "CYBERPUNK.ShopShowToPlayersHint"}}">📢 {{localize "CYBERPUNK.ShopShowToPlayers"}}</button>
+        {{#if shop.open}}<button type="button" class="cp-shop-close">{{localize "CYBERPUNK.ShopClose"}}</button>{{/if}}
+    </div>
+    {{/if}}
+
+    {{!-- Storefront mode: shop header --}}
+    {{#if isStorefront}}
+    <div class="cp-storefront-head flexrow" style="align-items:center; gap:8px;">
+        <h2 style="margin:0; flex:1;">🛒 {{shop.name}}</h2>
+        <span style="opacity:0.85; font-size:0.85em;">{{#if shop.open}}🟢 {{localize "CYBERPUNK.ShopStatusOpen"}}{{else}}⚫ {{localize "CYBERPUNK.ShopStatusClosed"}}{{/if}}</span>
+        {{#if manageBack}}<button type="button" class="cp-shop-manage" title="{{localize "CYBERPUNK.ShopManageHint"}}">🔧 {{localize "CYBERPUNK.ShopManage"}}</button>{{/if}}
+        <span class="cp-catalog-buyer">{{#if buyerName}}<b>{{buyerName}}</b> · {{buyerFunds}}eb{{else}}<span style="color:#c0a062;">{{localize "CYBERPUNK.ShopBuyerNeeded"}}</span>{{/if}}</span>
+    </div>
+    {{/if}}
+
+    {{!-- Toolbar (search / source badge / buyer) — hidden in a curated-only storefront --}}
+    {{#unless noSearch}}
+    <div class="cp-catalog-toolbar flexrow">
+        <input type="text" class="cp-catalog-search" placeholder="{{localize "CYBERPUNK.CatalogSearch"}}" value="{{search}}"/>
+        <label class="cp-catalog-srctoggle" title="{{localize "SETTINGS.ShopShowSourceHint"}}">
+            <input type="checkbox" class="cp-catalog-showsource" {{#if showSource}}checked{{/if}}/> {{localize "CYBERPUNK.CatalogShowSource"}}
+        </label>
+        <span class="flex-pad" style="flex:1;"></span>
+        {{#unless isBuild}}{{#unless isStorefront}}
+        <span class="cp-catalog-buyer">{{#if buyerName}}<b>{{buyerName}}</b> · {{buyerFunds}}eb{{else}}<span style="color:#c0a062;">{{localize "CYBERPUNK.ShopBuyerNeeded"}}</span>{{/if}}</span>
+        {{/unless}}{{/unless}}
+    </div>
+    {{/unless}}
+
+    <div class="cp-catalog-body">
+        {{!-- Category filters (hidden in a curated-only storefront) --}}
+        {{#unless noSearch}}
+        <div class="cp-catalog-filters flexcol">
+            <div class="flexrow" style="align-items:center;">
+                <h3 style="margin:2px 0; flex:1;">{{localize "CYBERPUNK.CatalogCategories"}}</h3>
+                <button type="button" class="cp-cat-clear" title="{{localize "CYBERPUNK.CatalogClearFilters"}}">✕</button>
+            </div>
+            {{#each cats as |c|}}
+            <div class="cp-cat-group">
+                <button type="button" class="cp-cat-chip cp-cat-top {{#if c.active}}active{{/if}}" data-cat="{{c.key}}">{{c.key}}</button>
+                {{#if c.subs.length}}
+                <div class="cp-cat-subs">
+                    {{#each c.subs as |s|}}<button type="button" class="cp-cat-chip cp-cat-sub {{#if s.active}}active{{/if}}" data-cat="{{s.key}}">{{s.label}}</button>{{/each}}
+                </div>
+                {{/if}}
+            </div>
+            {{/each}}
+        </div>
+        {{/unless}}
+
+        {{!-- Item list --}}
+        <div class="cp-catalog-center flexcol" style="flex:1; min-height:0;">
+            {{#unless searching}}{{#if letters.length}}
+            <div class="cp-catalog-jump">
+                {{#each letters as |L|}}<button type="button" class="cp-jump" data-letter="{{L}}">{{L}}</button>{{/each}}
+            </div>
+            {{/if}}{{/unless}}
+            <div class="cp-catalog-list flexcol" style="flex:1; min-height:0; overflow-y:auto;">
+                {{#if rowCount}}
+                {{#each rows as |r|}}
+                {{#if r._hiddenDivider}}<div class="cp-hidden-divider">{{localize "CYBERPUNK.CatalogHiddenDivider"}}</div>{{/if}}
+                {{#if r._featuredDivider}}<div class="cp-letter-header">★ {{localize "CYBERPUNK.ShopFeatured"}}</div>{{/if}}
+                {{#if r._restDivider}}<div class="cp-letter-header">{{localize "CYBERPUNK.ShopMoreCatalog"}}</div>{{/if}}
+                {{#if r._first}}<div class="cp-letter-header">{{r._letter}}</div>{{/if}}
+                <div class="cp-catalog-row{{#if r.dimmed}} cp-dimmed{{/if}}{{#if r.soldOut}} cp-shop-soldout{{/if}}"
+                     {{#if r.id}}data-item-id="{{r.id}}" data-pack-id="{{r.packId}}" data-fashion="{{#if r.fashion}}1{{else}}0{{/if}}"{{/if}}
+                     {{#if r.shopItemId}}data-shop-item-id="{{r.shopItemId}}"{{/if}}
+                     {{#if r._letter}}data-letter="{{r._letter}}"{{/if}}>
+                    <img class="cp-cat-thumb" src="{{r.img}}" width="26" height="26" title="{{localize "CYBERPUNK.ShopOpenDetails"}}"/>
+                    <span class="cp-cat-itemname" title="{{localize "CYBERPUNK.ShopOpenDetails"}}">{{r.name}}{{#if r.featured}} ★{{/if}}{{#if r.dimmed}} <i class="cp-hiddenmark">(hidden from players)</i>{{/if}}</span>
+                    {{#if @root.showSource}}{{#if r.supplement}}<span class="cp-src-badge" title="{{localize "CYBERPUNK.CatalogSource"}}">{{r.supplement}}</span>{{/if}}{{/if}}
+
+                    {{!-- Price --}}
+                    <span class="cp-cat-price"><b>{{#if @root.isBuild}}{{#if r.override}}{{r.override}}{{else}}{{r.cost}}{{/if}}{{else}}{{#if r.price}}{{r.price}}{{else}}{{r.cost}}{{/if}}{{/if}}</b>eb</span>
+
+                    {{!-- Action area by mode --}}
+                    {{#if @root.isBuild}}
+                        {{#if r.inShop}}
+                        <label class="cp-shop-econ" title="{{localize "CYBERPUNK.ShopPriceHint"}}">eb<input type="number" class="cp-shop-price" value="{{r.override}}" placeholder="{{r.cost}}" min="0" style="width:58px;"/></label>
+                        <label class="cp-shop-econ"><input type="checkbox" class="cp-shop-unlimited" {{#if r.unlimited}}checked{{/if}}/> {{localize "CYBERPUNK.ShopUnlimited"}}</label>
+                        {{#unless r.unlimited}}<input type="number" class="cp-shop-stock-qty" value="{{r.stockQty}}" min="0" style="width:44px;" title="{{localize "CYBERPUNK.ShopQty"}}"/>{{/unless}}
+                        <label class="cp-shop-econ"><input type="checkbox" class="cp-shop-fashion" {{#if r.shopFashion}}checked{{/if}}/> {{localize "CYBERPUNK.ShopFashion"}}</label>
+                        <button type="button" class="cp-shop-remove" title="{{localize "CYBERPUNK.ShopRemove"}}">✕</button>
+                        {{else}}
+                        <button type="button" class="cp-shop-add" title="{{localize "CYBERPUNK.ShopAdd"}}">＋ {{localize "CYBERPUNK.ShopAdd"}}</button>
+                        {{/if}}
+                    {{else}}
+                        {{#if r.fashion}}
+                        <select class="cp-catalog-style" title="{{localize "CYBERPUNK.ShopStyle"}}">
+                            {{#each @root.fashionStyles}}<option value="{{this.key}}">{{this.label}} ×{{this.mult}}</option>{{/each}}
+                        </select>
+                        {{/if}}
+                        {{#if @root.isCatalog}}{{#if @root.isGM}}
+                        <select class="cp-add-to-shop" title="{{localize "CYBERPUNK.ShopAddTo"}}">
+                            <option value="">{{localize "CYBERPUNK.ShopAddTo"}}</option>
+                            {{#each @root.shopList}}<option value="{{this.id}}">{{this.name}}</option>{{/each}}
+                            <option value="__new__">＋ {{localize "CYBERPUNK.ShopNew"}}</option>
+                        </select>
+                        {{/if}}{{/if}}
+                        {{#unless r.curated}}<input type="number" class="cp-catalog-qty" value="1" min="1" title="{{localize "CYBERPUNK.ShopQty"}}"/>{{/unless}}
+                        {{#if r.curated}}{{#unless r.unlimited}}<span class="cp-shop-stockcount" title="{{localize "CYBERPUNK.ShopQty"}}">({{r.qty}})</span>{{/unless}}<input type="number" class="cp-catalog-qty" value="1" min="1" title="{{localize "CYBERPUNK.ShopQty"}}"/>{{/if}}
+                        <button type="button" class="cp-catalog-buy" {{#if r.soldOut}}disabled{{/if}} title="{{localize "CYBERPUNK.ShopBuy"}}">{{localize "CYBERPUNK.ShopBuy"}}</button>
+                    {{/if}}
+                </div>
+                {{/each}}
+                {{else}}
+                <p style="opacity:0.7; padding:8px;">{{localize "CYBERPUNK.CatalogNoMatch"}}</p>
+                {{/if}}
+
+                {{!-- Build mode: curated items not represented in the catalog (legacy / source removed) --}}
+                {{#if extras.length}}
+                <div class="cp-letter-header">{{localize "CYBERPUNK.ShopCuratedExtras"}}</div>
+                {{#each extras as |r|}}
+                <div class="cp-catalog-row cp-shop-extra" data-shop-item-id="{{r.shopItemId}}">
+                    <img class="cp-cat-thumb" src="{{r.img}}" width="26" height="26" title="{{localize "CYBERPUNK.ShopOpenDetails"}}"/>
+                    <span class="cp-cat-itemname" title="{{localize "CYBERPUNK.ShopOpenDetails"}}">{{r.name}}</span>
+                    <span class="cp-cat-price"><b>{{#if r.override}}{{r.override}}{{else}}{{r.catalog}}{{/if}}</b>eb</span>
+                    <label class="cp-shop-econ" title="{{localize "CYBERPUNK.ShopPriceHint"}}">eb<input type="number" class="cp-shop-price" value="{{r.override}}" placeholder="{{r.catalog}}" min="0" style="width:58px;"/></label>
+                    <label class="cp-shop-econ"><input type="checkbox" class="cp-shop-unlimited" {{#if r.unlimited}}checked{{/if}}/> {{localize "CYBERPUNK.ShopUnlimited"}}</label>
+                    {{#unless r.unlimited}}<input type="number" class="cp-shop-stock-qty" value="{{r.qty}}" min="0" style="width:44px;"/>{{/unless}}
+                    <label class="cp-shop-econ"><input type="checkbox" class="cp-shop-fashion" {{#if r.fashion}}checked{{/if}}/> {{localize "CYBERPUNK.ShopFashion"}}</label>
+                    <button type="button" class="cp-shop-edit" title="{{localize "CYBERPUNK.ShopEdit"}}">✎</button>
+                    <button type="button" class="cp-shop-remove" title="{{localize "CYBERPUNK.ShopRemove"}}">✕</button>
+                </div>
+                {{/each}}
+                {{/if}}
+            </div>
+        </div>
+
+        {{!-- GM source controls (catalog + build only) --}}
+        {{#if isGM}}{{#unless isStorefront}}
+        <div class="cp-catalog-sources flexcol">
+            <h3 style="margin:2px 0;">{{localize "CYBERPUNK.CatalogSources"}}</h3>
+            <p class="cp-src-hint">{{localize "CYBERPUNK.CatalogSourcesHint"}}</p>
+            <div style="overflow-y:auto; flex:1;">
+                <div class="cp-src-group-label">{{localize "CYBERPUNK.CatalogOfficial"}}</div>
+                {{#each sourcePanel.official as |s|}}
+                <label class="cp-src-row"><input type="checkbox" class="cp-src-toggle" data-source="{{s.name}}" {{#if s.enabled}}checked{{/if}}/> {{s.name}}</label>
+                {{else}}<p class="cp-src-none">{{localize "CYBERPUNK.CatalogNoneInPlay"}}</p>{{/each}}
+
+                <div class="cp-src-group-label">{{localize "CYBERPUNK.CatalogHomebrew"}}</div>
+                {{#if sourcePanel.allowHomebrew}}
+                    {{#each sourcePanel.homebrew as |s|}}
+                    <label class="cp-src-row"><input type="checkbox" class="cp-src-toggle" data-source="{{s.name}}" {{#if s.enabled}}checked{{/if}}/> {{s.name}}</label>
+                    {{else}}<p class="cp-src-none">{{localize "CYBERPUNK.CatalogNoneInPlay"}}</p>{{/each}}
+                {{else}}
+                <p class="cp-src-none">{{localize "CYBERPUNK.CatalogHomebrewOff"}}</p>
+                {{/if}}
+            </div>
+        </div>
+        {{/unless}}{{/if}}
+    </div>
+
+    {{#if isBuild}}
+    <div class="cp-shop-notes-row" style="padding:4px 6px;">
+        <textarea class="cp-shop-notes" rows="2" placeholder="{{localize "CYBERPUNK.ShopNotes"}}" style="width:100%;">{{shop.notes}}</textarea>
+    </div>
+    {{/if}}
+
+    <p class="cp-catalog-footer">{{#if isBuild}}{{localize "CYBERPUNK.ShopBuildFooter"}}{{else}}{{localize "CYBERPUNK.CatalogFooter"}}{{/if}}</p>
+</div>

@@ -24,7 +24,18 @@
 
     <input type="number" data-skill-id="{{../skill.id}}" class="skill-level smallnumber nogrow"
         value="{{#if isChipped}}{{chipLevel}}{{else}}{{level}}{{/if}}"
-        {{#if autoChipped}}readonly title="{{CPLocal 'ControlledByChip'}}"{{/if}}
+        {{#if autoChipped}}readonly title="{{CPLocal 'ControlledByChip'}}"{{else}}{{#if @root.ip.locked}}readonly title="{{CPLocal 'IpSkillLockToggle'}}"{{/if}}{{/if}}
     />
     {{/with}}
+
+    {{!-- IP tracker: banked IP / cost, GM-only pending pip, and the self-service level-up arrow. --}}
+    {{#if @root.ip.enabled}}
+    {{#with (lookup @root.ipBySkill skill.id) as |ipd|}}
+    <span class="ip-cluster" title="{{CPLocal 'IpBanked'}} {{ipd.banked}} / cost {{ipd.cost}}">
+        {{#if @root.ip.showPending}}{{#if ipd.pending}}<span class="ip-pending-pip" title="{{CPLocal 'IpPendingPip'}}">+{{ipd.pending}}</span>{{/if}}{{/if}}
+        <span class="ip-banked">{{ipd.banked}}/{{ipd.cost}}</span>
+        {{#if ipd.canLevel}}<i class="fas fa-arrow-up ip-level-up action" data-skill-id="{{skill.id}}" title="{{CPLocal 'IpLevelUp'}} ({{ipd.cost}} IP)"></i>{{/if}}
+    </span>
+    {{/with}}
+    {{/if}}
 </div>

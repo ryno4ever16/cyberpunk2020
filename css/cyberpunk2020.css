@@ -2101,4 +2101,64 @@ img#anatomy-img {
   cursor: pointer;
 }
 
+/* ===== Shopping & IP custom UI (mirrors scss/_shop.scss) =====
+   Self-contained input colors so custom fields stay readable under ANY UI theme (Carolingian etc.
+   otherwise override our inputs to dark-on-dark). */
+.cp-catalog input, .cp-catalog select, .cp-catalog textarea,
+.cp-ip-tracker input, .cp-ip-tracker select,
+.cyberpunk.sheet.shop input[type="text"], .cyberpunk.sheet.shop input[type="number"],
+.cyberpunk.sheet.shop select, .cyberpunk.sheet.shop textarea {
+  color: #f0f0f0 !important;
+  background-color: #1b1b1b !important;
+  border: 1px solid #555;
+}
+/* Layout (scoped to out-specify Foundry core's .flexrow{align-items:center} + .flexcol>*{flex:none}). */
+.cp-catalog .window-content { display: flex; flex-direction: column; }
+.cp-catalog .cp-catalog-window { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.cp-catalog .cp-catalog-body { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: stretch; flex: 1 1 auto; min-height: 0; gap: 8px; }
+.cp-catalog .cp-catalog-center { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; min-height: 0; }
+.cp-catalog .cp-catalog-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+/* Foundry defaults buttons to full width; our chips/letters/buy must size to content. */
+.cp-catalog button { width: auto; }
+.cp-catalog .cp-catalog-jump { flex: 0 0 auto; }
+.cp-catalog .cp-catalog-jump .cp-jump { width: auto; flex: 0 0 auto; min-width: 0; }
+.cp-catalog .cp-cat-chip { width: auto; flex: 0 0 auto; }
+.cp-catalog-toolbar { gap: 8px; align-items: center; padding: 4px 0; }
+.cp-catalog-filters { flex: 0 0 150px; overflow-y: auto; border-right: 1px solid rgba(255,255,255,0.12); padding-right: 6px; }
+.cp-catalog-sources { flex: 0 0 185px; overflow-y: auto; border-left: 1px solid rgba(255,255,255,0.12); padding-left: 6px; }
+.cp-cat-chip { display: inline-block; margin: 1px; padding: 1px 6px; font-size: 0.8em; cursor: pointer; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); border-radius: 3px; color: inherit; }
+.cp-cat-chip.active { background: #8a6d3b; color: #fff; border-color: #b8916a; }
+.cp-cat-top { font-weight: bold; }
+.cp-cat-subs { margin: 0 0 3px 8px; }
+.cp-cat-sub { font-size: 0.72em; opacity: 0.9; }
+.cp-catalog-jump { display: flex; flex-wrap: wrap; gap: 1px; padding: 2px 0; }
+.cp-catalog-jump .cp-jump { padding: 0 4px; font-size: 0.75em; cursor: pointer; background: none; border: none; color: inherit; }
+.cp-letter-header { font-weight: bold; opacity: 0.7; border-bottom: 1px solid rgba(255,255,255,0.15); margin-top: 4px; padding-left: 2px; }
+.cp-hidden-divider { font-size: 0.8em; opacity: 0.65; font-style: italic; margin-top: 10px; padding: 3px 4px; border-top: 1px dashed rgba(192,160,98,0.5); color: #c0a062; }
+.cp-catalog-row { display: flex; align-items: center; gap: 6px; padding: 2px 4px; }
+.cp-catalog-row.cp-dimmed { opacity: 0.5; }
+.cp-catalog-row .cp-cat-itemname { flex: 1; }
+.cp-src-badge { font-size: 0.7em; opacity: 0.75; padding: 0 4px; border: 1px solid rgba(255,255,255,0.2); border-radius: 3px; white-space: nowrap; }
+.cp-catalog-qty { width: 42px; }
+.cp-src-row { display: block; font-size: 0.82em; }
+.cp-src-group-label { font-weight: bold; margin-top: 6px; opacity: 0.85; }
+.cp-src-none, .cp-src-hint, .cp-catalog-footer { opacity: 0.6; font-size: 0.75em; }
+.cp-hiddenmark { opacity: 0.6; font-size: 0.85em; }
+.cp-catalog-srctoggle { font-size: 0.8em; opacity: 0.85; white-space: nowrap; }
+.cp-catalog-buyer { font-size: 0.85em; opacity: 0.9; }
+/* Build (curation) + storefront controls. */
+.cp-shop-config { padding: 4px 2px 6px; border-bottom: 1px solid rgba(255,255,255,0.15); margin-bottom: 4px; }
+.cp-shop-config label { font-size: 0.8em; white-space: nowrap; }
+.cp-shop-config .cp-shop-status { font-size: 0.8em; opacity: 0.85; white-space: nowrap; }
+.cp-storefront-head { padding: 2px 2px 6px; border-bottom: 1px solid rgba(255,255,255,0.15); margin-bottom: 4px; }
+.cp-shop-econ { font-size: 0.75em; opacity: 0.9; white-space: nowrap; display: inline-flex; align-items: center; gap: 2px; }
+.cp-catalog-row.cp-shop-soldout { opacity: 0.55; }
+.cp-catalog-row.cp-shop-extra { background: rgba(192,160,98,0.08); }
+.cp-shop-stockcount { font-size: 0.78em; opacity: 0.75; }
+.cp-shop-add { font-size: 0.8em; }
+.cp-add-to-shop { font-size: 0.75em; max-width: 130px; }
+/* Item name + thumbnail open the compendium sheet on click. */
+.cp-catalog-row .cp-cat-itemname, .cp-catalog-row .cp-cat-thumb { cursor: pointer; }
+.cp-catalog-row .cp-cat-itemname:hover { text-decoration: underline; }
+
 /*# sourceMappingURL=cyberpunk2020.css.map */

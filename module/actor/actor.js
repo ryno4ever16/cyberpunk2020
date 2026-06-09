@@ -43,9 +43,11 @@ export class CyberpunkActor extends Actor {
 
     const items = this._getInitialItemsSource(data);
 
-    // Default skills
+    // Default skills — only stat-block actors (character/npc) use skills. Shops and vehicles must
+    // NOT be seeded with the 90-skill list (that's why a fresh shop showed every skill as stock).
+    const SKILLED_TYPES = new Set(["character", "npc"]);
     const firstSkill = items.find((item) => item.type === "skill");
-    if (!firstSkill) {
+    if (SKILLED_TYPES.has(actorType) && !firstSkill) {
       // Using toObject is important - Foundry does not like creating new documents from documents themselves.
       const skillsData = sortSkills(await getDefaultSkills(), SortOrders.Name)
         .map((item) => item.toObject());
@@ -811,6 +813,17 @@ export class CyberpunkActor extends Actor {
    * @param {boolean} advantage
    * @param {boolean} disadvantage
    */
+  /** Fire the IP-tracker hook for a resolved skill roll (auto-queue listens; see module/ip/ip.js). */
+  _fireSkillRolled(skill, roll) {
+    try {
+      Hooks.callAll("cyberpunkSkillRolled", {
+        actorId: this.id, skillId: skill.id,
+        actorName: this.name, skillName: skill.name,
+        total: Number(roll?.total) || 0, userId: game.user.id
+      });
+    } catch (e) { /* non-fatal — IP tracking must never block a roll */ }
+  }
+
   async rollSkill(skillId, extraMod = 0, advantage = false, disadvantage = false, hiddenAdvantage = false) {
     const skill = this.items.get(skillId);
     if (!skill) return;
@@ -845,6 +858,8 @@ export class CyberpunkActor extends Actor {
 
       const other = (chosen === r1) ? r2 : r1;
 
+      this._fireSkillRolled(skill, chosen);
+
       // Fumble Table
       let fumble = null;
       if (game.settings.get("cyberpunk2020", "fumbleTableEnabled") && isFumbleRoll(chosen)) {
@@ -874,6 +889,8 @@ export class CyberpunkActor extends Actor {
     // normal roll
     const r = makeRoll();
     await r.evaluate();
+
+    this._fireSkillRolled(skill, r);
 
     let fumble = null;
     if (game.settings.get("cyberpunk2020", "fumbleTableEnabled") && isFumbleRoll(r)) {

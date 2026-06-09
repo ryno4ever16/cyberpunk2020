@@ -1,6 +1,7 @@
 import { weaponTypes, meleeAttackTypes, rangedAttackTypes, attackSkills, concealability, availability, reliability, getStatNames, MARTIAL_BONUS_ACTIONS, getCalibers, AMMO_MODIFIERS, caliberMatches, normalizeCaliber, getCaliberBox, getAmmoBoxPrice } from "../lookups.js";
 import { canBuyAmmo, applyAmmoModifierUpdate, openBuyAmmoDialog, ammoLockerEnabled } from "../dialog/buy-ammo.js";
 import { formulaHasDice } from "../dice.js";
+import { installCyberware, rollCyberwareHumanity } from "../cyberware/install.js";
 import { deleteFieldUpdate, localize, cwHasType, getSkillIndex } from "../utils.js";
 import { createCyberpunkChatMessage, getHtmlElement, getPublicMessageMode, getRichEditorHTML, saveRichEditorHTML, rollToCyberpunkChatMessage } from "../compat.js";
 
@@ -980,54 +981,18 @@ async _prepareCyberware(sheet) {
       this._onSubmit(ev);
     });
 
-    // HumanityCost Roll
+    // HumanityCost Roll — shared with the cyberware install flow (module/cyberware/install.js).
     html.find('.humanity-cost-roll').click(async ev => {
       ev.stopPropagation();
+      await rollCyberwareHumanity(this.object);
+    });
 
-      const cyber = this.object;
-      const hc = cyber.system.humanityCost;
-      let loss = 0;
-      let roll = null;
-
-      // determine if humanity cost is a number or dice
-      if (formulaHasDice(hc)) {
-        roll = await new Roll(hc).evaluate();
-        loss = roll?.total ? roll.total : 0;
-      } else {
-        const num = Number(hc);
-        loss = (isNaN(num)) ? 0 : num;
-      }
-
-      // Persist loss on the item
-      await cyber.update({ "system.humanityLoss": loss });
-
-      // Public chat message so players can't reroll silently
-      const actor = cyber.actor ?? null;
-      const speaker = ChatMessage.getSpeaker(actor ? { actor } : {});
-      const messageMode = getPublicMessageMode();
-
-      if (roll) {
-        await rollToCyberpunkChatMessage(
-          roll,
-          {
-            speaker,
-            flavor: game.i18n.format("CYBERPUNK.Chat.HumanityRollFlavor", {
-              actor: actor?.name ?? game.user.name,
-              item: cyber.name
-            })
-          },
-          { messageMode }
-        );
-      } else {
-        await createCyberpunkChatMessage({
-          speaker,
-          content: game.i18n.format("CYBERPUNK.Chat.HumanityLossSet", {
-            actor: actor?.name ?? game.user.name,
-            item: cyber.name,
-            loss
-          })
-        }, { messageMode });
-      }
+    // Install (Surgery): pay surgery cost, roll humanity, apply surgical damage, mark installed.
+    html.find('.cyber-install').click(async ev => {
+      ev.stopPropagation();
+      const actor = this.object?.actor;
+      if (!actor) { ui.notifications?.warn(localize("ShopNoActor")); return; }
+      await installCyberware(actor, this.object, { confirm: true });
     });
 
     // Recalculate available slots when changing “Slots provided”

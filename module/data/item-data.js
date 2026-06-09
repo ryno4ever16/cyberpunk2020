@@ -205,6 +205,10 @@ export class CyberpunkSkillData extends foundry.abstract.TypeDataModel {
       chipLevel: numberField(0),
       ip: numberField(0),
       IP: numberField(0),
+      // IP tracker (feature [[ip-tracker-design]]): `ip`/`IP` are the BANKED IP a player can spend
+      // to level up; `ipPending` is IP attributed by the GM tracker but not yet released (hidden
+      // from the player until the GM clicks Apply, which moves ipPending → ip). Additive.
+      ipPending: numberField(0),
       diffMod: numberField(1),
       isChipped: booleanField(false),
       autoChipped: booleanField(false),
@@ -234,6 +238,7 @@ export class CyberpunkSkillData extends foundry.abstract.TypeDataModel {
     normalizeNumberIfPresent(source, "chipLevel", 0);
     normalizeNumberIfPresent(source, "ip", 0);
     normalizeNumberIfPresent(source, "IP", hasOwn(source, "ip") ? source.ip : 0);
+    normalizeNumberIfPresent(source, "ipPending", 0);
     normalizeNumberIfPresent(source, "diffMod", 1);
 
     if (hasOwn(source, "isChipped")) {
@@ -292,8 +297,7 @@ export class CyberpunkWeaponData extends CyberpunkBaseItemData {
       reliability: stringField(DEFAULT_WEAPON.reliability),
       range: numberField(DEFAULT_WEAPON.range),
       attackType: stringField(DEFAULT_WEAPON.attackType),
-      attackSkill: stringField(DEFAULT_WEAPON.attackSkill),
-      name: stringField("")
+      attackSkill: stringField(DEFAULT_WEAPON.attackSkill)
     };
   }
 
@@ -539,7 +543,18 @@ export class CyberpunkVehicleWeaponData extends CyberpunkBaseItemData {
   }
 }
 
-export class CyberpunkMiscData extends CyberpunkBaseItemData {}
+export class CyberpunkMiscData extends CyberpunkBaseItemData {
+  static defineSchema() {
+    return {
+      ...commonSchema(),
+      // Services feature (Shopping #15). "" = unset → the runtime classifier infers from pack/name;
+      // "gear" | "recurring" | "oneoff" = an explicit GM/player override. Additive: existing misc
+      // items load with the defaults (no migration / relaunch needed).
+      serviceMode:   stringField(""),
+      servicePeriod: stringField("month")   // recurring billing label (week/month/…); display only
+    };
+  }
+}
 
 /**
  * ACPA non-weapon system (Maximum Metal p.61-79). A utility / sensor / movement / defensive / safety

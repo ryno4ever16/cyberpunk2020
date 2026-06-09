@@ -16,6 +16,81 @@ export function vehicleArcEnforcement() {
   try { return game.settings.get(SCOPE, "vehicleArcEnforcement") || "free"; } catch { return "free"; }
 }
 
+// --- Shopping / economy ---------------------------------------------------
+/** Master toggle for the Shopping feature (Shop button + purchases). Off by default (opt-in). */
+export function shoppingEnabled() {
+  try { return game.settings.get(SCOPE, "shoppingEnabled") === true; } catch { return false; }
+}
+
+/** Whether the current user may purchase. GMs always may; players only when allowed by the setting. */
+export function canShop() {
+  if (game.user?.isGM) return true;
+  try { return game.settings.get(SCOPE, "playersCanShop") !== false; } catch { return true; }
+}
+
+/** Player buy source when buying directly: "catalog" (full compendia) or "shops" (published shops only). */
+export function shopBuySource() {
+  try { return game.settings.get(SCOPE, "shopBuySource") || "catalog"; } catch { return "catalog"; }
+}
+
+/**
+ * Per-supplement visibility OVERRIDES for the full catalog, as a map { supplementName: true|false }
+ * (true = force-show, false = force-hide). Un-listed supplements fall back to their category default
+ * (Core/official/untagged shown; community/non-canon hidden). Managed from the catalog UI.
+ */
+export function shopSupplementOverrides() {
+  try { return game.settings.get(SCOPE, "shopSupplementOverrides") || {}; } catch { return {}; }
+}
+
+/** Master gate: are homebrew (non-canon/community) sources allowed in play at all? (System settings.) */
+export function shopAllowHomebrew() {
+  try { return game.settings.get(SCOPE, "shopAllowHomebrew") === true; } catch { return false; }
+}
+
+/** Per-source enable map { supplementName: true } for players (GM-curated from the shop). */
+export function shopEnabledSources() {
+  try { return game.settings.get(SCOPE, "shopEnabledSources") || {}; } catch { return {}; }
+}
+
+/** Per-user toggle: show the item source/supplement badge in the shop (default on). */
+export function shopShowSource() {
+  try { return game.settings.get(SCOPE, "shopShowSource") !== false; } catch { return true; }
+}
+
+/** Bundled config for the supplement-visibility helpers in shop/supplements.js. */
+export function shopSourceConfig() {
+  return { allowHomebrew: shopAllowHomebrew(), enabledSources: shopEnabledSources() };
+}
+
+// --- IP (Improvement Points) tracker ([[ip-tracker-design]]) ---------------
+/** IP system mode: "disabled" (default — free skill editing) / "simple" (single pool) / "raw" (per-skill tracker). */
+export function ipSystem() {
+  try { return game.settings.get(SCOPE, "ipSystem") || "disabled"; } catch { return "disabled"; }
+}
+/** Whether the IP system is active at all. */
+export function ipEnabled() { return ipSystem() !== "disabled"; }
+
+/** IP award model: "manual" (RAW GM-per-use, default) / "autoBaseline" (GM-marked success → +N). */
+export function ipAwardModel() {
+  try { return game.settings.get(SCOPE, "ipAwardModel") || "manual"; } catch { return "manual"; }
+}
+/** IP auto-granted per GM-marked success when the award model is autoBaseline (default 1). */
+export function ipAutoBaselineAmount() {
+  try { const n = Number(game.settings.get(SCOPE, "ipAutoBaselineAmount")); return Number.isFinite(n) ? n : 1; } catch { return 1; }
+}
+/** Anti-grind throttle: "off" (default) / "hardcap" (1/skill/apply-cycle) / "diminishing" (halving). */
+export function ipThrottle() {
+  try { return game.settings.get(SCOPE, "ipThrottle") || "off"; } catch { return "off"; }
+}
+/** Skill-lock control mode: "owner" (default) / "gm" / "mutual" (two-tier). */
+export function ipSkillLockMode() {
+  try { return game.settings.get(SCOPE, "ipSkillLockMode") || "owner"; } catch { return "owner"; }
+}
+/** Per-user toggle: show the GM-only "pending IP" pip on skill rows (default on). */
+export function ipShowPending() {
+  try { return game.settings.get(SCOPE, "ipShowPending") !== false; } catch { return true; }
+}
+
 export function registerSystemSettings() {
    /**
    * Track the system version upon which point a migration was last applied
@@ -91,6 +166,148 @@ export function registerSystemSettings() {
     config: true,
     type: Boolean,
     default: false
+  });
+
+    // --- Shopping / economy ---
+  game.settings.register("cyberpunk2020", "shoppingEnabled", {
+    name: "SETTINGS.ShoppingEnabled",
+    hint: "SETTINGS.ShoppingEnabledHint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false
+  });
+
+  game.settings.register("cyberpunk2020", "playersCanShop", {
+    name: "SETTINGS.PlayersCanShop",
+    hint: "SETTINGS.PlayersCanShopHint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+
+  game.settings.register("cyberpunk2020", "shopBuySource", {
+    name: "SETTINGS.ShopBuySource",
+    hint: "SETTINGS.ShopBuySourceHint",
+    scope: "world",
+    config: true,
+    type: String,
+    choices: { catalog: "SETTINGS.ShopBuySourceCatalog", shops: "SETTINGS.ShopBuySourceShops" },
+    default: "catalog"
+  });
+
+    // Per-supplement catalog visibility overrides { name: true|false }. Un-listed = category default
+    // (Core/official shown, community/non-canon hidden). GM-managed from the catalog UI.
+  game.settings.register("cyberpunk2020", "shopSupplementOverrides", {
+    scope: "world",
+    config: false,
+    type: Object,
+    default: {}
+  });
+
+    // Master gate for homebrew (non-canon/community) content. The deliberate System-Settings step:
+    // homebrew is absent from the shop entirely until this is on (then curated per-source in the shop).
+  game.settings.register("cyberpunk2020", "shopAllowHomebrew", {
+    name: "SETTINGS.ShopAllowHomebrew",
+    hint: "SETTINGS.ShopAllowHomebrewHint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false
+  });
+
+    // Per-source enable map { supplementName: true } for PLAYERS. GM-curated via in-shop controls.
+  game.settings.register("cyberpunk2020", "shopEnabledSources", {
+    scope: "world",
+    config: false,
+    type: Object,
+    default: {}
+  });
+
+    // Per-user: show the item source/supplement badge in the shop (default on; each player can hide).
+  game.settings.register("cyberpunk2020", "shopShowSource", {
+    name: "SETTINGS.ShopShowSource",
+    hint: "SETTINGS.ShopShowSourceHint",
+    scope: "client",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+
+    // --- IP (Improvement Points) tracker ---
+  game.settings.register("cyberpunk2020", "ipSystem", {
+    name: "SETTINGS.IpSystem",
+    hint: "SETTINGS.IpSystemHint",
+    scope: "world",
+    config: true,
+    type: String,
+    choices: { disabled: "SETTINGS.IpSystemDisabled", simple: "SETTINGS.IpSystemSimple", raw: "SETTINGS.IpSystemRaw" },
+    default: "disabled"
+  });
+
+  game.settings.register("cyberpunk2020", "ipAwardModel", {
+    name: "SETTINGS.IpAwardModel",
+    hint: "SETTINGS.IpAwardModelHint",
+    scope: "world",
+    config: true,
+    type: String,
+    choices: { manual: "SETTINGS.IpAwardManual", autoBaseline: "SETTINGS.IpAwardAuto" },
+    default: "manual"
+  });
+
+  game.settings.register("cyberpunk2020", "ipAutoBaselineAmount", {
+    name: "SETTINGS.IpAutoBaselineAmount",
+    hint: "SETTINGS.IpAutoBaselineAmountHint",
+    scope: "world",
+    config: true,
+    type: Number,
+    default: 1
+  });
+
+  game.settings.register("cyberpunk2020", "ipThrottle", {
+    name: "SETTINGS.IpThrottle",
+    hint: "SETTINGS.IpThrottleHint",
+    scope: "world",
+    config: true,
+    type: String,
+    choices: { off: "SETTINGS.IpThrottleOff", hardcap: "SETTINGS.IpThrottleHardcap", diminishing: "SETTINGS.IpThrottleDiminishing" },
+    default: "off"
+  });
+
+  game.settings.register("cyberpunk2020", "ipSkillLockMode", {
+    name: "SETTINGS.IpSkillLockMode",
+    hint: "SETTINGS.IpSkillLockModeHint",
+    scope: "world",
+    config: true,
+    type: String,
+    choices: { owner: "SETTINGS.IpSkillLockOwner", gm: "SETTINGS.IpSkillLockGm", mutual: "SETTINGS.IpSkillLockMutual" },
+    default: "owner"
+  });
+
+  game.settings.register("cyberpunk2020", "ipShowPending", {
+    name: "SETTINGS.IpShowPending",
+    hint: "SETTINGS.IpShowPendingHint",
+    scope: "client",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+
+    // IP auto-queue of skill rolls awaiting a GM IP decision (GM working list). Not shown in the menu.
+  game.settings.register("cyberpunk2020", "ipQueue", {
+    scope: "world",
+    config: false,
+    type: Array,
+    default: []
+  });
+
+    // Per-skill IP awards within the current Apply cycle, for the throttle. Not shown in the menu.
+  game.settings.register("cyberpunk2020", "ipThrottleCounts", {
+    scope: "world",
+    config: false,
+    type: Object,
+    default: {}
   });
 
     // GM-defined custom calibers: { id: { label, costClass } }. Not shown in the menu.
