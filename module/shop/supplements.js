@@ -30,9 +30,15 @@ const RULES = [
   [s => s.includes("solo of fortune 2"), "Solo of Fortune 2", "official"],
   [s => s.includes("solo of fortune"), "Solo of Fortune", "official"],
   [s => s.includes("maximum metal"), "Maximum Metal", "official"],
-  // "Chromebook N p.X" (audited tags) AND legacy bare "Chrome"/"Chrome 2" tags → all Chromebook
-  // (the audit established that the loose "Chrome" tags ARE Chromebook content). See the lesson note.
-  [s => s.includes("chrome") || /^chr ?\d/.test(s), "Chromebook", "official"],
+  // Chromebook is FOUR distinct books — one filter each. Match "Chromebook N" (audited tags) and
+  // legacy "Chrome N" / "Chr N". A number 1–4 picks the volume; un-numbered "Chrome" falls to the
+  // generic Chromebook fallback below. (Note "chromebook" contains "chrome"; alternation longest-first
+  // + the digit keeps each rule on its own volume; "Chromebook 1 & 2" matches vol 1 first.)
+  [s => /(chromebook|chrome|chr) ?1/.test(s), "Chromebook 1", "official"],
+  [s => /(chromebook|chrome|chr) ?2/.test(s), "Chromebook 2", "official"],
+  [s => /(chromebook|chrome|chr) ?3/.test(s), "Chromebook 3", "official"],
+  [s => /(chromebook|chrome|chr) ?4/.test(s), "Chromebook 4", "official"],
+  [s => s.includes("chrome"), "Chromebook", "official"],
   [s => s.includes("eurosource plus") || s.includes("eurosource +") || s.includes("eurosource+"), "Eurosource Plus", "official"],
   [s => s.includes("eurotour"), "Eurotour", "official"],
   [s => s.includes("eurosource") || s.includes("euro source"), "Eurosource", "official"],
@@ -86,6 +92,10 @@ export function knownNoncanonSources() {
  *  Only the long / very common names are abbreviated; everything else shows in full. */
 const SHORT = {
   "Cyberpunk 2020 (Core)": "Core",
+  "Chromebook 1": "Chr 1",
+  "Chromebook 2": "Chr 2",
+  "Chromebook 3": "Chr 3",
+  "Chromebook 4": "Chr 4",
   "Maximum Metal": "Max Metal",
   "Solo of Fortune": "SoF",
   "Solo of Fortune 2": "SoF 2",

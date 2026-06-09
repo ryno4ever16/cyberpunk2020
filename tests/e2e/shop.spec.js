@@ -37,7 +37,7 @@ test("canonicity, categories, catalog index (no skills), ShopDef pricing", async
     out.cCore = sup.classifySupplement("Cyberpunk 2020").canon;
     out.cOfficial = sup.classifySupplement("Maximum Metal").canon;
     out.cNoncanon = sup.classifySupplement("Shadowrun").canon;
-    out.cChromeLegacy = sup.classifySupplement("Chrome 2").supplement;     // "Chromebook"
+    out.cChromeLegacy = sup.classifySupplement("Chrome 2").supplement;     // "Chromebook 2" (split)
     out.cCorp = sup.classifySupplement("Corporate Report 2").supplement;   // "Corporate Report"
     out.cEurotour = sup.classifySupplement("Eurotour p.29").supplement;    // "Eurotour"
 
@@ -72,7 +72,7 @@ test("canonicity, categories, catalog index (no skills), ShopDef pricing", async
   expect(R.cCore).toBe("core");
   expect(R.cOfficial).toBe("official");
   expect(R.cNoncanon).toBe("noncanon");
-  expect(R.cChromeLegacy, "legacy Chrome 2 -> Chromebook").toBe("Chromebook");
+  expect(R.cChromeLegacy, "legacy Chrome 2 -> Chromebook 2 (split)").toBe("Chromebook 2");
   expect(R.cCorp).toBe("Corporate Report");
   expect(R.cEurotour).toBe("Eurotour");
   expect(R.coreVisPlayer).toBe(true);

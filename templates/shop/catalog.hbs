@@ -80,6 +80,7 @@
         <div class="cp-vendor-head flexrow" style="align-items:center; gap:6px;">
             <b>{{localize "CYBERPUNK.ShopVendorTray"}}</b> <span class="cp-shop-stockcount">({{vendorCount}})</span>
             <span class="flex-pad" style="flex:1;"></span>
+            {{#if vendorCount}}<button type="button" class="cp-vendor-clear" title="{{localize "CYBERPUNK.ShopClearVendorHint"}}"><i class="fa-solid fa-trash-can"></i> {{localize "CYBERPUNK.ShopClearVendor"}}</button>{{/if}}
             <button type="button" class="cp-bulk-add" title="{{localize "CYBERPUNK.ShopBulkAddHint"}}"><i class="fa-solid fa-plus"></i> {{localize "CYBERPUNK.ShopBulkAdd"}}</button>
         </div>
         {{#if vendorCount}}

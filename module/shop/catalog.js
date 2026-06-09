@@ -6,7 +6,7 @@ import { categoryOfPack, CATEGORIES, EXCLUDED_TYPES, catalogPacks } from "./cate
 import { shoppingEnabled, shopSourceConfig, shopShowSource, shopAllowHomebrew } from "../settings.js";
 import {
   getShop, listShops, shopsVisibleTo, createShop, updateShop, deleteShop, duplicateShop,
-  addShopItem, addShopItems, removeShopItem, setShopItem, decrementShopStock,
+  addShopItem, addShopItems, removeShopItem, clearShopItems, setShopItem, decrementShopStock,
   normalizeShopItem, effectivePrice
 } from "./shops.js";
 
@@ -26,6 +26,9 @@ import {
  */
 
 const SCOPE = "cyberpunk2020";
+
+/** "Add all shown" asks for confirmation above this many NEW items (guards against dumping the whole catalog). */
+const BULK_ADD_CONFIRM_OVER = 20;
 
 /** Split a "packId.itemId" sourceKey (packId itself contains a dot). */
 function splitSourceKey(sk) {
@@ -465,10 +468,27 @@ export class CatalogBrowser extends Application {
     root.querySelectorAll(".cp-shop-remove").forEach(btn => btn.addEventListener("click", async (ev) => { ev.preventDefault(); const sk = skOf(ev.currentTarget); if (sk) { await removeShopItem(id, sk); this.render(false); } }));
     root.querySelector(".cp-bulk-add")?.addEventListener("click", async (ev) => {
       ev.preventDefault();
-      const keys = [...root.querySelectorAll(".cp-catalog-list .cp-catalog-row[data-source-key]")].map(r => ({ sourceKey: r.dataset.sourceKey }));
-      const n = await addShopItems(id, keys);
+      const def = getShop(id);
+      // Only the items NOT already stocked will be added — confirm before a large bulk add (e.g. the
+      // whole catalog when no search/filter is applied) so you can't accidentally dump 900+ items.
+      const newKeys = [...root.querySelectorAll(".cp-catalog-list .cp-catalog-row[data-source-key]")]
+        .map(r => r.dataset.sourceKey).filter(sk => sk && !def?.items?.[sk]);
+      if (!newKeys.length) { ui.notifications?.info(game.i18n.localize("CYBERPUNK.ShopBulkNone")); return; }
+      if (newKeys.length > BULK_ADD_CONFIRM_OVER &&
+          !(await Dialog.confirm({ title: def?.name ?? "", content: `<p>${game.i18n.format("CYBERPUNK.ShopBulkAddConfirm", { n: newKeys.length })}</p>` }))) return;
+      const n = await addShopItems(id, newKeys.map(sk => ({ sourceKey: sk })));
       ui.notifications?.info(game.i18n.format("CYBERPUNK.ShopBulkAdded", { n }));
       this.render(false);
+    });
+    root.querySelector(".cp-vendor-clear")?.addEventListener("click", async (ev) => {
+      ev.preventDefault();
+      const def = getShop(id);
+      const count = Object.keys(def?.items ?? {}).length;
+      if (!count) return;
+      if (await Dialog.confirm({ title: def?.name ?? "", content: `<p>${game.i18n.format("CYBERPUNK.ShopClearVendorConfirm", { n: count })}</p>` })) {
+        await clearShopItems(id);
+        this.render(false);
+      }
     });
 
     // Inline economics (vendor tray).

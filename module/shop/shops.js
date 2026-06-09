@@ -166,6 +166,16 @@ export async function removeShopItem(id, sourceKey) {
   return _save(map);
 }
 
+/** Remove ALL stocked items from a shop, returning the count removed (GM only). */
+export async function clearShopItems(id) {
+  const map = _rawMap();
+  if (!map[id]) return 0;
+  const n = Object.keys(map[id].items ?? {}).length;
+  map[id].items = {};
+  if (n) await _save(map);
+  return n;
+}
+
 /** Patch a stocked item's metadata (price/unlimited/qty/style) (GM only). */
 export async function setShopItem(id, sourceKey, patch = {}) {
   const map = _rawMap();
