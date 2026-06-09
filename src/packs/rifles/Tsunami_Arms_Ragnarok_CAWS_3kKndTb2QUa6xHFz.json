@@ -37,8 +37,8 @@
     "source": "Pacific Rim",
     "weaponType": "Rifle",
     "accuracy": "0",
-    "concealability": "",
-    "availability": "undefined",
+    "concealability": "ConcealNoHide",
+    "availability": "Rare",
     "ammoType": "CAL12 E",
     "damage": "6D6",
     "rangeDamages": {

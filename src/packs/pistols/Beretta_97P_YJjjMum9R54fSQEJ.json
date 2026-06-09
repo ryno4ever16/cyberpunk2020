@@ -37,8 +37,8 @@
     "source": "EuroSource",
     "weaponType": "Pistol",
     "accuracy": "1",
-    "concealability": "",
-    "availability": "undefined",
+    "concealability": "ConcealJacket",
+    "availability": "Poor",
     "ammoType": "9 mm",
     "damage": "2D6+1",
     "rangeDamages": {

@@ -18,9 +18,9 @@
     "default": 0
   },
   "system": {
-    "flavor": "-2000eb if done before installation",
+    "flavor": "Cost ranges 20-5000eb by design complexity. -2000eb if done before installation.",
     "notes": "",
-    "cost": 20000,
+    "cost": 20,
     "weight": 0,
     "equipped": true,
     "source": "Chromebook 1 p.71",

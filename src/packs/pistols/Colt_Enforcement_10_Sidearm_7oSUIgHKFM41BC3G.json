@@ -37,8 +37,8 @@
     "source": "Corporate Report 3",
     "weaponType": "Pistol",
     "accuracy": "1",
-    "concealability": "",
-    "availability": "undefined",
+    "concealability": "ConcealJacket",
+    "availability": "Common",
     "ammoType": "10 mm",
     "damage": "2D6+3",
     "rangeDamages": {

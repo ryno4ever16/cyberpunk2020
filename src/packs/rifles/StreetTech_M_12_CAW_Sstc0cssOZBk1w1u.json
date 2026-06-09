@@ -37,8 +37,8 @@
     "source": "Home of the Brave",
     "weaponType": "Rifle",
     "accuracy": "0",
-    "concealability": "",
-    "availability": "undefined",
+    "concealability": "ConcealNoHide",
+    "availability": "Poor",
     "ammoType": "CAL12",
     "damage": "4D6",
     "rangeDamages": {

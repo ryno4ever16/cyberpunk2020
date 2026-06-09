@@ -1,7 +1,7 @@
 {
-  "name": "Finger Mace Sprayer",
+  "name": "Dartgun",
   "type": "cyberware",
-  "_id": "228IMhUfmHorqqNF",
+  "_id": "6PHSyVM6H4cpiZf1",
   "effects": [],
   "_stats": {
     "coreVersion": "13.350",
@@ -18,17 +18,17 @@
     "default": 0
   },
   "system": {
-    "flavor": "P +0 - E Mace 2 1 ST 1m",
+    "flavor": "Compressed-air dart; 3m range",
     "notes": "",
-    "cost": 150,
+    "cost": 100,
     "weight": 0,
     "equipped": true,
     "source": "Chromebook 1 p.32",
     "surgCode": "N",
-    "humanityCost": "0",
+    "humanityCost": "2",
     "cyberwareType": "CYBERHAND",
     "cyberwareSubtype": "OPTION",
-    "abbrev": "CDFM",
+    "abbrev": "CDDG",
     "humanityLoss": 0,
     "MountZone": "",
     "EffectMode": "Permanent",
@@ -90,5 +90,5 @@
   "folder": null,
   "sort": 0,
   "flags": {},
-  "_key": "!items!228IMhUfmHorqqNF"
+  "_key": "!items!6PHSyVM6H4cpiZf1"
 }

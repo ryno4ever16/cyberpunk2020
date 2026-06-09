@@ -1,6 +1,6 @@
 {
   "_id": "2iPdzr4QzklAsWDn",
-  "name": "Aip Hypo",
+  "name": "Air Hypo",
   "type": "cyberware",
   "flags": {},
   "img": "icons/svg/mystery-man.svg",
@@ -27,7 +27,7 @@
     "equipped": true,
     "source": "Chromebook 2 p.4",
     "surgCode": "N",
-    "humanityCost": "1",
+    "humanityCost": "2",
     "cyberwareType": "CYBERHAND",
     "cyberwareSubtype": "OPTION",
     "abbrev": "CDAH",

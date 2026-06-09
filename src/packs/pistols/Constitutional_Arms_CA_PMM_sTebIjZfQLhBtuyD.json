@@ -37,8 +37,8 @@
     "source": "Protect & Serve",
     "weaponType": "Pistol",
     "accuracy": "0",
-    "concealability": "",
-    "availability": "undefined",
+    "concealability": "ConcealJacket",
+    "availability": "Poor",
     "ammoType": "12 mm",
     "damage": "4D6+1",
     "rangeDamages": {

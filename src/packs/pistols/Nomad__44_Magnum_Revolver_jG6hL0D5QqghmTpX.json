@@ -37,8 +37,8 @@
     "source": "Neo Tribes",
     "weaponType": "Pistol",
     "accuracy": "0",
-    "concealability": "",
-    "availability": "undefined",
+    "concealability": "ConcealJacket",
+    "availability": "Common",
     "ammoType": ".44M",
     "damage": "4D6",
     "rangeDamages": {

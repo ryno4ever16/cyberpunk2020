@@ -20,7 +20,7 @@
   "system": {
     "flavor": "Control Chip 700eb/Processor (1d6-1hc)1000",
     "notes": "",
-    "cost": 750,
+    "cost": 700,
     "weight": 0,
     "equipped": true,
     "source": "Chromebook 1 p.71",

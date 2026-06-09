@@ -37,8 +37,8 @@
     "source": "Corporate Report 2",
     "weaponType": "Rifle",
     "accuracy": "0",
-    "concealability": "",
-    "availability": "undefined",
+    "concealability": "ConcealLongcoat",
+    "availability": "Poor",
     "ammoType": "CAL12",
     "damage": "4D6",
     "rangeDamages": {

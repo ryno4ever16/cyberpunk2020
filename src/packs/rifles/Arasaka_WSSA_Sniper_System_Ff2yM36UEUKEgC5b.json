@@ -37,8 +37,8 @@
     "source": "Solo of Fortune 2",
     "weaponType": "Rifle",
     "accuracy": "3",
-    "concealability": "",
-    "availability": "undefined",
+    "concealability": "ConcealNoHide",
+    "availability": "Poor",
     "ammoType": "3.5FF",
     "damage": "4D6 AP",
     "rangeDamages": {

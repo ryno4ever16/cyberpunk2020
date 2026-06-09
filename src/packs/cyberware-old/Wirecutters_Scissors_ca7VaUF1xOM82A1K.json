@@ -20,7 +20,7 @@
   "system": {
     "flavor": "1d6/3damage",
     "notes": "",
-    "cost": 150,
+    "cost": 50,
     "weight": 0,
     "equipped": true,
     "source": "Chromebook 1 p.32",

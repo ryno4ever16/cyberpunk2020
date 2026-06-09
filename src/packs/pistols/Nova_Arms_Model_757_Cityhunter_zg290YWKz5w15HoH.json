@@ -37,8 +37,8 @@
     "source": "Blackhand's Street Weapons",
     "weaponType": "Pistol",
     "accuracy": "2",
-    "concealability": "",
-    "availability": "undefined",
+    "concealability": "ConcealJacket",
+    "availability": "Poor",
     "ammoType": "11 mm",
     "damage": "3D6",
     "rangeDamages": {

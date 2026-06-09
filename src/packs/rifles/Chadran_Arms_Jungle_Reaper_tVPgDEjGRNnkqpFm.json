@@ -37,8 +37,8 @@
     "source": "Interface Issue 3",
     "weaponType": "Rifle",
     "accuracy": "1",
-    "concealability": "",
-    "availability": "undefined",
+    "concealability": "ConcealLongcoat",
+    "availability": "Poor",
     "ammoType": "5.56C",
     "damage": "5D6",
     "rangeDamages": {

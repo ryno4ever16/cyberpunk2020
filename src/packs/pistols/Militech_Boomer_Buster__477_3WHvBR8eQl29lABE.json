@@ -37,8 +37,8 @@
     "source": "Solo of Fortune",
     "weaponType": "Pistol",
     "accuracy": "-1",
-    "concealability": "",
-    "availability": "undefined",
+    "concealability": "ConcealNoHide",
+    "availability": "Excellent",
     "ammoType": ".477",
     "damage": "5D6 AP",
     "rangeDamages": {

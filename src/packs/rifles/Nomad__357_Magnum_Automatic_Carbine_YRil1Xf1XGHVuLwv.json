@@ -37,8 +37,8 @@
     "source": "Neo Tribes",
     "weaponType": "Rifle",
     "accuracy": "1",
-    "concealability": "",
-    "availability": "undefined",
+    "concealability": "ConcealNoHide",
+    "availability": "Common",
     "ammoType": ".357M",
     "damage": "3D6+2",
     "rangeDamages": {

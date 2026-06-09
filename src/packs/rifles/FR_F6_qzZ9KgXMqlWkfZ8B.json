@@ -37,8 +37,8 @@
     "source": "EuroSource",
     "weaponType": "Rifle",
     "accuracy": "2",
-    "concealability": "",
-    "availability": "undefined",
+    "concealability": "ConcealNoHide",
+    "availability": "Poor",
     "ammoType": "7.62C",
     "damage": "6D6+2",
     "rangeDamages": {

@@ -37,8 +37,8 @@
     "source": "Solo of Fortune",
     "weaponType": "Pistol",
     "accuracy": "1",
-    "concealability": "",
-    "availability": "undefined",
+    "concealability": "ConcealJacket",
+    "availability": "Excellent",
     "ammoType": "7 mm",
     "damage": "1D6+2",
     "rangeDamages": {

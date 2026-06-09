@@ -37,8 +37,8 @@
     "source": "Rough Guide to the UK",
     "weaponType": "Pistol",
     "accuracy": "1",
-    "concealability": "",
-    "availability": "undefined",
+    "concealability": "ConcealJacket",
+    "availability": "Poor",
     "ammoType": "12 mm",
     "damage": "4D6+1",
     "rangeDamages": {

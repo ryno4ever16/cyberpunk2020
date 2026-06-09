@@ -37,8 +37,8 @@
     "source": "Pacific Rim",
     "weaponType": "Pistol",
     "accuracy": "3",
-    "concealability": "",
-    "availability": "undefined",
+    "concealability": "ConcealJacket",
+    "availability": "Poor",
     "ammoType": "6 mm",
     "damage": "1D6+1",
     "rangeDamages": {

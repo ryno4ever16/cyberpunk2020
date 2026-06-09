@@ -25,7 +25,7 @@
     "equipped": true,
     "source": "Chromebook 3 p.28",
     "surgCode": "CR",
-    "humanityCost": "3d6+",
+    "humanityCost": "3d6",
     "cyberwareType": "CYBEROPTIC",
     "cyberwareSubtype": "",
     "abbrev": "",

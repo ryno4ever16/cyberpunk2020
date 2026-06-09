@@ -25,7 +25,7 @@
     "equipped": true,
     "source": "Chromebook 1 p.35",
     "surgCode": "N",
-    "humanityCost": "0",
+    "humanityCost": "1d6/2",
     "cyberwareType": "CYBERWEAPON",
     "cyberwareSubtype": "",
     "abbrev": "",
