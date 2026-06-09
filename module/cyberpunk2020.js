@@ -136,7 +136,9 @@ Hooks.once('init', async function () {
           if (top < 4) top = r.bottom + 8;
 
           let left = r.left + (r.width / 2) - (tr.width / 2);
-          left = Math.max(8, Math.min(left, window.innerWidth - tr.width - 8));
+          // PopOut!: measure against the element's OWN window, not the main one.
+          const view = el.ownerDocument.defaultView || window;
+          left = Math.max(8, Math.min(left, view.innerWidth - tr.width - 8));
 
           tip.style.top = `${top}px`;
           tip.style.left = `${left}px`;
@@ -164,10 +166,12 @@ Hooks.once('init', async function () {
 
           if (!tooltipHTML) return;
 
-          tip = document.createElement("div");
+          // PopOut!: create + mount in the hovered element's OWN document, not the main window.
+          const tipDoc = el.ownerDocument;
+          tip = tipDoc.createElement("div");
           tip.className = "cp-dice-tooltip";
           tip.innerHTML = tooltipHTML;
-          document.body.appendChild(tip);
+          tipDoc.body.appendChild(tip);
 
           requestAnimationFrame(() => {
             positionTip();

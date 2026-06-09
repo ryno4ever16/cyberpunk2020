@@ -1060,15 +1060,31 @@ export class CyberpunkActorSheet extends ActorSheet {
     tooltip.className = "chip-tooltip";
     document.body.appendChild(tooltip);
 
-    const documentTooltipListeners = [];
+    const HIDE_EVENTS = ["drop", "dragend", "click", "mousedown", "mouseup"];
+    let listenerDoc = null;  // PopOut!: which document the hide-listeners are bound to (moves on popout)
 
     function hideTooltip() {
       tooltip.style.display = "none";
     }
 
+    // PopOut!: keep the hide-on-interaction listeners on whichever document the tooltip currently lives in.
+    function bindHideListeners(doc) {
+      if (listenerDoc === doc) return;
+      if (listenerDoc) for (const e of HIDE_EVENTS) listenerDoc.removeEventListener(e, hideTooltip);
+      for (const e of HIDE_EVENTS) doc.addEventListener(e, hideTooltip);
+      listenerDoc = doc;
+    }
+
     function showTooltip(chip) {
       const fullName = chip.dataset.full;
       if (!fullName) return;
+
+      // PopOut!: the singleton tooltip was created in the MAIN document, but the chip may now live in a
+      // popped-out window. Move it there (adoptNode — a bare cross-document appendChild throws) and keep
+      // the hide-listeners on that document, before measuring/positioning.
+      const doc = chip.ownerDocument;
+      if (tooltip.ownerDocument !== doc) { doc.adoptNode(tooltip); doc.body.appendChild(tooltip); }
+      bindHideListeners(doc);
 
       tooltip.textContent = fullName;
       tooltip.style.display = "block";
@@ -1089,17 +1105,13 @@ export class CyberpunkActorSheet extends ActorSheet {
     }
 
     attachChipwareTooltips(getHtmlElement(html) ?? document);
-    ["drop", "dragend", "click", "mousedown", "mouseup"].forEach(eventName => {
-      document.addEventListener(eventName, hideTooltip);
-      documentTooltipListeners.push(eventName);
-    });
+    bindHideListeners(document);  // initial: main window; re-binds to the popout on first hover there
 
     this._cpChipTooltipCleanup = () => {
       hideTooltip();
       tooltip.remove();
-      for (const eventName of documentTooltipListeners) {
-        document.removeEventListener(eventName, hideTooltip);
-      }
+      if (listenerDoc) for (const e of HIDE_EVENTS) listenerDoc.removeEventListener(e, hideTooltip);
+      listenerDoc = null;
     };
     
     html.on("change", ".chip-toggle input[data-skill-id]", async (ev) => {

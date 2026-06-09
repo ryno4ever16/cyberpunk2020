@@ -442,10 +442,12 @@ export class CatalogBrowser extends Application {
       const added = await addShopItem(shopId, sk);
       ui.notifications?.info(added ? game.i18n.format("CYBERPUNK.ShopAddedTo", { shop: getShop(shopId)?.name ?? "" }) : game.i18n.localize("CYBERPUNK.ShopAlreadyStocked"));
     };
-    const menu = document.createElement("div");
+    // PopOut!: build/mount the menu (and its outside-click closer) in the row's OWN document.
+    const doc = rowEl.ownerDocument || document;
+    const menu = doc.createElement("div");
     menu.className = "cp-context-menu";
     menu.style.cssText = `position:fixed; left:${ev.clientX}px; top:${ev.clientY}px; z-index:1000;`;
-    const item = (label, fn) => { const b = document.createElement("button"); b.type = "button"; b.textContent = label; b.addEventListener("click", async () => { menu.remove(); await fn(); }); menu.appendChild(b); };
+    const item = (label, fn) => { const b = doc.createElement("button"); b.type = "button"; b.textContent = label; b.addEventListener("click", async () => { menu.remove(); await fn(); }); menu.appendChild(b); };
     for (const s of listShops()) item(s.name, () => addTo(s.id));
     item("＋ " + game.i18n.localize("CYBERPUNK.ShopNew"), async () => {
       const name = await promptText(game.i18n.localize("CYBERPUNK.ShopNewTitle"), game.i18n.localize("CYBERPUNK.ShopNewDefault"));
@@ -453,9 +455,9 @@ export class CatalogBrowser extends Application {
       const def = await createShop({ name });
       if (def) await addTo(def.id);
     });
-    document.body.appendChild(menu);
-    const close = (e) => { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener("click", close); } };
-    setTimeout(() => document.addEventListener("click", close), 0);
+    doc.body.appendChild(menu);
+    const close = (e) => { if (!menu.contains(e.target)) { menu.remove(); doc.removeEventListener("click", close); } };
+    setTimeout(() => doc.addEventListener("click", close), 0);
   }
 
   /** Build-view curation: ＋add / drag-in / bulk add / remove / economics / config. */
@@ -527,19 +529,21 @@ export class CatalogBrowser extends Application {
   /** Right-click directory context menu for a shop. */
   _shopContextMenu(shopId, ev) {
     const def = getShop(shopId); if (!def) return;
-    const menu = document.createElement("div");
+    // PopOut!: build/mount in the right-clicked element's OWN document (shop window may be popped out).
+    const doc = ev.currentTarget?.ownerDocument || ev.target?.ownerDocument || document;
+    const menu = doc.createElement("div");
     menu.className = "cp-context-menu";
     menu.style.cssText = `position:fixed; left:${ev.clientX}px; top:${ev.clientY}px; z-index:1000;`;
-    const item = (label, fn) => { const b = document.createElement("button"); b.type = "button"; b.textContent = label; b.addEventListener("click", async () => { menu.remove(); await fn(); }); menu.appendChild(b); };
+    const item = (label, fn) => { const b = doc.createElement("button"); b.type = "button"; b.textContent = label; b.addEventListener("click", async () => { menu.remove(); await fn(); }); menu.appendChild(b); };
     item(game.i18n.localize("CYBERPUNK.ShopCtxEdit"), () => this.navigate("build", shopId));
     item(game.i18n.localize("CYBERPUNK.ShopCtxPreview"), () => this.navigate("storefront", shopId));
     item(def.open ? game.i18n.localize("CYBERPUNK.ShopClose") : game.i18n.localize("CYBERPUNK.ShopShowToPlayers"), async () => { await updateShop(shopId, { open: !def.open }); this.render(false); });
     item(game.i18n.localize("CYBERPUNK.ShopCtxDuplicate"), async () => { await duplicateShop(shopId); this.render(false); });
     item(game.i18n.localize("CYBERPUNK.ShopCtxRename"), async () => { const name = await promptText(game.i18n.localize("CYBERPUNK.ShopName"), def.name); if (name) { await updateShop(shopId, { name }); this.render(false); } });
     item(game.i18n.localize("CYBERPUNK.ShopCtxDelete"), async () => { if (await Dialog.confirm({ title: def.name, content: `<p>${game.i18n.localize("CYBERPUNK.ShopDeleteConfirm")}</p>` })) { await deleteShop(shopId); this.render(false); } });
-    document.body.appendChild(menu);
-    const close = (e) => { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener("click", close); } };
-    setTimeout(() => document.addEventListener("click", close), 0);
+    doc.body.appendChild(menu);
+    const close = (e) => { if (!menu.contains(e.target)) { menu.remove(); doc.removeEventListener("click", close); } };
+    setTimeout(() => doc.addEventListener("click", close), 0);
   }
 }
 
