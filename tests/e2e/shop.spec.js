@@ -10,7 +10,7 @@ import { login, evalGameOrThrow, cleanupTestData } from "../helpers/foundry.js";
 
 async function resetShops(page) {
   await evalGameOrThrow(page, async () => {
-    for (const [k, v] of [["shoppingEnabled", false], ["shopAllowHomebrew", false], ["shopShowSource", true]]) { try { await game.settings.set("cyberpunk2020", k, v); } catch {} }
+    for (const [k, v] of [["shoppingEnabled", true], ["shopAllowHomebrew", false], ["shopShowSource", true]]) { try { await game.settings.set("cyberpunk2020", k, v); } catch {} }
     for (const k of ["shopEnabledSources", "shops"]) { try { await game.settings.set("cyberpunk2020", k, {}); } catch {} }
   });
 }

@@ -14,7 +14,7 @@ test.afterAll(async ({ browser }) => {
   try {
     await login(p, ACCOUNTS.gm);
     await cleanupTestData(p);
-    await evalGameOrThrow(p, async () => { try { await game.settings.set("cyberpunk2020", "shoppingEnabled", false); } catch {} });
+    await evalGameOrThrow(p, async () => { try { await game.settings.set("cyberpunk2020", "shoppingEnabled", true); } catch {} });
   } catch {}
   await ctx.close();
 });
@@ -70,7 +70,7 @@ test("service classifier, one-off pay, recurring pay, gear-tab exclusion + Servi
     out.gearStillOnGearTab = (gearTab?.textContent || "").includes("__PW__PlainGear");
     out.hasPayButton = !!servicesTab?.querySelector(".cp-service-pay");
     await a2.sheet.close();
-    await game.settings.set("cyberpunk2020", "shoppingEnabled", false);
+    await game.settings.set("cyberpunk2020", "shoppingEnabled", true);
 
     return out;
   });

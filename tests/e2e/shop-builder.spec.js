@@ -15,7 +15,7 @@ test.afterAll(async ({ browser }) => {
     await login(p, ACCOUNTS.gm);
     await cleanupTestData(p);
     await evalGameOrThrow(p, async () => {
-      try { await game.settings.set("cyberpunk2020", "shoppingEnabled", false); } catch {}
+      try { await game.settings.set("cyberpunk2020", "shoppingEnabled", true); } catch {}
       try { await game.settings.set("cyberpunk2020", "shops", {}); } catch {}
       try { const mod = await import("/systems/cyberpunk2020/module/shop/catalog.js"); for (const w of Object.values(ui.windows)) if (w instanceof mod.CatalogBrowser) await w.close(); } catch {}
     });
