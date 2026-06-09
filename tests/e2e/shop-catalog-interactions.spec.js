@@ -17,7 +17,7 @@ test("dimmed-to-bottom ordering + functional supplement filter", async ({ page }
     const sup = await import("/systems/cyberpunk2020/module/shop/supplements.js");
 
     // GM view: every enabled row precedes every dimmed row; the divider sits on the first dimmed.
-    const browser = new mod.CatalogBrowser(null);
+    const browser = new mod.CatalogBrowser(null, { view: "catalog" });
     const data = await browser.getData();
     const firstDim = data.rows.findIndex(r => r.dimmed);
     const lastEnabled = data.rows.map(r => !r.dimmed).lastIndexOf(true);
@@ -62,7 +62,7 @@ test("selecting a token live-updates an open catalog's buyer", async ({ page }) 
 
     // Open with NOTHING selected → no buyer.
     for (const t of canvas.tokens.controlled) t.release();
-    const browser = new mod.CatalogBrowser(null);
+    const browser = new mod.CatalogBrowser(null, { view: "catalog" });
     await browser.render(true);
     await new Promise(r => setTimeout(r, 200));
     out.buyerBefore = browser.buyer?.id ?? null;

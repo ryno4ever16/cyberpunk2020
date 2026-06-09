@@ -235,6 +235,23 @@ export function registerSystemSettings() {
     default: true
   });
 
+    // GM custom shops (round-7: shops are world DATA, not Actors). Map { [id]: ShopDef }. GM-written;
+    // all clients read it. See module/shop/shops.js for the ShopDef shape + CRUD.
+  game.settings.register("cyberpunk2020", "shops", {
+    scope: "world",
+    config: false,
+    type: Object,
+    default: {}
+  });
+
+    // One-time flag: the shop-Actor -> ShopDef migration has run in this world.
+  game.settings.register("cyberpunk2020", "shopsMigrated", {
+    scope: "world",
+    config: false,
+    type: Boolean,
+    default: false
+  });
+
     // --- IP (Improvement Points) tracker ---
   game.settings.register("cyberpunk2020", "ipSystem", {
     name: "SETTINGS.IpSystem",

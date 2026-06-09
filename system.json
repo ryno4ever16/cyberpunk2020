@@ -541,9 +541,6 @@
       },
       "vehicle": {
         "htmlFields": ["notes"]
-      },
-      "shop": {
-        "htmlFields": ["notes"]
       }
     },
     "Item": {

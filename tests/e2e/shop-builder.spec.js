@@ -3,12 +3,9 @@ import { ACCOUNTS } from "../helpers/accounts.js";
 import { login, evalGameOrThrow, cleanupTestData } from "../helpers/foundry.js";
 
 /**
- * Round-6 shop refactor ([[shopping-design]]): the catalog IS the shop. One CatalogBrowser serves
- * three modes — global "catalog", GM "build" (curation), player "storefront". Covers:
- *   • build: add/remove a real catalog item, dedup, inline economics, "in this shop" filter, extras;
- *   • global catalog GM "Add to shop ▾" list;
- *   • storefront: fullSearch OFF → curated-only (no search bar) / ON → full catalog + featured curated;
- *   • storefront buy applies the shop's per-item economics.
+ * Round-7 shops-as-data: a single window with a home directory + a ShopDef-driven builder/storefront.
+ * Covers ShopDef CRUD, the builder vendor tray + inShop flags + economics + bulk add, the storefront
+ * (curated-only vs fullSearch) with shop discount, the home directory, and window singleton navigation.
  */
 
 test.afterAll(async ({ browser }) => {
@@ -17,193 +14,189 @@ test.afterAll(async ({ browser }) => {
   try {
     await login(p, ACCOUNTS.gm);
     await cleanupTestData(p);
-    await evalGameOrThrow(p, async () => { try { await game.settings.set("cyberpunk2020", "shoppingEnabled", false); } catch {} });
+    await evalGameOrThrow(p, async () => {
+      try { await game.settings.set("cyberpunk2020", "shoppingEnabled", false); } catch {}
+      try { await game.settings.set("cyberpunk2020", "shops", {}); } catch {}
+      try { const mod = await import("/systems/cyberpunk2020/module/shop/catalog.js"); for (const w of Object.values(ui.windows)) if (w instanceof mod.CatalogBrowser) await w.close(); } catch {}
+    });
   } catch {}
   await ctx.close();
 });
 
-test("build mode: add/remove a real catalog item, dedup, economics, shop-only filter, extras", async ({ page }) => {
+test("builder: ShopDef CRUD, vendor tray, inShop flags, economics, bulk add, remove", async ({ page }) => {
   await login(page, ACCOUNTS.gm);
-  await cleanupTestData(page).catch(() => {});
+  await evalGameOrThrow(page, async () => { try { await game.settings.set("cyberpunk2020", "shops", {}); } catch {} });
 
   const R = await evalGameOrThrow(page, async () => {
     const out = {};
     await game.settings.set("cyberpunk2020", "shoppingEnabled", true);
-    const flags = { cyberpunk2020: { __pwtest: true } };
     const mod = await import("/systems/cyberpunk2020/module/shop/catalog.js");
-    const pur = await import("/systems/cyberpunk2020/module/shop/purchase.js");
+    const shops = await import("/systems/cyberpunk2020/module/shop/shops.js");
 
-    // A real catalog weapon (always present: pistols/rifles etc.).
     const index = await mod.getCatalogIndex();
-    const sample = index.find(i => i.category === "Weapons" && i.canon === "core") || index.find(i => i.category === "Weapons");
-    out.haveSample = !!sample;
+    const sample = index.find(i => i.category === "Weapons" && i.canon === "core" && i.cost > 0) || index.find(i => i.cost > 0);
+    const extra = index.find(i => i.key !== sample.key && i.canon === "core");
 
-    const shop = await Actor.create({ name: "__PW__buildshop", type: "shop", flags, system: { open: false } });
+    const def = await shops.createShop({ name: "__PW__build" });
+    out.created = !!def && def.name === "__PW__build";
 
-    // Add the catalog item.
-    const added = await pur.addItemToShop(shop, sample.packId, sample.id, { fashion: false });
-    out.added = !!added;
-    out.stockHasSourceKey = pur.shopStockOf(added).sourceKey === `${sample.packId}.${sample.id}`;
-    // Dedup: a second add of the same catalog item is rejected.
-    const dup = await pur.addItemToShop(shop, sample.packId, sample.id);
-    out.dupRejected = dup === null;
+    await shops.addShopItem(def.id, sample.key);
+    out.dupRejected = (await shops.addShopItem(def.id, sample.key)) === false;
 
-    // Build getData: the catalog row for the sample is marked inShop with the embedded id.
-    const builder = new mod.CatalogBrowser(null, { shop, mode: "build" });
-    let bdata = await builder.getData();
-    out.mode = bdata.mode;
-    const row = bdata.rows.find(r => r.key === `${sample.packId}.${sample.id}`);
+    const builder = new mod.CatalogBrowser(null, { view: "build", shopId: def.id });
+    let data = await builder.getData();
+    out.isBuild = data.isBuild;
+    out.vendorHasItem = data.vendor.some(v => v.sourceKey === sample.key);
+    out.vendorCount = data.vendorCount;                                   // 1
+    const row = data.rows.find(r => r.key === sample.key);
     out.rowInShop = !!row?.inShop;
-    out.rowHasShopItemId = row?.shopItemId === added.id;
-    out.noSkillRows = !bdata.rows.some(r => r.type === "skill");
+    // default vendor price (no override) resolves to the catalog cost — NOT 0 (regression: a null
+    // price override was being coerced to 0 by Number(null), making un-priced items free).
+    const v0 = data.vendor.find(x => x.sourceKey === sample.key);
+    out.sampleCost = sample.cost;          // > 0
+    out.defaultEff = v0?.eff;              // == sample.cost
 
-    // Inline economics.
-    await pur.setShopStock(added, { price: 99, unlimited: false, qty: 3 });
-    bdata = await builder.getData();
-    const row2 = bdata.rows.find(r => r.key === `${sample.packId}.${sample.id}`);
-    out.econOverride = row2?.override;     // 99
-    out.econUnlimited = row2?.unlimited;   // false
-    out.econQty = row2?.stockQty;          // 3
+    // economics: price override + limited stock → effective price + vendor reflects
+    await shops.setShopItem(def.id, sample.key, { price: 99, unlimited: false, qty: 3 });
+    data = await builder.getData();
+    const v = data.vendor.find(x => x.sourceKey === sample.key);
+    out.vEff = v?.eff;          // 99
+    out.vQty = v?.qty;          // 3
+    out.vUnlimited = v?.unlimited; // false
 
-    // "In this shop" filter narrows the catalog to curated rows only.
-    builder._shopOnly = true;
-    const filtered = await builder.getData();
-    out.shopOnlyAllInShop = filtered.rows.length > 0 && filtered.rows.every(r => r.inShop);
-    builder._shopOnly = false;
+    // bulk add: add the extra by API (the UI "Add all shown" calls addShopItems)
+    await shops.addShopItems(def.id, [{ sourceKey: extra.key }]);
+    out.afterBulk = Object.keys(shops.getShop(def.id).items).length; // 2
 
-    // An off-catalog item (no sourceKey) shows up as an "extra".
-    await shop.createEmbeddedDocuments("Item", [{ name: "__PW__custom", type: "misc", system: { cost: 10 } }]);
-    const withExtra = await builder.getData();
-    out.extraPresent = withExtra.extras.some(r => r.name === "__PW__custom");
+    // remove
+    await shops.removeShopItem(def.id, sample.key);
+    out.afterRemove = Object.keys(shops.getShop(def.id).items).length; // 1
+    const data2 = await builder.getData();
+    out.rowNoLongerInShop = !data2.rows.find(r => r.key === sample.key)?.inShop;
 
-    // Catalog mode exposes the shop in the GM "Add to shop" list.
-    const cat = await (new mod.CatalogBrowser(null)).getData();
-    out.shopListed = cat.shopList.some(s => s.id === shop.id);
-
-    // Remove returns the row to not-in-shop.
-    await pur.removeItemFromShop(shop, added.id);
-    const afterRemove = await builder.getData();
-    const row3 = afterRemove.rows.find(r => r.key === `${sample.packId}.${sample.id}`);
-    out.removedNotInShop = !!row3 && !row3.inShop;
-
+    await shops.deleteShop(def.id);
+    out.deleted = shops.getShop(def.id) === null;
     return out;
   });
 
-  console.log("Build mode:", JSON.stringify(R, null, 2));
-  expect(R.haveSample, "a catalog weapon exists to add").toBe(true);
-  expect(R.added).toBe(true);
-  expect(R.stockHasSourceKey, "added item carries its catalog sourceKey").toBe(true);
-  expect(R.dupRejected, "second add of the same item is rejected").toBe(true);
-  expect(R.mode).toBe("build");
-  expect(R.rowInShop, "catalog row marked in-shop after add").toBe(true);
-  expect(R.rowHasShopItemId, "in-shop row carries the embedded item id").toBe(true);
-  expect(R.noSkillRows).toBe(true);
-  expect(R.econOverride, "price override").toBe(99);
-  expect(R.econUnlimited, "unlimited toggled off").toBe(false);
-  expect(R.econQty, "stock qty").toBe(3);
-  expect(R.shopOnlyAllInShop, "shop-only filter shows only curated rows").toBe(true);
-  expect(R.extraPresent, "off-catalog stock surfaces as an extra").toBe(true);
-  expect(R.shopListed, "GM catalog lists the shop for Add-to-shop").toBe(true);
-  expect(R.removedNotInShop, "row returns to not-in-shop after remove").toBe(true);
+  console.log("Builder:", JSON.stringify(R, null, 2));
+  expect(R.created).toBe(true);
+  expect(R.dupRejected).toBe(true);
+  expect(R.isBuild).toBe(true);
+  expect(R.vendorHasItem).toBe(true);
+  expect(R.vendorCount).toBe(1);
+  expect(R.rowInShop).toBe(true);
+  expect(R.sampleCost, "sample has a real cost").toBeGreaterThan(0);
+  expect(R.defaultEff, "default vendor price = catalog cost (resolved, not 0)").toBe(R.sampleCost);
+  expect(R.vEff, "override price").toBe(99);
+  expect(R.vQty).toBe(3);
+  expect(R.vUnlimited).toBe(false);
+  expect(R.afterBulk).toBe(2);
+  expect(R.afterRemove).toBe(1);
+  expect(R.rowNoLongerInShop).toBe(true);
+  expect(R.deleted).toBe(true);
 });
 
-test("storefront mode: curated-only vs fullSearch; buy applies shop economics", async ({ page }) => {
+test("storefront: curated-only vs fullSearch; shop discount applied on buy", async ({ page }) => {
   await login(page, ACCOUNTS.gm);
-  await cleanupTestData(page).catch(() => {});
 
   const R = await evalGameOrThrow(page, async () => {
     const out = {};
     await game.settings.set("cyberpunk2020", "shoppingEnabled", true);
     const flags = { cyberpunk2020: { __pwtest: true } };
     const mod = await import("/systems/cyberpunk2020/module/shop/catalog.js");
-    const pur = await import("/systems/cyberpunk2020/module/shop/purchase.js");
+    const shops = await import("/systems/cyberpunk2020/module/shop/shops.js");
 
     const index = await mod.getCatalogIndex();
     const sample = index.find(i => i.category === "Weapons" && i.canon === "core") || index.find(i => i.category === "Weapons");
-
-    const shop = await Actor.create({ name: "__PW__frontshop", type: "shop", flags, system: { open: true, fullSearch: false } });
-    const added = await pur.addItemToShop(shop, sample.packId, sample.id);
-    await pur.setShopStock(added, { price: 77, unlimited: true });
+    const def = await shops.createShop({ name: "__PW__front" });
+    await shops.addShopItem(def.id, sample.key);
+    await shops.setShopItem(def.id, sample.key, { price: 100, unlimited: true });
+    await shops.updateShop(def.id, { open: true, discountPct: 20 });
 
     const buyer = await Actor.create({ name: "__PW__frontbuyer", type: "character", flags, system: { eurobucks: 1000 } });
 
-    // fullSearch OFF → curated-only, no search bar, exactly the one curated row.
-    let sf = new mod.CatalogBrowser(buyer, { shop, mode: "storefront" });
-    let sdata = await sf.getData();
-    out.noSearch = sdata.noSearch;                         // true
-    out.curatedOnlyCount = sdata.rowCount;                 // 1
-    out.curatedRowIsCurated = sdata.rows[0]?.curated === true && sdata.rows[0]?.shopItemId === added.id;
-    out.curatedPrice = sdata.rows[0]?.price;               // 77 (override)
+    // curated-only (fullSearch off): exactly the one stocked item, lighter chrome (no filters)
+    let sf = new mod.CatalogBrowser(buyer, { view: "storefront", shopId: def.id });
+    let d = await sf.getData();
+    out.curatedCount = d.rowCount;             // 1
+    out.curatedCurated = d.rows[0]?.curated === true;
+    out.noFilters = d.showFilters !== true;    // lighter chrome
+    out.discPrice = d.rows[0]?.eff;            // 100 × (1-0.2) = 80
 
-    // fullSearch ON → whole visible catalog, with the curated item featured.
-    await shop.update({ "system.fullSearch": true });
-    sf = new mod.CatalogBrowser(buyer, { shop, mode: "storefront" });
-    sdata = await sf.getData();
-    out.fullSearch = sdata.fullSearch;                     // true
-    out.fullRowCountBig = sdata.rowCount > 1;              // true (whole catalog)
-    const feat = sdata.rows.find(r => r.shopItemId === added.id);
-    out.featuredPresent = !!feat && feat.featured === true;
-    out.featuredFirst = sdata.rows[0]?.featured === true;  // featured sorts first
+    // fullSearch ON: whole catalog + curated featured
+    await shops.updateShop(def.id, { fullSearch: true });
+    sf = new mod.CatalogBrowser(buyer, { view: "storefront", shopId: def.id });
+    d = await sf.getData();
+    out.fullBig = d.rowCount > 1;
+    out.featured = d.rows.find(r => r.sourceKey === sample.key)?.featured === true;
 
-    // Buy the curated item via the storefront → shop economics (override 77, no markup).
-    await sf._shopBuy(added.id, { qty: 2, styleMult: 1, styleLabel: "" });
-    out.buyerFunds = buyer.system.eurobucks;               // 1000 - 77×2 = 846
-    out.buyerGotItem = !!buyer.items.find(i => i.name === sample.name);
+    // buy applies the discount
+    await sf._shopBuy(sample.key, { qty: 1, styleMult: 1, styleLabel: "" });
+    out.funds = buyer.system.eurobucks;        // 1000 - 80 = 920
 
+    await shops.deleteShop(def.id);
     return out;
   });
 
   console.log("Storefront:", JSON.stringify(R, null, 2));
-  expect(R.noSearch, "curated-only storefront hides the search bar").toBe(true);
-  expect(R.curatedOnlyCount, "curated-only shows exactly the stocked item").toBe(1);
-  expect(R.curatedRowIsCurated).toBe(true);
-  expect(R.curatedPrice, "curated row uses the price override").toBe(77);
-  expect(R.fullSearch).toBe(true);
-  expect(R.fullRowCountBig, "fullSearch shows the whole catalog").toBe(true);
-  expect(R.featuredPresent, "curated item is featured in fullSearch").toBe(true);
-  expect(R.featuredFirst, "featured rows sort first").toBe(true);
-  expect(R.buyerFunds, "storefront buy charges override 77 × 2").toBe(846);
-  expect(R.buyerGotItem).toBe(true);
+  expect(R.curatedCount).toBe(1);
+  expect(R.curatedCurated).toBe(true);
+  expect(R.noFilters, "curated storefront drops the heavy filters").toBe(true);
+  expect(R.discPrice, "100 with 20% shop discount").toBe(80);
+  expect(R.fullBig).toBe(true);
+  expect(R.featured).toBe(true);
+  expect(R.funds, "charged the discounted 80").toBe(920);
 });
 
-test("singletons: re-opening focuses one window (global catalog + per-shop)", async ({ page }) => {
+test("home directory + singleton window navigation", async ({ page }) => {
   await login(page, ACCOUNTS.gm);
-  await cleanupTestData(page).catch(() => {});
+  await evalGameOrThrow(page, async () => { try { await game.settings.set("cyberpunk2020", "shops", {}); } catch {} });
 
   const R = await evalGameOrThrow(page, async () => {
     const out = {};
     await game.settings.set("cyberpunk2020", "shoppingEnabled", true);
-    const flags = { cyberpunk2020: { __pwtest: true } };
+    await game.settings.set("cyberpunk2020", "shops", {}); // clear (incl. any one-time migration output)
     const mod = await import("/systems/cyberpunk2020/module/shop/catalog.js");
+    const shops = await import("/systems/cyberpunk2020/module/shop/shops.js");
     const wait = (ms) => new Promise(r => setTimeout(r, ms));
-    const browsers = (pred = () => true) => Object.values(ui.windows).filter(w => w instanceof mod.CatalogBrowser && pred(w));
-    for (const w of browsers()) await w.close();
-    await wait(100);
-    await mod.getCatalogIndex();   // warm the index so windows render (and register) promptly
+    const wins = () => Object.values(ui.windows).filter(w => w instanceof mod.CatalogBrowser);
+    for (const w of wins()) await w.close();
 
-    // Global catalog opened twice → still ONE window.
-    mod.openCatalogBrowser(null); await wait(300);
-    mod.openCatalogBrowser(null); await wait(300);
-    out.globalCount = browsers(w => !w.shop).length;       // 1
+    const a = await shops.createShop({ name: "__PW__home1" });
+    await shops.createShop({ name: "__PW__home2" });
 
-    // A shop opened twice in build mode → ONE window for that shop.
-    const shop = await Actor.create({ name: "__PW__singShop", type: "shop", flags, system: { open: false } });
-    mod.openShopBuilder(shop); await wait(150);
-    mod.openShopBuilder(shop); await wait(150);
-    out.shopCount = browsers(w => w.shop?.id === shop.id).length; // 1
+    // home directory lists Catalog + the shops
+    const home = new mod.CatalogBrowser(null, { view: "home" });
+    const hd = await home.getData();
+    out.homeShops = hd.shops.length;       // 2
+    out.canCreate = hd.canCreate;          // GM
 
-    // Switching to the storefront REUSES that same shop window (mode flips, no duplicate).
-    mod.openShopStorefront(shop, null); await wait(150);
-    out.shopCountAfterStore = browsers(w => w.shop?.id === shop.id).length; // 1
-    out.storeMode = browsers(w => w.shop?.id === shop.id)[0]?.mode;         // "storefront"
+    // singleton: openShopWindow twice → one window; navigation reuses it
+    mod.openShopWindow(null, { view: "home" }); await wait(300);
+    mod.openShopWindow(null, { view: "home" }); await wait(300);
+    out.windowCount = wins().length;       // 1
+    // home cards are normal-sized, not stretched to fill the window (regression guard)
+    const cards = [...(wins()[0]?.element?.[0]?.querySelectorAll(".cp-home-entry") ?? [])].map(b => Math.round(b.getBoundingClientRect().height));
+    out.cardCount = cards.length;          // Catalog + 2 shops + Create = 4
+    out.maxCardH = Math.max(0, ...cards);  // ~80, not ~300
+    mod.openShopWindow(null, { view: "build", shopId: a.id }); await wait(250);
+    out.stillOne = wins().length;          // 1
+    out.nowBuild = wins()[0]?.view;        // "build"
 
-    for (const w of browsers()) await w.close();
+    for (const w of wins()) await w.close();
+    await shops.deleteShop(a.id);
+    await game.settings.set("cyberpunk2020", "shops", {});
     return out;
   });
 
-  console.log("Singletons:", JSON.stringify(R));
-  expect(R.globalCount, "one global catalog window").toBe(1);
-  expect(R.shopCount, "one window per shop").toBe(1);
-  expect(R.shopCountAfterStore, "storefront reuses the shop window").toBe(1);
-  expect(R.storeMode).toBe("storefront");
+  console.log("Home/singleton:", JSON.stringify(R));
+  expect(R.homeShops, "home lists both shops").toBe(2);
+  expect(R.canCreate, "GM can create").toBe(true);
+  expect(R.windowCount, "one shop window (singleton)").toBe(1);
+  expect(R.stillOne, "navigation reuses the window").toBe(1);
+  expect(R.nowBuild).toBe("build");
+  expect(R.cardCount, "Catalog + 2 shops + Create").toBe(4);
+  expect(R.maxCardH, "home cards are normal-sized, not stretched").toBeGreaterThan(0);
+  expect(R.maxCardH, "home cards are normal-sized, not stretched").toBeLessThan(140);
 });

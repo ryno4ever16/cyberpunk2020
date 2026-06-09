@@ -15,91 +15,24 @@ export const FASHION_STYLES = [
 ];
 
 /**
- * Read a shop's per-item stock metadata from the embedded item's flags.
- * Missing flag = unlimited stock (the safe default for freshly dragged-in items).
- * @param {Item} item embedded shop item
- * @returns {{unlimited:boolean, qty:number, fashion:boolean, price:(number|null)}}
- */
-export function shopStockOf(item) {
-  const f = item?.getFlag?.("cyberpunk2020", "shop") ?? item?.flags?.cyberpunk2020?.shop ?? {};
-  const price = Number(f.price);
-  return {
-    unlimited: f.unlimited !== false,            // default true
-    qty: Math.max(0, Math.floor(Number(f.qty) || 0)),
-    fashion: f.fashion === true,
-    price: Number.isFinite(price) ? price : null, // per-item GM price override (null = use catalog cost)
-    sourceKey: typeof f.sourceKey === "string" ? f.sourceKey : null // origin catalog key "packId.itemId"
-  };
-}
-
-/**
- * Add a catalog item to a shop as curated stock: embeds a copy with default stock metadata and a
- * `sourceKey` flag linking it back to its catalog entry (so the builder can show in-shop state and
- * avoid duplicate adds). Returns the created embedded Item, or null on failure / duplicate.
- * @param {Actor} shop
- * @param {string} packId  compendium collection id
- * @param {string} itemId  catalog item _id
- * @param {{fashion?:boolean}} [opts]
- * @returns {Promise<Item|null>}
- */
-export async function addItemToShop(shop, packId, itemId, { fashion = false } = {}) {
-  if (!shop || shop.type !== "shop") return null;
-  const sourceKey = `${packId}.${itemId}`;
-  // Skip if already stocked (matched by sourceKey).
-  if (shop.items.some(it => shopStockOf(it).sourceKey === sourceKey)) return null;
-  let doc;
-  try { doc = await game.packs.get(packId)?.getDocument(itemId); } catch { doc = null; }
-  if (!doc) return null;
-  const data = doc.toObject();
-  delete data._id; delete data.folder; delete data.ownership;
-  data.flags = data.flags ?? {};
-  data.flags.cyberpunk2020 = {
-    ...(data.flags.cyberpunk2020 ?? {}),
-    shop: { unlimited: true, qty: 0, fashion: fashion === true, price: null, sourceKey }
-  };
-  try {
-    const [created] = await shop.createEmbeddedDocuments("Item", [data]);
-    return created ?? null;
-  } catch (e) { console.warn("Cyberpunk2020 | addItemToShop failed", e); return null; }
-}
-
-/** Remove a curated item from a shop by its embedded item id. */
-export async function removeItemFromShop(shop, embeddedId) {
-  const item = shop?.items?.get(embeddedId);
-  if (!item) return false;
-  try { await item.delete(); return true; }
-  catch (e) { console.warn("Cyberpunk2020 | removeItemFromShop failed", e); return false; }
-}
-
-/** Patch a shop item's stock metadata (price/qty/unlimited/fashion), preserving the rest. */
-export async function setShopStock(item, patch) {
-  if (!item) return;
-  const s = shopStockOf(item);
-  try { await item.setFlag("cyberpunk2020", "shop", { ...s, ...patch }); }
-  catch (e) { console.warn("Cyberpunk2020 | setShopStock failed", e); }
-}
-
-/**
- * Shopping purchase engine — the generic GEAR path.
+ * Shopping purchase engine — the generic GEAR path ([[shopping-design]]).
  *
  * Mirrors the proven buy-ammo idiom (module/dialog/buy-ammo.js): validate → check funds →
- * CHARGE FIRST → create the item → refund on failure, so a failed create can never leave
- * free goods or a double charge. Money lives on `actor.system.eurobucks`.
- *
- * Cyberware (full buy-and-install: surgery cost + humanity roll + surgical damage) and
- * services (recurring-bill tab / one-off pay-and-confirm) are handled by their own paths;
- * this function is the plain "buy a thing, put it in inventory" core.
+ * CHARGE FIRST → create the item → refund on failure, so a failed create can never leave free
+ * goods or a double charge. Money lives on `actor.system.eurobucks`. Cyberware (buy-and-install)
+ * and services (recurring/one-off) have their own paths; shop pricing/stock lives in shops.js and
+ * the buy routing lives in catalog.js.
  */
 
 /**
- * Effective price of one unit: catalog cost × shop markup × (fashion) style multiplier, rounded.
+ * Effective price of one unit: catalog cost × (fashion) style multiplier, rounded.
  * @param {Item|object} item
- * @param {{markup?:number, styleMult?:number}} [opts]
+ * @param {{styleMult?:number}} [opts]
  * @returns {number}
  */
-export function priceFor(item, { markup = 1, styleMult = 1 } = {}) {
+export function priceFor(item, { styleMult = 1 } = {}) {
   const base = Number(item?.system?.cost ?? 0);
-  return Math.max(0, Math.round(base * (Number(markup) || 1) * (Number(styleMult) || 1)));
+  return Math.max(0, Math.round(base * (Number(styleMult) || 1)));
 }
 
 /**
@@ -135,7 +68,7 @@ export async function buyItem(actor, source, { qty = 1, unitPrice, priceLabel = 
     delete data._id;
     delete data.folder;
     delete data.ownership;
-    // Don't carry shop-only stock metadata onto the buyer's copy.
+    // Don't carry shop-only metadata onto the buyer's copy.
     if (data.flags?.cyberpunk2020?.shop) delete data.flags.cyberpunk2020.shop;
     if (systemPatch && typeof systemPatch === "object") data.system = { ...(data.system ?? {}), ...systemPatch };
     // If the item TYPE's schema carries a numeric quantity (only ammo does), buy one stack of N;
@@ -164,51 +97,5 @@ export async function buyItem(actor, source, { qty = 1, unitPrice, priceLabel = 
       qty: n, name, cost: total, label: priceLabel ? ` (${priceLabel})` : ""
     })
   });
-  return true;
-}
-
-/**
- * Buy `qty` of a shop's embedded item for `buyer`: price = the GM per-item override (if set) else
- * the catalog cost, × optional fashion style; deplete limited stock on success. No zone markup.
- * @param {Actor} shop   the shop actor
- * @param {Actor} buyer  the purchasing character
- * @param {Item}  item   an embedded item on the shop
- * @param {object} [opts]
- * @param {number} [opts.qty=1]
- * @param {number} [opts.styleMult=1]   fashion style multiplier
- * @param {string} [opts.styleLabel=""] fashion style label for the chat card
- * @returns {Promise<boolean>}
- */
-export async function buyFromShop(shop, buyer, item, { qty = 1, styleMult = 1, styleLabel = "", systemPatch = null } = {}) {
-  if (!shop || !buyer || !item) return false;
-  if (shop.system?.open === false && !game.user.isGM) {
-    ui.notifications?.warn(localize("ShopClosed"));
-    return false;
-  }
-  const n = Math.max(1, Math.floor(Number(qty) || 1));
-  const stock = shopStockOf(item);
-  if (!stock.unlimited && stock.qty < n) {
-    ui.notifications?.warn(game.i18n.format("CYBERPUNK.ShopOutOfStock", { name: item.name, qty: stock.qty }));
-    return false;
-  }
-
-  // Price = per-item override (if set) else catalog cost, × fashion style. No zone markup.
-  const base = stock.price != null ? stock.price : (Number(item.system?.cost) || 0);
-  const unitPrice = Math.max(0, Math.round(base * (Number(styleMult) || 1)));
-  const priceLabel = (styleLabel && styleMult !== 1) ? `${styleLabel} ×${styleMult}` : "";
-
-  const ok = await buyItem(buyer, item, { qty: n, unitPrice, priceLabel, systemPatch });
-  if (!ok) return false;
-
-  // Deplete limited stock. The GM/shop-owner writes the flag directly; a non-owning player relays
-  // the depletion to the primary GM (they can't write the shop they don't own).
-  if (!stock.unlimited) {
-    if (game.user.isGM || shop.isOwner) {
-      try { await item.setFlag("cyberpunk2020", "shop", { ...stock, qty: Math.max(0, stock.qty - n) }); }
-      catch (e) { console.warn("Cyberpunk2020 | could not decrement shop stock", e); }
-    } else if (game.users.activeGM) {
-      game.socket.emit("system.cyberpunk2020", { type: "shopDeplete", shopId: shop.id, itemId: item.id, qty: n });
-    }
-  }
   return true;
 }

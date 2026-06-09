@@ -2124,8 +2124,10 @@ img#anatomy-img {
 .cp-catalog .cp-catalog-jump .cp-jump { width: auto; flex: 0 0 auto; min-width: 0; }
 .cp-catalog .cp-cat-chip { width: auto; flex: 0 0 auto; }
 .cp-catalog-toolbar { gap: 8px; align-items: center; padding: 4px 0; }
-.cp-catalog-filters { flex: 0 0 150px; overflow-y: auto; border-right: 1px solid rgba(255,255,255,0.12); padding-right: 6px; }
-.cp-catalog-sources { flex: 0 0 185px; overflow-y: auto; border-left: 1px solid rgba(255,255,255,0.12); padding-left: 6px; }
+/* Side panels SHRINK (not fixed) so a narrow window keeps the item list usable instead of collapsing it. */
+.cp-catalog-filters { flex: 0 1 150px; min-width: 92px; overflow-y: auto; border-right: 1px solid rgba(255,255,255,0.12); padding-right: 6px; }
+.cp-catalog-sources { flex: 0 1 185px; min-width: 120px; overflow-y: auto; border-left: 1px solid rgba(255,255,255,0.12); padding-left: 6px; }
+.cp-catalog .cp-catalog-center { min-width: 96px; }
 .cp-cat-chip { display: inline-block; margin: 1px; padding: 1px 6px; font-size: 0.8em; cursor: pointer; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); border-radius: 3px; color: inherit; }
 .cp-cat-chip.active { background: #8a6d3b; color: #fff; border-color: #b8916a; }
 .cp-cat-top { font-weight: bold; }
@@ -2160,5 +2162,48 @@ img#anatomy-img {
 /* Item name + thumbnail open the compendium sheet on click. */
 .cp-catalog-row .cp-cat-itemname, .cp-catalog-row .cp-cat-thumb { cursor: pointer; }
 .cp-catalog-row .cp-cat-itemname:hover { text-decoration: underline; }
+/* Cyberware buy/install dialog: equal, non-wrapping action buttons. */
+.cp-cyber-install-dialog .dialog-buttons { gap: 6px; }
+.cp-cyber-install-dialog .dialog-buttons button { flex: 1 1 0; white-space: nowrap; min-width: 0; }
+
+/* ── Round-7: single window — home directory + vendor tray + context menu ── */
+.cp-shop-home { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.cp-home-title { margin: 0; font-size: 1.25em; color: #6fb7c9; border-bottom: 1px solid rgba(255,255,255,0.12); padding-bottom: 6px; flex: 0 0 auto; }
+.cp-shop-home .cp-home-list { display: flex; flex-direction: column; gap: 8px; flex: 0 0 auto; }
+.cp-shop-home .cp-home-entry { display: flex; align-items: center; gap: 14px; width: 100%; flex: 0 0 auto; min-height: 0; height: auto; padding: 11px 16px; text-align: left; background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.14); border-radius: 6px; cursor: pointer; transition: background 0.12s ease, border-color 0.12s ease; }
+.cp-shop-home .cp-home-entry:hover { background: rgba(138,109,59,0.22); border-color: #b8916a; }
+.cp-home-icon { font-size: 1.4em; width: 26px; text-align: center; flex: 0 0 auto; opacity: 0.85; }
+.cp-home-icon .cp-home-closed { opacity: 0.45; }
+.cp-home-catalog .cp-home-icon { color: #d8b15a; }
+.cp-home-text { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; gap: 1px; }
+.cp-home-name { font-weight: bold; font-size: 1.02em; }
+.cp-home-sub { font-size: 0.78em; opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cp-home-go { opacity: 0.3; flex: 0 0 auto; }
+.cp-shop-home .cp-home-entry:hover .cp-home-go { opacity: 0.75; }
+.cp-shop-home .cp-home-create { border-style: dashed; opacity: 0.8; justify-content: center; gap: 8px; margin-top: 2px; }
+.cp-shop-home .cp-home-create .cp-home-text { flex: 0 0 auto; }
+.cp-shop-home .cp-home-create:hover { opacity: 1; }
+.cp-shop-header { padding: 2px 2px 6px; border-bottom: 1px solid rgba(255,255,255,0.15); margin-bottom: 4px; flex-wrap: wrap; }
+.cp-shop-header label { font-size: 0.8em; white-space: nowrap; }
+.cp-shop-header button { width: auto; }
+.cp-shop-discountbadge { color: #6ad06a; font-size: 0.7em; }
+/* Pin fixed-height window children so Foundry's .flexcol > *{flex:1 1 0%} can't collapse the vendor
+   tray to ~10px and overlap the catalog body. Only the body grows. */
+.cp-catalog-window > .cp-shop-header,
+.cp-catalog-window > .cp-catalog-toolbar,
+.cp-catalog-window > .cp-vendor-tray,
+.cp-catalog-window > .cp-shop-notes-row,
+.cp-catalog-window > .cp-catalog-footer { flex: 0 0 auto; }
+.cp-vendor-tray { flex: 0 0 auto; border: 1px dashed rgba(192,160,98,0.5); border-radius: 4px; padding: 4px 6px; margin-bottom: 6px; max-height: 220px; display: flex; flex-direction: column; min-height: 0; }
+.cp-vendor-tray.cp-drop-hot { border-color: #b8916a; background: rgba(138,109,59,0.15); }
+.cp-vendor-head { flex: 0 0 auto; }
+.cp-vendor-head button { width: auto; }
+.cp-vendor-items { overflow-y: auto; min-height: 0; flex: 1 1 auto; }
+.cp-vendor-empty { opacity: 0.6; font-size: 0.8em; font-style: italic; padding: 4px; }
+.cp-vendor-row { gap: 5px; }
+.cp-inshop-mark { color: #6ad06a; font-weight: bold; padding: 0 4px; }
+.cp-context-menu { background: #14110d; border: 1px solid #b8916a; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.6); display: flex; flex-direction: column; min-width: 150px; }
+.cp-context-menu button { width: 100%; text-align: left; background: none; border: none; color: #f0f0f0; padding: 5px 10px; cursor: pointer; }
+.cp-context-menu button:hover { background: rgba(138,109,59,0.4); }
 
 /*# sourceMappingURL=cyberpunk2020.css.map */

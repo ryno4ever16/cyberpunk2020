@@ -15,7 +15,7 @@ test("catalog layout: list scrolls inside the window, jump bar is a thin strip",
     const out = {};
     await game.settings.set("cyberpunk2020", "shoppingEnabled", true);
     const mod = await import("/systems/cyberpunk2020/module/shop/catalog.js");
-    const browser = new mod.CatalogBrowser(null);
+    const browser = new mod.CatalogBrowser(null, { view: "catalog" });
     await browser.render(true);
     await new Promise(r => setTimeout(r, 500));
     const root = browser.element?.[0] ?? document.querySelector(".cp-catalog");

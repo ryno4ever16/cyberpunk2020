@@ -1,14 +1,14 @@
 import { CyberpunkActor } from "./actor/actor.js";
 import { CyberpunkActorSheet } from "./actor/actor-sheet.js";
 import { CyberpunkVehicleSheet } from "./actor/vehicle-sheet.js";
-import { CyberpunkShopSheet } from "./actor/shop-sheet.js";
 import { registerShopHooks } from "./shop/catalog.js";
+import { migrateShopActorsToDefs } from "./shop/shops.js";
 import { registerIpHooks } from "./ip/ip.js";
 import { openIpTracker } from "./ip/tracker.js";
 import { ipSystem } from "./settings.js";
 import { CyberpunkItem } from "./item/item.js";
 import { CyberpunkItemSheet } from "./item/item-sheet.js";
-import { CyberpunkCharacterData, CyberpunkNpcData, CyberpunkVehicleActorData, CyberpunkShopData } from "./data/actor-data.js";
+import { CyberpunkCharacterData, CyberpunkNpcData, CyberpunkVehicleActorData } from "./data/actor-data.js";
 import {
     CyberpunkAcpaSystemData,
     CyberpunkAmmoData,
@@ -64,7 +64,6 @@ Hooks.once('init', async function () {
     CONFIG.Actor.dataModels.character = CyberpunkCharacterData;
     CONFIG.Actor.dataModels.npc = CyberpunkNpcData;
     CONFIG.Actor.dataModels.vehicle = CyberpunkVehicleActorData;
-    CONFIG.Actor.dataModels.shop = CyberpunkShopData;
 
     CONFIG.Item.dataModels.skill = CyberpunkSkillData;
     CONFIG.Item.dataModels.program = CyberpunkProgramData;
@@ -81,9 +80,6 @@ Hooks.once('init', async function () {
     Actors.unregisterSheet("core", ActorSheet);
     Actors.registerSheet("cyberpunk2020", CyberpunkActorSheet, { types: ["character", "npc"], makeDefault: true });
     Actors.registerSheet("cyberpunk2020", CyberpunkVehicleSheet, { types: ["vehicle"], makeDefault: true });
-    // Registered unconditionally like the others. (If the registration were skipped, a `shop` actor
-    // would fall back to the default actor sheet — the character sheet — and show player stats.)
-    Actors.registerSheet("cyberpunk2020", CyberpunkShopSheet, { types: ["shop"], makeDefault: true });
     Items.unregisterSheet("core", ItemSheet);
     Items.registerSheet("cyberpunk2020", CyberpunkItemSheet, { makeDefault: true });
 
@@ -209,6 +205,9 @@ Hooks.once("ready", async function () {
 
   // Register shopping hooks (published-shop chat links + GM stock-depletion relay).
   registerShopHooks();
+
+  // One-time: migrate any legacy `shop`-type Actors into world-data ShopDefs, then drop them (round-7).
+  migrateShopActorsToDefs();
 
   // Register IP-tracker hooks (skill-roll auto-queue + GM relay).
   registerIpHooks();

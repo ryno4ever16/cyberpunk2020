@@ -101,20 +101,22 @@ function _confirmInstall(o) {
     <input type="checkbox" name="applyDamage" checked/> ${localize("CyberApplyDamage")} (${esc(o.surgery.damage)})
   </label>
 </form>`;
-  const buttons = {
-    ok: { icon: '<i class="fas fa-syringe"></i>', label: localize("CyberInstallConfirm"),
-      callback: (h) => { const r = (h[0] ?? h); resolve({ proceed: true, installNow: true,
-        rollHumanity: r.querySelector('[name="rollHumanity"]')?.checked ?? true,
-        applyDamage: r.querySelector('[name="applyDamage"]')?.checked ?? true }); } }
-  };
-  // Only the BUY flow offers "buy only" (you already own an item you're installing from the sheet).
-  if (o.showPart) buttons.buyOnly = {
-    icon: '<i class="fas fa-box"></i>', label: localize("CyberBuyOnly"),
-    callback: () => resolve({ proceed: true, installNow: false })
-  };
-  buttons.cancel = { icon: '<i class="fas fa-times"></i>', label: localize("Cancel"), callback: () => resolve(null) };
   return new Promise((resolve) => {
-    new Dialog({ title: o.title, content, buttons, default: "ok", close: () => resolve(null) }).render(true);
+    // Buttons are built INSIDE the executor so their callbacks close over `resolve`.
+    const buttons = {
+      ok: { icon: '<i class="fas fa-syringe"></i>', label: localize("CyberInstallConfirm"),
+        callback: (h) => { const r = (h[0] ?? h); resolve({ proceed: true, installNow: true,
+          rollHumanity: r.querySelector('[name="rollHumanity"]')?.checked ?? true,
+          applyDamage: r.querySelector('[name="applyDamage"]')?.checked ?? true }); } }
+    };
+    // Only the BUY flow offers "buy only" (from the sheet you already own the item you're installing).
+    if (o.showPart) buttons.buyOnly = {
+      icon: '<i class="fas fa-box"></i>', label: localize("CyberBuyOnly"),
+      callback: () => resolve({ proceed: true, installNow: false })
+    };
+    buttons.cancel = { icon: '<i class="fas fa-times"></i>', label: localize("Cancel"), callback: () => resolve(null) };
+    new Dialog({ title: o.title, content, buttons, default: "ok", close: () => resolve(null) },
+      { classes: ["cyberpunk", "dialog", "cp-cyber-install-dialog"], width: 440 }).render(true);
   });
 }
 

@@ -139,33 +139,10 @@ export class CyberpunkCharacterData extends CyberpunkBaseActorData {}
 export class CyberpunkNpcData extends CyberpunkBaseActorData {}
 
 /**
- * Shop actor (Shopping feature, Core economy — [[shopping-design]]).
- *
- * A GM-curated storefront. Its STOCK is the embedded Items dragged onto it; per-item metadata
- * (unlimited vs limited quantity, optional price override, fashion flag) lives in each embedded
- * item's flags (`flags.cyberpunk2020.shop`), so it travels with the item.
- *
- * Pricing: items sell at their Core catalog cost; the GM may set a per-item price OVERRIDE in the
- * shop (there is NO zone markup — the zone multiplier is a Housing rule, not general retail).
- * `open` is set by "Show to Players" (Show implies Open). `buysGoods` reserved for Wildside sellback.
- * `fullSearch` lets players search & buy the WHOLE (visible-to-them) catalog from this storefront,
- * with the curated stock merely featured; off (default) = players see ONLY the curated items.
+ * (Round-7) The `shop` Actor type was RETIRED — custom shops are now world-settings data, not Actors.
+ * See module/shop/shops.js (ShopDef) + [[shopping-design]]. Legacy shop actors are migrated to
+ * ShopDefs and deleted by migrateShopActorsToDefs() on first GM ready.
  */
-export class CyberpunkShopData extends foundry.abstract.TypeDataModel {
-  static defineSchema() {
-    return {
-      buysGoods:  booleanField(false),  // RESERVED for Wildside sellback; no effect in v1
-      open:       booleanField(false),  // players may buy here (set by "Show to Players")
-      fullSearch: booleanField(false),  // storefront: allow players to search the whole catalog
-      notes:      htmlField("")
-    };
-  }
-
-  static migrateData(source) {
-    source ??= {};
-    return super.migrateData(source);
-  }
-}
 
 /**
  * Vehicle / ACPA actor (CP2020 Core "Vehicles in FNFF" p.112 + Maximum Metal).
