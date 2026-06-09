@@ -18,6 +18,7 @@
 
 import { openSingletonDialog } from "../utils.js";
 import { effectiveVehicleRuleSystem, vehicleArcEnforcement } from "../settings.js";
+import { onGlobalClick } from "../popout-compat.js";
 
 /** Average of a CP2020 damage formula ("2d6+1", "5d6", "1d10", "3d6+2"). PURE. */
 export function averageDamageFromFormula(formula) {
@@ -542,7 +543,7 @@ async function _applyVehicleShot(targetActor, { penetration = 0, facing = "front
 
 /** Chat handler for the "Apply to Targeted Vehicle" button on a vehicle-fire card. */
 export function registerVehicleFireHandlers() {
-  document.addEventListener("click", async (ev) => {
+  onGlobalClick(async (ev) => {
     const btn = ev.target.closest?.(".cp-vfire-apply");
     if (!btn || btn.disabled) return;
     ev.preventDefault();

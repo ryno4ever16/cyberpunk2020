@@ -1,3 +1,5 @@
+import { onGlobalClick } from "../popout-compat.js";
+
 /**
  * save-rolls.js  —  module/combat/save-rolls.js
  *
@@ -574,7 +576,7 @@ export function registerSaveRollHandlers() {
   // GM-side listener for relayed stabilization writes (non-owner medics).
   _registerStabilizeSocket();
 
-  document.addEventListener("click", async (ev) => {
+  onGlobalClick(async (ev) => {
     const stunBtn      = ev.target.closest(".cp-stun-save-roll");
     const deathBtn     = ev.target.closest(".cp-death-save-roll");
     const stabilizeBtn = ev.target.closest(".cp-stabilize-roll");

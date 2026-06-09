@@ -915,7 +915,8 @@ async _prepareCyberware(sheet) {
 
     html.on("mousedown", "input[name='cw-skill-search'], input[name='cw-chip-skill-search']", ev => {
       const el = ev.currentTarget;
-      if (document.activeElement === el) {
+      // PopOut!: compare against the element's OWN document (it may live in a popped-out window).
+      if (el.ownerDocument.activeElement === el) {
         ev.preventDefault();
         const listId = el.getAttribute("list");
         el.removeAttribute("list");

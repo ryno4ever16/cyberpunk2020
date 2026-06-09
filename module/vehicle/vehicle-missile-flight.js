@@ -10,6 +10,7 @@
 
 import { mmEnabled } from "../settings.js";
 import { missileSpeed, turnsToImpact, resolveMissileToHit, resolvePaintHit, countermeasureModifier, interceptResult, electronicDetect, visualDetectDV } from "./vehicle-missiles.js";
+import { onGlobalClick } from "../popout-compat.js";
 import { pixelsToMeters } from "./vehicle-grid.js";
 
 const SCOPE = "cyberpunk2020";
@@ -275,7 +276,7 @@ export function registerMissileFlightHooks() {
   });
 
   // Reaction buttons on the Incoming-Missile card (+ GM reveal from the tracker panel).
-  document.addEventListener("click", async (ev) => {
+  onGlobalClick(async (ev) => {
     const cm = ev.target.closest?.(".cp-missile-cm");
     const ev2 = ev.target.closest?.(".cp-missile-evade");
     const ic = ev.target.closest?.(".cp-missile-intercept");

@@ -19,6 +19,7 @@
  */
 
 import { DamageDialog }                                       from "./DamageDialog.js";
+import { onGlobalClick } from "../popout-compat.js";
 import { applyAreaDamages, ablateLocationOnce, ablateLocationByAmount, assessWoundSeverity, ARMOR_MODES } from "./DamageApplicator.js";
 import { postStunSavePrompt, postDeathSavePrompt, updateTaserState, applyAcidDotState, applyDotFromPayload } from "./save-rolls.js";
 import { rollLocation }                                       from "../utils.js";
@@ -74,7 +75,7 @@ export function registerDamageHooks() {
   _hookLiveSheetUpdate();
 
   // Combat action button click handler
-  document.addEventListener("click", async (ev) => {
+  onGlobalClick(async (ev) => {
     const evasionBtn    = ev.target.closest(".cp-suppression-evasion-roll");
     const confirmBtn    = ev.target.closest(".cp-confirm-fire-zone");
     const blastBtn      = ev.target.closest(".cp-confirm-explosion");

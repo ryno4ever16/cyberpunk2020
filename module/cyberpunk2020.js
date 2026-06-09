@@ -37,6 +37,7 @@ import { seedVehicleWeaponCompendium, ensureVehicleWeaponSeed } from "./vehicle/
 import { seedAcpaSystemCompendium, ensureAcpaSystemSeed } from "./vehicle/vehicle-acpa-catalog.js";
 import { registerVehicleTargetingHandlers } from "./vehicle/vehicle-targeting.js";
 import { registerMissileFlightHooks } from "./vehicle/vehicle-missile-flight.js";
+import { registerPopoutCompat } from "./popout-compat.js";
 import { openAcpaMeleeDialog, registerAcpaCombatHooks, repairAcpa } from "./vehicle/vehicle-acpa-combat.js";
 
 Hooks.once('init', async function () {
@@ -189,6 +190,9 @@ Hooks.once('init', async function () {
  * Check whether this world needs a system data migration.
  */
 Hooks.once("ready", async function () {
+  // PopOut! compat: bind our global chat-card click delegators onto every popped-out window too.
+  registerPopoutCompat();
+
   // Register damage automation hooks (all users)
   registerDamageHooks();
 

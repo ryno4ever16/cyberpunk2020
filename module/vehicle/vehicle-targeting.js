@@ -14,6 +14,7 @@
 
 import { applyAreaDamages, ablateLocationByAmount, personnelArmorValue, ARMOR_MODES } from "../combat/DamageApplicator.js";
 import { rollLocation } from "../utils.js";
+import { onGlobalClick } from "../popout-compat.js";
 import { effectiveVehicleRuleSystem } from "../settings.js";
 
 const SCOPE = "cyberpunk2020";
@@ -228,7 +229,7 @@ async function _executeLuckSave({ actorId, tokenId, pen, weaponName }) {
 
 /** Register the LUCK-save chat-button handler (all users; the owner/GM who clicks resolves it). */
 export function registerVehicleTargetingHandlers() {
-  document.addEventListener("click", async (ev) => {
+  onGlobalClick(async (ev) => {
     const btn = ev.target.closest?.(".cp-luck-save-roll");
     if (!btn || btn.disabled) return;
     ev.preventDefault();
