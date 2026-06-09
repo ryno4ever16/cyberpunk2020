@@ -13,7 +13,8 @@
  *   publishedTo: "all" | string[],        // which players see it when open (default "all")
  *   items: { [sourceKey]: ShopItem }      // sourceKey = "packId.itemId"
  * }
- * ShopItem = { price: number|null, unlimited: boolean, qty: number, fashion: boolean }
+ * ShopItem = { price: number|null, unlimited: boolean, qty: number, style: string|null }
+ *   style = a FASHION_STYLES key (clothing only — Gear/Fashion); null = Generic (×1) / not clothing.
  */
 
 const SCOPE = "cyberpunk2020";
@@ -44,11 +45,13 @@ export function normalizeShopItem(raw) {
     const n = Number(e.price);
     if (Number.isFinite(n)) price = Math.max(0, Math.round(n));
   }
+  // style = a clothing style-tier key (Gear/Fashion only); null = Generic / not clothing. (Replaces the
+  // old boolean `fashion` flag — style pricing is now category-derived + GM-set per clothing item.)
   return {
     price,
     unlimited: e.unlimited !== false,
     qty: Math.max(0, Math.floor(Number(e.qty) || 0)),
-    fashion: e.fashion === true
+    style: typeof e.style === "string" && e.style ? e.style : null
   };
 }
 
@@ -130,12 +133,12 @@ export async function duplicateShop(id) {
 }
 
 /** Add a catalog item (by sourceKey) to a shop with default stock (GM only). No-op if already present. */
-export async function addShopItem(id, sourceKey, { fashion = false } = {}) {
+export async function addShopItem(id, sourceKey) {
   const map = _rawMap();
   if (!map[id] || !sourceKey) return false;
   map[id].items = map[id].items ?? {};
   if (map[id].items[sourceKey]) return false;
-  map[id].items[sourceKey] = normalizeShopItem({ unlimited: true, qty: 0, fashion: !!fashion, price: null });
+  map[id].items[sourceKey] = normalizeShopItem({ unlimited: true, qty: 0, price: null });
   return _save(map);
 }
 
@@ -148,7 +151,7 @@ export async function addShopItems(id, entries = []) {
   for (const e of entries) {
     const sk = typeof e === "string" ? e : e?.sourceKey;
     if (!sk || map[id].items[sk]) continue;
-    map[id].items[sk] = normalizeShopItem({ unlimited: true, qty: 0, fashion: e?.fashion === true, price: null });
+    map[id].items[sk] = normalizeShopItem({ unlimited: true, qty: 0, price: null });
     n++;
   }
   if (n) await _save(map);
@@ -163,7 +166,7 @@ export async function removeShopItem(id, sourceKey) {
   return _save(map);
 }
 
-/** Patch a stocked item's metadata (price/unlimited/qty/fashion) (GM only). */
+/** Patch a stocked item's metadata (price/unlimited/qty/style) (GM only). */
 export async function setShopItem(id, sourceKey, patch = {}) {
   const map = _rawMap();
   if (!map[id]?.items?.[sourceKey]) return false;

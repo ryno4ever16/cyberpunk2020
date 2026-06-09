@@ -9,6 +9,11 @@ package-lock.json
 node_modules/
 npm-debug.log
 
+# Playwright e2e output
+test-results/
+tests/test-results/
+tests/playwright-report/
+
 # The packs seem to change when I load foundry, so for now I'm adding them to the .gitignore
 # This will make changing them a little bit of a pain but we'll see how it goes
 packs/**

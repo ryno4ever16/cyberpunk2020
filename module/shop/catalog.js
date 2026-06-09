@@ -1,7 +1,7 @@
-import { buyItem, FASHION_STYLES } from "./purchase.js";
+import { buyItem, FASHION_STYLES, styleMultOf, styleLabelOf } from "./purchase.js";
 import { buyAndInstallCyberware } from "../cyberware/install.js";
 import { classifyService, payOneOffService } from "./services.js";
-import { classifySupplement, sourceState, isVisibleTo, knownOfficialSupplements, knownNoncanonSources } from "./supplements.js";
+import { classifySupplement, shortSupplement, sourceState, isVisibleTo, knownOfficialSupplements, knownNoncanonSources } from "./supplements.js";
 import { categoryOfPack, CATEGORIES, EXCLUDED_TYPES, catalogPacks } from "./categories.js";
 import { shoppingEnabled, shopSourceConfig, shopShowSource, shopAllowHomebrew } from "../settings.js";
 import {
@@ -49,7 +49,7 @@ async function buildCatalogIndex() {
       const { supplement, canon } = classifySupplement(e.system?.source);
       items.push({
         id: e._id, packId: pack.collection, name: e.name, img: e.img,
-        cost: Number(e.system?.cost) || 0, type, category, sub, supplement, canon,
+        cost: Number(e.system?.cost) || 0, type, category, sub, supplement, supplementShort: shortSupplement(supplement), canon,
         key: `${pack.collection}.${e._id}`
       });
     }
@@ -102,6 +102,19 @@ export class CatalogBrowser extends Application {
   }
 
   _shop() { return this.shopId ? getShop(this.shopId) : null; }
+
+  /** Characters the current user can shop AS (players: their owned chars; GM: assigned + current buyer).
+   *  Lets a player with several characters pick who's buying instead of fishing for the right token. */
+  _buyerOptions() {
+    let cands;
+    if (game.user.isGM) cands = [game.user.character, this.buyer].filter(Boolean);
+    else cands = (game.actors?.contents ?? []).filter(a => a?.isOwner);
+    const seen = new Set();
+    return cands
+      .filter(a => a?.type === "character" && !seen.has(a.id) && seen.add(a.id))
+      .map(a => ({ id: a.id, name: a.name, selected: a.id === this.buyer?.id }))
+      .sort((x, y) => x.name.localeCompare(y.name));
+  }
 
   /** Switch view (+ optional shop) and re-render. */
   navigate(view, shopId = null, render = true) {
@@ -156,13 +169,20 @@ export class CatalogBrowser extends Application {
       const e = normalizeShopItem(def.items[sk]);
       const [packId, itemId] = splitSourceKey(sk);
       const catalogCost = idx ? idx.cost : 0;
+      // Style pricing applies to clothing only (Gear/Fashion). The GM sets the tier per item; the
+      // multiplier feeds the effective price. Non-clothing carries no style.
+      const isClothing = idx?.category === "Gear" && idx?.sub === "Fashion";
+      const styleMult = isClothing ? styleMultOf(e.style) : 1;
       return {
         sourceKey: sk, packId, itemId, available: !!idx,
         name: idx?.name ?? game.i18n.localize("CYBERPUNK.ShopItemUnavailable"),
         img: idx?.img ?? "icons/svg/item-bag.svg",
         category: idx?.category ?? "", sub: idx?.sub ?? "", supplement: idx?.supplement ?? "",
-        catalogCost, override: e.price, unlimited: e.unlimited, qty: e.qty, fashion: e.fashion,
-        eff: effectivePrice(def, sk, catalogCost), soldOut: !e.unlimited && e.qty <= 0
+        catalogCost, override: e.price, unlimited: e.unlimited, qty: e.qty,
+        isClothing, style: e.style,
+        styleLabel: (isClothing && e.style && e.style !== "generic") ? styleLabelOf(e.style) : "",
+        styleOptions: isClothing ? FASHION_STYLES.map(s => ({ key: s.key, label: s.label, mult: s.mult, selected: s.key === (e.style ?? "generic") })) : null,
+        eff: effectivePrice(def, sk, catalogCost, styleMult), soldOut: !e.unlimited && e.qty <= 0
       };
     }).sort((a, b) => a.name.localeCompare(b.name));
   }
@@ -174,8 +194,10 @@ export class CatalogBrowser extends Application {
       isGM, view: this.view,
       isHome: this.view === "home", isCatalog: this.view === "catalog",
       isBuild: this.view === "build", isStorefront: this.view === "storefront",
+      hasBuyer: !!this.buyer,
       buyerName: this.buyer?.name ?? "",
       buyerFunds: this.buyer ? (Number(this.buyer.system?.eurobucks) || 0) : 0,
+      buyerOptions: this._buyerOptions(),
       fashionStyles: FASHION_STYLES, showSource: shopShowSource(), search: this._search,
       searching: !!this._search.trim()
     };
@@ -205,8 +227,7 @@ export class CatalogBrowser extends Application {
     return {
       showFilters: true, showJump: true, showSearch: true, showSources: isGM,
       rows, rowCount: rows.length, letters, cats: this._catTree(),
-      sourcePanel: isGM ? this._sourcePanel(all, cfg) : null,
-      shopList: isGM ? listShops().map(s => ({ id: s.id, name: s.name })) : []
+      sourcePanel: isGM ? this._sourcePanel(all, cfg) : null
     };
   }
 
@@ -282,8 +303,8 @@ export class CatalogBrowser extends Application {
     else await buyItem(this.buyer, doc, { qty, unitPrice, priceLabel: label });
   }
 
-  /** Buy a curated item from a shop: shop pricing + discount, deplete stock (GM write / player relay). */
-  async _shopBuy(sourceKey, { qty, styleMult, styleLabel }) {
+  /** Buy a curated item from a shop: shop pricing (GM-set clothing style + discount), deplete stock. */
+  async _shopBuy(sourceKey, { qty }) {
     if (!this.buyer) { ui.notifications?.warn(game.i18n.localize("CYBERPUNK.ShopBuyerNeeded")); return; }
     const def = this._shop();
     if (!def) return;
@@ -294,9 +315,13 @@ export class CatalogBrowser extends Application {
     const [packId, itemId] = splitSourceKey(sourceKey);
     const doc = await game.packs.get(packId)?.getDocument(itemId);
     if (!doc) { ui.notifications?.warn(game.i18n.localize("CYBERPUNK.ShopItemUnavailable")); return; }
+    // Clothing (Gear/Fashion) uses the GM-set style tier; everything else is ×1.
+    const { category, sub } = categoryOfPack(game.packs.get(packId)?.metadata?.name ?? "");
+    const isClothing = category === "Gear" && sub === "Fashion";
+    const styleMult = isClothing ? styleMultOf(e.style) : 1;
     const unitPrice = effectivePrice(def, sourceKey, Number(doc.system?.cost) || 0, styleMult);
     const bits = [];
-    if (styleLabel && styleMult !== 1) bits.push(`${styleLabel} ×${styleMult}`);
+    if (isClothing && e.style && e.style !== "generic") bits.push(`${styleLabelOf(e.style)} ×${styleMult}`);
     if (def.discountPct) bits.push(`-${def.discountPct}%`);
     const label = bits.join(", ");
 
@@ -347,6 +372,13 @@ export class CatalogBrowser extends Application {
     // Home directory context menu (Open/Edit/Publish/Duplicate/Rename/Delete).
     root.querySelectorAll(".cp-home-shop").forEach(el => el.addEventListener("contextmenu", (e) => { e.preventDefault(); if (isGM) this._shopContextMenu(el.dataset.shopId, e); }));
 
+    // Buyer picker (shop AS a chosen owned character).
+    root.querySelector(".cp-buyer-pick")?.addEventListener("change", (ev) => {
+      const id = ev.currentTarget.value;
+      this.buyer = id ? (game.actors?.get(id) ?? null) : null;
+      this.render(false);
+    });
+
     // Search + source toggle.
     root.querySelector(".cp-catalog-search")?.addEventListener("input", (ev) => { this._search = ev.currentTarget.value; clearTimeout(this._t); this._t = setTimeout(() => this.render(false), 180); });
     root.querySelector(".cp-catalog-showsource")?.addEventListener("change", async (ev) => { try { await game.settings.set(SCOPE, "shopShowSource", ev.currentTarget.checked); } catch {} this.render(false); });
@@ -378,9 +410,10 @@ export class CatalogBrowser extends Application {
     root.querySelectorAll(".cp-catalog-buy").forEach(btn => btn.addEventListener("click", async (ev) => {
       ev.preventDefault();
       const rowEl = ev.currentTarget.closest("[data-item-id], [data-source-key]"); if (!rowEl) return;
-      const { styleMult, styleLabel } = styleOf(rowEl); const qty = qtyOf(rowEl);
-      if (this.view === "storefront" && rowEl.dataset.curated === "1") await this._shopBuy(rowEl.dataset.sourceKey, { qty, styleMult, styleLabel });
-      else await this._directBuy(rowEl.dataset.packId, rowEl.dataset.itemId, { qty, styleMult, styleLabel });
+      const qty = qtyOf(rowEl);
+      // Storefront items use the GM-set style (handled in _shopBuy); the open catalog lets the buyer pick.
+      if (this.view === "storefront" && rowEl.dataset.curated === "1") await this._shopBuy(rowEl.dataset.sourceKey, { qty });
+      else { const { styleMult, styleLabel } = styleOf(rowEl); await this._directBuy(rowEl.dataset.packId, rowEl.dataset.itemId, { qty, styleMult, styleLabel }); }
       this.render(false);
     }));
 
@@ -388,18 +421,38 @@ export class CatalogBrowser extends Application {
     this._activateCatalogShopAdd(root, isGM);
   }
 
-  /** Catalog-view GM "Add to shop ▾". */
+  /** Catalog-view GM "Add to shop": a compact cart icon per row that opens a shop-picker menu
+   *  (replaces a per-row <select>, which stamped a wide dropdown on every row and overflowed). */
   _activateCatalogShopAdd(root, isGM) {
     if (this.view !== "catalog" || !isGM) return;
-    root.querySelectorAll(".cp-add-to-shop").forEach(sel => sel.addEventListener("change", async (ev) => {
-      const val = ev.currentTarget.value; ev.currentTarget.value = "";
-      const rowEl = ev.currentTarget.closest("[data-source-key]"); const sk = rowEl?.dataset?.sourceKey; if (!val || !sk) return;
-      let shopId = val;
-      if (val === "__new__") { const name = await promptText(game.i18n.localize("CYBERPUNK.ShopNewTitle"), game.i18n.localize("CYBERPUNK.ShopNewDefault")); if (name === null) return; const def = await createShop({ name }); shopId = def?.id; }
-      if (!shopId) return;
-      const added = await addShopItem(shopId, sk, { fashion: rowEl.dataset.fashion === "1" });
-      ui.notifications?.info(added ? game.i18n.format("CYBERPUNK.ShopAddedTo", { shop: getShop(shopId)?.name ?? "" }) : game.i18n.localize("CYBERPUNK.ShopAlreadyStocked"));
+    root.querySelectorAll(".cp-add-to-shop-btn").forEach(btn => btn.addEventListener("click", (ev) => {
+      ev.preventDefault(); ev.stopPropagation();
+      const rowEl = ev.currentTarget.closest("[data-source-key]"); if (rowEl) this._catalogAddMenu(rowEl, ev);
     }));
+  }
+
+  /** Popup menu listing every shop (+ create new) to add a catalog item to. */
+  _catalogAddMenu(rowEl, ev) {
+    const sk = rowEl.dataset.sourceKey; if (!sk) return;
+    const addTo = async (shopId) => {
+      if (!shopId) return;
+      const added = await addShopItem(shopId, sk);
+      ui.notifications?.info(added ? game.i18n.format("CYBERPUNK.ShopAddedTo", { shop: getShop(shopId)?.name ?? "" }) : game.i18n.localize("CYBERPUNK.ShopAlreadyStocked"));
+    };
+    const menu = document.createElement("div");
+    menu.className = "cp-context-menu";
+    menu.style.cssText = `position:fixed; left:${ev.clientX}px; top:${ev.clientY}px; z-index:1000;`;
+    const item = (label, fn) => { const b = document.createElement("button"); b.type = "button"; b.textContent = label; b.addEventListener("click", async () => { menu.remove(); await fn(); }); menu.appendChild(b); };
+    for (const s of listShops()) item(s.name, () => addTo(s.id));
+    item("＋ " + game.i18n.localize("CYBERPUNK.ShopNew"), async () => {
+      const name = await promptText(game.i18n.localize("CYBERPUNK.ShopNewTitle"), game.i18n.localize("CYBERPUNK.ShopNewDefault"));
+      if (name === null) return;
+      const def = await createShop({ name });
+      if (def) await addTo(def.id);
+    });
+    document.body.appendChild(menu);
+    const close = (e) => { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener("click", close); } };
+    setTimeout(() => document.addEventListener("click", close), 0);
   }
 
   /** Build-view curation: ＋add / drag-in / bulk add / remove / economics / config. */
@@ -408,11 +461,11 @@ export class CatalogBrowser extends Application {
     const id = this.shopId;
     const skOf = (el) => el?.closest?.("[data-source-key]")?.dataset?.sourceKey;
 
-    root.querySelectorAll(".cp-shop-add").forEach(btn => btn.addEventListener("click", async (ev) => { ev.preventDefault(); const rowEl = ev.currentTarget.closest("[data-source-key]"); if (rowEl) { await addShopItem(id, rowEl.dataset.sourceKey, { fashion: rowEl.dataset.fashion === "1" }); this.render(false); } }));
+    root.querySelectorAll(".cp-shop-add").forEach(btn => btn.addEventListener("click", async (ev) => { ev.preventDefault(); const rowEl = ev.currentTarget.closest("[data-source-key]"); if (rowEl) { await addShopItem(id, rowEl.dataset.sourceKey); this.render(false); } }));
     root.querySelectorAll(".cp-shop-remove").forEach(btn => btn.addEventListener("click", async (ev) => { ev.preventDefault(); const sk = skOf(ev.currentTarget); if (sk) { await removeShopItem(id, sk); this.render(false); } }));
     root.querySelector(".cp-bulk-add")?.addEventListener("click", async (ev) => {
       ev.preventDefault();
-      const keys = [...root.querySelectorAll(".cp-catalog-list .cp-catalog-row[data-source-key]")].map(r => ({ sourceKey: r.dataset.sourceKey, fashion: r.dataset.fashion === "1" }));
+      const keys = [...root.querySelectorAll(".cp-catalog-list .cp-catalog-row[data-source-key]")].map(r => ({ sourceKey: r.dataset.sourceKey }));
       const n = await addShopItems(id, keys);
       ui.notifications?.info(game.i18n.format("CYBERPUNK.ShopBulkAdded", { n }));
       this.render(false);
@@ -422,7 +475,8 @@ export class CatalogBrowser extends Application {
     root.querySelectorAll(".cp-shop-price").forEach(el => el.addEventListener("change", async (ev) => { const sk = skOf(ev.currentTarget); if (!sk) return; const raw = ev.currentTarget.value.trim(); await setShopItem(id, sk, { price: raw === "" ? null : Math.max(0, Math.round(Number(raw) || 0)) }); this.render(false); }));
     root.querySelectorAll(".cp-shop-unlimited").forEach(el => el.addEventListener("change", async (ev) => { const sk = skOf(ev.currentTarget); if (sk) { await setShopItem(id, sk, { unlimited: ev.currentTarget.checked }); this.render(false); } }));
     root.querySelectorAll(".cp-shop-stock-qty").forEach(el => el.addEventListener("change", async (ev) => { const sk = skOf(ev.currentTarget); if (sk) await setShopItem(id, sk, { qty: Math.max(0, parseInt(ev.currentTarget.value, 10) || 0) }); }));
-    root.querySelectorAll(".cp-shop-fashion").forEach(el => el.addEventListener("change", async (ev) => { const sk = skOf(ev.currentTarget); if (sk) { await setShopItem(id, sk, { fashion: ev.currentTarget.checked }); this.render(false); } }));
+    // Clothing style tier (sets the style multiplier on the price). "" → null (Generic ×1).
+    root.querySelectorAll(".cp-shop-style").forEach(el => el.addEventListener("change", async (ev) => { const sk = skOf(ev.currentTarget); if (sk) { await setShopItem(id, sk, { style: ev.currentTarget.value || null }); this.render(false); } }));
 
     // Config bar.
     root.querySelector(".cp-shop-name")?.addEventListener("change", async (ev) => { const name = ev.currentTarget.value.trim(); if (name) { await updateShop(id, { name }); this.render(false); } });
@@ -440,13 +494,13 @@ export class CatalogBrowser extends Application {
     // Drag a catalog row into the vendor tray (in addition to ＋Add).
     root.querySelectorAll(".cp-catalog-list .cp-catalog-row[data-source-key]").forEach(row => {
       row.setAttribute("draggable", "true");
-      row.addEventListener("dragstart", (ev) => { ev.dataTransfer?.setData("text/cp-sourcekey", row.dataset.sourceKey); ev.dataTransfer?.setData("text/cp-fashion", row.dataset.fashion === "1" ? "1" : "0"); });
+      row.addEventListener("dragstart", (ev) => { ev.dataTransfer?.setData("text/cp-sourcekey", row.dataset.sourceKey); });
     });
     const tray = root.querySelector(".cp-vendor-tray");
     if (tray) {
       tray.addEventListener("dragover", (ev) => { ev.preventDefault(); tray.classList.add("cp-drop-hot"); });
       tray.addEventListener("dragleave", () => tray.classList.remove("cp-drop-hot"));
-      tray.addEventListener("drop", async (ev) => { ev.preventDefault(); tray.classList.remove("cp-drop-hot"); const sk = ev.dataTransfer?.getData("text/cp-sourcekey"); if (sk) { await addShopItem(id, sk, { fashion: ev.dataTransfer?.getData("text/cp-fashion") === "1" }); this.render(false); } });
+      tray.addEventListener("drop", async (ev) => { ev.preventDefault(); tray.classList.remove("cp-drop-hot"); const sk = ev.dataTransfer?.getData("text/cp-sourcekey"); if (sk) { await addShopItem(id, sk); this.render(false); } });
     }
   }
 

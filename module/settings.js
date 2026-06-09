@@ -175,7 +175,7 @@ export function registerSystemSettings() {
     scope: "world",
     config: true,
     type: Boolean,
-    default: false
+    default: true
   });
 
   game.settings.register("cyberpunk2020", "playersCanShop", {
@@ -433,7 +433,7 @@ export function registerSystemSettings() {
     scope:   "world",
     config:  true,
     type:    Boolean,
-    default: false,
+    default: true,
   });
 
   game.settings.register("cyberpunk2020", "limbLossEnabled", {

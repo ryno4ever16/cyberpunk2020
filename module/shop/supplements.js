@@ -39,6 +39,7 @@ const RULES = [
   [s => s.includes("corpbook") || s.includes("corporate report") || s.includes("corp report"), "Corporate Report", "official"],
   [s => s.includes("protect") && s.includes("serve"), "Protect & Serve", "official"],
   [s => s.includes("neo tribes") || s.includes("neotribes"), "Neo Tribes", "official"],
+  [s => s.includes("rockerboy"), "Rockerboy", "official"],
   [s => s.includes("home of the brave"), "Home of the Brave", "official"],
   [s => s.includes("rough guide to the u"), "Rough Guide to the UK", "official"],
   [s => s.includes("deep space"), "Deep Space", "official"],
@@ -79,6 +80,31 @@ export function knownOfficialSupplements() {
 /** Known non-canon/homebrew source names (for the gated toggles), de-duplicated + sorted. */
 export function knownNoncanonSources() {
   return [...new Set(RULES.filter(r => r[2] === "noncanon").map(r => r[1]))].sort();
+}
+
+/** Short badge labels for the catalog row source-badge (the full name is kept as the hover title).
+ *  Only the long / very common names are abbreviated; everything else shows in full. */
+const SHORT = {
+  "Cyberpunk 2020 (Core)": "Core",
+  "Maximum Metal": "Max Metal",
+  "Solo of Fortune": "SoF",
+  "Solo of Fortune 2": "SoF 2",
+  "Eurosource": "Eurosrc",
+  "Eurosource Plus": "Eurosrc+",
+  "Corporate Report": "Corp Rpt",
+  "Rough Guide to the UK": "Rough Guide",
+  "Listen Up You Primitive Screwheads": "Screwheads",
+  "Blackhand's Street Weapons": "Blackhand",
+  "Home of the Brave": "Home/Brave",
+  "Protect & Serve": "Protect&Srv",
+  "When Gravity Fails": "Grav Fails",
+  "Datafortress 2020": "DF2020",
+  "Blackhammer Project": "Blackhammer"
+};
+
+/** Abbreviated supplement label for the catalog badge (falls back to the full name). */
+export function shortSupplement(name) {
+  return SHORT[name] ?? name;
 }
 
 /**

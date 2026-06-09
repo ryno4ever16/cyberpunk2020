@@ -25,7 +25,15 @@
 .cp-catalog-toolbar { gap: 8px; align-items: center; padding: 4px 0; }
 // Side panels SHRINK (not fixed) so a narrow window keeps the item list usable instead of collapsing it.
 .cp-catalog-filters { flex: 0 1 150px; min-width: 92px; overflow-y: auto; border-right: 1px solid rgba(255,255,255,0.12); padding-right: 6px; }
-.cp-catalog-sources { flex: 0 1 185px; min-width: 120px; overflow-y: auto; border-left: 1px solid rgba(255,255,255,0.12); padding-left: 6px; }
+// Sources (supplement) panel: header + hint stay put; the book list scrolls. SINGLE COLUMN with full
+// names (readability is the point — book names tell the GM what each toggle gates; vertical space is
+// ample so we don't compress it). No flexcol — Foundry's .flexcol>*{flex:1 1 0%} stretched the
+// header/hint/list to equal thirds. No multi-column grid — it truncated names ("Corporate Re…").
+.cp-catalog-sources { display: flex; flex-direction: column; flex: 0 1 210px; min-width: 160px; overflow: hidden; border-left: 1px solid rgba(255,255,255,0.12); padding-left: 6px; }
+.cp-catalog-sources .cp-src-title { flex: 0 0 auto; margin: 2px 0; }
+.cp-catalog-sources .cp-src-hint { flex: 0 0 auto; }
+.cp-src-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.cp-src-list { display: flex; flex-direction: column; align-items: stretch; gap: 1px; }
 .cp-catalog .cp-catalog-center { min-width: 96px; }
 .cp-cat-chip { display: inline-block; margin: 1px; padding: 1px 6px; font-size: 0.8em; cursor: pointer; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); border-radius: 3px; color: inherit; }
 .cp-cat-chip.active { background: #8a6d3b; color: #fff; border-color: #b8916a; }
@@ -38,15 +46,27 @@
 .cp-hidden-divider { font-size: 0.8em; opacity: 0.65; font-style: italic; margin-top: 10px; padding: 3px 4px; border-top: 1px dashed rgba(192,160,98,0.5); color: #c0a062; }
 .cp-catalog-row { display: flex; align-items: center; gap: 6px; padding: 2px 4px; }
 .cp-catalog-row.cp-dimmed { opacity: 0.5; }
-.cp-catalog-row .cp-cat-itemname { flex: 1; }
-.cp-src-badge { font-size: 0.7em; opacity: 0.75; padding: 0 4px; border: 1px solid rgba(255,255,255,0.2); border-radius: 3px; white-space: nowrap; }
+.cp-catalog-row .cp-cat-itemname { flex: 1; min-width: 0; }
+// Discoverability: the thumb + name open the compendium sheet — show it's clickable.
+.cp-catalog-row:hover { background: rgba(255,255,255,0.045); border-radius: 3px; }
+.cp-catalog-row .cp-cat-thumb, .cp-catalog-row .cp-cat-itemname { cursor: pointer; }
+.cp-catalog-row .cp-cat-itemname:hover { text-decoration: underline; }
+// Catalog "add to shop" (GM): a compact cart icon, not a per-row dropdown (which overflowed the row).
+.cp-add-to-shop-btn { flex: 0 0 auto; width: auto; padding: 1px 7px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); border-radius: 3px; color: inherit; cursor: pointer; }
+.cp-add-to-shop-btn:hover { background: rgba(138,109,59,0.4); border-color: #b8916a; }
+.cp-src-badge { flex: 0 0 auto; font-size: 0.7em; opacity: 0.75; padding: 0 4px; border: 1px solid rgba(255,255,255,0.2); border-radius: 3px; white-space: nowrap; max-width: 92px; overflow: hidden; text-overflow: ellipsis; }
 .cp-catalog-qty { width: 42px; }
-.cp-src-row { display: block; font-size: 0.82em; }
+.cp-src-row { display: flex; width: 100%; align-items: flex-start; gap: 6px; font-size: 0.82em; padding: 1px 0; cursor: pointer; }
+.cp-src-row > input { flex: 0 0 auto; width: 14px; height: 14px; margin: 1px 0 0; }
+.cp-src-row > span { min-width: 0; line-height: 1.25; }
 .cp-src-group-label { font-weight: bold; margin-top: 6px; opacity: 0.85; }
 .cp-src-none, .cp-src-hint, .cp-catalog-footer { opacity: 0.6; font-size: 0.75em; }
 .cp-hiddenmark { opacity: 0.6; font-size: 0.85em; }
 .cp-catalog-srctoggle { font-size: 0.8em; opacity: 0.85; white-space: nowrap; }
-.cp-catalog-buyer { font-size: 0.85em; opacity: 0.9; }
+.cp-catalog-buyer { font-size: 0.85em; opacity: 0.9; display: inline-flex; align-items: center; gap: 4px; }
+.cp-buyer-pick { width: auto; max-width: 150px; }
+.cp-buyer-funds { opacity: 0.85; white-space: nowrap; }
+.cp-buyer-warn { color: #c0a062; display: inline-flex; align-items: center; gap: 4px; }
 
 // Build (curation) + storefront controls.
 .cp-shop-config { padding: 4px 2px 6px; border-bottom: 1px solid rgba(255,255,255,0.15); margin-bottom: 4px; }
@@ -86,6 +106,11 @@
 .cp-shop-header { padding: 2px 2px 6px; border-bottom: 1px solid rgba(255,255,255,0.15); margin-bottom: 4px; flex-wrap: wrap; }
 .cp-shop-header label { font-size: 0.8em; white-space: nowrap; }
 .cp-shop-header button { width: auto; }
+// Foundry's .flexrow > *{flex:1} stretched EVERY header child to an equal share (giant back button +
+// stretched buyer text). Pin children to content; only the title / name input grows. (0,2,0 out-specifies.)
+.cp-catalog .cp-shop-header > * { flex: 0 0 auto; }
+.cp-catalog .cp-shop-header > h2,
+.cp-catalog .cp-shop-header .cp-shop-name { flex: 1 1 auto; min-width: 120px; }
 .cp-shop-discountbadge, .cp-shop-discountbadge { color: #6ad06a; font-size: 0.7em; }
 // Pin the fixed-height window children so Foundry's `.flexcol > *{flex:1 1 0%}` can't collapse them
 // (which made the vendor tray shrink to ~10px and overlap the catalog body). Only the body grows.
@@ -100,7 +125,23 @@
 .cp-vendor-head button { width: auto; }
 .cp-vendor-items { overflow-y: auto; min-height: 0; flex: 1 1 auto; }
 .cp-vendor-empty { opacity: 0.6; font-size: 0.8em; font-style: italic; padding: 4px; }
-.cp-vendor-row { gap: 5px; }
+// Vendor rows: aligned columns (thumb | item | sells | price | stock | style | remove) with a header.
+// Each row is its own grid but shares the template, so columns line up down the list.
+.cp-vendor-row, .cp-vendor-colhead { display: grid; grid-template-columns: 24px minmax(0, 1fr) 50px 56px 80px 96px 22px; align-items: center; gap: 6px; padding: 2px 4px; }
+.cp-vendor-colhead { flex: 0 0 auto; font-size: 0.66em; opacity: 0.55; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid rgba(255,255,255,0.15); padding-bottom: 2px; }
+.cp-vendor-colhead .cp-col-num { text-align: right; }
+.cp-vendor-colhead .cp-col-ctr { text-align: center; }
+.cp-vendor-row .cp-cat-itemname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-vendor-sells { text-align: right; white-space: nowrap; font-size: 0.85em; }
+.cp-vendor-row .cp-shop-price { width: 100%; min-width: 0; }
+.cp-vendor-stock { display: inline-flex; align-items: center; gap: 4px; }
+.cp-vendor-stock > label { display: inline-flex; align-items: center; gap: 3px; cursor: pointer; }
+.cp-vendor-stock .cp-shop-stock-qty { width: 40px; min-width: 0; }
+.cp-shop-style { width: 100%; min-width: 0; font-size: 0.78em; }
+.cp-style-na { opacity: 0.3; text-align: center; }
+.cp-style-tag { font-size: 0.72em; opacity: 0.85; padding: 0 5px; border: 1px solid rgba(192,160,98,0.5); border-radius: 3px; color: #c0a062; white-space: nowrap; }
+.cp-shop-remove { width: auto; padding: 0 3px; background: none; border: none; color: inherit; cursor: pointer; opacity: 0.7; }
+.cp-shop-remove:hover { opacity: 1; color: #e08a8a; }
 .cp-inshop-mark { color: #6ad06a; font-weight: bold; padding: 0 4px; }
 .cp-context-menu { background: #14110d; border: 1px solid #b8916a; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.6); display: flex; flex-direction: column; min-width: 150px; }
 .cp-context-menu button { width: 100%; text-align: left; background: none; border: none; color: #f0f0f0; padding: 5px 10px; cursor: pointer; }

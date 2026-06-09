@@ -14,6 +14,11 @@ export const FASHION_STYLES = [
   { key: "highfashion", label: "High Fashion", mult: 4 }
 ];
 
+/** Price multiplier for a stored style key (unknown/empty → ×1, i.e. Generic). */
+export function styleMultOf(key) { return FASHION_STYLES.find(s => s.key === key)?.mult ?? 1; }
+/** Display label for a stored style key (unknown/empty → ""). */
+export function styleLabelOf(key) { return FASHION_STYLES.find(s => s.key === key)?.label ?? ""; }
+
 /**
  * Shopping purchase engine — the generic GEAR path ([[shopping-design]]).
  *
