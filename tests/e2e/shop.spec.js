@@ -101,7 +101,7 @@ test("catalog view renders: no skills, category filters, GM source panel", async
     const mod = await import("/systems/cyberpunk2020/module/shop/catalog.js");
     const app = new mod.CatalogBrowser(buyer, { view: "catalog" });
     const data = await app.getData();
-    const out = { rowCount: data.rowCount, noSkillType: !data.rows.some(r => r.type === "skill"), hasWeaponsCat: data.cats.some(c => c.key === "Weapons" && c.subs.length > 0), hasSourcePanel: !!data.sourcePanel };
+    const out = { rowCount: data.rowCount, noSkillType: !data.rows.some(r => r.type === "skill"), hasWeaponsCat: data.cats.some(c => c.key === "Weapons" && c.subs.length > 0), hasSourcePanel: !!data.booksPanel };
     app.render(true);
     const dl = Date.now() + 9000;
     let el = null;

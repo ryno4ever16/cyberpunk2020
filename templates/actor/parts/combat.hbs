@@ -72,9 +72,6 @@
                 <input type="checkbox" class="cp-ammo-tracking" {{#if ammoTracking}}checked{{/if}}>
                 <span>{{#if ammoTracking}}{{CPLocal "AmmoTracking"}}{{else}}{{CPLocal "FreeFire"}}{{/if}}</span>
             </label>
-            {{#if showBuyAmmo}}
-            <button type="button" class="cp-buy-ammo" title="{{CPLocal 'AmmoBuyBoxHint'}}">{{CPLocal "AmmoBuyTitle"}}</button>
-            {{/if}}
         </header>
 
         {{!-- Normal weapons (martial-arts weapons are consolidated into the panel below) --}}

@@ -5,7 +5,6 @@ import { SortOrders, sortSkills } from "./skill-sort.js";
 import { getHtmlElement, getRichEditorHTML, itemFromDropData, saveRichEditorHTML } from "../compat.js";
 import { resolveAttackRange } from "../combat/rangefinding.js";
 import { getAutoLayerOrder } from "../combat/armor-layers.js";
-import { openBuyAmmoDialog, ammoBuyButtonEnabled } from "../dialog/buy-ammo.js";
 import { openShopForPlayer, purchaseByDrop } from "../shop/catalog.js";
 import { classifyService, payService } from "../shop/services.js";
 import { ipCost, ipLockState, canEditSkillLevels, levelUpSkill, toggleSkillLock } from "../ip/ip.js";
@@ -58,8 +57,6 @@ export class CyberpunkActorSheet extends ActorSheet {
 
       // Per-actor ammo tracking (default ON). Off = "Free Fire" (weapons ignore ammo).
       sheetData.ammoTracking = this.actor.getFlag("cyberpunk2020", "ammoTracking") ?? true;
-      // Whether to show the "Buy Ammo" button (world setting; default on).
-      sheetData.showBuyAmmo = ammoBuyButtonEnabled();
       // Whether to show the "Shop" button on the gear tab (world setting; default off).
       sheetData.showShop = shoppingEnabled();
       // Reputation + Facedown panel (Combat tab; world setting, default on).
@@ -934,12 +931,6 @@ export class CyberpunkActorSheet extends ActorSheet {
     // Ammo tracking / Free Fire toggle (per-actor flag, default ON)
     html.find(".cp-ammo-tracking").on("change", async ev => {
       await this.actor.setFlag("cyberpunk2020", "ammoTracking", ev.target.checked);
-    });
-
-    // Buy Ammo button -> opens the purchasing dialog (gated by the playersCanBuyAmmo setting).
-    html.find(".cp-buy-ammo").on("click", async ev => {
-      ev.preventDefault();
-      await openBuyAmmoDialog(this.actor);
     });
 
     // Shop button -> opens the catalog browser or a published shop (gated by the shopping setting).

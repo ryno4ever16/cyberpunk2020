@@ -6,7 +6,7 @@
 
 /** Packs that are NOT personal-shop goods (handled elsewhere or not purchasable). */
 export const EXCLUDED_PACKS = new Set([
-  "ammo",            // bought via the dedicated Buy-Ammo dialog (box pricing)
+  "ammo",            // the catalog generates clean caliber rows (box pricing) instead of raw ammo items
   "sellthedead",     // body bank — a SELL feature, not buy
   "vehicle-weapons", // Maximum Metal: built onto vehicles, not personal shopping
   "acpa-systems",    // Maximum Metal: built onto ACPA suits
@@ -60,6 +60,7 @@ const PACK_MAP = {
 export const CATEGORIES = [
   { key: "Weapons",    subs: ["Pistols", "SMGs", "Rifles", "Shotguns", "Heavy", "Melee", "Exotic", "Other"] },
   { key: "Armor",      subs: [] },
+  { key: "Ammo",       subs: [] },
   { key: "Cyberware",  subs: ["Cyberlimbs", "Cyberoptics", "Cyberaudio", "Neuralware", "Implants", "Bioware", "Fashionware", "Cyberweapons", "Other"] },
   { key: "Gear",       subs: ["Communication", "Electronics", "Entertainment", "Fashion", "Furnishing", "Medical", "Security", "Surveillance", "Tools", "Rentals & Services"] },
   { key: "Netrunning", subs: [] },

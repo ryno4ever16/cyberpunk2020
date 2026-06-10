@@ -5,6 +5,8 @@ import { classifySupplement, shortSupplement, isVisibleTo, knownOfficialSuppleme
 import { categoryOfPack, CATEGORIES, EXCLUDED_TYPES, catalogPacks } from "./categories.js";
 import { shoppingEnabled, shopSourceConfig, shopShowSource, shopAllowHomebrew } from "../settings.js";
 import { shimmerWindow } from "../shimmer.js";
+import { getCalibers, getCaliberBox, getAmmoBoxPrice, AMMO_MODIFIERS } from "../lookups.js";
+import { purchaseAmmo } from "../dialog/buy-ammo.js";
 import {
   getShop, listShops, shopsVisibleTo, createShop, updateShop, deleteShop, duplicateShop,
   addShopItem, addShopItems, removeShopItem, clearShopItems, setShopItem, setAllShopStock, decrementShopStock,
@@ -215,6 +217,20 @@ export class CatalogBrowser extends Application {
     }).sort((a, b) => a.name.localeCompare(b.name));
   }
 
+  /** Generated catalog rows for ammunition — one per caliber (incl. GM-custom calibers). Price shown is
+   *  the STANDARD box price; the per-row load dropdown re-prices live and the Buy charges box × boxes. */
+  _ammoCatalogRows() {
+    const img = "systems/cyberpunk2020/img/weapon-icon.svg";
+    return Object.entries(getCalibers()).map(([id, c]) => ({
+      ammo: true, caliber: id,
+      name: (c && c.label) ? c.label : id,
+      img, cost: getAmmoBoxPrice(id, "standard"), boxSize: Number(getCaliberBox(id).box) || 1,
+      type: "ammo", category: "Ammo", sub: "",
+      supplement: "Untagged", supplementShort: "", canon: "core",
+      key: ""   // not a compendium doc → no source key (keeps it out of drag-to-buy / shop curation)
+    }));
+  }
+
   // ── getData ─────────────────────────────────────────────────────────────────
   async getData() {
     const isGM = game.user.isGM;
@@ -237,7 +253,12 @@ export class CatalogBrowser extends Application {
     // category/book-filtered set once, and typing just shows/hides rows with NO re-render. This keeps the
     // search box responsive (a full re-render per keystroke lags badly + drops input when popped out).
     const search = "";
-    if (this.view === "catalog")    return { ...common, ...this._dataCatalog(all, { isGM, cfg, search }) };
+    if (this.view === "catalog") {
+      // Ammo isn't a compendium pack (caliber × load matrix, box pricing) — fold it into the master
+      // catalog as generated rows. Only the catalog view shows ammo; custom shops curate compendium docs.
+      const merged = [...all, ...this._ammoCatalogRows()].sort((a, b) => a.name.localeCompare(b.name));
+      return { ...common, ...this._dataCatalog(merged, { isGM, cfg, search }) };
+    }
     if (this.view === "build")      return { ...common, ...this._dataBuild(all, { isGM, cfg, search }) };
     return { ...common, ...this._dataStorefront(all, { isGM, cfg, search }) };
   }
@@ -255,6 +276,7 @@ export class CatalogBrowser extends Application {
     return {
       showFilters: true, showJump: true, showSearch: true,
       rows, rowCount: rows.length, letters, cats: this._catTree(),
+      ammoLoads: Object.entries(AMMO_MODIFIERS).map(([id, m]) => ({ id, label: (m && m.label) ? m.label : id })),
       booksPanel: this._booksPanel(all, { isGM, cfg, canCurate: isGM })
     };
   }
@@ -325,7 +347,27 @@ export class CatalogBrowser extends Application {
     return purchaseShopItem(this.buyer, this.shopId, sourceKey, opts);
   }
 
+  /** Buy ammunition by caliber + load (box pricing). Routes through the shared purchaseAmmo engine. */
+  async _buyAmmo(caliber, modifier, boxes) {
+    if (!this.buyer) { ui.notifications?.warn(game.i18n.localize("CYBERPUNK.ShopBuyerNeeded")); return; }
+    return purchaseAmmo(this.buyer, { caliber, modifier, boxes });
+  }
+
+  /** Live re-price ammo rows when the load dropdown changes (box price varies a lot by load). Boxes
+   *  multiply at purchase — the displayed price stays PER BOX, matching every other catalog row. */
+  _activateAmmoRows(root) {
+    if (this.view !== "catalog") return;
+    root.querySelectorAll(".cp-catalog-row[data-ammo-caliber]").forEach(row => {
+      const sel = row.querySelector(".cp-catalog-ammo-load");
+      sel?.addEventListener("change", () => {
+        const pe = row.querySelector(".cp-cat-price b");
+        if (pe) pe.textContent = getAmmoBoxPrice(row.dataset.ammoCaliber, sel.value);
+      });
+    });
+  }
+
   async _openItemSheet(rowEl) {
+    if (rowEl.dataset.ammoCaliber) return;   // generated ammo rows have no compendium sheet to open
     let { packId, itemId } = rowEl.dataset;
     if ((!packId || !itemId) && rowEl.dataset.sourceKey) [packId, itemId] = splitSourceKey(rowEl.dataset.sourceKey);
     if (!packId || !itemId) return;
@@ -415,8 +457,10 @@ export class CatalogBrowser extends Application {
     // Buy (catalog + storefront).
     root.querySelectorAll(".cp-catalog-buy").forEach(btn => btn.addEventListener("click", async (ev) => {
       ev.preventDefault();
-      const rowEl = ev.currentTarget.closest("[data-item-id], [data-source-key]"); if (!rowEl) return;
+      const rowEl = ev.currentTarget.closest("[data-ammo-caliber], [data-item-id], [data-source-key]"); if (!rowEl) return;
       const qty = qtyOf(rowEl);
+      // Ammo rows: box pricing via the selected load. qty = number of boxes.
+      if (rowEl.dataset.ammoCaliber) { await this._buyAmmo(rowEl.dataset.ammoCaliber, rowEl.querySelector(".cp-catalog-ammo-load")?.value ?? "standard", qty); this.render(false); return; }
       // Storefront items use the GM-set style (handled in _shopBuy); the open catalog lets the buyer pick.
       if (this.view === "storefront" && rowEl.dataset.curated === "1") await this._shopBuy(rowEl.dataset.sourceKey, { qty });
       else { const { styleMult, styleLabel } = styleOf(rowEl); await this._directBuy(rowEl.dataset.packId, rowEl.dataset.itemId, { qty, styleMult, styleLabel }); }
@@ -426,6 +470,7 @@ export class CatalogBrowser extends Application {
     this._activateBuildControls(root, isGM);
     this._activateCatalogShopAdd(root, isGM);
     this._activatePurchaseDrag(root);
+    this._activateAmmoRows(root);
 
     // A render rebuilt the rows — re-apply any active text search so it composes with filter changes.
     this._applySearch(root);

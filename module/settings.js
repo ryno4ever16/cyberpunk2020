@@ -127,15 +127,6 @@ export function registerSystemSettings() {
   });
 
     // --- Ammunition: purchasing access ---
-  game.settings.register("cyberpunk2020", "ammoBuyButtonEnabled", {
-    name: "SETTINGS.AmmoBuyButtonEnabled",
-    hint: "SETTINGS.AmmoBuyButtonEnabledHint",
-    scope: "world",
-    config: true,
-    type: Boolean,
-    default: true
-  });
-
   game.settings.register("cyberpunk2020", "playersCanBuyAmmo", {
     name: "SETTINGS.PlayersCanBuyAmmo",
     hint: "SETTINGS.PlayersCanBuyAmmoHint",
@@ -379,11 +370,15 @@ export function registerSystemSettings() {
     default: false
   });
 
-  // --- Combat automation first-run notice (hidden) ---
-  game.settings.register("cyberpunk2020", "automationMigrationShown", {
-    name: "Combat Automation: Migration Notice Shown",
+  // --- Setup / What's New notice ---
+  // The notice shows for the GM on every load until they tick "Don't show this again" (or untick this
+  // here to bring it back). Replaces the old one-time `automationMigrationShown` flag so the expanded
+  // notice reaches users who already dismissed the original.
+  game.settings.register("cyberpunk2020", "automationNoticeHide", {
+    name: "SETTINGS.AutomationNoticeHide",
+    hint: "SETTINGS.AutomationNoticeHideHint",
     scope: "world",
-    config: false,
+    config: true,
     type: Boolean,
     default: false,
   });

@@ -1807,56 +1807,50 @@ function _hookAutomationMigrationNotice() {
   // directly. Registering another Hooks.on("ready") here was too late to ever fire (Foundry does not
   // re-fire "ready" for listeners added during the ready emission); that is why this notice never appeared.
     if (!game.user.isGM) return;
-    let shown = false;
-    try { shown = game.settings.get("cyberpunk2020", "automationMigrationShown"); } catch { return; }
-    if (shown) return;
+    let hide = false;
+    try { hide = game.settings.get("cyberpunk2020", "automationNoticeHide"); } catch { return; }
+    if (hide) return;
+    // Not a one-time flag: the notice shows on every load until the GM ticks "Don't show this again"
+    // (its checkbox sets `automationNoticeHide`), so the expanded notice reaches users who already
+    // dismissed an earlier version.
 
-    game.settings.set("cyberpunk2020", "automationMigrationShown", true).catch(() => {});
+    const BOX = "border:1px solid rgba(30,100,180,0.3); background:rgba(30,100,180,0.10); border-radius:4px; padding:8px 10px; margin-bottom:8px;";
+    const ROWH = "padding:2px 10px 2px 0; white-space:nowrap; font-weight:bold;";
+    const ROWD = "padding:2px 0;";
 
-    const content = `
-<div style="padding:8px 4px; font-size:0.9em; line-height:1.5;">
+    // PAGE 1 — combat-automation setup. Most automation is opt-in (OFF); Head Hit Doubling is the one
+    // core-rules exception that ships ON, so it gets its own honest "on by default" box.
+    const page1 = `
+<section class="cp-feat-page" data-page="0">
   <p style="margin:0 0 10px;">
-    This world now has the <b>Cyberpunk 2020 combat automation system</b> available.
-    To protect existing characters, all combat automation is <b>OFF by default</b> — enable only what
-    your table wants in <b>Game Settings → Configure Settings → System</b>.
+    This world has the <b>Cyberpunk 2020 combat automation system</b> available. To protect existing
+    characters, <b>most combat automation is OFF by default</b> — enable what your table wants in
+    <b>Game Settings → Configure Settings → System</b>.
   </p>
-
-  <div style="background:rgba(30,100,180,0.10); border:1px solid rgba(30,100,180,0.3); border-radius:4px; padding:8px 10px; margin-bottom:8px;">
-    <p style="font-weight:bold; margin:0 0 6px;">⚙ Opt-in automation — all OFF by default; enable what you want</p>
+  <div style="${BOX}">
+    <p style="font-weight:bold; margin:0 0 6px;">⚙ Opt-in automation — OFF by default; enable what you want</p>
     <table style="width:100%; border-collapse:collapse; font-size:0.87em;">
-      <tr>
-        <td style="padding:2px 10px 2px 0; white-space:nowrap; font-weight:bold;">Armor Ablation</td>
-        <td style="padding:2px 0;">Armor SP decreases by 1 per penetrating hit. <em>Permanently modifies armor items.</em></td>
-      </tr>
-      <tr>
-        <td style="padding:2px 10px 2px 0; white-space:nowrap; font-weight:bold;">Head Hit Doubling</td>
-        <td style="padding:2px 0;">Net HP damage to the head is doubled after armor and BTM resolve.</td>
-      </tr>
-      <tr>
-        <td style="padding:2px 10px 2px 0; white-space:nowrap; font-weight:bold;">Limb Loss</td>
-        <td style="padding:2px 0;">More than 8 net damage to a limb triggers an immediate Death Save.</td>
-      </tr>
-      <tr>
-        <td style="padding:2px 10px 2px 0; white-space:nowrap; font-weight:bold;">Death Save Each Turn</td>
-        <td style="padding:2px 0;">Mortal characters are prompted automatically on their turn.</td>
-      </tr>
-      <tr>
-        <td style="padding:2px 10px 2px 0; white-space:nowrap; font-weight:bold;">Stun Recovery</td>
-        <td style="padding:2px 0;">Unconscious characters are prompted to recover each turn.</td>
-      </tr>
-      <tr>
-        <td style="padding:2px 10px 2px 0; white-space:nowrap; font-weight:bold;">Multi-Action Penalty</td>
-        <td style="padding:2px 0;">Each action beyond the first pre-fills &minus;3 in the attack modifier dialog.</td>
-      </tr>
-      <tr>
-        <td style="padding:2px 10px 2px 0; white-space:nowrap; font-weight:bold;">Armor Layer EV</td>
-        <td style="padding:2px 0;">Wearing 2+ armor pieces at the same location reduces REF.</td>
-      </tr>
+      <tr><td style="${ROWH}">Armor Ablation</td><td style="${ROWD}">Armor SP decreases by 1 per penetrating hit. <em>Permanently modifies armor items.</em></td></tr>
+      <tr><td style="${ROWH}">Limb Loss</td><td style="${ROWD}">More than 8 net damage to a limb triggers an immediate Death Save.</td></tr>
+      <tr><td style="${ROWH}">Death Save Each Turn</td><td style="${ROWD}">Mortal characters are prompted automatically on their turn.</td></tr>
+      <tr><td style="${ROWH}">Stun Recovery</td><td style="${ROWD}">Unconscious characters are prompted to recover each turn.</td></tr>
+      <tr><td style="${ROWH}">Multi-Action Penalty</td><td style="${ROWD}">Each action beyond the first pre-fills &minus;3 in the attack modifier dialog.</td></tr>
+      <tr><td style="${ROWH}">Armor Layer EV</td><td style="${ROWD}">Wearing 2+ armor pieces at the same location reduces REF.</td></tr>
     </table>
   </div>
+  <div style="border:1px solid rgba(40,150,90,0.35); background:rgba(40,150,90,0.10); border-radius:4px; padding:8px 10px;">
+    <p style="font-weight:bold; margin:0 0 6px;">✔ On by default (core rule)</p>
+    <table style="width:100%; border-collapse:collapse; font-size:0.87em;">
+      <tr><td style="${ROWH}">Head Hit Doubling</td><td style="${ROWD}">A hit to the Head doubles the FINAL damage, after armor (SP) and BTM resolve (CP2020 p.103). Turn it off in settings if your table skips this rule.</td></tr>
+    </table>
+  </div>
+</section>`;
 
-  <div style="background:rgba(30,100,180,0.10); border:1px solid rgba(30,100,180,0.3); border-radius:4px; padding:8px 10px;">
-    <p style="font-weight:bold; margin:0 0 6px;">✦ New in this version</p>
+    // PAGE 2 — what's new. Keeps the original combat list and adds the systems built since 1.1.1.
+    const page2 = `
+<section class="cp-feat-page" data-page="1" style="display:none;">
+  <div style="${BOX}">
+    <p style="font-weight:bold; margin:0 0 6px;">✦ Combat</p>
     <div style="font-size:0.87em; columns:2; column-gap:16px;">
       <div style="margin-bottom:2px;">• Damage dialog with per-hit breakdown</div>
       <div style="margin-bottom:2px;">• Cover SP field in damage dialog</div>
@@ -1870,14 +1864,33 @@ function _hookAutomationMigrationNotice() {
       <div style="margin-bottom:2px;">• Canvas or list target selection</div>
     </div>
   </div>
+  <div style="border:1px solid rgba(192,160,98,0.4); background:rgba(192,160,98,0.10); border-radius:4px; padding:8px 10px;">
+    <p style="font-weight:bold; margin:0 0 6px;">✦ Beyond combat — new in 1.2.0</p>
+    <div style="font-size:0.87em; columns:2; column-gap:16px;">
+      <div style="margin-bottom:2px;">• Vehicles &amp; ACPA: drive/pilot, vehicle combat, weapon mounts (+ optional Maximum Metal rules)</div>
+      <div style="margin-bottom:2px;">• Shopping: searchable catalog, GM custom shops, drag an item onto a sheet to buy</div>
+      <div style="margin-bottom:2px;">• Ammunition: buy by caliber + load right from the catalog (box pricing)</div>
+      <div style="margin-bottom:2px;">• Tear-off sheet tabs: hold a tab and drag it into its own window</div>
+      <div style="margin-bottom:2px;">• Gear list: drag to reorder; drag off the sheet to delete</div>
+      <div style="margin-bottom:2px;">• Reputation &amp; Facedown panel on the combat tab</div>
+      <div style="margin-bottom:2px;">• Improvement Points (IP) tracker</div>
+    </div>
+  </div>
+</section>`;
 
-  <p style="margin:8px 0 0; font-size:0.82em; color:var(--color-text-dark-inactive);">
-    All settings: <b>Game Settings → Configure Settings → System</b>
-  </p>
+    const nav = `
+<div style="display:flex; align-items:center; gap:10px; margin-top:10px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.12);">
+  <label style="display:flex; align-items:center; gap:5px; font-size:0.82em; cursor:pointer; flex:0 0 auto;"><input type="checkbox" class="cp-feat-hide-cb"/> Don't show this again</label>
+  <span style="flex:1;"></span>
+  <span class="cp-feat-count" style="font-size:0.82em; opacity:0.7;"></span>
+  <button type="button" class="cp-feat-back" style="width:auto; flex:0 0 auto;">‹ Back</button>
+  <button type="button" class="cp-feat-next" style="width:auto; flex:0 0 auto;">Next ›</button>
 </div>`;
 
-    new Dialog({
-      title: "Combat Automation — First-Time Setup",
+    const content = `<div style="padding:8px 4px; font-size:0.9em; line-height:1.5;">${page1}${page2}${nav}</div>`;
+
+    const dlg = new Dialog({
+      title: "Cyberpunk 2020 — Setup & What's New",
       content,
       buttons: {
         openSettings: {
@@ -1895,18 +1908,33 @@ function _hookAutomationMigrationNotice() {
             }
           },
         },
-        dismiss: {
-          icon: '<i class="fas fa-check"></i>',
-          label: "Got It",
-          callback: () => {},
-        },
       },
-      default: "dismiss",
+      default: "openSettings",
       render: (html) => {
-        // Make the dialog wide enough for the two-column layout
-        html.closest(".dialog").css("min-width", "480px");
+        const root = html[0] ?? html;
+        try { html.closest(".dialog").css("min-width", "520px"); } catch { /* not jQuery */ }
+        const pages = [...root.querySelectorAll(".cp-feat-page")];
+        const back = root.querySelector(".cp-feat-back");
+        const next = root.querySelector(".cp-feat-next");
+        const count = root.querySelector(".cp-feat-count");
+        const cb = root.querySelector(".cp-feat-hide-cb");
+        let idx = 0;
+        const show = (i) => {
+          idx = Math.max(0, Math.min(pages.length - 1, i));
+          pages.forEach((p, n) => { p.style.display = n === idx ? "" : "none"; });
+          if (back) back.style.visibility = idx === 0 ? "hidden" : "";
+          const last = idx === pages.length - 1;
+          if (next) next.textContent = last ? "Got it ✓" : "Next ›";
+          if (count) count.textContent = `${idx + 1} / ${pages.length}`;
+        };
+        back?.addEventListener("click", (e) => { e.preventDefault(); show(idx - 1); });
+        // Primary button advances pages; on the last page it becomes "Got it" and closes.
+        next?.addEventListener("click", (e) => { e.preventDefault(); if (idx < pages.length - 1) show(idx + 1); else dlg.close(); });
+        cb?.addEventListener("change", () => { game.settings.set("cyberpunk2020", "automationNoticeHide", cb.checked).catch(() => {}); });
+        show(0);
       },
-    }).render(true);
+    });
+    dlg.render(true);
 }
 
 /**

@@ -14,11 +14,6 @@ export function canBuyAmmo() {
   return allowed ? { ok: true, reason: "" } : { ok: false, reason: game.i18n.localize("CYBERPUNK.AmmoBuyAtShop") };
 }
 
-/** Whether the on-sheet "Buy Ammo" button should be shown at all. */
-export function ammoBuyButtonEnabled() {
-  try { return game.settings.get("cyberpunk2020", "ammoBuyButtonEnabled") !== false; } catch (e) { return true; }
-}
-
 /** Whether the optional "Ammo Locker" item feature is enabled (off by default). */
 export function ammoLockerEnabled() {
   try { return game.settings.get("cyberpunk2020", "ammoLockerEnabled") === true; } catch (e) { return false; }
@@ -133,22 +128,37 @@ async function _doPurchase(actor, html) {
   const caliber = String(root.querySelector('[name="caliber"]')?.value ?? "").trim();
   const modifier = String(root.querySelector('[name="modifier"]')?.value ?? "standard");
   const boxes = Math.max(1, Math.floor(Number(root.querySelector('[name="boxes"]')?.value) || 1));
+  await purchaseAmmo(actor, { caliber, modifier, boxes });
+}
 
-  if (!caliber) { ui.notifications.warn(localize("AmmoBuyNoCaliber")); return; }
+/**
+ * Buy `boxes` boxes of `caliber` + `modifier` ammunition for `actor`: charge eurobucks then create/restock
+ * a matching ammo Item. Charge-first-then-stock with refund-on-failure (the proven idiom), so a failed
+ * create can never leave free ammo or a double charge. Shared by the Buy-Ammo dialog AND the shop catalog
+ * ammo rows ([[shopping-design]]). Re-validates the access gate + funds at execution time.
+ * @param {Actor} actor
+ * @param {{caliber:string, modifier?:string, boxes?:number}} opts
+ * @returns {Promise<boolean>} true on success
+ */
+export async function purchaseAmmo(actor, { caliber, modifier = "standard", boxes = 1 } = {}) {
+  if (!actor) { ui.notifications.warn(localize("AmmoBuyNoActor")); return false; }
+  caliber = String(caliber ?? "").trim();
+  if (!caliber) { ui.notifications.warn(localize("AmmoBuyNoCaliber")); return false; }
 
-  // Re-validate access at execution time (settings could have changed while the dialog was open).
+  // Re-validate access at execution time (settings could have changed since the UI opened).
   const gate = canBuyAmmo();
-  if (!gate.ok) { ui.notifications.warn(gate.reason); return; }
+  if (!gate.ok) { ui.notifications.warn(gate.reason); return false; }
 
+  const n = Math.max(1, Math.floor(Number(boxes) || 1));
   const box = getCaliberBox(caliber);
   const unitPrice = getAmmoBoxPrice(caliber, modifier);
-  const totalCost = unitPrice * boxes;
-  const totalRounds = (Number(box.box) || 1) * boxes;
+  const totalCost = unitPrice * n;
+  const totalRounds = (Number(box.box) || 1) * n;
 
   const funds = Number(actor.system?.eurobucks ?? 0);
   if (funds < totalCost) {
     ui.notifications.warn(game.i18n.format("CYBERPUNK.AmmoBuyInsufficientFunds", { cost: totalCost, funds }));
-    return;
+    return false;
   }
 
   // Stack onto an existing matching (same caliber + modifier) ammo item if present.
@@ -189,10 +199,11 @@ async function _doPurchase(actor, html) {
     console.error("Cyberpunk2020 | Buy ammo: failed to stock, refunding.", err);
     await actor.update({ "system.eurobucks": funds });
     ui.notifications.error(localize("AmmoBuyFailed"));
-    return;
+    return false;
   }
 
   ui.notifications.info(game.i18n.format("CYBERPUNK.AmmoBoughtFull", {
     rounds: totalRounds, cal: caliber, mod: (AMMO_MODIFIERS[modifier]?.label ?? "Standard"), cost: totalCost
   }));
+  return true;
 }

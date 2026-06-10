@@ -22,7 +22,6 @@ test("running world has Session-16 settings + hooks loaded", async ({ page }) =>
         fireDotEnabled: has("fireDotEnabled"),
         fireDotStackMode: has("fireDotStackMode"),
         ammoLockerEnabled: has("ammoLockerEnabled"),
-        ammoBuyButtonEnabled: has("ammoBuyButtonEnabled"),
         playersCanBuyAmmo: has("playersCanBuyAmmo"),
         ammoCaliberMigration: has("ammoCaliberMigration"),
         suppressiveFireSaves: has("suppressiveFireSaves"),

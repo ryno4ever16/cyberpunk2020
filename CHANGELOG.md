@@ -2,6 +2,43 @@
 
 All notable changes to this system are recorded here. Dates are ISO (YYYY-MM-DD).
 
+## [1.2.0-beta] — 2026-06-10
+
+A feature release adding **Shopping**, folding **ammunition into the catalog**, and several
+**character-sheet quality-of-life** features, plus a reworked setup / what's-new notice.
+
+### Added — shopping & economy
+- **Shop window**: a searchable master **catalog** (Core costs, category + source-book filters),
+  GM-curated **custom shops** (per-item price/stock overrides + shop discount), a player
+  **storefront** view, and **drag an item onto a character sheet to buy** it.
+- **Ammunition in the catalog**: buy by **caliber + load** with box pricing, right from the
+  catalog's *Ammo* section. The old on-sheet **"Buy Ammo" button is removed** (the optional
+  in-inventory *Ammo Locker* still works).
+
+### Added — character sheet
+- **Tear-off tabs**: press-and-hold a sheet tab and drag it out into its own live, editable window.
+- **Gear list**: drag rows to **reorder**, or drag a row **off the sheet to delete** it.
+- **Improvement Points (IP) tracker** and a **Reputation / Facedown** panel on the combat tab.
+- Singleton windows **shimmer** when you re-open/re-focus them instead of doing nothing.
+
+### Changed
+- **Setup / What's-New notice** is now a two-page dialog whose primary button reads **Next**
+  until the last page; it appears on each load until you tick **"Don't show this again"** (the
+  GM can re-enable it in System Settings). Its automation list is truth-checked: **Head Hit
+  Doubling is shown as ON by default** (core 2020 rule, p.103); the other automations remain opt-in.
+
+### Upgrade note — cyberware (read before upgrading)
+- Upgrading re-runs the world migration, which **re-applies the compendium template** to each
+  installed cyberware. **Preserved:** placement (limb/side), Humanity loss, cost, weight,
+  equipped/active state, module links, and a **custom (renamed) name**. **Reverted to template:**
+  other manual edits to a *recognized stock* cyberware — notably its **notes** and any hand-edited
+  mechanical fields. To keep custom edits, **rename the item** or use a homebrew/non-canon
+  cyberware entry (those are never overwritten). Renamed and homebrew cyberware are untouched.
+
+### Housekeeping
+- `version` → `1.2.0-beta`; `manifest` tracks the `Beta-v1.2.0` branch; `download` targets the
+  `v1.2.0-beta` release tag.
+
 ## [1.1.1-beta] — 2026-06-06
 
 A large feature release centred on **automated combat** and the new **Maximum Metal**
