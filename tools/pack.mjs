@@ -5,12 +5,25 @@
  * Usage: `npm run pack` (all) or `node tools/pack.mjs pistols ammo` (only named packs).
  */
 import { compilePack } from "@foundryvtt/foundryvtt-cli";
-import { readdirSync, statSync } from "node:fs";
+import { readdirSync, statSync, unlinkSync } from "node:fs";
 import path from "node:path";
 
 const SRC = "src/packs";
 const PACKS = "packs";
 const only = process.argv.slice(2);
+
+// Strip any legacy NeDB ".db" FILES before building. Foundry probes "<pack>.db" on load and, if it finds
+// one, runs a NeDB->LevelDB migration that must WRITE into the system folder — which fails on fresh,
+// read-only/locked-down installs (Linux/Unraid Docker) and leaves compendiums blank (and characters with
+// no seeded skills). The LevelDB pack DIRECTORIES are the real data; these .db files are stale cruft that
+// must never ship. See memory bug-linux-nedb-packs. (Runs every build, even for named-pack runs.)
+let purged = 0;
+for (const f of readdirSync(PACKS)) {
+  if (!f.endsWith(".db")) continue;
+  const fp = path.join(PACKS, f);
+  try { if (statSync(fp).isFile()) { unlinkSync(fp); purged++; } } catch { /* gone */ }
+}
+if (purged) console.log(`purged ${purged} stale legacy .db file(s) from ${PACKS}/ (Foundry NeDB-migration footgun)`);
 
 let n = 0;
 for (const name of readdirSync(SRC)) {
