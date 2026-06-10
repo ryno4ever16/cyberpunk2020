@@ -688,12 +688,25 @@ div.statderive .value.rightborder {
 .combat-tab {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 10fr;
-  grid-template-areas: "rolls rolls" "weapons armor";
+  /* rolls + rep size to their content; weapons/armor take the remaining height.
+     (A `1fr` rolls row used to stretch and open a big gap above Reputation.) */
+  grid-template-rows: auto auto 1fr;
+  grid-template-areas: "rolls rolls" "rep rep" "weapons armor";
   column-gap: 10px;
-  row-gap: 10px;
+  row-gap: 6px;
   align-items: start;
 }
+/* Reputation + Facedown panel */
+.combat-tab .reputation-section { grid-area: rep; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 2px; border-top: 1px solid rgba(255,255,255,0.12); }
+.combat-tab .reputation-field { display: flex; align-items: center; gap: 6px; }
+.combat-tab .reputation-field input[type="number"] { flex: 0 0 3em; width: 3em; min-width: 3em; text-align: center; }
+.combat-tab .reputation-actions { display: flex; gap: 6px; margin-left: auto; }
+.cyberpunk .combat-tab .reputation-actions button { width: auto; flex: 0 0 auto; padding: 1px 8px; }
+/* Facedown / Recognition chat card */
+.cp-facedown-card .cp-facedown-line { padding: 1px 0; }
+.cp-facedown-result { margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(192,160,98,0.4); color: #c0a062; }
+.cp-facedown-result.cp-facedown-tie { color: inherit; opacity: 0.85; }
+.cp-facedown-note { font-size: 0.85em; opacity: 0.8; font-style: italic; }
 .combat-tab .armor-section {
   grid-area: armor;
 }

@@ -28,6 +28,9 @@ class CyberpunkBaseActorData extends foundry.abstract.TypeDataModel {
       }),
       age: numberField(35),
       humanity: numberField(50),
+      // Reputation (CP2020 p.54): GM-set social standing; can be NEGATIVE (cowardice/infamy). Feeds the
+      // Facedown roll (1d10 + COOL + Rep) and Recognition checks. Additive — existing actors load with 0.
+      reputation: numberField(0),
       events: stringField(""),
       family: stringField(""),
       style: stringField(""),

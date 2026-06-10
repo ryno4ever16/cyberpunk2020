@@ -15,7 +15,22 @@
     </div>
 </div>
     </section>
-    
+
+    {{!-- Reputation + Facedown (CP2020 p.54). Gated by the reputationEnabled world setting. --}}
+    {{#if reputationEnabled}}
+    <section class="reputation-section">
+        <div class="field reputation-field">
+            <label title="{{CPLocal 'ReputationHint'}}">{{CPLocal "Reputation"}}</label>
+            <span class="flex-pad"></span>
+            <input type="number" name="system.reputation" value="{{system.reputation}}" class="number" placeholder="0" title="{{CPLocal 'ReputationHint'}}">
+        </div>
+        <div class="reputation-actions">
+            <button type="button" class="facedown-roll" title="{{CPLocal 'FacedownHint'}}">⚔ {{CPLocal "Facedown"}}</button>
+            <button type="button" class="recognition-roll" title="{{CPLocal 'RecognitionHint'}}">👁 {{CPLocal "Recognition"}}</button>
+        </div>
+    </section>
+    {{/if}}
+
     <section class="armor-section">
         {{!-- TODO: It'd be quite possible to loop through hit locations here, I think. Would work well for other creatures. --}}
         <header>

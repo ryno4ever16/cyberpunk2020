@@ -9,7 +9,7 @@ import { openBuyAmmoDialog, ammoBuyButtonEnabled } from "../dialog/buy-ammo.js";
 import { openShopForPlayer } from "../shop/catalog.js";
 import { classifyService, payService } from "../shop/services.js";
 import { ipCost, ipLockState, canEditSkillLevels, levelUpSkill, toggleSkillLock } from "../ip/ip.js";
-import { shoppingEnabled, ipEnabled, ipSystem, ipShowPending } from "../settings.js";
+import { shoppingEnabled, ipEnabled, ipSystem, ipShowPending, reputationEnabled } from "../settings.js";
 
 /** @extends {ActorSheet} */
 export class CyberpunkActorSheet extends ActorSheet {
@@ -62,6 +62,8 @@ export class CyberpunkActorSheet extends ActorSheet {
       sheetData.showBuyAmmo = ammoBuyButtonEnabled();
       // Whether to show the "Shop" button on the gear tab (world setting; default off).
       sheetData.showShop = shoppingEnabled();
+      // Reputation + Facedown panel (Combat tab; world setting, default on).
+      sheetData.reputationEnabled = reputationEnabled();
     }
 
     sheetData.cyberwareSegmentsRight = [
@@ -524,6 +526,9 @@ export class CyberpunkActorSheet extends ActorSheet {
       let statName = ev.currentTarget.dataset.statName;
       this.actor.rollStat(statName);
     });
+    // Reputation: Facedown (contested if a foe is targeted) + Recognition
+    html.find('.facedown-roll').click(ev => { ev.preventDefault(); this.actor.rollFacedown(); });
+    html.find('.recognition-roll').click(ev => { ev.preventDefault(); this.actor.rollRecognition(); });
     // Skill level changes
     const saveSkillLevel = async (event) => {
       const skill = this.actor.items.get(event.currentTarget.dataset.skillId);

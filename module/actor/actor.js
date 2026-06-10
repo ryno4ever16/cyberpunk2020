@@ -4,6 +4,8 @@ import { SortOrders, sortSkills } from "./skill-sort.js";
 import { btmFromBT, MARTIAL_ART_KEY_BY_ID, MARTIAL_ART_ID_BY_KEY, FNFF2_ONLY_MARTIAL_ART_IDS, FNFF2_ONLY_MARTIAL_ART_KEYS, isFnff2Enabled, isMartialArtSkillItem, martialArtDisplayName } from "../lookups.js";
 import { properCase, localize, getDefaultSkills, cwHasType, cwIsEnabled } from "../utils.js"
 import { acpaInitiativeRollData } from "../vehicle/vehicle-acpa.js";
+import { reputationEnabled } from "../settings.js";
+import { createCyberpunkRollCard } from "../compat.js";
 
 /**
  * Extend the base Actor document by defining a custom roll data structure which is ideal for the Simple system.
@@ -968,6 +970,68 @@ export class CyberpunkActor extends Actor {
       this.system
     ));
     roll.defaultExecute();
+  }
+
+  // ── Reputation + Facedown (CP2020 p.54) ──────────────────────────────────────
+
+  /** One chat-card line: "<name>: 🎲 <die> + COOL <c> + Rep <r> = <total>" for a Facedown roll. */
+  _facedownLine(actor, roll) {
+    const cool = Number(actor.system?.stats?.cool?.total) || 0;
+    const rep = Number(actor.system?.reputation) || 0;
+    const die = roll.total - cool - rep;   // the 1d10 (incl. any 10-explosion) portion
+    return `<div class="cp-facedown-line"><b>${foundry.utils.escapeHTML(actor.name)}</b>: `
+      + `🎲 ${die} + ${localize("CoolFull")} ${cool} + ${localize("Reputation")} ${rep} = <b>${roll.total}</b></div>`;
+  }
+
+  /**
+   * Facedown (CP2020 p.54): roll 1d10 + COOL + Reputation. With exactly one OTHER token targeted this is a
+   * CONTESTED roll — both sides roll, the card names the winner and posts the −3-vs-that-foe reminder (the
+   * GM enforces it). With no/ambiguous target it just posts this actor's Facedown total.
+   */
+  async rollFacedown() {
+    if (!reputationEnabled()) return;
+    const mkRoll = (actor) => makeD10Roll(["@stats.cool.total", "@reputation"], actor.system).evaluate();
+
+    const myRoll = await mkRoll(this);
+    const foes = [...(game.user?.targets ?? [])].map(t => t.actor).filter(a => a && a.id !== this.id);
+    const foe = foes.length === 1 ? foes[0] : null;
+
+    let content, rolls;
+    if (!foe) {
+      content = `<div class="cyberpunk cp-facedown-card"><h3>⚔ ${localize("Facedown")}</h3>`
+        + this._facedownLine(this, myRoll)
+        + `<div class="cp-facedown-note">${localize("FacedownSoloHint")}</div></div>`;
+      rolls = [myRoll];
+    } else {
+      const foeRoll = await mkRoll(foe);
+      const tie = myRoll.total === foeRoll.total;
+      const winner = myRoll.total >= foeRoll.total ? this : foe;
+      const loser  = winner === this ? foe : this;
+      const outcome = tie
+        ? `<div class="cp-facedown-result cp-facedown-tie">${localize("FacedownTie")}</div>`
+        : `<div class="cp-facedown-result"><b>${localize("FacedownWinner", { winner: winner.name })}</b>`
+          + `<div class="cp-facedown-note">${localize("FacedownPenalty", { loser: loser.name, winner: winner.name })}</div></div>`;
+      content = `<div class="cyberpunk cp-facedown-card"><h3>⚔ ${localize("Facedown")}</h3>`
+        + this._facedownLine(this, myRoll) + this._facedownLine(foe, foeRoll) + outcome + `</div>`;
+      rolls = [myRoll, foeRoll];
+    }
+    await createCyberpunkRollCard({ rolls, speaker: ChatMessage.getSpeaker({ actor: this }), content });
+  }
+
+  /**
+   * Recognition (CP2020 p.54): roll a flat 1d10 — rolling OVER your Reputation means they haven't heard of
+   * you; rolling at or under your Rep means they recognize you. GM-facing "does this NPC know me?" check.
+   */
+  async rollRecognition() {
+    if (!reputationEnabled()) return;
+    const rep = Number(this.system?.reputation) || 0;
+    const roll = await new Roll("1d10").evaluate();
+    const recognized = roll.total <= rep;
+    const content = `<div class="cyberpunk cp-facedown-card"><h3>👁 ${localize("Recognition")}</h3>`
+      + `<div class="cp-facedown-result${recognized ? "" : " cp-facedown-tie"}">`
+      + localize(recognized ? "RecognizedYes" : "RecognizedNo", { name: this.name, roll: roll.total, rep })
+      + `</div></div>`;
+    await createCyberpunkRollCard({ rolls: [roll], speaker: ChatMessage.getSpeaker({ actor: this }), content });
   }
 
   /*

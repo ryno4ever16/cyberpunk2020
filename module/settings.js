@@ -5,6 +5,11 @@ export function mmEnabled() {
   try { return !!game.settings.get(SCOPE, "mmEnabled"); } catch { return false; }
 }
 
+/** Reputation + Facedown feature (CP2020 p.54). On by default; tables that skip Rep can hide the panel. */
+export function reputationEnabled() {
+  try { return game.settings.get(SCOPE, "reputationEnabled") !== false; } catch { return true; }
+}
+
 /** The active vehicle ruleset, gated by the master MM toggle: forces "Core" whenever MM is off. */
 export function effectiveVehicleRuleSystem() {
   try { return mmEnabled() ? (game.settings.get(SCOPE, "vehicleRuleSystem") || "Core") : "Core"; }
@@ -424,6 +429,16 @@ export function registerSystemSettings() {
     config:  true,
     type:    Boolean,
     default: false,
+  });
+
+  // --- Reputation + Facedown (CP2020 p.54) ---
+  game.settings.register("cyberpunk2020", "reputationEnabled", {
+    name: "Social: Reputation & Facedown",
+    hint: "Show the Reputation panel on the Combat tab (a GM-set Rep score, plus Facedown and Recognition roll buttons). Facedown = both sides roll 1d10 + COOL + Reputation; the loser backs down or is at −3 vs that foe until they win a Facedown against them (CP2020 p.54). Turn off to hide it for tables that don't use Reputation.",
+    scope:   "world",
+    config:  true,
+    type:    Boolean,
+    default: true,
   });
 
   // --- Optional rules: Head Hit & Limb Loss ---
