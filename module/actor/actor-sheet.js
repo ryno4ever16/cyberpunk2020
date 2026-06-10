@@ -517,7 +517,16 @@ export class CyberpunkActorSheet extends ActorSheet {
       if (ev.button !== 0) return;
       const item = ev.target?.closest?.(".item[data-tab]");
       if (!item || !nav.contains(item)) return;
-      if (item.classList.contains("cp-tab-detached")) return; // already popped out — no re-tear
+      if (item.classList.contains("cp-tab-detached")) {
+        // Already popped out → just resurface its window; NEVER switch the main sheet to it. Handle it
+        // here on pointerdown (earliest) and eat the trailing click so the nav can't switch.
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+        this._cpSuppressTabClick = true;
+        const tabKey = item.dataset.tab;
+        import("./actor-tab-popout.js").then((m) => m.CyberpunkActorTabSheet.open(this.actor, tabKey));
+        return;
+      }
       end(false); // clear any stale gesture
       st = { tabKey: item.dataset.tab, item, x: ev.clientX, y: ev.clientY, armed: false, timer: null, ghost: null };
       item.classList.add("cp-tab-pressing"); // grab cursor from the moment of press
@@ -527,20 +536,13 @@ export class CyberpunkActorSheet extends ActorSheet {
       document.addEventListener("pointercancel", onCancel, true);
     }, true);
 
-    // Capture phase: (a) eat the synthetic click that follows an armed tear-off so the nav doesn't
-    // switch; (b) a click on an already-popped-out (greyed) tab focuses its window instead of switching.
+    // Capture phase: eat the click that follows an armed tear-off or a detached-tab focus so the nav
+    // doesn't also switch tabs.
     nav.addEventListener("click", (ev) => {
       if (this._cpSuppressTabClick) {
         this._cpSuppressTabClick = false;
         ev.preventDefault();
         ev.stopImmediatePropagation();
-        return;
-      }
-      const item = ev.target?.closest?.(".item[data-tab]");
-      if (item?.classList.contains("cp-tab-detached")) {
-        ev.preventDefault();
-        ev.stopImmediatePropagation();
-        import("./actor-tab-popout.js").then((m) => m.CyberpunkActorTabSheet.open(this.actor, item.dataset.tab));
       }
     }, true);
   }

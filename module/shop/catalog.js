@@ -4,6 +4,7 @@ import { classifyService, payOneOffService } from "./services.js";
 import { classifySupplement, shortSupplement, isVisibleTo, knownOfficialSupplements, knownNoncanonSources } from "./supplements.js";
 import { categoryOfPack, CATEGORIES, EXCLUDED_TYPES, catalogPacks } from "./categories.js";
 import { shoppingEnabled, shopSourceConfig, shopShowSource, shopAllowHomebrew } from "../settings.js";
+import { shimmerWindow } from "../shimmer.js";
 import {
   getShop, listShops, shopsVisibleTo, createShop, updateShop, deleteShop, duplicateShop,
   addShopItem, addShopItems, removeShopItem, clearShopItems, setShopItem, setAllShopStock, decrementShopStock,
@@ -766,7 +767,7 @@ export function openShopWindow(buyer, { view = "home", shopId = null } = {}) {
   if (!win) { win = new CatalogBrowser(buyer ?? resolveSidebarBuyer(), { view, shopId }); win.render(true); return win; }
   win.buyer = buyer ?? win.buyer;
   win.navigate(view, shopId, false);
-  if (win.rendered && win.element?.length) { win.render(false); try { win.bringToTop?.(); } catch { /* not ready */ } }
+  if (win.rendered && win.element?.length) { win.render(false); try { win.bringToTop?.(); } catch { /* not ready */ } shimmerWindow(win); }
   else win.render(true);
   return win;
 }

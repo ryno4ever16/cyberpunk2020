@@ -1,4 +1,5 @@
 import { CyberpunkActorSheet } from "./actor-sheet.js";
+import { shimmerWindow } from "../shimmer.js";
 
 /**
  * Tear-off tab windows for the character/NPC sheet.
@@ -95,9 +96,11 @@ export class CyberpunkActorTabSheet extends CyberpunkActorSheet {
     const existing = Object.values(actor.apps ?? {})
       .find(a => a instanceof CyberpunkActorTabSheet && a.tabKey === tabKey);
     if (existing) {
+      // Already open → just resurface it (NO re-render: a full render flashes the layout and would
+      // wipe the shimmer overlay we're about to add).
       if (left != null && top != null) existing.setPosition({ left, top });
-      existing.render(true);
       existing.bringToTop?.();
+      shimmerWindow(existing); // draw the eye to it
       return existing;
     }
     const meta = TAB_META[tabKey];

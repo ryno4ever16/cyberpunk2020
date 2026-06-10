@@ -164,6 +164,34 @@ html.cp-tab-dragging, html.cp-tab-dragging * { cursor: grabbing !important; }
 .cp-tab-popout .cp-tab-popout-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 6px 8px; }
 .cp-tab-popout .cp-tab-popout-body > .tab { height: auto; }
 
+/* Shimmering singletons: a glowing light streak runs around the window border when an already-open
+   singleton is re-opened. A dedicated overlay (.cp-shimmer-ring, injected by shimmerWindow) holds a
+   conic gradient masked to a thin ring; animating the @property angle sweeps the bright arc around the
+   perimeter, and a drop-shadow makes it glow as it travels. */
+@property --cp-shim {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.cp-shimmer-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  padding: 2px;
+  pointer-events: none;
+  z-index: 10000;
+  background: conic-gradient(from var(--cp-shim),
+    transparent 0deg 220deg,
+    rgba(107, 179, 204, 0.5) 300deg, #eaffff 350deg, rgba(107, 179, 204, 0.5) 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  filter: drop-shadow(0 0 4px rgba(135, 206, 235, 0.9));
+  animation: cp-shim-run 0.85s linear 1;
+}
+@keyframes cp-shim-run { to { --cp-shim: 360deg; } }
+
 /* Gear tab drag-to-reorder: the row being dragged + the insertion indicator. */
 .cyberpunk .gear-sortable .gear.cp-gear-dragging { opacity: 0.4; }
 .cyberpunk .gear-sortable .gear.cp-gear-drop-before { box-shadow: inset 0 2px 0 0 #6bb3cc; }
