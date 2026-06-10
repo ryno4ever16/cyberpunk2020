@@ -807,11 +807,16 @@ div.statderive .value.rightborder {
   font-size: 0.75em;
   text-transform: uppercase;
   opacity: 0.6;
-  margin: 5px 0 1px;
+  margin: 11px 0 2px;
 }
 .combat-tab .weapons-list .martial-panel .martial-action {
   margin-bottom: 3px;
 }
+/* Services tab: compact per-row action buttons (Pay / ✎ / ✕) — default buttons stretched to the row. */
+.cp-services .cp-service-row { align-items: center; gap: 4px; }
+.cyberpunk .cp-services .cp-service-row button { flex: 0 0 auto; width: auto; min-width: 0; height: 24px; line-height: 22px; padding: 0 9px; font-size: 0.85em; }
+.cyberpunk .cp-services .cp-service-edit, .cyberpunk .cp-services .cp-service-delete { width: 24px; padding: 0; text-align: center; }
+.cp-services .cp-service-cost { white-space: nowrap; margin: 0 4px; }
 
 .cyberpunk .armor-display {
   max-height: 200px;

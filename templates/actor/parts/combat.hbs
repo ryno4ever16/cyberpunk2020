@@ -121,7 +121,7 @@
             {{#each @root.martialActionGroups as |grp|}}
             <div class="martial-group-header">{{CPLocal grp.groupName}}</div>
             {{#each grp.choices as |act|}}
-            <div class="martial-action field action" data-item-id="{{@root.martialWeaponId}}" data-action="{{act}}">
+            <div class="martial-action field action" data-item-id="{{@root.martialWeaponId}}" data-action="{{act}}" title="{{CPLocal (concat act 'Hint')}}">
                 <div class="field-image" style="background-image: url(systems/cyberpunk2020/img/{{#if (equals act 'Kick')}}kick-icon.svg{{else}}punch-icon.svg{{/if}});"></div>
                 <label class="name">{{CPLocal act}}</label>
                 <span class="flex-pad"></span>
