@@ -667,6 +667,8 @@
     "CYBERPUNK.ShopFashion": "Style-priced",
     "CYBERPUNK.ShopPrice": "Price",
     "CYBERPUNK.ShopBuy": "Buy",
+    "CYBERPUNK.ShopDropConfirmItem": "Buy <b>{name}</b> for {price}eb each and charge {buyer}?",
+    "CYBERPUNK.ShopDropConfirmService": "Add <b>{name}</b> to {buyer}'s services and pay {price}eb now?",
     "CYBERPUNK.ShopEmpty": "No stock yet. Drag items from the compendium onto this shop.",
     "CYBERPUNK.ShopNotes": "Notes",
     "CYBERPUNK.ShopStyle": "Style",

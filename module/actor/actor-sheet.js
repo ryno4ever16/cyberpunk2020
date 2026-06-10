@@ -6,7 +6,7 @@ import { getHtmlElement, getRichEditorHTML, itemFromDropData, saveRichEditorHTML
 import { resolveAttackRange } from "../combat/rangefinding.js";
 import { getAutoLayerOrder } from "../combat/armor-layers.js";
 import { openBuyAmmoDialog, ammoBuyButtonEnabled } from "../dialog/buy-ammo.js";
-import { openShopForPlayer } from "../shop/catalog.js";
+import { openShopForPlayer, purchaseByDrop } from "../shop/catalog.js";
 import { classifyService, payService } from "../shop/services.js";
 import { ipCost, ipLockState, canEditSkillLevels, levelUpSkill, toggleSkillLock } from "../ip/ip.js";
 import { shoppingEnabled, ipEnabled, ipSystem, ipShowPending, reputationEnabled } from "../settings.js";
@@ -1371,6 +1371,19 @@ export class CyberpunkActorSheet extends ActorSheet {
   }
 
   /** @override */
+  /** Intercept a shop "drag-to-buy" drop before the normal item-drop flow: a shop row dropped here
+   *  purchases the item/service for THIS actor (owner-gated). Everything else falls through to core. */
+  async _onDrop(event) {
+    let data = null;
+    try { data = JSON.parse(event.dataTransfer.getData("text/plain")); } catch { /* not our JSON payload */ }
+    if (data?.type === "cyberpunk2020Purchase") {
+      event.preventDefault();
+      if (!this.actor?.isOwner) return;
+      return purchaseByDrop(this.actor, data);
+    }
+    return super._onDrop(event);
+  }
+
   async _onDropItem(event, data) {
     event.preventDefault();
 

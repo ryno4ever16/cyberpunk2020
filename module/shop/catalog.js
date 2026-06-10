@@ -312,54 +312,16 @@ export class CatalogBrowser extends Application {
     };
   }
 
-  // ── Purchase routing ────────────────────────────────────────────────────────
-  async _directBuy(packId, itemId, { qty, styleMult, styleLabel }) {
+  // ── Purchase routing (the buy logic lives in module-level fns so the actor-sheet drop-to-buy can reuse it) ──
+  async _directBuy(packId, itemId, opts) {
     if (!this.buyer) { ui.notifications?.warn(game.i18n.localize("CYBERPUNK.ShopBuyerNeeded")); return; }
-    const doc = await game.packs.get(packId)?.getDocument(itemId);
-    if (!doc) return;
-    const unitPrice = Math.max(0, Math.round((Number(doc.system?.cost) || 0) * styleMult));
-    const label = styleLabel && styleMult !== 1 ? `${styleLabel} ×${styleMult}` : "";
-    if (doc.type === "cyberware") { await buyAndInstallCyberware(this.buyer, doc, { partPrice: unitPrice }); return; }
-    const svc = classifyService(doc, game.packs.get(packId)?.metadata?.name ?? "");
-    if (svc === "oneoff") await payOneOffService(this.buyer, doc, { unitPrice, priceLabel: label });
-    else if (svc === "recurring") await buyItem(this.buyer, doc, { qty: 1, unitPrice, priceLabel: label, systemPatch: { serviceMode: "recurring" } });
-    else await buyItem(this.buyer, doc, { qty, unitPrice, priceLabel: label });
+    return purchaseCatalogItem(this.buyer, packId, itemId, opts);
   }
 
   /** Buy a curated item from a shop: shop pricing (GM-set clothing style + discount), deplete stock. */
-  async _shopBuy(sourceKey, { qty }) {
+  async _shopBuy(sourceKey, opts) {
     if (!this.buyer) { ui.notifications?.warn(game.i18n.localize("CYBERPUNK.ShopBuyerNeeded")); return; }
-    const def = this._shop();
-    if (!def) return;
-    if (def.open === false && !game.user.isGM) { ui.notifications?.warn(game.i18n.localize("CYBERPUNK.ShopClosed")); return; }
-    const e = normalizeShopItem(def.items[sourceKey]);
-    const n = Math.max(1, Math.floor(Number(qty) || 1));
-    if (!e.unlimited && e.qty < n) { ui.notifications?.warn(game.i18n.format("CYBERPUNK.ShopOutOfStock", { name: sourceKey, qty: e.qty })); return; }
-    const [packId, itemId] = splitSourceKey(sourceKey);
-    const doc = await game.packs.get(packId)?.getDocument(itemId);
-    if (!doc) { ui.notifications?.warn(game.i18n.localize("CYBERPUNK.ShopItemUnavailable")); return; }
-    // Clothing (Gear/Fashion) uses the GM-set style tier; everything else is ×1.
-    const { category, sub } = categoryOfPack(game.packs.get(packId)?.metadata?.name ?? "");
-    const isClothing = category === "Gear" && sub === "Fashion";
-    const styleMult = isClothing ? styleMultOf(e.style) : 1;
-    const unitPrice = effectivePrice(def, sourceKey, Number(doc.system?.cost) || 0, styleMult);
-    const bits = [];
-    if (isClothing && e.style && e.style !== "generic") bits.push(`${styleLabelOf(e.style)} ×${styleMult}`);
-    if (def.discountPct) bits.push(`-${def.discountPct}%`);
-    const label = bits.join(", ");
-
-    let ok = false;
-    if (doc.type === "cyberware") ok = await buyAndInstallCyberware(this.buyer, doc, { partPrice: unitPrice });
-    else {
-      const svc = classifyService(doc, game.packs.get(packId)?.metadata?.name ?? "");
-      if (svc === "oneoff") ok = await payOneOffService(this.buyer, doc, { unitPrice, priceLabel: label });
-      else if (svc === "recurring") ok = await buyItem(this.buyer, doc, { qty: 1, unitPrice, priceLabel: label, systemPatch: { serviceMode: "recurring" } });
-      else ok = await buyItem(this.buyer, doc, { qty: n, unitPrice, priceLabel: label });
-    }
-    if (ok !== false && !e.unlimited) {
-      if (game.user.isGM) await decrementShopStock(def.id, sourceKey, n);
-      else if (game.users.activeGM) game.socket.emit("system.cyberpunk2020", { type: "shopBuyRelay", shopId: def.id, sourceKey, qty: n });
-    }
+    return purchaseShopItem(this.buyer, this.shopId, sourceKey, opts);
   }
 
   async _openItemSheet(rowEl) {
@@ -462,9 +424,30 @@ export class CatalogBrowser extends Application {
 
     this._activateBuildControls(root, isGM);
     this._activateCatalogShopAdd(root, isGM);
+    this._activatePurchaseDrag(root);
 
     // A render rebuilt the rows — re-apply any active text search so it composes with filter changes.
     this._applySearch(root);
+  }
+
+  /** Catalog + storefront rows are draggable onto a character sheet to BUY (purchaseByDrop). Curated
+   *  storefront rows carry the shopId (shop pricing/stock); everything else buys at flat catalog cost. */
+  _activatePurchaseDrag(root) {
+    if (this.view !== "catalog" && this.view !== "storefront") return;
+    root.querySelectorAll(".cp-catalog-list .cp-catalog-row[data-source-key]").forEach(row => {
+      const sk = row.dataset.sourceKey;
+      if (!sk) return;
+      const shopId = (this.view === "storefront" && row.dataset.curated === "1") ? this.shopId : null;
+      row.setAttribute("draggable", "true");
+      row.classList.add("cp-buy-draggable");
+      row.addEventListener("dragstart", (ev) => {
+        ev.stopPropagation();
+        try {
+          ev.dataTransfer.setData("text/plain", JSON.stringify({ type: "cyberpunk2020Purchase", sourceKey: sk, shopId }));
+          ev.dataTransfer.effectAllowed = "copy";
+        } catch { /* dnd unsupported */ }
+      });
+    });
   }
 
   /** Client-side text search: show/hide already-rendered rows by name with NO re-render (typing stays
@@ -638,6 +621,119 @@ export class CatalogBrowser extends Application {
     const close = (e) => { if (!menu.contains(e.target)) { menu.remove(); doc.removeEventListener("click", close); } };
     setTimeout(() => doc.addEventListener("click", close), 0);
   }
+}
+
+// ── Purchase engine (shared by the Buy button AND the actor-sheet drag-to-buy) ────────────────────────
+
+/** Buy a catalog item at flat Core cost for `buyer`. Routes cyberware → install, services → pay/subscribe. */
+export async function purchaseCatalogItem(buyer, packId, itemId, { qty = 1, styleMult = 1, styleLabel = "" } = {}) {
+  if (!buyer) return;
+  const doc = await game.packs.get(packId)?.getDocument(itemId);
+  if (!doc) return;
+  const unitPrice = Math.max(0, Math.round((Number(doc.system?.cost) || 0) * styleMult));
+  const label = styleLabel && styleMult !== 1 ? `${styleLabel} ×${styleMult}` : "";
+  if (doc.type === "cyberware") { await buyAndInstallCyberware(buyer, doc, { partPrice: unitPrice }); return; }
+  const svc = classifyService(doc, game.packs.get(packId)?.metadata?.name ?? "");
+  if (svc === "oneoff") await payOneOffService(buyer, doc, { unitPrice, priceLabel: label });
+  else if (svc === "recurring") await buyItem(buyer, doc, { qty: 1, unitPrice, priceLabel: label, systemPatch: { serviceMode: "recurring" } });
+  else await buyItem(buyer, doc, { qty, unitPrice, priceLabel: label });
+}
+
+/** Buy a curated shop item for `buyer`: shop pricing (override × style × discount), then deplete stock. */
+export async function purchaseShopItem(buyer, shopId, sourceKey, { qty } = {}) {
+  if (!buyer) return;
+  const def = getShop(shopId);
+  if (!def) return;
+  if (def.open === false && !game.user.isGM) { ui.notifications?.warn(game.i18n.localize("CYBERPUNK.ShopClosed")); return; }
+  const e = normalizeShopItem(def.items[sourceKey]);
+  const n = Math.max(1, Math.floor(Number(qty) || 1));
+  if (!e.unlimited && e.qty < n) { ui.notifications?.warn(game.i18n.format("CYBERPUNK.ShopOutOfStock", { name: sourceKey, qty: e.qty })); return; }
+  const [packId, itemId] = splitSourceKey(sourceKey);
+  const doc = await game.packs.get(packId)?.getDocument(itemId);
+  if (!doc) { ui.notifications?.warn(game.i18n.localize("CYBERPUNK.ShopItemUnavailable")); return; }
+  const { category, sub } = categoryOfPack(game.packs.get(packId)?.metadata?.name ?? "");
+  const isClothing = category === "Gear" && sub === "Fashion";
+  const styleMult = isClothing ? styleMultOf(e.style) : 1;
+  const unitPrice = effectivePrice(def, sourceKey, Number(doc.system?.cost) || 0, styleMult);
+  const bits = [];
+  if (isClothing && e.style && e.style !== "generic") bits.push(`${styleLabelOf(e.style)} ×${styleMult}`);
+  if (def.discountPct) bits.push(`-${def.discountPct}%`);
+  const label = bits.join(", ");
+
+  let ok = false;
+  if (doc.type === "cyberware") ok = await buyAndInstallCyberware(buyer, doc, { partPrice: unitPrice });
+  else {
+    const svc = classifyService(doc, game.packs.get(packId)?.metadata?.name ?? "");
+    if (svc === "oneoff") ok = await payOneOffService(buyer, doc, { unitPrice, priceLabel: label });
+    else if (svc === "recurring") ok = await buyItem(buyer, doc, { qty: 1, unitPrice, priceLabel: label, systemPatch: { serviceMode: "recurring" } });
+    else ok = await buyItem(buyer, doc, { qty: n, unitPrice, priceLabel: label });
+  }
+  if (ok !== false && !e.unlimited) {
+    if (game.user.isGM) await decrementShopStock(def.id, sourceKey, n);
+    else if (game.users.activeGM) game.socket.emit("system.cyberpunk2020", { type: "shopBuyRelay", shopId: def.id, sourceKey, qty: n });
+  }
+}
+
+/** A small Buy/Cancel confirm for drag-to-buy. Resolves to the chosen qty, or null on cancel. */
+function confirmPurchaseDialog({ name, unitPrice, buyerName, isService, allowQty }) {
+  return new Promise(resolve => {
+    const msg = game.i18n.format(isService ? "CYBERPUNK.ShopDropConfirmService" : "CYBERPUNK.ShopDropConfirmItem",
+      { name: foundry.utils.escapeHTML(name), price: unitPrice, buyer: foundry.utils.escapeHTML(buyerName) });
+    const qtyRow = allowQty
+      ? `<div class="form-group"><label>${game.i18n.localize("CYBERPUNK.ShopQty")}</label><input type="number" name="qty" value="1" min="1" style="width:64px;"/></div>` : "";
+    new Dialog({
+      title: game.i18n.localize("CYBERPUNK.ShopBuy"),
+      content: `<form><p>${msg}</p>${qtyRow}</form>`,
+      buttons: {
+        buy: { icon: '<i class="fa-solid fa-cart-shopping"></i>', label: game.i18n.localize("CYBERPUNK.ShopBuy"),
+          callback: (h) => { const el = h[0] ?? h; resolve(allowQty ? Math.max(1, parseInt(el.querySelector('[name="qty"]')?.value, 10) || 1) : 1); } },
+        cancel: { label: game.i18n.localize("CYBERPUNK.Cancel"), callback: () => resolve(null) }
+      },
+      default: "buy", close: () => resolve(null)
+    }).render(true);
+  });
+}
+
+/**
+ * Drag-to-buy: a shop row dropped on a character sheet purchases it for that actor. `shopId` set = curated
+ * shop pricing/stock; null = flat catalog cost. Cyberware skips the generic confirm (its install flow has its
+ * own surgery/Humanity confirm); items + services get a quick Buy/Cancel confirm with a quantity field.
+ */
+export async function purchaseByDrop(buyer, { sourceKey, shopId = null } = {}) {
+  if (!shoppingEnabled() || !buyer || !sourceKey) return;
+  const [packId, itemId] = splitSourceKey(sourceKey);
+  const doc = await game.packs.get(packId)?.getDocument(itemId);
+  if (!doc) { ui.notifications?.warn(game.i18n.localize("CYBERPUNK.ShopItemUnavailable")); return; }
+  const packName = game.packs.get(packId)?.metadata?.name ?? "";
+  const { category, sub } = categoryOfPack(packName);
+  const isClothing = category === "Gear" && sub === "Fashion";
+  const svc = classifyService(doc, packName);
+
+  // Unit price for the confirm display (matches what the purchase fn will charge).
+  let unitPrice, styleMult = 1, styleLabel = "";
+  if (shopId) {
+    const def = getShop(shopId);
+    if (!def) return;
+    if (def.open === false && !game.user.isGM) { ui.notifications?.warn(game.i18n.localize("CYBERPUNK.ShopClosed")); return; }
+    const e = normalizeShopItem(def.items[sourceKey]);
+    styleMult = isClothing ? styleMultOf(e.style) : 1;
+    unitPrice = effectivePrice(def, sourceKey, Number(doc.system?.cost) || 0, styleMult);
+    styleLabel = (isClothing && e.style && e.style !== "generic") ? styleLabelOf(e.style) : "";
+  } else {
+    unitPrice = Math.max(0, Math.round(Number(doc.system?.cost) || 0));
+  }
+
+  // Cyberware: straight through (buyAndInstallCyberware shows its own surgery/Humanity confirm).
+  if (doc.type === "cyberware") {
+    if (shopId) await purchaseShopItem(buyer, shopId, sourceKey, { qty: 1 });
+    else await purchaseCatalogItem(buyer, packId, itemId, { qty: 1, styleMult, styleLabel });
+    return;
+  }
+  const isService = svc === "oneoff" || svc === "recurring";
+  const qty = await confirmPurchaseDialog({ name: doc.name, unitPrice, buyerName: buyer.name, isService, allowQty: !isService });
+  if (qty == null) return;
+  if (shopId) await purchaseShopItem(buyer, shopId, sourceKey, { qty });
+  else await purchaseCatalogItem(buyer, packId, itemId, { qty, styleMult, styleLabel });
 }
 
 /** Modal text prompt; resolves to the entered string, or null on cancel. */

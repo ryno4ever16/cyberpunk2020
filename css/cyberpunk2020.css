@@ -2158,6 +2158,8 @@ img#anatomy-img {
 .cp-catalog-nomatch { opacity: 0.7; padding: 8px; }
 .cp-hidden-divider { font-size: 0.8em; opacity: 0.65; font-style: italic; margin-top: 10px; padding: 3px 4px; border-top: 1px dashed rgba(192,160,98,0.5); color: #c0a062; }
 .cp-catalog-row { display: flex; align-items: center; gap: 6px; padding: 2px 4px; }
+.cp-catalog-row.cp-buy-draggable { cursor: grab; }
+.cp-catalog-row.cp-buy-draggable:active { cursor: grabbing; }
 .cp-catalog-row.cp-dimmed { opacity: 0.5; }
 .cp-catalog-row .cp-cat-itemname { flex: 1; min-width: 0; }
 .cp-catalog-row:hover { background: rgba(255,255,255,0.045); border-radius: 3px; }
