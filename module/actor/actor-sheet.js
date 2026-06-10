@@ -227,7 +227,9 @@ export class CyberpunkActorSheet extends ActorSheet {
     let showItems = allItems
       .filter((item) => !hideThese.has(item.type))
       .filter((item) => !(hideServices && item.type === "misc" && classifyService(item) === "recurring"))
-      .sort((a, b) => nameSorter.compare(a.name, b.name));
+      // Manual order (drag-to-reorder persists the `sort` field); name is the tiebreak, so actors
+      // whose items all share sort 0 still read alphabetically — only reordered items differ.
+      .sort((a, b) => (Number(a.sort) || 0) - (Number(b.sort) || 0) || nameSorter.compare(a.name, b.name));
     return showItems;
   }
 
@@ -558,6 +560,100 @@ export class CyberpunkActorSheet extends ActorSheet {
     });
   }
 
+  /** True if (x,y) is empty space — not over any app window or the sidebar — i.e. the "drag-off"
+   *  delete zone. (Dropping on the canvas/desktop deletes; on another sheet/dialog/sidebar it doesn't.) */
+  _isGearDropToVoid(x, y, doc = document) {
+    const el = doc.elementFromPoint?.(x, y) ?? null;
+    return !el?.closest?.(".app, .application, #sidebar");
+  }
+
+  /** Shared delete-item confirm dialog (used by the row delete controls and the gear drag-off gesture). */
+  _confirmDeleteItem(item) {
+    if (!item) return;
+    new Dialog({
+      title: localize("ItemDeleteConfirmTitle"),
+      content: `<p>${localizeParam("ItemDeleteConfirmText", { itemName: item.name })}</p>`,
+      buttons: {
+        yes: { label: localize("Yes"), callback: () => item.delete() },
+        no: { label: localize("No") },
+      },
+      default: "no",
+    }).render(true);
+  }
+
+  /**
+   * Gear tab drag gestures:
+   *  - drag a gear row and drop it within the list → reorder (persisted via the item `sort` field);
+   *  - drag a gear row OFF this window (released in empty space) → raise the delete confirm;
+   *  - dropping onto another actor's sheet still copies (Foundry default) and does NOT delete here.
+   * State is per-sheet-instance, so a popped-out Gear tab reorders/deletes against ITS own window.
+   */
+  _activateGearDragSort(root) {
+    const list = root?.querySelector?.(".gear-sortable");
+    if (!list) return;
+
+    const clearMarks = () => list
+      .querySelectorAll(".cp-gear-drop-before, .cp-gear-drop-after")
+      .forEach((el) => el.classList.remove("cp-gear-drop-before", "cp-gear-drop-after"));
+
+    let dragId = null, dropTargetId = null, dropBefore = true;
+
+    list.querySelectorAll(".gear[data-item-id]").forEach((row) => {
+      row.setAttribute("draggable", "true");
+      row.addEventListener("dragstart", (ev) => {
+        dragId = row.dataset.itemId;
+        const item = this.actor.items.get(dragId);
+        // Standard Item payload so dropping on another sheet still copies normally.
+        try { ev.dataTransfer.setData("text/plain", JSON.stringify(item?.toDragData?.() ?? { type: "Item", uuid: item?.uuid })); } catch (_) {}
+        ev.dataTransfer.effectAllowed = "all";
+        row.classList.add("cp-gear-dragging");
+      });
+      row.addEventListener("dragend", (ev) => {
+        row.classList.remove("cp-gear-dragging");
+        clearMarks();
+        // Released over empty space (not over any app window/sidebar) → offer to delete. A drop within
+        // this sheet reorders; a drop on another sheet copies (Foundry default). We can't trust
+        // dropEffect — the canvas accepts the drag, so it isn't "none" when released off the sheet.
+        if (dragId) {
+          const doc = ev.currentTarget?.ownerDocument ?? document;
+          if (this._isGearDropToVoid(ev.clientX, ev.clientY, doc)) this._confirmDeleteItem(this.actor.items.get(dragId));
+        }
+        dragId = null; dropTargetId = null;
+      });
+    });
+
+    list.addEventListener("dragover", (ev) => {
+      if (!dragId) return; // only OUR gear-row drags reorder; external drops fall through to core
+      ev.preventDefault();
+      if (ev.dataTransfer) ev.dataTransfer.dropEffect = "move";
+      const row = ev.target.closest?.(".gear[data-item-id]");
+      clearMarks();
+      if (!row || row.dataset.itemId === dragId) { dropTargetId = null; return; }
+      const r = row.getBoundingClientRect();
+      dropBefore = (ev.clientY - r.top) < r.height / 2;
+      dropTargetId = row.dataset.itemId;
+      row.classList.add(dropBefore ? "cp-gear-drop-before" : "cp-gear-drop-after");
+    });
+
+    list.addEventListener("drop", async (ev) => {
+      if (!dragId) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      clearMarks();
+      const source = this.actor.items.get(dragId);
+      const target = dropTargetId ? this.actor.items.get(dropTargetId) : null;
+      if (!source || !target || source.id === target.id) return;
+      // Rebuild the displayed order with the source moved before/after the target (per the cursor
+      // half), then reindex every gear item's `sort` — deterministic and honours the drop indicator.
+      const ids = this._gearTabItems(this.actor.items).map((i) => i.id).filter((id) => id !== source.id);
+      const idx = ids.indexOf(target.id);
+      if (idx < 0) return;
+      ids.splice(dropBefore ? idx : idx + 1, 0, source.id);
+      const updates = ids.map((id, i) => ({ _id: id, sort: (i + 1) * 100000 }));
+      await this.actor.updateEmbeddedDocuments("Item", updates);
+    });
+  }
+
   /** @override */
   activateListeners(html) {
     const root = getHtmlElement(html);
@@ -603,6 +699,8 @@ export class CyberpunkActorSheet extends ActorSheet {
     // Tear-off tabs: press-and-hold a tab, then drag it out to pop it into its own window.
     this._activateTabTearOff(root);
     this._refreshDetachedTabs();
+    // Gear tab: drag a row to reorder, or drag it off the window to delete.
+    this._activateGearDragSort(root);
 
     /**
      * Get an owned item from a click event, for any event trigger with a data-item-id property
