@@ -1,0 +1,50 @@
+{{!-- A single character-sheet tab, popped out into its own window (CyberpunkActorTabSheet).
+      Mirrors the matching body <div> from actor-sheet.hbs (same wrapper classes) so all CSS applies,
+      and marks it `active` since there is no in-window tab switcher. --}}
+<form class="{{cssClass}} flexcol cp-tab-popout-form" autocomplete="off">
+    <section class="sheet-body cp-tab-popout-body">
+        {{#if (equals tabKey "skills")}}
+        <div class="tab skills flexcol active" data-group="primary" data-tab="skills">
+            {{> "systems/cyberpunk2020/templates/actor/parts/skills.hbs"}}
+        </div>
+        {{/if}}
+
+        {{#if (equals tabKey "combat")}}
+        <div class="tab combat flexcol active" data-group="primary" data-tab="combat">
+            {{> "systems/cyberpunk2020/templates/actor/parts/combat.hbs"}}
+        </div>
+        {{/if}}
+
+        {{#if (equals tabKey "gear")}}
+        <div class="tab gear flexcol active" data-group="primary" data-tab="gear">
+            {{> "systems/cyberpunk2020/templates/actor/parts/gear.hbs"}}
+        </div>
+        {{/if}}
+
+        {{#if (equals tabKey "services")}}
+        <div class="tab gear flexcol active" data-group="primary" data-tab="services">
+            {{> "systems/cyberpunk2020/templates/actor/parts/services.hbs"}}
+        </div>
+        {{/if}}
+
+        {{#if (equals tabKey "cyber")}}
+        <div class="tab gear flexcol active" data-group="primary" data-tab="cyber">
+            {{> "systems/cyberpunk2020/templates/actor/parts/cyberware.hbs"}}
+        </div>
+        {{/if}}
+
+        {{#if (equals tabKey "life")}}
+        <div class="tab life flexcol active" data-group="primary" data-tab="life">
+            <div class="biography cp-notes-editor" data-editor-target="system.notes">
+                {{editor system.notes target="system.notes" button=true editable=editable engine="prosemirror" collaborate=false}}
+            </div>
+        </div>
+        {{/if}}
+
+        {{#if (equals tabKey "netrun")}}
+        <div class="tab gear flexcol active" data-group="primary" data-tab="netrun">
+            {{> "systems/cyberpunk2020/templates/actor/parts/netrunning.hbs"}}
+        </div>
+        {{/if}}
+    </section>
+</form>

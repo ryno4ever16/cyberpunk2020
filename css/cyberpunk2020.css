@@ -136,6 +136,34 @@
   height: 100%;
 }
 
+/* Tear-off tabs: the floating drag "ghost" (on document.body) + the lifted tab while dragging. */
+.cp-tab-ghost {
+  position: fixed;
+  z-index: 100000;
+  pointer-events: none;
+  padding: 2px 9px;
+  border-radius: 3px;
+  white-space: nowrap;
+  background: rgba(16, 24, 32, 0.95);
+  color: #cfe8ff;
+  border: 1px solid rgba(68, 147, 173, 0.95);
+  font: 12px/1.4 "Noto Sans", sans-serif;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.55);
+}
+/* draggable affordance: normal pointer on hover; grab (open hand) once a tab is pressed; grabbing
+   (closed hand) everywhere once the drag arms. */
+.cyberpunk nav.sheet-tabs .item.cp-tab-pressing { cursor: grab !important; }
+.cyberpunk nav.sheet-tabs .item.cp-tab-grabbing { opacity: 0.5 !important; }
+html.cp-tab-dragging, html.cp-tab-dragging * { cursor: grabbing !important; }
+/* a tab whose content is currently popped out → greyed/disabled on the main sheet (click focuses it). */
+.cyberpunk nav.sheet-tabs .item.cp-tab-detached { opacity: 0.4 !important; font-style: italic; cursor: pointer !important; }
+
+/* Popped-out single tab window (CyberpunkActorTabSheet): the body fills the window and scrolls. */
+.cp-tab-popout .window-content { overflow: hidden; }
+.cp-tab-popout .cp-tab-popout-form { flex: 1 1 auto; min-height: 0; }
+.cp-tab-popout .cp-tab-popout-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 6px 8px; }
+.cp-tab-popout .cp-tab-popout-body > .tab { height: auto; }
+
 .editor {
   height: 100%;
 }

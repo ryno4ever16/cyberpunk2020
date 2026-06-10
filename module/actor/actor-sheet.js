@@ -437,6 +437,127 @@ export class CyberpunkActorSheet extends ActorSheet {
     // ──────────────────────────────────────────────────────────────────────
   }
 
+  /**
+   * Tear-off tabs — press-and-hold a tab, then drag it out to pop it into its own window.
+   *
+   * The tab bar is heavily restyled by UI modules (crlngn-ui / cyberpunk-restyler) which put
+   * `pointer-events:none` on tab CHILDREN — so we don't inject anything into the tab. The tab <a>
+   * itself still receives pointer events (that's how switching works), so we bind a hold→drag gesture
+   * there (capture phase, to win over the module/Tabs handlers):
+   *   - a quick click switches tabs as normal (we only preventDefault once the drag has "armed");
+   *   - press and hold ~300ms without a large move to "pick up" the tab (a ghost label appears);
+   *   - drag and release to open that tab in its own window AT the drop point.
+   * The ghost lives on document.body (away from the module-styled nav). After an armed drop we swallow
+   * the trailing click so the tab doesn't also switch.
+   */
+  _activateTabTearOff(root) {
+    const nav = root?.querySelector?.("nav.sheet-tabs");
+    if (!nav || nav._cpTearWired) return;
+    nav._cpTearWired = true;
+
+    const HOLD_MS = 375;     // press duration before a tab is "picked up"
+    const MOVE_CANCEL = 12;  // px of pre-arm movement that aborts the pick-up (a swipe/scroll)
+    let st = null;           // active gesture state
+
+    const end = (suppressClick) => {
+      document.documentElement.classList.remove("cp-tab-dragging"); // always clear the global cursor
+      if (!st) return;
+      clearTimeout(st.timer);
+      st.ghost?.remove();
+      st.item?.classList.remove("cp-tab-grabbing", "cp-tab-pressing");
+      document.removeEventListener("pointermove", onMove, true);
+      document.removeEventListener("pointerup", onUp, true);
+      document.removeEventListener("pointercancel", onCancel, true);
+      if (suppressClick) this._cpSuppressTabClick = true;
+      st = null;
+    };
+
+    const arm = () => {
+      if (!st) return;
+      st.armed = true;
+      st.item?.classList.remove("cp-tab-pressing");
+      st.item?.classList.add("cp-tab-grabbing");
+      document.documentElement.classList.add("cp-tab-dragging"); // force a grabbing cursor everywhere
+      const ghost = document.createElement("div");
+      ghost.className = "cp-tab-ghost";
+      ghost.textContent = `⇗ ${(st.item?.textContent || "Tab").trim()}`;
+      ghost.style.left = `${st.x + 12}px`;
+      ghost.style.top = `${st.y + 12}px`;
+      document.body.appendChild(ghost);
+      st.ghost = ghost;
+    };
+
+    const onMove = (ev) => {
+      if (!st) return;
+      if (!st.armed) {
+        if (Math.hypot(ev.clientX - st.x, ev.clientY - st.y) > MOVE_CANCEL) end(false);
+        return;
+      }
+      ev.preventDefault();
+      if (st.ghost) { st.ghost.style.left = `${ev.clientX + 12}px`; st.ghost.style.top = `${ev.clientY + 12}px`; }
+    };
+
+    const onCancel = () => end(false);
+
+    const onUp = async (ev) => {
+      if (!st) return;
+      const armed = st.armed, tabKey = st.tabKey, dropX = ev.clientX, dropY = ev.clientY;
+      end(armed); // swallow the trailing click only if we actually tore a tab off
+      if (!armed) return;
+      ev.preventDefault();
+      const left = Math.max(0, Math.min(dropX - 40, window.innerWidth - 220));
+      const top = Math.max(0, Math.min(dropY - 8, window.innerHeight - 120));
+      const { CyberpunkActorTabSheet } = await import("./actor-tab-popout.js");
+      CyberpunkActorTabSheet.open(this.actor, tabKey, { left, top });
+    };
+
+    nav.addEventListener("pointerdown", (ev) => {
+      if (ev.button !== 0) return;
+      const item = ev.target?.closest?.(".item[data-tab]");
+      if (!item || !nav.contains(item)) return;
+      if (item.classList.contains("cp-tab-detached")) return; // already popped out — no re-tear
+      end(false); // clear any stale gesture
+      st = { tabKey: item.dataset.tab, item, x: ev.clientX, y: ev.clientY, armed: false, timer: null, ghost: null };
+      item.classList.add("cp-tab-pressing"); // grab cursor from the moment of press
+      st.timer = setTimeout(arm, HOLD_MS);
+      document.addEventListener("pointermove", onMove, true);
+      document.addEventListener("pointerup", onUp, true);
+      document.addEventListener("pointercancel", onCancel, true);
+    }, true);
+
+    // Capture phase: (a) eat the synthetic click that follows an armed tear-off so the nav doesn't
+    // switch; (b) a click on an already-popped-out (greyed) tab focuses its window instead of switching.
+    nav.addEventListener("click", (ev) => {
+      if (this._cpSuppressTabClick) {
+        this._cpSuppressTabClick = false;
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+        return;
+      }
+      const item = ev.target?.closest?.(".item[data-tab]");
+      if (item?.classList.contains("cp-tab-detached")) {
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+        import("./actor-tab-popout.js").then((m) => m.CyberpunkActorTabSheet.open(this.actor, item.dataset.tab));
+      }
+    }, true);
+  }
+
+  /** Grey out the nav tabs whose content is currently popped out into its own window (and un-grey the
+   *  rest). Driven on render and whenever a tab window opens/closes. */
+  _refreshDetachedTabs() {
+    const root = this.element?.[0];
+    if (!root) return;
+    const open = new Set(
+      Object.values(this.actor?.apps ?? {})
+        .filter((a) => a.constructor?.name === "CyberpunkActorTabSheet" && a.rendered)
+        .map((a) => a.tabKey)
+    );
+    root.querySelectorAll("nav.sheet-tabs .item[data-tab]").forEach((item) => {
+      item.classList.toggle("cp-tab-detached", open.has(item.dataset.tab));
+    });
+  }
+
   /** @override */
   activateListeners(html) {
     const root = getHtmlElement(html);
@@ -479,6 +600,9 @@ export class CyberpunkActorSheet extends ActorSheet {
     // Life tab (system.notes) autosave
     this._cpSetupNotesAutosave(root);
     html.find('[data-drop-target]').on('dragover', (ev) => ev.preventDefault());
+    // Tear-off tabs: press-and-hold a tab, then drag it out to pop it into its own window.
+    this._activateTabTearOff(root);
+    this._refreshDetachedTabs();
 
     /**
      * Get an owned item from a click event, for any event trigger with a data-item-id property
