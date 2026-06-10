@@ -204,6 +204,8 @@
     "CYBERPUNK.Advanced": "Advanced",
     "CYBERPUNK.Reload": "Reload",
     "CYBERPUNK.Reloaded": "Weapon reloaded!",
+    "CYBERPUNK.Recharged": "Weapon recharged to full.",
+    "CYBERPUNK.NeedsRecharge": "Cannot fire: power cell depleted. Recharge (reload) first — energy weapons don't use ammunition.",
     "CYBERPUNK.Unload": "Unload",
     "CYBERPUNK.Pistol": "Pistol",
     "CYBERPUNK.SMG": "SMG",

@@ -27,6 +27,13 @@ A feature release adding **Shopping**, folding **ammunition into the catalog**, 
   GM can re-enable it in System Settings). Its automation list is truth-checked: **Head Hit
   Doubling is shown as ON by default** (core 2020 rule, p.103); the other automations remain opt-in.
 
+### Fixed
+- **Energy/beam weapons recharge instead of needing ammo.** Lasers and microwavers (RAW: "Like
+  lasers, microwavers recharge from a wall socket") no longer dead-end on un-buyable `Special` ammo.
+  With ammo-tracking on, reloading an energy weapon recharges its shot pool to capacity for free (no
+  ammo item), and an empty one prompts to recharge rather than reporting "out of ammo." Fixes the
+  long-standing "needs special ammo, none to select" issue on the Microwaver and Laser weapons.
+
 ### Upgrade note — cyberware (read before upgrading)
 - Upgrading re-runs the world migration, which **re-applies the compendium template** to each
   installed cyberware. **Preserved:** placement (limb/side), Humanity loss, cost, weight,

@@ -1,4 +1,4 @@
-import { weaponTypes, rangedAttackTypes, meleeAttackTypes, fireModes, ranges, rangeDCs, rangeResolve, strengthDamageBonus, getMartialActionBonus, martialActions, isFnff2Enabled, getFnff2DamageBonusSymbol, FNFF2_ONLY_MARTIAL_ART_IDS, MARTIAL_ART_ID_BY_KEY, martialArtDisplayName } from "../lookups.js"
+import { weaponTypes, rangedAttackTypes, meleeAttackTypes, fireModes, ranges, rangeDCs, rangeResolve, strengthDamageBonus, getMartialActionBonus, martialActions, isFnff2Enabled, getFnff2DamageBonusSymbol, FNFF2_ONLY_MARTIAL_ART_IDS, MARTIAL_ART_ID_BY_KEY, martialArtDisplayName, isEnergyAttackType } from "../lookups.js"
 import { Multiroll, makeD10Roll } from "../dice.js"
 import { localize, localizeParam, rollLocation, cwHasType, cwIsEnabled, isFumbleRoll, buildRangedCombatFumbleData, buildSkillFumbleData, clamp } from "../utils.js";
 import { createCyberpunkChatMessage } from "../compat.js";
@@ -264,6 +264,12 @@ export class CyberpunkItem extends Item {
     return !(isMeleeByType || isMeleeByAtk);
   }
 
+  /** Beam/energy weapon (laser, microwave): recharges instead of consuming ammo. See isEnergyAttackType. */
+  isEnergyWeapon() {
+    const sys = this._getWeaponSystem ? this._getWeaponSystem() : this.system;
+    return isEnergyAttackType(sys?.attackType);
+  }
+
   /**
    * Firearms for the “point-blank” rule
    * We are deliberately excluding Exotic weapons here, as they include lasers, microwaves, etc
@@ -513,7 +519,8 @@ export class CyberpunkItem extends Item {
     // empty magazine — the player must reload (which draws from linked ammo inventory).
     // When OFF ("Free Fire"), ammo is ignored and the weapon always fires.
     if (this._ammoTrackingOn() && isRanged && this._roundPool() <= 0) {
-      ui.notifications.warn(localize("NoAmmo"));
+      // Energy/beam weapons are depleted, not "out of ammo" — they recharge (reload) rather than reload rounds.
+      ui.notifications.warn(localize(this.isEnergyWeapon() ? "NeedsRecharge" : "NoAmmo"));
       return false;
     }
 

@@ -58,6 +58,19 @@ export let rangedAttackTypes = {
     explosiveCharge: "Explocharge"
 }
 
+/**
+ * Beam/energy weapons (laser, microwave) recharge from a power source instead of consuming
+ * ammunition — CP2020 (FNFF): "Like lasers, microwavers recharge from a wall socket." They keep a
+ * finite shot pool but are reloaded by recharging (no ammo item / no purchase). Keyed off attackType,
+ * so it ignores the weapon's (often "Special"/blank) ammoType.
+ * @param {string} attackType  the weapon's system.attackType
+ * @returns {boolean}
+ */
+export function isEnergyAttackType(attackType) {
+  const a = String(attackType ?? "").toLowerCase();
+  return a === "laser" || a === "microwave";
+}
+
 export let meleeAttackTypes = {
     melee: "Melee", // Regular melee bonk
     mono: "Mono", // Monokatanas, etc

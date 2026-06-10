@@ -1,5 +1,5 @@
 import { deepSet, localize, localizeParam } from "../utils.js"
-import { fireModes, caliberMatches, normalizeCaliber } from "../lookups.js"
+import { fireModes, caliberMatches, normalizeCaliber, isEnergyAttackType } from "../lookups.js"
 import { createCyberpunkChatMessage, getGMUserIds } from "../compat.js";
 
 /**
@@ -183,6 +183,19 @@ import { createCyberpunkChatMessage, getGMUserIds } from "../compat.js";
       if (!ammoTracking) {
         await updateWeaponShotsLeft(capacity);
         ui.notifications.info(localize("Reloaded"));
+        await gmReloadAudit(capacity);
+        applyLocalState(capacity);
+        return;
+      }
+
+      // Energy/beam weapons (laser, microwave) recharge instead of loading ammo — CP2020 (FNFF):
+      // "Like lasers, microwavers recharge from a wall socket." Top the shot pool to capacity for free,
+      // no ammo Item required, even with ammo-tracking ON. (Firing still consumes shots; the finite
+      // capacity is real.) Keyed off attackType, so the weapon's "Special"/blank ammoType is irrelevant.
+      if (isEnergyAttackType(sys.attackType)) {
+        if (!Number.isFinite(capacity) || capacity <= 0) { ui.notifications.warn("This weapon cannot be recharged."); return; }
+        await updateWeaponShotsLeft(capacity);
+        ui.notifications.info(localize("Recharged"));
         await gmReloadAudit(capacity);
         applyLocalState(capacity);
         return;
