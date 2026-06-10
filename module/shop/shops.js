@@ -184,6 +184,17 @@ export async function setShopItem(id, sourceKey, patch = {}) {
   return _save(map);
 }
 
+/** Apply a stock patch ({unlimited?, qty?}) to EVERY item in a shop ("Set all"); count touched (GM only). */
+export async function setAllShopStock(id, patch = {}) {
+  const map = _rawMap();
+  const items = map[id]?.items;
+  if (!items) return 0;
+  const keys = Object.keys(items);
+  for (const sk of keys) items[sk] = normalizeShopItem({ ...items[sk], ...patch });
+  if (keys.length) await _save(map);
+  return keys.length;
+}
+
 /** Decrement a stocked item's quantity (used by the GM relay when a player buys) (GM only). */
 export async function decrementShopStock(id, sourceKey, by = 1) {
   const map = _rawMap();

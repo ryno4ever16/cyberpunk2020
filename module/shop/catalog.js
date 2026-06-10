@@ -1,12 +1,12 @@
 import { buyItem, FASHION_STYLES, styleMultOf, styleLabelOf } from "./purchase.js";
 import { buyAndInstallCyberware } from "../cyberware/install.js";
 import { classifyService, payOneOffService } from "./services.js";
-import { classifySupplement, shortSupplement, sourceState, isVisibleTo, knownOfficialSupplements, knownNoncanonSources } from "./supplements.js";
+import { classifySupplement, shortSupplement, isVisibleTo, knownOfficialSupplements, knownNoncanonSources } from "./supplements.js";
 import { categoryOfPack, CATEGORIES, EXCLUDED_TYPES, catalogPacks } from "./categories.js";
 import { shoppingEnabled, shopSourceConfig, shopShowSource, shopAllowHomebrew } from "../settings.js";
 import {
   getShop, listShops, shopsVisibleTo, createShop, updateShop, deleteShop, duplicateShop,
-  addShopItem, addShopItems, removeShopItem, clearShopItems, setShopItem, decrementShopStock,
+  addShopItem, addShopItems, removeShopItem, clearShopItems, setShopItem, setAllShopStock, decrementShopStock,
   normalizeShopItem, effectivePrice
 } from "./shops.js";
 
@@ -84,6 +84,7 @@ export class CatalogBrowser extends Application {
     this.shopId = options.shopId ?? null;
     this._search = "";
     this._cats = new Set();
+    this._books = new Set();
   }
 
   static get defaultOptions() {
@@ -125,17 +126,24 @@ export class CatalogBrowser extends Application {
     this.shopId = shopId;
     this._search = "";
     this._cats = new Set();
+    this._books = new Set();
     if (render) this.render(true);
   }
 
   // ── Shared row helpers ─────────────────────────────────────────────────────
   _filterRows(all, { isGM, cfg, search }) {
+    // Both filter dimensions are additive (OR within, AND across): no chips in a dimension = that dimension
+    // matches everything; selecting chips narrows to the UNION of those chips. The "Core" book chip uses the
+    // synthetic key "__core__" and matches by canon (covers both the tagged core book and untagged core gear).
     const catsActive = this._cats.size > 0;
+    const booksActive = this._books.size > 0;
     const matchesCat = (it) => !catsActive || this._cats.has(it.category) || this._cats.has(`${it.category}/${it.sub}`);
+    const matchesBook = (it) => !booksActive || (it.canon === "core" && this._books.has("__core__")) || this._books.has(it.supplement);
     const rows = [];
     for (const it of all) {
       if (!isVisibleTo(it.supplement, it.canon, cfg, isGM)) continue;
       if (!matchesCat(it)) continue;
+      if (!matchesBook(it)) continue;
       if (search && !it.name.toLowerCase().includes(search)) continue;
       rows.push({ ...it, fashion: it.category === "Gear" && it.sub === "Fashion" });
     }
@@ -159,11 +167,27 @@ export class CatalogBrowser extends Application {
       subs: c.subs.map(s => ({ key: `${c.key}/${s}`, label: s, active: this._cats.has(`${c.key}/${s}`) }))
     }));
   }
-  _sourcePanel(all, cfg) {
-    const present = new Set(all.map(i => i.supplement + " " + i.canon));
-    const enabled = cfg.enabledSources;
-    const mk = (names, canon) => names.filter(n => present.has(n + " " + canon)).map(n => ({ name: n, enabled: enabled[n] === true }));
-    return { official: mk(knownOfficialSupplements(), "official"), homebrew: shopAllowHomebrew() ? mk(knownNoncanonSources(), "noncanon") : [], allowHomebrew: shopAllowHomebrew() };
+  /** The "Books" filter panel: one chip per source book that has items (Core pinned at the top, then
+   *  official, then homebrew). Each chip is a display filter; on the GM's catalog/build view each official
+   *  /homebrew chip also carries an eye toggle for player visibility (the old per-source curation). */
+  _booksPanel(all, { isGM, cfg, canCurate }) {
+    const present = new Set(all.map(i => i.supplement + " " + i.canon));
+    const enabled = cfg.enabledSources ?? {};
+    const seen = (name, canon) => present.has(name + " " + canon) && (isGM || isVisibleTo(name, canon, cfg, false));
+    const mk = (names, canon) => names.filter(n => seen(n, canon)).map(n => ({
+      key: n, name: n, short: shortSupplement(n),
+      active: this._books.has(n), curate: canCurate, enabled: enabled[n] === true
+    }));
+    const coreLabel = game.i18n.localize("CYBERPUNK.CatalogCore");
+    const core = all.some(i => i.canon === "core")
+      ? [{ key: "__core__", name: coreLabel, short: coreLabel, active: this._books.has("__core__"), curate: false }]
+      : [];
+    const official = mk(knownOfficialSupplements(), "official");
+    const homebrew = shopAllowHomebrew() ? mk(knownNoncanonSources(), "noncanon") : [];
+    const total = core.length + official.length + homebrew.length;
+    // canCurate gates the eye-toggles AND the one-line hint that explains them (GM catalog/build only).
+    // Show the panel for the GM whenever any book exists; for players only when there's >1 to pick between.
+    return { core, official, homebrew, allowHomebrew: shopAllowHomebrew(), canCurate, show: total > 0 && (isGM || total > 1) };
   }
   /** Resolve a shop's stock to display rows (joined to the catalog index). */
   _vendorRows(def, idxMap) {
@@ -208,7 +232,10 @@ export class CatalogBrowser extends Application {
 
     const all = await getCatalogIndex();
     const cfg = shopSourceConfig();
-    const search = this._search.trim().toLowerCase();
+    // The TEXT search is applied CLIENT-SIDE (_applySearch) — the server renders the full
+    // category/book-filtered set once, and typing just shows/hides rows with NO re-render. This keeps the
+    // search box responsive (a full re-render per keystroke lags badly + drops input when popped out).
+    const search = "";
     if (this.view === "catalog")    return { ...common, ...this._dataCatalog(all, { isGM, cfg, search }) };
     if (this.view === "build")      return { ...common, ...this._dataBuild(all, { isGM, cfg, search }) };
     return { ...common, ...this._dataStorefront(all, { isGM, cfg, search }) };
@@ -220,17 +247,14 @@ export class CatalogBrowser extends Application {
   }
 
   _dataCatalog(all, { isGM, cfg, search }) {
-    let rows = this._filterRows(all, { isGM, cfg, search }).map(it => ({ ...it, dimmed: isGM && !sourceState(it.supplement, it.canon, cfg).enabledForPlayers }));
+    const rows = this._filterRows(all, { isGM, cfg, search });
     const letters = [];
-    const enabled = rows.filter(r => !r.dimmed), dimmed = rows.filter(r => r.dimmed);
-    if (search) { this._greedySort(enabled, search); this._greedySort(dimmed, search); }
-    else { this._assignLetters(enabled, true, letters); this._assignLetters(dimmed, false, letters); }
-    if (dimmed.length) dimmed[0]._hiddenDivider = true;
-    rows = [...enabled, ...dimmed];
+    if (search) this._greedySort(rows, search);
+    else this._assignLetters(rows, true, letters);
     return {
-      showFilters: true, showJump: true, showSearch: true, showSources: isGM,
+      showFilters: true, showJump: true, showSearch: true,
       rows, rowCount: rows.length, letters, cats: this._catTree(),
-      sourcePanel: isGM ? this._sourcePanel(all, cfg) : null
+      booksPanel: this._booksPanel(all, { isGM, cfg, canCurate: isGM })
     };
   }
 
@@ -239,21 +263,16 @@ export class CatalogBrowser extends Application {
     if (!def) return { missing: true, showSearch: false };
     const idxMap = indexByKey(all);
     const vendor = this._vendorRows(def, idxMap);
-    let rows = this._filterRows(all, { isGM, cfg, search }).map(it => ({
-      ...it, inShop: !!def.items[it.key], dimmed: isGM && !sourceState(it.supplement, it.canon, cfg).enabledForPlayers
-    }));
+    const rows = this._filterRows(all, { isGM, cfg, search }).map(it => ({ ...it, inShop: !!def.items[it.key] }));
     const letters = [];
-    const enabled = rows.filter(r => !r.dimmed), dimmed = rows.filter(r => r.dimmed);
-    if (search) { this._greedySort(enabled, search); this._greedySort(dimmed, search); }
-    else { this._assignLetters(enabled, true, letters); this._assignLetters(dimmed, false, letters); }
-    if (dimmed.length) dimmed[0]._hiddenDivider = true;
-    rows = [...enabled, ...dimmed];
+    if (search) this._greedySort(rows, search);
+    else this._assignLetters(rows, true, letters);
     return {
-      showFilters: true, showJump: true, showSearch: true, showSources: isGM,
+      showFilters: true, showJump: true, showSearch: true,
       shop: { id: def.id, name: def.name, open: def.open, fullSearch: def.fullSearch, discountPct: def.discountPct, notes: def.notes },
       vendor, vendorCount: vendor.length,
       rows, rowCount: rows.length, letters, cats: this._catTree(),
-      sourcePanel: isGM ? this._sourcePanel(all, cfg) : null
+      booksPanel: this._booksPanel(all, { isGM, cfg, canCurate: isGM })
     };
   }
 
@@ -270,7 +289,7 @@ export class CatalogBrowser extends Application {
     if (!fullSearch) {
       this._assignLetters(curated, false, []);
       return {
-        showSearch: true, showFilters: false, showJump: false, showSources: false,
+        showSearch: true, showFilters: false, showJump: false,
         shop: { id: def.id, name: def.name, open: def.open, discountPct: def.discountPct },
         rows: curated, rowCount: curated.length, letters: [], manageBack: isGM, fullSearch: false
       };
@@ -285,9 +304,10 @@ export class CatalogBrowser extends Application {
     if (featured.length) featured[0]._featuredDivider = true;
     if (rest.length && featured.length) rest[0]._restDivider = true;
     return {
-      showSearch: true, showFilters: true, showJump: true, showSources: false,
+      showSearch: true, showFilters: true, showJump: true,
       shop: { id: def.id, name: def.name, open: def.open, discountPct: def.discountPct },
       rows: [...featured, ...rest], rowCount: featured.length + rest.length, letters, cats: this._catTree(),
+      booksPanel: this._booksPanel(all, { isGM, cfg, canCurate: false }),
       manageBack: isGM, fullSearch: true
     };
   }
@@ -349,6 +369,18 @@ export class CatalogBrowser extends Application {
     try { (await game.packs.get(packId)?.getDocument(itemId))?.sheet?.render(true); } catch { /* gone */ }
   }
 
+  /** Preserve the item list's scroll position across re-renders. A buyer/token change (or any in-place
+   *  re-render) rebuilds the list DOM, which would otherwise snap it back to the top — yanking the window
+   *  away from the item you were about to buy. Capture scrollTop before, restore it after. */
+  async _render(force, options) {
+    const prev = this.element?.[0]?.querySelector?.(".cp-catalog-list")?.scrollTop ?? 0;
+    await super._render(force, options);
+    if (prev) {
+      const list = this.element?.[0]?.querySelector?.(".cp-catalog-list");
+      if (list) list.scrollTop = prev;
+    }
+  }
+
   // ── Listeners ────────────────────────────────────────────────────────────────
   activateListeners(html) {
     super.activateListeners(html);
@@ -359,6 +391,9 @@ export class CatalogBrowser extends Application {
     // Navigation.
     root.querySelector(".cp-shop-back")?.addEventListener("click", (e) => { e.preventDefault(); this.navigate("home"); });
     root.querySelector(".cp-home-catalog")?.addEventListener("click", (e) => { e.preventDefault(); this.navigate("catalog"); });
+    // Storefront "Manage" → builder. Bound here (not in _activateBuildControls, which only runs in the build
+    // view) because the button lives in the STOREFRONT header for the GM.
+    root.querySelector(".cp-shop-manage")?.addEventListener("click", (e) => { e.preventDefault(); if (this.shopId) this.navigate("build", this.shopId); });
     root.querySelectorAll(".cp-home-shop").forEach(el => el.addEventListener("click", (e) => {
       e.preventDefault();
       const id = el.dataset.shopId;
@@ -382,8 +417,9 @@ export class CatalogBrowser extends Application {
       this.render(false);
     });
 
-    // Search + source toggle.
-    root.querySelector(".cp-catalog-search")?.addEventListener("input", (ev) => { this._search = ev.currentTarget.value; clearTimeout(this._t); this._t = setTimeout(() => this.render(false), 180); });
+    // Search + source toggle. Search filters in place (no re-render) so the box stays responsive even when
+    // popped out into a second window; see _applySearch.
+    root.querySelector(".cp-catalog-search")?.addEventListener("input", (ev) => { this._search = ev.currentTarget.value; this._applySearch(root); });
     root.querySelector(".cp-catalog-showsource")?.addEventListener("change", async (ev) => { try { await game.settings.set(SCOPE, "shopShowSource", ev.currentTarget.checked); } catch {} this.render(false); });
 
     // Category filters + clear + jump.
@@ -391,7 +427,11 @@ export class CatalogBrowser extends Application {
     root.querySelector(".cp-cat-clear")?.addEventListener("click", (ev) => { ev.preventDefault(); this._cats.clear(); this.render(false); });
     root.querySelectorAll(".cp-jump").forEach(el => el.addEventListener("click", (ev) => { ev.preventDefault(); root.querySelector(`.cp-catalog-row[data-letter="${ev.currentTarget.dataset.letter}"]`)?.scrollIntoView({ block: "start", behavior: "smooth" }); }));
 
-    // GM source enable toggles.
+    // Book (supplement) filters + clear — same additive behavior as categories.
+    root.querySelectorAll(".cp-book-chip").forEach(el => el.addEventListener("click", (ev) => { ev.preventDefault(); const k = ev.currentTarget.dataset.book; this._books.has(k) ? this._books.delete(k) : this._books.add(k); this.render(false); }));
+    root.querySelector(".cp-book-clear")?.addEventListener("click", (ev) => { ev.preventDefault(); this._books.clear(); this.render(false); });
+
+    // GM per-book player-visibility (eye) toggles.
     root.querySelectorAll(".cp-src-toggle").forEach(el => el.addEventListener("change", async (ev) => {
       const name = ev.currentTarget.dataset.source;
       const map = { ...(() => { try { return game.settings.get(SCOPE, "shopEnabledSources") || {}; } catch { return {}; } })() };
@@ -422,6 +462,32 @@ export class CatalogBrowser extends Application {
 
     this._activateBuildControls(root, isGM);
     this._activateCatalogShopAdd(root, isGM);
+
+    // A render rebuilt the rows — re-apply any active text search so it composes with filter changes.
+    this._applySearch(root);
+  }
+
+  /** Client-side text search: show/hide already-rendered rows by name with NO re-render (typing stays
+   *  instant — a per-keystroke re-render lags + drops input badly when the window is popped out). The
+   *  `cp-searching` class hides the A–Z jump bar and letter headers (they're meaningless while filtering). */
+  _applySearch(root) {
+    const term = (this._search || "").trim().toLowerCase();
+    root.querySelector(".cp-catalog-center")?.classList.toggle("cp-searching", !!term);
+    const list = root.querySelector(".cp-catalog-list");
+    if (!list) return;
+    let anyVisible = false;
+    for (const row of list.querySelectorAll(".cp-catalog-row")) {
+      const name = (row.dataset.name || row.querySelector(".cp-cat-itemname")?.textContent || "").toLowerCase();
+      const show = !term || name.includes(term);
+      row.style.display = show ? "" : "none";
+      // Best-match-first among the visible rows (exact → prefix → substring) via flex `order`, so the
+      // natural alphabetical DOM order is restored untouched the moment the search clears. Equal-band rows
+      // keep source (alphabetical) order — flexbox is stable for matching `order` values.
+      row.style.order = !term ? "" : (name === term ? "0" : name.startsWith(term) ? "1" : "2");
+      if (show) anyVisible = true;
+    }
+    const nomatch = list.querySelector(".cp-catalog-nomatch");
+    if (nomatch) nomatch.style.display = (term && !anyVisible) ? "" : "none";
   }
 
   /** Catalog-view GM "Add to shop": a compact cart icon per row that opens a shop-picker menu
@@ -473,7 +539,9 @@ export class CatalogBrowser extends Application {
       const def = getShop(id);
       // Only the items NOT already stocked will be added — confirm before a large bulk add (e.g. the
       // whole catalog when no search/filter is applied) so you can't accidentally dump 900+ items.
+      // Skip rows the live text search has hidden (display:none) so "Add all shown" means exactly that.
       const newKeys = [...root.querySelectorAll(".cp-catalog-list .cp-catalog-row[data-source-key]")]
+        .filter(r => r.style.display !== "none")
         .map(r => r.dataset.sourceKey).filter(sk => sk && !def?.items?.[sk]);
       if (!newKeys.length) { ui.notifications?.info(game.i18n.localize("CYBERPUNK.ShopBulkNone")); return; }
       if (newKeys.length > BULK_ADD_CONFIRM_OVER &&
@@ -495,8 +563,35 @@ export class CatalogBrowser extends Application {
 
     // Inline economics (vendor tray).
     root.querySelectorAll(".cp-shop-price").forEach(el => el.addEventListener("change", async (ev) => { const sk = skOf(ev.currentTarget); if (!sk) return; const raw = ev.currentTarget.value.trim(); await setShopItem(id, sk, { price: raw === "" ? null : Math.max(0, Math.round(Number(raw) || 0)) }); this.render(false); }));
-    root.querySelectorAll(".cp-shop-unlimited").forEach(el => el.addEventListener("change", async (ev) => { const sk = skOf(ev.currentTarget); if (sk) { await setShopItem(id, sk, { unlimited: ev.currentTarget.checked }); this.render(false); } }));
-    root.querySelectorAll(".cp-shop-stock-qty").forEach(el => el.addEventListener("change", async (ev) => { const sk = skOf(ev.currentTarget); if (sk) await setShopItem(id, sk, { qty: Math.max(0, parseInt(ev.currentTarget.value, 10) || 0) }); }));
+    // Stock: the qty field is always editable — typing a number makes the item limited (no need to flip
+    // ∞ off first). An empty field is a no-op (use the ∞ button for unlimited).
+    root.querySelectorAll(".cp-shop-stock-qty").forEach(el => el.addEventListener("change", async (ev) => {
+      const sk = skOf(ev.currentTarget); if (!sk) return;
+      const raw = ev.currentTarget.value.trim();
+      if (raw === "") { this.render(false); return; }
+      await setShopItem(id, sk, { qty: Math.max(0, parseInt(raw, 10) || 0), unlimited: false });
+      this.render(false);
+    }));
+    // ∞ button toggles unlimited; flipping OFF defaults qty to 1 if it was 0 (so it isn't instantly sold out).
+    root.querySelectorAll(".cp-shop-inf").forEach(el => el.addEventListener("click", async (ev) => {
+      ev.preventDefault();
+      const sk = skOf(ev.currentTarget); if (!sk) return;
+      const e = normalizeShopItem(getShop(id)?.items?.[sk]);
+      await setShopItem(id, sk, e.unlimited ? { unlimited: false, qty: e.qty > 0 ? e.qty : 1 } : { unlimited: true });
+      this.render(false);
+    }));
+    // "Set all" (vendor header): apply one stock value to every item at once.
+    root.querySelector(".cp-stockall-apply")?.addEventListener("click", async (ev) => {
+      ev.preventDefault();
+      const n = Math.max(0, parseInt(root.querySelector(".cp-stockall-qty")?.value, 10) || 0);
+      await setAllShopStock(id, { unlimited: false, qty: n });
+      this.render(false);
+    });
+    root.querySelector(".cp-stockall-inf")?.addEventListener("click", async (ev) => {
+      ev.preventDefault();
+      await setAllShopStock(id, { unlimited: true });
+      this.render(false);
+    });
     // Clothing style tier (sets the style multiplier on the price). "" → null (Generic ×1).
     root.querySelectorAll(".cp-shop-style").forEach(el => el.addEventListener("change", async (ev) => { const sk = skOf(ev.currentTarget); if (sk) { await setShopItem(id, sk, { style: ev.currentTarget.value || null }); this.render(false); } }));
 
@@ -509,9 +604,7 @@ export class CatalogBrowser extends Application {
     root.querySelector(".cp-shop-publish")?.addEventListener("click", async (ev) => { ev.preventDefault(); await publishShop(id); this.render(false); });
     root.querySelector(".cp-shop-preview")?.addEventListener("click", (ev) => { ev.preventDefault(); this.navigate("storefront", id); });
     root.querySelector(".cp-shop-delete")?.addEventListener("click", async (ev) => { ev.preventDefault(); if (await Dialog.confirm({ title: getShop(id)?.name ?? "", content: `<p>${game.i18n.localize("CYBERPUNK.ShopDeleteConfirm")}</p>` })) { await deleteShop(id); this.navigate("home"); } });
-
-    // Storefront "Manage" → builder.
-    root.querySelector(".cp-shop-manage")?.addEventListener("click", (ev) => { ev.preventDefault(); this.navigate("build", this.shopId); });
+    // NOTE: the storefront "Manage" button is bound in activateListeners (this method early-returns outside build view).
 
     // Drag a catalog row into the vendor tray (in addition to ＋Add).
     root.querySelectorAll(".cp-catalog-list .cp-catalog-row[data-source-key]").forEach(row => {
@@ -630,7 +723,12 @@ export function registerShopHooks() {
     clearTimeout(_ctrlTimer);
     _ctrlTimer = setTimeout(() => {
       const buyer = resolveSidebarBuyer();
-      for (const w of Object.values(ui.windows)) { if (w instanceof CatalogBrowser && w.view !== "build") { w.buyer = buyer; w.render(false); } }
+      for (const w of Object.values(ui.windows)) {
+        if (!(w instanceof CatalogBrowser) || w.view === "build") continue;
+        if (w.buyer?.id === buyer?.id) continue;   // unchanged → don't disturb an open window
+        w.buyer = buyer;
+        w.render(false);                            // scroll is preserved by _render
+      }
     }, 50);
   });
 
