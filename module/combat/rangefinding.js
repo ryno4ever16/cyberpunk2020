@@ -20,9 +20,10 @@
  * Hit number modifiers per range (p.99):
  *   Point Blank: 10  Close: 15  Medium: 20  Long: 25  Extreme: 30
  *
- * In Foundry VTT:
- *   canvas.grid.measureDistance(pos1, pos2) returns distance in the scene's
- *   distance unit (configured per scene, typically meters or feet).
+ * In Foundry VTT (v12+/v13):
+ *   canvas.grid.measurePath([pos1, pos2]).distance returns distance in the scene's
+ *   distance unit (configured per scene, typically meters or feet). See gridDistanceBetween,
+ *   which wraps it with legacy + Euclidean fallbacks.
  *   canvas.scene.dimensions.distance = units per grid square.
  *
  * Usage: called from item.js attack flow when autoRangefinding setting is on.
@@ -88,23 +89,53 @@ export function getRangeCategory(distanceMeters, longRange) {
 }
 
 /**
- * Measure the distance in meters between two canvas tokens.
- * Uses Foundry's canvas.grid.measureDistance.
+ * Grid-aware distance in scene units between two canvas POINTS (e.g. token centers).
  *
+ * Uses the v12+/v13 grid API (`canvas.grid.measurePath`). Foundry v13 REMOVED the old
+ * `canvas.grid.measureDistances` / `measureDistance`, so calling them threw "is not a function" on a
+ * fresh v13 world. Falls back to the legacy method on older cores, then to a plain Euclidean estimate,
+ * so this never throws regardless of core version. Returns the same units the old API did (scene
+ * distance units — e.g. meters), so it's a drop-in replacement.
+ *
+ * @param {{x:number,y:number}} from
+ * @param {{x:number,y:number}} to
+ * @returns {number}
+ */
+export function gridDistanceBetween(from, to) {
+  const grid = canvas?.grid;
+  if (!grid || !from || !to) return Infinity;
+
+  // v12+/v13: grid.measurePath(waypoints).distance, already in scene units.
+  if (typeof grid.measurePath === "function") {
+    const r = grid.measurePath([from, to]);
+    return Number.isFinite(r?.distance) ? r.distance : Infinity;
+  }
+  // Legacy (<= v11): measureDistances over Ray segments.
+  if (typeof grid.measureDistances === "function") {
+    const d = grid.measureDistances([{ ray: new Ray(from, to) }], { gridSpaces: true });
+    return Number.isFinite(d?.[0]) ? d[0] : Infinity;
+  }
+  // Last resort: Euclidean pixels -> scene units.
+  const size = canvas.dimensions?.size || grid.size || 100;
+  const dist = canvas.dimensions?.distance || grid.distance || 1;
+  return (Math.hypot(to.x - from.x, to.y - from.y) / size) * dist;
+}
+
+/**
+ * Measure the distance in scene units (assumed meters) between two canvas tokens.
  * @param {Token} attackerToken
  * @param {Token} targetToken
  * @returns {number}  Distance in the scene's distance unit (assumed meters)
  */
 export function measureTokenDistance(attackerToken, targetToken) {
-  if (!canvas?.grid) return Infinity;
-
-  // Use token center positions
-  const from = { x: attackerToken.x + attackerToken.w / 2, y: attackerToken.y + attackerToken.h / 2 };
-  const to   = { x: targetToken.x   + targetToken.w   / 2, y: targetToken.y   + targetToken.h   / 2 };
-
-  const ray = new Ray(from, to);
-  const distances = canvas.grid.measureDistances([{ ray }], { gridSpaces: true });
-  return distances[0] ?? Infinity;
+  if (!attackerToken || !targetToken) return Infinity;
+  // Token center: placeables expose `.center`; fall back to a manual calc for docs/edge cases.
+  const centerOf = (t) =>
+    t.center ?? t.object?.center ?? {
+      x: (t.x ?? 0) + ((t.w ?? 0) / 2),
+      y: (t.y ?? 0) + ((t.h ?? 0) / 2),
+    };
+  return gridDistanceBetween(centerOf(attackerToken), centerOf(targetToken));
 }
 
 /**

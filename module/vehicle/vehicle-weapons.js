@@ -19,6 +19,7 @@
 import { openSingletonDialog } from "../utils.js";
 import { effectiveVehicleRuleSystem, vehicleArcEnforcement } from "../settings.js";
 import { onGlobalClick } from "../popout-compat.js";
+import { gridDistanceBetween } from "../combat/rangefinding.js";
 
 /** Average of a CP2020 damage formula ("2d6+1", "5d6", "1d10", "3d6+2"). PURE. */
 export function averageDamageFromFormula(formula) {
@@ -286,7 +287,7 @@ export async function openVehicleFireDialog(actor, mount = {}) {
   let detFacing = "front", detRange = "normal", arcWarn = "";
   if (firerTok && targetTok) {
     detFacing = VT.detectFacingFromTokens(firerTok, targetTok);
-    const dist = (() => { try { return canvas.grid.measureDistance(firerTok.center, targetTok.center); } catch { return 0; } })();
+    const dist = (() => { try { return gridDistanceBetween(firerTok.center, targetTok.center); } catch { return 0; } })();
     detRange = VT.rangeBand(dist, weaponRange);
     const bearing = VT.bearingFromFirer(firerTok, targetTok);
     arcWarn = arcWarnHtml(bearing, VT.mountArcBears(bearing, arc));

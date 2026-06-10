@@ -15,6 +15,7 @@ import { warheadProfile, shellTravelTurns, indirectToHitNumber, indirectToHitBon
 import { resolveAreaShot } from "./vehicle-area.js";
 import { openSingletonDialog } from "../utils.js";
 import { pxPerMeter, metersToUnits, metersPerUnit } from "./vehicle-grid.js";
+import { gridDistanceBetween } from "../combat/rangefinding.js";
 
 const SCOPE = "cyberpunk2020";
 
@@ -139,7 +140,7 @@ export async function openIndirectFireDialog(actor, mount = {}) {
   const firerTok = _firerTokenOf(actor);
   const scene = targetTok.document?.parent ?? canvas?.scene;
   const rangeAuto = (firerTok && targetTok)
-    ? (() => { try { return Math.round(canvas.grid.measureDistance(firerTok.center, targetTok.center) * metersPerUnit(scene)); } catch { return Number(w.range) || 0; } })()
+    ? (() => { try { return Math.round(gridDistanceBetween(firerTok.center, targetTok.center) * metersPerUnit(scene)); } catch { return Number(w.range) || 0; } })()
     : (Number(w.range) || 0);
 
   const content = `

@@ -2,6 +2,22 @@
 
 All notable changes to this system are recorded here. Dates are ISO (YYYY-MM-DD).
 
+## [1.2.1-beta] — 2026-06-10
+
+Patch over 1.2.0-beta.
+
+### Fixed
+- **Auto-rangefinder crashed on a fresh Foundry v13 world** ("`canvas.grid.measureDistances is not a
+  function`"). Foundry v13 removed that grid API; distance is now measured with the v12+/v13
+  `canvas.grid.measurePath`, wrapped in a shared helper with legacy + Euclidean fallbacks so it can't
+  throw on any supported core version.
+- Same removed-API fix applied to two vehicle range readouts (mount range band + indirect-fire range),
+  which had been silently falling back to wrong distances on v13.
+
+### Housekeeping
+- `version` → `1.2.1-beta`; `download` → `v1.2.1-beta`. Manifest stays on the `Beta-v1.2.0` branch so
+  existing 1.2.0-beta installs detect the update.
+
 ## [1.2.0-beta] — 2026-06-10
 
 A feature release adding **Shopping**, folding **ammunition into the catalog**, and several
