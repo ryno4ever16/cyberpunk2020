@@ -61,7 +61,7 @@ test("§1 damage dialog: Cover SP lowers the total, Apply writes the HP", async 
   await expect(page.locator("form.damage-dialog .damage-total-value")).toHaveText("5", { timeout: 10_000 });
 
   // Apply and confirm the HP written to the target.
-  await page.locator('form.damage-dialog button[name="apply"]').click();
+  await page.locator('form.damage-dialog button[data-action="applyDamage"]').click();
 
   // Dialog closes asynchronously after Apply — wait for it to leave the DOM.
   await expect(page.locator("form.damage-dialog")).toHaveCount(0, { timeout: 10_000 });

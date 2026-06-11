@@ -16,10 +16,12 @@
 import { ARMOR_MODES, resolveAreaDamagesSync, applyBTM, computeNetDamage, assessWoundSeverity, ablateLocationOnce } from "./DamageApplicator.js";
 import { postStunSavePrompt, postDeathSavePrompt, updateTaserState, applyAcidDotState, applyDotFromPayload } from "./save-rolls.js";
 
-export class DamageDialog extends FormApplication {
+const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
+
+export class DamageDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
   constructor(payload, target, options = {}) {
-    super({}, options);
+    super(options);
     this.payload    = payload;
     this.target     = target;
     this._overrides = {};   // { flatIndex: after-SP override }
@@ -28,18 +30,29 @@ export class DamageDialog extends FormApplication {
     this._coverSP   = 0;
   }
 
-  static get defaultOptions() {
-    return foundry.utils.mergeObject(super.defaultOptions, {
-      title:     "Apply Damage",
-      template:  "systems/cyberpunk2020/templates/dialog/damage-dialog.hbs",
-      width:     500,
-      height:    "auto",
-      classes:   ["cyberpunk", "dialog", "damage-dialog"],
-      resizable: true,
-    });
-  }
+  static DEFAULT_OPTIONS = {
+    classes:   ["cyberpunk", "dialog", "damage-dialog"],
+    tag:       "form",
+    window:    { title: "Apply Damage" },
+    position:  { width: 500, height: "auto" },
+    resizable: true,
+    actions: {
+      applyDamage:  DamageDialog._onApply,
+      cancelDialog: DamageDialog._onCancel,
+    },
+    form: {
+      // No meaningful submit — the Apply button is handled via action.
+      handler:        DamageDialog._formHandler,
+      submitOnChange: false,
+      closeOnSubmit:  false,
+    },
+  };
 
-  getData() {
+  static PARTS = {
+    main: { template: "systems/cyberpunk2020/templates/dialog/damage-dialog.hbs" },
+  };
+
+  async _prepareContext(_options) {
     const armorMode = this._armorMode ?? game.settings.get("cyberpunk2020", "damageArmorMode");
     const ablate    = this._ablate    ?? game.settings.get("cyberpunk2020", "damageAblation");
     const coverSP   = this._coverSP;
@@ -82,43 +95,46 @@ export class DamageDialog extends FormApplication {
     };
   }
 
-  activateListeners(html) {
-    super.activateListeners(html);
+  _onRender(context, options) {
+    super._onRender?.(context, options);
+    const root = this.element;
+    if (!root) return;
 
-    html.find("select[name='armorMode']").on("change", ev => {
+    root.querySelector("select[name='armorMode']")?.addEventListener("change", ev => {
       this._armorMode = ev.currentTarget.value;
       this._overrides = {};
       this.render(false);
     });
 
-    html.find("input[name='coverSP']").on("change", ev => {
+    root.querySelector("input[name='coverSP']")?.addEventListener("change", ev => {
       const v = Number(ev.currentTarget.value);
       this._coverSP   = (Number.isFinite(v) && v >= 0) ? v : 0;
       this._overrides = {};
       this.render(false);
     });
 
-    html.find("input[name='ablate']").on("change", ev => {
+    root.querySelector("input[name='ablate']")?.addEventListener("change", ev => {
       this._ablate = ev.currentTarget.checked;
     });
 
     // Override stores the after-SP value; BTM applied on Apply
-    html.find("input.after-sp-override").on("change", ev => {
-      const idx = Number(ev.currentTarget.dataset.hitIndex);
-      const val = Number(ev.currentTarget.value);
-      if (Number.isFinite(val) && val >= 0) {
-        this._overrides[idx] = val;
-      } else {
-        delete this._overrides[idx];
-      }
-      this._updateTotalDisplay(html);
+    root.querySelectorAll("input.after-sp-override").forEach(el => {
+      el.addEventListener("change", ev => {
+        const idx = Number(ev.currentTarget.dataset.hitIndex);
+        const val = Number(ev.currentTarget.value);
+        if (Number.isFinite(val) && val >= 0) {
+          this._overrides[idx] = val;
+        } else {
+          delete this._overrides[idx];
+        }
+        this._updateTotalDisplay();
+      });
     });
-
-    html.find("button[name='apply']").on("click",  this._onApply.bind(this));
-    html.find("button[name='cancel']").on("click", () => this.close());
   }
 
-  _updateTotalDisplay(html) {
+  _updateTotalDisplay() {
+    const root = this.element;
+    if (!root) return;
     const armorMode = this._armorMode ?? game.settings.get("cyberpunk2020", "damageArmorMode");
     const btm = Number(this.target.system.stats?.bt?.modifier) || 0;
     const base = resolveAreaDamagesSync({
@@ -137,17 +153,18 @@ export class DamageDialog extends FormApplication {
       const afterSP = this._overrides[i] !== undefined ? this._overrides[i] : hit.damageAfterSP;
       total += computeNetDamage(afterSP, btm, hit.penetrates, hit.location);
     });
-    html.find(".damage-total-value").text(total);
+    const el = root.querySelector(".damage-total-value");
+    if (el) el.textContent = String(total);
   }
 
-  async _onApply(ev) {
-    ev.preventDefault();
+  static async _onApply(event, target) {
+    event.preventDefault();
 
     const armorMode = this._armorMode ?? game.settings.get("cyberpunk2020", "damageArmorMode");
     const coverSP   = this._coverSP;
     const btm       = Number(this.target.system.stats?.bt?.modifier) || 0;
 
-    const ablateEl = this.element?.find("input[name='ablate']")[0];
+    const ablateEl = this.element?.querySelector("input[name='ablate']");
     const ablate   = ablateEl ? ablateEl.checked
                               : (this._ablate ?? game.settings.get("cyberpunk2020", "damageAblation"));
 
@@ -241,7 +258,12 @@ export class DamageDialog extends FormApplication {
     this.close();
   }
 
-  async _updateObject() {}
+  static _onCancel(event, target) {
+    this.close();
+  }
+
+  /** Satisfy the V2 form contract — real work is in the applyDamage action. */
+  static async _formHandler(event, form, formData) {}
 }
 
 async function _postSavePrompts(actor) {
@@ -254,4 +276,3 @@ async function _postSavePrompts(actor) {
     await postStunSavePrompt(actor, token);
   }
 }
-

@@ -5,6 +5,8 @@ import {
 import { ipSystem, ipAwardModel, ipThrottle } from "../settings.js";
 import { localize } from "../utils.js";
 
+const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
+
 /**
  * GM IP Tracker (RAW mode) — [[ip-tracker-design]].
  *
@@ -13,19 +15,27 @@ import { localize } from "../utils.js";
  * a per-skill pending summary. "Apply" resolves all rows and releases pending → banked (visible to
  * players), clearing the queue + throttle for a new cycle. GM-only.
  */
-export class IpTracker extends Application {
-  static get defaultOptions() {
-    return foundry.utils.mergeObject(super.defaultOptions, {
-      classes: ["cyberpunk", "cp-ip-tracker"],
-      template: "systems/cyberpunk2020/templates/ip/tracker.hbs",
-      title: game.i18n.localize("CYBERPUNK.IpTrackerTitle"),
-      width: 560,
-      height: 600,
-      resizable: true
-    });
-  }
+export class IpTracker extends HandlebarsApplicationMixin(ApplicationV2) {
+  static DEFAULT_OPTIONS = {
+    id: "cp-ip-tracker",
+    classes: ["cyberpunk", "cp-ip-tracker"],
+    window: { title: "CYBERPUNK.IpTrackerTitle" },
+    position: { width: 560, height: 600 },
+    resizable: true,
+    actions: {
+      ipApply:  IpTracker._onApply,
+      ipReset:  IpTracker._onReset,
+      ipManual: IpTracker._onManual,
+      ipAward:  IpTracker._onAward,
+      ipSkip:   IpTracker._onSkip,
+    },
+  };
 
-  getData() {
+  static PARTS = {
+    main: { template: "systems/cyberpunk2020/templates/ip/tracker.hbs" },
+  };
+
+  async _prepareContext(_options) {
     const auto = ipAwardModel() === "autoBaseline";
     const rows = getQueue().map(r => ({ ...r }));
 
@@ -51,9 +61,9 @@ export class IpTracker extends Application {
     };
   }
 
-  activateListeners(html) {
-    super.activateListeners(html);
-    const root = html instanceof jQuery ? html[0] : html;
+  _onRender(context, options) {
+    super._onRender?.(context, options);
+    const root = this.element;
     if (!root) return;
     const rowId = (el) => el.closest("[data-row-id]")?.dataset?.rowId;
 
@@ -63,38 +73,40 @@ export class IpTracker extends Application {
     root.querySelectorAll(".cp-ip-success").forEach(el => el.addEventListener("change", (ev) => {
       updateQueueRow(rowId(ev.currentTarget), { success: ev.currentTarget.checked });
     }));
-    root.querySelectorAll(".cp-ip-award").forEach(el => el.addEventListener("click", async (ev) => {
-      ev.preventDefault();
-      // Persist the row's current input first (change may not have fired), then resolve it.
-      const r = ev.currentTarget.closest("[data-row-id]");
-      const amt = r?.querySelector(".cp-ip-amount");
-      const suc = r?.querySelector(".cp-ip-success");
-      const patch = {};
-      if (amt) patch.ip = Math.max(0, parseInt(amt.value, 10) || 0);
-      if (suc) patch.success = suc.checked;
-      await updateQueueRow(rowId(ev.currentTarget), patch);
-      await resolveQueueRow(rowId(ev.currentTarget));
-    }));
-    root.querySelectorAll(".cp-ip-skip").forEach(el => el.addEventListener("click", async (ev) => {
-      ev.preventDefault();
-      await dismissQueueRow(rowId(ev.currentTarget));
-    }));
+  }
 
-    root.querySelector(".cp-ip-apply")?.addEventListener("click", async (ev) => {
-      ev.preventDefault();
-      await resolveAllQueue();
-      await applyPending();
-      this.render(false);
-    });
-    root.querySelector(".cp-ip-reset")?.addEventListener("click", async (ev) => {
-      ev.preventDefault();
-      await resetThrottle();
-      ui.notifications?.info(localize("IpThrottleReset"));
-    });
-    root.querySelector(".cp-ip-manual")?.addEventListener("click", (ev) => {
-      ev.preventDefault();
-      this._manualAdd();
-    });
+  // ---------- actions (static, bound by V2 via data-action) ----------
+
+  static async _onApply(event, target) {
+    await resolveAllQueue();
+    await applyPending();
+    this.render(false);
+  }
+
+  static async _onReset(event, target) {
+    await resetThrottle();
+    ui.notifications?.info(localize("IpThrottleReset"));
+  }
+
+  static _onManual(event, target) {
+    this._manualAdd();
+  }
+
+  static async _onAward(event, target) {
+    const r = target.closest("[data-row-id]");
+    const rowId = r?.dataset?.rowId;
+    const amt = r?.querySelector(".cp-ip-amount");
+    const suc = r?.querySelector(".cp-ip-success");
+    const patch = {};
+    if (amt) patch.ip = Math.max(0, parseInt(amt.value, 10) || 0);
+    if (suc) patch.success = suc.checked;
+    await updateQueueRow(rowId, patch);
+    await resolveQueueRow(rowId);
+  }
+
+  static async _onSkip(event, target) {
+    const rowId = target.closest("[data-row-id]")?.dataset?.rowId;
+    await dismissQueueRow(rowId);
   }
 
   /** Manual add: pick an actor, then a skill, then an IP amount (or add to the Simple pool). */

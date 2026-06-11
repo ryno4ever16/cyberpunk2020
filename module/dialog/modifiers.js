@@ -2,122 +2,151 @@ import { deepSet, localize, localizeParam } from "../utils.js"
 import { fireModes, caliberMatches, normalizeCaliber, isEnergyAttackType } from "../lookups.js"
 import { createCyberpunkChatMessage, getGMUserIds } from "../compat.js";
 
+const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
+
 /**
  * Dialog used to select attack, range, fire-mode and miscellaneous modifiers.
- * @implements {FormApplication}
+ * @implements {ApplicationV2}
  */
- export class ModifiersDialog extends FormApplication {
+export class ModifiersDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
-    /** @override */
-      static get defaultOptions() {
-        return foundry.utils.mergeObject(super.defaultOptions, {
-        id: "weapon-modifier",
-        classes: ["cyberpunk2020"],
-        title: localize("AttackModifiers"),
-        template: "systems/cyberpunk2020/templates/dialog/modifiers.hbs",
-        width: 500,
-        height: "auto",
-        weapon: null,
-        // Use like [[mod1, mod2], [mod3, mod4, mod5]] etc to add groupings,
-        modifierGroups: [],
-        targetTokens: [], // id and name for each target token
-        // Extra mod field for miscellaneous mod
-        extraMod: true,
-        showAdvDis: false,
-        advantage: false,
-        disadvantage: false,
-        hiddenAdvantage: false,
-        closeOnSubmit: false,
+  /**
+   * @param {Object} object  — legacy first argument (actor); kept for call-site compat but not used by the dialog itself
+   * @param {Object} options — per-instance options: weapon, modifierGroups, targetTokens, extraMod,
+   *                           showAdvDis, advantage, disadvantage, hiddenAdvantage, onConfirm, title
+   */
+  constructor(object, options = {}) {
+    // Pull dialog-specific keys out before passing the rest to ApplicationV2.
+    // ApplicationV2 accepts window.title via DEFAULT_OPTIONS; per-instance title comes from options.window.
+    const {
+      weapon           = null,
+      modifierGroups   = [],
+      targetTokens     = [],
+      extraMod         = true,
+      showAdvDis       = false,
+      advantage        = false,
+      disadvantage     = false,
+      hiddenAdvantage  = false,
+      onConfirm        = () => {},
+      title,
+      closeOnSubmit,   // consumed; ignored — V2 manages this via DEFAULT_OPTIONS.form
+      ...rest
+    } = options;
 
-        onConfirm: () => {}
-      });
-    }
-  
-    /* -------------------------------------------- */
-  
-    /**
-     * Return a reference to the target attribute
-     * @type {String}
-     */
-    get attribute() {
-        return this.options.name;
-    }
-  
-    /* -------------------------------------------- */
-  
-    /** @override */
-    getData() {
-      // Woo! This should be much more flexible than the previous implementation
-      // My gods did it require thinking about the shape of things, because loosely-typed can be a headache
+    // Allow a per-instance title via options.window.title or the legacy flat options.title.
+    const windowOpts = rest.window ?? {};
+    if (title && !windowOpts.title) windowOpts.title = title;
+    super({ ...rest, window: windowOpts });
 
-      const groups = JSON.parse(JSON.stringify(this.options.modifierGroups || []));
+    this._weapon          = weapon;
+    this._modifierGroups  = modifierGroups;
+    this._targetTokens    = targetTokens;
+    this._extraMod        = extraMod;
+    this._showAdvDis      = showAdvDis;
+    this._advantage       = advantage;
+    this._disadvantage    = disadvantage;
+    this._hiddenAdvantage = hiddenAdvantage;
+    this._onConfirm       = onConfirm;
 
-      if (this.options.weapon) {
-        const sys = this.options.weapon._getWeaponSystem ? this.options.weapon._getWeaponSystem() : this.options.weapon.system;
-        const rof = Number(sys?.rof) || 0;
-        const shotsLeft = Number(sys?.shotsLeft) || 0;
-        groups.forEach(group => {
-          group.forEach(mod => {
-            if (mod.dataPath === "roundsFired" && (mod.defaultValue === undefined || mod.defaultValue === null || mod.defaultValue === "")) {
-              mod.defaultValue = rof;
-              if (mod.min === undefined) mod.min = 1;
-              if (mod.max === undefined) mod.max = shotsLeft;
-            }
-          });
-        });
-      }
+    // Per-instance data is held on the private fields above. ApplicationV2 FREEZES `this.options`,
+    // so writing this._weapon etc. throws "object is not extensible"; internal code reads
+    // the private fields instead.
+  }
 
-      if (this.options.extraMod) {
-        const already = groups.some(g =>
-          g.some(m => m.dataPath === "extraMod"));
-        if (!already) {
-          groups.push([{
-            localKey: "ExtraModifiers",
-            dataPath: "extraMod",
-            defaultValue: 0
-          }]);
-        }
-      }
+  static DEFAULT_OPTIONS = {
+    id:      "weapon-modifier",
+    classes: ["cyberpunk2020"],
+    tag:     "form",
+    window:  { title: "CYBERPUNK.AttackModifiers" },
+    position: { width: 500, height: "auto" },
+    actions: {},
+    form: {
+      handler:        ModifiersDialog._formHandler,
+      submitOnChange: false,
+      closeOnSubmit:  false,
+    },
+  };
 
-      const defaultValues = {};
+  static PARTS = {
+    main: { template: "systems/cyberpunk2020/templates/dialog/modifiers.hbs" },
+  };
+
+  /**
+   * Return a reference to the target attribute (legacy compat).
+   * @type {String}
+   */
+  get attribute() {
+    return this.options.name;
+  }
+
+  async _prepareContext(_options) {
+    const groups = JSON.parse(JSON.stringify(this._modifierGroups || []));
+
+    if (this._weapon) {
+      const sys = this._weapon._getWeaponSystem ? this._weapon._getWeaponSystem() : this._weapon.system;
+      const rof = Number(sys?.rof) || 0;
+      const shotsLeft = Number(sys?.shotsLeft) || 0;
       groups.forEach(group => {
         group.forEach(mod => {
-          const t = mod.choices ? "select" : (["string","number","boolean"].includes(typeof mod.defaultValue) ? typeof mod.defaultValue : "string");
-          mod.fieldPath = `fields/${t}`;
-          deepSet(defaultValues, mod.dataPath, mod.defaultValue !== undefined ? mod.defaultValue : "");
+          if (mod.dataPath === "roundsFired" && (mod.defaultValue === undefined || mod.defaultValue === null || mod.defaultValue === "")) {
+            mod.defaultValue = rof;
+            if (mod.min === undefined) mod.min = 1;
+            if (mod.max === undefined) mod.max = shotsLeft;
+          }
         });
       });
-
-      return {
-        modifierGroups: groups,
-        targetTokens: this.options.targetTokens,
-        // You can't refer to indices in FormApplication form entries as far as I know, so let's give them a place to live
-        defaultValues,
-        isRanged: this.options.weapon?.isRanged?.() ?? false,
-        shotsLeft: (this.options.weapon?._getWeaponSystem?.().shotsLeft) ?? (this.options.weapon?.system.shotsLeft) ?? 0,
-        showAdvDis: this.options.showAdvDis,
-        advantage: this.options.advantage,
-        disadvantage: this.options.disadvantage,
-        isGM: game.user.isGM
-      };
     }
 
-    /** @override */
-    activateListeners(html) {
-      super.activateListeners(html);
+    if (this._extraMod) {
+      const already = groups.some(g =>
+        g.some(m => m.dataPath === "extraMod"));
+      if (!already) {
+        groups.push([{
+          localKey: "ExtraModifiers",
+          dataPath: "extraMod",
+          defaultValue: 0
+        }]);
+      }
+    }
 
-    // RELOAD
-    html.find(".reload").on("click", async (ev) => {
+    const defaultValues = {};
+    groups.forEach(group => {
+      group.forEach(mod => {
+        const t = mod.choices ? "select" : (["string","number","boolean"].includes(typeof mod.defaultValue) ? typeof mod.defaultValue : "string");
+        mod.fieldPath = `fields/${t}`;
+        deepSet(defaultValues, mod.dataPath, mod.defaultValue !== undefined ? mod.defaultValue : "");
+      });
+    });
+
+    return {
+      modifierGroups: groups,
+      targetTokens: this._targetTokens,
+      defaultValues,
+      isRanged: this._weapon?.isRanged?.() ?? false,
+      shotsLeft: (this._weapon?._getWeaponSystem?.().shotsLeft) ?? (this._weapon?.system.shotsLeft) ?? 0,
+      showAdvDis: this._showAdvDis,
+      advantage: this._advantage,
+      disadvantage: this._disadvantage,
+      isGM: game.user.isGM
+    };
+  }
+
+  _onRender(context, options) {
+    super._onRender?.(context, options);
+    const root = this.element;
+    if (!root) return;
+
+    // ── RELOAD ──────────────────────────────────────────────────────────────
+    root.querySelector(".reload")?.addEventListener("click", async (ev) => {
       ev.preventDefault();
 
-      const weapon = this.options.weapon;
+      const weapon = this._weapon;
       if (!weapon) return;
 
       const sys = weapon._getWeaponSystem?.() ?? weapon.system ?? {};
       const capacity = Number(sys.shots ?? 0);
       const currentLeft = Number(sys.shotsLeft ?? 0);
 
-      // Where weapon fields live (plain weapon vs. weapon-cyberware).
       const weaponFieldPrefix = (weapon.type === "cyberware") ? "system.CyberWorkType.Weapon." : "system.";
 
       const updateWeaponShotsLeft = async (value) => {
@@ -125,7 +154,6 @@ import { createCyberpunkChatMessage, getGMUserIds } from "../compat.js";
           await weapon.__setWeaponField("shotsLeft", value);
           return;
         }
-
         if (weapon.type === "cyberware") {
           await weapon.update({ "system.CyberWorkType.Weapon.shotsLeft": value });
         } else {
@@ -133,25 +161,19 @@ import { createCyberpunkChatMessage, getGMUserIds } from "../compat.js";
         }
       };
 
-      // Write several weapon fields at once (used to load a magazine: shots + loaded type).
       const updateWeaponFields = async (fields, opts = { render: false }) => {
         const data = {};
         for (const [k, v] of Object.entries(fields)) data[`${weaponFieldPrefix}${k}`] = v;
         await weapon.update(data, opts);
       };
 
-      // GM audit: show reload in chat for player-controlled characters (not NPCs)
       const gmReloadAudit = async (shotsLeftAfter) => {
         try {
           const actor = weapon.actor;
-
-          // Only players (non-GM) and only Characters (not NPC)
           if (actor && actor.type !== "npc" && !game.user.isGM) {
             const gmRecipients = getGMUserIds();
             if (!gmRecipients.length) return;
-
             const shotsText = `${shotsLeftAfter}/${capacity}`;
-
             await createCyberpunkChatMessage({
               speaker: ChatMessage.getSpeaker({ actor }),
               whisper: gmRecipients,
@@ -169,17 +191,16 @@ import { createCyberpunkChatMessage, getGMUserIds } from "../compat.js";
 
       const applyLocalState = (shotsLeftAfter) => {
         if (weapon.type === "weapon") {
-          this.options.weapon.system.shotsLeft = shotsLeftAfter;
+          this._weapon.system.shotsLeft = shotsLeftAfter;
         } else if (weapon.type === "cyberware" && weapon.system?.CyberWorkType?.Weapon) {
-          this.options.weapon.system.CyberWorkType.Weapon.shotsLeft = shotsLeftAfter;
+          this._weapon.system.CyberWorkType.Weapon.shotsLeft = shotsLeftAfter;
         }
-        html.find('input.number[readonly]').val(shotsLeftAfter);
+        root.querySelectorAll("input.number[readonly]").forEach(el => { el.value = String(shotsLeftAfter); });
       };
 
       const ammoTracking = weapon.actor?.getFlag?.("cyberpunk2020", "ammoTracking") ?? true;
       const ammoItemId = String(sys.ammoItemId ?? "");
 
-      // Free Fire only (tracking OFF) -> reload to capacity for free, no inventory required.
       if (!ammoTracking) {
         await updateWeaponShotsLeft(capacity);
         ui.notifications.info(localize("Reloaded"));
@@ -188,10 +209,6 @@ import { createCyberpunkChatMessage, getGMUserIds } from "../compat.js";
         return;
       }
 
-      // Energy/beam weapons (laser, microwave) recharge instead of loading ammo — CP2020 (FNFF):
-      // "Like lasers, microwavers recharge from a wall socket." Top the shot pool to capacity for free,
-      // no ammo Item required, even with ammo-tracking ON. (Firing still consumes shots; the finite
-      // capacity is real.) Keyed off attackType, so the weapon's "Special"/blank ammoType is irrelevant.
       if (isEnergyAttackType(sys.attackType)) {
         if (!Number.isFinite(capacity) || capacity <= 0) { ui.notifications.warn("This weapon cannot be recharged."); return; }
         await updateWeaponShotsLeft(capacity);
@@ -201,7 +218,6 @@ import { createCyberpunkChatMessage, getGMUserIds } from "../compat.js";
         return;
       }
 
-      // Ammo tracking ON: a linked ammo Item with rounds is required — no free refills.
       const actor = weapon.actor;
       if (!ammoItemId) {
         ui.notifications.warn(localize("NoLinkedAmmo"));
@@ -214,8 +230,6 @@ import { createCyberpunkChatMessage, getGMUserIds } from "../compat.js";
         return;
       }
 
-      // Caliber hard-block: the ammo's caliber must match the weapon's chamber. A blank ammo
-      // caliber is a wildcard (back-compat for ammo created before the caliber system existed).
       const weaponCaliber = normalizeCaliber(sys.ammoType ?? "");
       if (!caliberMatches(weaponCaliber, ammoItem.system?.caliber ?? "")) {
         ui.notifications.warn(localizeParam("AmmoCaliberMismatch", {
@@ -225,8 +239,6 @@ import { createCyberpunkChatMessage, getGMUserIds } from "../compat.js";
         return;
       }
 
-      // One type at a time: refuse to load a different ammo over a partially-loaded magazine.
-      // The player must Unload first (RAW — you can't mix ammo types in a magazine).
       const loadedId = String(sys.loadedAmmoId ?? "");
       if (currentLeft > 0 && loadedId && loadedId !== ammoItemId) {
         ui.notifications.warn(localize("AmmoUnloadFirst"));
@@ -256,12 +268,9 @@ import { createCyberpunkChatMessage, getGMUserIds } from "../compat.js";
       let ammoToLoad;
       let shotsLeftAfter;
       if (reloadByMagazines) {
-        // Whole-magazine reload: a fresh box tops the magazine; partial box gives a partial mag.
         ammoToLoad = Math.min(capacity, ammoQty);
         shotsLeftAfter = ammoToLoad;
       } else {
-        // Loose-rounds reload: feed only what's missing; partial fill if inventory runs out,
-        // leaving the (now empty) ammo Item in inventory for the player to replenish.
         ammoToLoad = Math.min(missing, ammoQty);
         shotsLeftAfter = currentLeft + ammoToLoad;
       }
@@ -271,8 +280,6 @@ import { createCyberpunkChatMessage, getGMUserIds } from "../compat.js";
         { render: false }
       );
 
-      // Record the loaded type ("where it came from") plus a snapshot so the rounds keep their
-      // damage profile and can be re-created on Unload even if the source item is later deleted.
       const snapObj = ammoItem.toObject();
       const loadedSnap = { name: snapObj.name, img: snapObj.img, system: snapObj.system };
       await updateWeaponFields({
@@ -285,7 +292,6 @@ import { createCyberpunkChatMessage, getGMUserIds } from "../compat.js";
       await gmReloadAudit(shotsLeftAfter);
       applyLocalState(shotsLeftAfter);
 
-      // Keep local loaded-type state coherent for the rest of this dialog session.
       const _wsys = weapon._getWeaponSystem?.() ?? weapon.system;
       if (_wsys) {
         _wsys.loadedAmmoId = ammoItem.id;
@@ -293,11 +299,11 @@ import { createCyberpunkChatMessage, getGMUserIds } from "../compat.js";
       }
     });
 
-    // UNLOAD — empty the magazine back into inventory so a different ammo type can be loaded.
-    html.find(".unload").on("click", async (ev) => {
+    // ── UNLOAD ──────────────────────────────────────────────────────────────
+    root.querySelector(".unload")?.addEventListener("click", async (ev) => {
       ev.preventDefault();
 
-      const weapon = this.options.weapon;
+      const weapon = this._weapon;
       if (!weapon) return;
 
       const sys = weapon._getWeaponSystem?.() ?? weapon.system ?? {};
@@ -313,7 +319,6 @@ import { createCyberpunkChatMessage, getGMUserIds } from "../compat.js";
       const loadedId = String(sys.loadedAmmoId ?? "");
       const loadedSnap = sys.loadedAmmo;
 
-      // 1) Return the rounds to the originating ammo Item if it still exists.
       let returnedTo = null;
       if (actor && loadedId) {
         const src = actor.items.get(loadedId);
@@ -324,7 +329,6 @@ import { createCyberpunkChatMessage, getGMUserIds } from "../compat.js";
         }
       }
 
-      // 2) Source gone — only NOW create a fresh ammo Item, faithfully from the loaded snapshot.
       if (!returnedTo && actor && loadedSnap && typeof loadedSnap === "object" && loadedSnap.system && Object.keys(loadedSnap).length) {
         const created = await actor.createEmbeddedDocuments("Item", [{
           name: loadedSnap.name || localize("UnloadedRounds"),
@@ -335,24 +339,19 @@ import { createCyberpunkChatMessage, getGMUserIds } from "../compat.js";
         returnedTo = created?.[0] ?? null;
       }
 
-      // 3) Empty the magazine and clear the loaded type. loadedAmmo is a required ObjectField,
-      //    so reset to {} rather than deleting the key (deletion -> undefined -> validation error).
-      //    _getAmmoProps only consults the snapshot when loadedAmmoId is set, so a now-orphaned
-      //    snapshot is never used once we clear loadedAmmoId.
       await weapon.update({
         [`${weaponFieldPrefix}shotsLeft`]: 0,
         [`${weaponFieldPrefix}loadedAmmoId`]: "",
         [`${weaponFieldPrefix}loadedAmmo`]: {}
       }, { render: false });
 
-      // Local state for this dialog session.
       const _wsys = weapon._getWeaponSystem?.() ?? weapon.system;
       if (_wsys) {
         _wsys.shotsLeft = 0;
         _wsys.loadedAmmoId = "";
         _wsys.loadedAmmo = {};
       }
-      html.find('input.number[readonly]').val(0);
+      root.querySelectorAll("input.number[readonly]").forEach(el => { el.value = "0"; });
 
       if (returnedTo) {
         ui.notifications.info(localizeParam("UnloadedToItem", { count: currentLeft, item: returnedTo.name }));
@@ -361,55 +360,81 @@ import { createCyberpunkChatMessage, getGMUserIds } from "../compat.js";
       }
     });
 
-      // Advantage/Disadvantage
-      html.find('input.adv, input.dis').on("change", ev => {
-        const $el = $(ev.currentTarget);
-        if ($el.hasClass("adv") && $el.prop("checked")) html.find("input.dis").prop("checked", false);
-        if ($el.hasClass("dis") && $el.prop("checked")) html.find("input.adv").prop("checked", false);
-      });
+    // ── Advantage / Disadvantage mutual exclusion ────────────────────────
+    const advEl = root.querySelector("input.adv-dis.adv");
+    const disEl = root.querySelector("input.adv-dis.dis");
+    advEl?.addEventListener("change", ev => {
+      if (ev.currentTarget.checked && disEl) disEl.checked = false;
+    });
+    disEl?.addEventListener("change", ev => {
+      if (ev.currentTarget.checked && advEl) advEl.checked = false;
+    });
 
-      // Suppressive Fire fields
-      // fire mode select
-      const $fireMode = html.find(
-        'select[name="fields.fireMode"], select[name="fireMode"], .field[data-path="fireMode"] select'
-      );
+    // ── Suppressive / Autofire field visibility ──────────────────────────
+    const fireModeEl = root.querySelector(
+      'select[name="fields.fireMode"], select[name="fireMode"], .field[data-path="fireMode"] select'
+    );
 
-      // collect strings used exclusively for suppression
-      const $supRows = $([
-        '.field[data-path="zoneWidth"]',
-        '.field[data-path="roundsFired"]',
-        '.field[data-path="targetsCount"]',
-        'input[name="fields.zoneWidth"], input[name="zoneWidth"]',
-        'input[name="fields.roundsFired"], input[name="roundsFired"]',
-        'input[name="fields.targetsCount"], input[name="targetsCount"]'
-      ].join(','), html)
-        .map((i, el) => $(el).closest('.field, .form-group')[0])
-        .get()
-        .reduce((jq, el) => jq.add(el), $());
+    // Collect the parent row elements for suppression-only fields.
+    const supSelectors = [
+      '.field[data-path="zoneWidth"]',
+      '.field[data-path="roundsFired"]',
+      '.field[data-path="targetsCount"]',
+      'input[name="fields.zoneWidth"], input[name="zoneWidth"]',
+      'input[name="fields.roundsFired"], input[name="roundsFired"]',
+      'input[name="fields.targetsCount"], input[name="targetsCount"]',
+    ];
+    const supRows = _collectParentRows(root, supSelectors);
 
-      // Autofire "rounds to fire" field — shown only for full auto.
-      const $autoRows = $([
-        '.field[data-path="autoRounds"]',
-        'input[name="fields.autoRounds"], input[name="autoRounds"]'
-      ].join(','), html)
-        .map((i, el) => $(el).closest('.field, .form-group')[0])
-        .get()
-        .reduce((jq, el) => jq.add(el), $());
+    const autoSelectors = [
+      '.field[data-path="autoRounds"]',
+      'input[name="fields.autoRounds"], input[name="autoRounds"]',
+    ];
+    const autoRows = _collectParentRows(root, autoSelectors);
 
-      const updateVisibility = () => {
-        const mode = $fireMode.val();
-        $supRows.toggle(mode === fireModes.suppressive);
-        $autoRows.toggle(mode === fireModes.fullAuto);
-      };
+    const updateVisibility = () => {
+      const mode = fireModeEl?.value ?? "";
+      _setVisible(supRows,  mode === fireModes.suppressive);
+      _setVisible(autoRows, mode === fireModes.fullAuto);
+    };
 
-      updateVisibility();
-      $fireMode.on('change', updateVisibility);
-    }
-  
-    /** @override */
-    async _updateObject(event, formData) {
-      this.object = formData;
-      const fired = await this.options.onConfirm(this.object);
-      if (fired !== false) this.close();
-    }
- }
+    updateVisibility();
+    fireModeEl?.addEventListener("change", updateVisibility);
+  }
+
+  /** Form handler — called when the submit button is clicked. */
+  static async _formHandler(event, form, formData) {
+    // formData.object holds the flat key→value map equivalent to the old FormApplication formData.
+    this.object = formData.object;
+    const fired = await this._onConfirm(this.object);
+    if (fired !== false) this.close();
+  }
+}
+
+// ── Private helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Given a root element and an array of CSS selector strings, find all matching
+ * elements then walk up to their nearest `.field` or `.form-group` parent,
+ * deduplicated. Returns a plain Array of HTMLElement.
+ */
+function _collectParentRows(root, selectors) {
+  const seen = new Set();
+  const rows = [];
+  for (const sel of selectors) {
+    let els;
+    try { els = root.querySelectorAll(sel); } catch { continue; }
+    els.forEach(el => {
+      const row = el.closest(".field, .form-group") ?? el;
+      if (!seen.has(row)) { seen.add(row); rows.push(row); }
+    });
+  }
+  return rows;
+}
+
+/** Show or hide an array of elements by toggling display:none. */
+function _setVisible(els, visible) {
+  for (const el of els) {
+    el.style.display = visible ? "" : "none";
+  }
+}

@@ -1,9 +1,9 @@
 <div class="cp-ip-tracker-window flexcol" style="height:100%;">
     <div class="flexrow" style="gap:8px; align-items:center; padding:4px 0;">
-        <button type="button" class="cp-ip-manual" title="Manually add IP to a skill (or the pool).">＋ {{localize "CYBERPUNK.IpManualAdd"}}</button>
+        <button type="button" data-action="ipManual" title="Manually add IP to a skill (or the pool).">＋ {{localize "CYBERPUNK.IpManualAdd"}}</button>
         <span class="flex-pad" style="flex:1;"></span>
-        {{#unless (equals throttle "off")}}<button type="button" class="cp-ip-reset" title="Reset the per-skill throttle counters for a fresh cycle.">↻ {{localize "CYBERPUNK.IpThrottleResetBtn"}}</button>{{/unless}}
-        <button type="button" class="cp-ip-apply" title="Award all queued rows and release pending IP to players. Starts a new cycle."><b>{{localize "CYBERPUNK.IpApply"}}</b></button>
+        {{#unless (equals throttle "off")}}<button type="button" data-action="ipReset" title="Reset the per-skill throttle counters for a fresh cycle.">↻ {{localize "CYBERPUNK.IpThrottleResetBtn"}}</button>{{/unless}}
+        <button type="button" data-action="ipApply" title="Award all queued rows and release pending IP to players. Starts a new cycle."><b>{{localize "CYBERPUNK.IpApply"}}</b></button>
     </div>
 
     {{!-- Queue of skill rolls awaiting an IP decision --}}
@@ -19,8 +19,8 @@
             {{else}}
             <input type="number" class="cp-ip-amount" value="{{row.ip}}" min="0" max="9" style="width:46px;" title="{{localize "CYBERPUNK.IpAmount"}}"/>
             {{/if}}
-            <button type="button" class="cp-ip-award" title="Award this row's IP (to pending).">✓</button>
-            <button type="button" class="cp-ip-skip" title="Discard this row (no IP).">✕</button>
+            <button type="button" data-action="ipAward" title="Award this row's IP (to pending).">✓</button>
+            <button type="button" data-action="ipSkip" title="Discard this row (no IP).">✕</button>
         </div>
         {{/each}}
         {{else}}
