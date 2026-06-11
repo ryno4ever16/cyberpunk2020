@@ -14,7 +14,9 @@
 **Run window:** started 2026-06-11, user back 2026-06-15. Branch: `v14-compat` (off `Beta-v1.2.0`). Orchestrator: Opus 4.8 (single orchestrator; all subagents dispatched + integrated by me).
 
 ## ✅ RETURN SUMMARY (read me first)
-**Planned scope is COMPLETE and dual-core green. Nothing pushed; nothing on the release branch; version + `verified` untouched (your call).**
+**Planned scope (v14/v15/v16 minus the big sheets) is COMPLETE and dual-core green. Nothing pushed; nothing on the release branch; version + `verified` untouched (your call).**
+
+**⚠ PLUS BLIND WORK after tag `pre-blind-sheets-rewrite` (3efbde3):** the two big sheets (actor + item) were ported to ApplicationV2 **without rig validation** (the rig login broke). **VALIDATE THESE FIRST** when the rig is back: run `tests/v14/big-sheets-v2.spec.js` on both rigs + open character/item/cyberware sheets and exercise tabs/drag/notes. Full residual-risk checklist + recovery steps are in the log below. If the blind ports look wrong, `git reset --hard pre-blind-sheets-rewrite` restores this fully-tested point (the blind commits are all `BLIND(...)`-prefixed).
 
 **Validation:** the full v14 Playwright suite is **18/18 on BOTH rigs** — v13.350 (`:30003`) and v14.364 (`:30002`) — plus **1102/1102 Vitest** unit tests across 22 files (pure-logic coverage of all Maximum Metal vehicle/ACPA math + core combat/IP + DataModel normalizers was added this run). Specs live in `tests/v14/` and `tests/unit/`. **Nothing pushed** (review the run with `git log Beta-v1.2.0..v14-compat`).
 
