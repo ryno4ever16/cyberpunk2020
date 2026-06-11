@@ -2090,10 +2090,10 @@ img#anatomy-img {
 .cyberpunk.vehicle header.cyberheader .fieldrow .field.cp-header-action {
   flex-grow: 0;
 }
-.cyberpunk.vehicle header.cyberheader .cp-control-roll,
-.cyberpunk.vehicle header.cyberheader .cp-vehicle-damage,
-.cyberpunk.vehicle header.cyberheader .cp-acpa-melee,
-.cyberpunk.vehicle header.cyberheader .cp-acpa-repair {
+.cyberpunk.vehicle header.cyberheader [data-action="controlRoll"],
+.cyberpunk.vehicle header.cyberheader [data-action="vehicleDamage"],
+.cyberpunk.vehicle header.cyberheader [data-action="acpaMelee"],
+.cyberpunk.vehicle header.cyberheader [data-action="acpaRepair"] {
   white-space: nowrap;
   width: auto;
   min-width: 0;
@@ -2170,7 +2170,7 @@ img#anatomy-img {
   gap: 8px;
   white-space: nowrap;
 }
-.cyberpunk.vehicle .cp-reactive-replace {
+.cyberpunk.vehicle [data-action="reactiveReplace"] {
   flex: 0 0 auto;
   width: auto;
   height: 20px;

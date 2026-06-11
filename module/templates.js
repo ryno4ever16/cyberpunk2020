@@ -72,6 +72,10 @@ export const preloadHandlebarsTemplates = async function() {
         // Armor layer assignment panel (combat tab)
         "systems/cyberpunk2020/templates/actor/parts/armor-layers-panel.hbs",
 
+        // Vehicle / ACPA sheet layouts (V2: included as partials by vehicle-sheet-wrapper.hbs)
+        "systems/cyberpunk2020/templates/actor/vehicle-sheet.hbs",
+        "systems/cyberpunk2020/templates/actor/acpa-sheet.hbs",
+
         // Damage application dialog
         "systems/cyberpunk2020/templates/dialog/damage-dialog.hbs",
     ]);

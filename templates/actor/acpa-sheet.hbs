@@ -1,8 +1,11 @@
-<form class="{{cssClass}} flexcol acpa-sheet" autocomplete="off">
-    {{!-- ACPA (powered armor) sheet — rendered for isACPA vehicles via the sheet's get template().
+{{!-- V2 sheet: the outer <form> element is provided by ApplicationV2 (tag:"form" in DEFAULT_OPTIONS).
+     Template content starts directly with the header. --}}
+    {{!-- ACPA (powered armor) sheet — rendered for isACPA vehicles via the sheet's _prepareContext.
           Same actor type + data model + combat code as a vehicle; this is a powered-armor LAYOUT.
           The detailed design/construction system (frame, Reality Interface, Reflex/Control, systems)
-          is being added incrementally below the existing combat fields. --}}
+          is being added incrementally below the existing combat fields.
+          V2 requires each PART to render a SINGLE root element, so wrap everything in one div. --}}
+<div class="cp-acpa-sheet-root flexcol">
     <header class="cyberheader">
         <div class="flexrow">
             <img class="profile-img" src="{{actor.img}}" data-edit="img" title="{{actor.name}}" height="64" width="64"/>
@@ -19,20 +22,20 @@
                     </div>
                     {{#if controlEnabled}}
                     <div class="field cp-header-action">
-                        <button type="button" class="cp-control-roll" title="Roll a Control / Maneuver check (REF + Pilot + 1d10 vs Difficulty Value). On failure, rolls the loss/failure table for the active ruleset.">🎲 Control</button>
+                        <button type="button" data-action="controlRoll" title="Roll a Control / Maneuver check (REF + Pilot + 1d10 vs Difficulty Value). On failure, rolls the loss/failure table for the active ruleset.">🎲 Control</button>
                     </div>
                     {{/if}}
                     {{#if damageEnabled}}
                     <div class="field cp-header-action">
-                        <button type="button" class="cp-vehicle-damage" title="Resolve damage against this suit. Maximum Metal compares Penetration to Armor Value, then rolls the powered-armor System Hit / Critical Hit / Integrity flow.">💥 Damage</button>
+                        <button type="button" data-action="vehicleDamage" title="Resolve damage against this suit. Maximum Metal compares Penetration to Armor Value, then rolls the powered-armor System Hit / Critical Hit / Integrity flow.">💥 Damage</button>
                     </div>
                     {{/if}}
                     {{#if mmOn}}
                     <div class="field cp-header-action">
-                        <button type="button" class="cp-acpa-melee" title="ACPA hand-to-hand (Maximum Metal p.58): Punch / Crush / Kick → vehicle-scale Penetration through the dispatcher. Target a token first.">🤜 Melee</button>
+                        <button type="button" data-action="acpaMelee" title="ACPA hand-to-hand (Maximum Metal p.58): Punch / Crush / Kick → vehicle-scale Penetration through the dispatcher. Target a token first.">🤜 Melee</button>
                     </div>
                     <div class="field cp-header-action">
-                        <button type="button" class="cp-acpa-repair" title="Field repair: restore the suit to full — frame SOP per area, SDP, power, and clear all damage/status.">🔧 Repair</button>
+                        <button type="button" data-action="acpaRepair" title="Field repair: restore the suit to full — frame SOP per area, SDP, power, and clear all damage/status.">🔧 Repair</button>
                     </div>
                     {{/if}}
                 </div>
@@ -204,12 +207,12 @@
                 <span class="cp-weapon-stat" title="Vehicle Penetration">Pen {{weapon.system.penetration}}{{#if weapon.system.ap}} AP{{/if}}{{#if weapon.system.heat}} HEAT{{/if}}</span>
                 <span class="cp-weapon-stat" title="Rate of fire">ROF {{weapon.system.rof}}</span>
                 <span class="cp-weapon-stat" title="Firing arc">{{weapon.system.arc}}</span>
-                {{#if @root.damageEnabled}}<button type="button" class="cp-weapon-fire" data-weapon-id="{{weapon.id}}" title="Fire this weapon at the target (to-hit roll → resolver)">🎯</button>{{/if}}
-                <button type="button" class="cp-weapon-edit" data-weapon-id="{{weapon.id}}" title="Edit this weapon">✎</button>
-                <button type="button" class="cp-weapon-delete" data-weapon-id="{{weapon.id}}" title="Remove this weapon">✕</button>
+                {{#if @root.damageEnabled}}<button type="button" data-action="weaponFire" data-weapon-id="{{weapon.id}}" title="Fire this weapon at the target (to-hit roll → resolver)">🎯</button>{{/if}}
+                <button type="button" data-action="weaponEdit" data-weapon-id="{{weapon.id}}" title="Edit this weapon">✎</button>
+                <button type="button" data-action="weaponDelete" data-weapon-id="{{weapon.id}}" title="Remove this weapon">✕</button>
             </div>
             {{/each}}
-            <button type="button" class="cp-weapon-add" title="Create a blank weapon to edit.">＋ Add Weapon</button>
+            <button type="button" data-action="weaponAdd" title="Create a blank weapon to edit.">＋ Add Weapon</button>
             <p style="opacity:0.6; font-size:0.78em; margin-top:2px;">Drag weapons from the <b>Vehicle Weapons (MM)</b> compendium onto this sheet, or add a blank one and edit it.</p>
         </div>
         {{/if}}
@@ -225,11 +228,11 @@
                 <span class="cp-weapon-stat" title="Body area">{{sys.system.area}}</span>
                 <span class="cp-weapon-stat" title="Spaces ({{sys.system.mount}})">{{sys.system.spaces}} sp</span>
                 <span class="cp-weapon-stat" title="Structural points (SOP) — damage {{sys.system.sopDamage}}">SOP {{sys.system.sop}}</span>
-                <button type="button" class="cp-acpa-system-edit" data-system-id="{{sys.id}}" title="Edit this system">✎</button>
-                <button type="button" class="cp-acpa-system-delete" data-system-id="{{sys.id}}" title="Remove this system">✕</button>
+                <button type="button" data-action="acpaSystemEdit" data-system-id="{{sys.id}}" title="Edit this system">✎</button>
+                <button type="button" data-action="acpaSystemDelete" data-system-id="{{sys.id}}" title="Remove this system">✕</button>
             </div>
             {{/each}}
-            <button type="button" class="cp-acpa-system-add" title="Create a blank system to edit.">＋ Add System</button>
+            <button type="button" data-action="acpaSystemAdd" title="Create a blank system to edit.">＋ Add System</button>
             <p style="opacity:0.6; font-size:0.78em; margin-top:2px;">Drag systems from the <b>ACPA Systems (MM)</b> compendium onto this sheet, or add a blank one. (Offensive weapons use the <b>Vehicle Weapons (MM)</b> compendium.)</p>
         </div>
         {{!-- Per-area spaces budget (used / available; internal + external). --}}
@@ -275,4 +278,4 @@
 
         <p style="opacity:0.6; font-size:0.8em; margin-top:6px;">Powered armor (ACPA). The full build system — Linear Frame &amp; Toughness, Reality Interface, Reflex/Control, derived SIB, per-area frame SOP, the systems catalog (per-system SOP), and the point-buy budget validator — and combat (Penetration damage, the System Hit / Critical Hit chart, melee) are in place.</p>
     </div>
-</form>
+</div>

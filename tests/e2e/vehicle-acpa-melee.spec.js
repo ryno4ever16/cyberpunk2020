@@ -69,14 +69,15 @@ test("Phase 6-5: ACPA status section + melee button render for ACPA only", async
       let root = a1.element[0] ?? a1.element;
       out.acpaStr = !!root.querySelector('[name="system.strDamage"]');
       out.acpaPower = !!root.querySelector('[name="system.powerHours"]');
-      out.acpaMelee = !!root.querySelector('.cp-acpa-melee');
+      // V2 port: .cp-acpa-melee class replaced by data-action="acpaMelee"
+      out.acpaMelee = !!root.querySelector('[data-action="acpaMelee"]');
       await a1.close();
 
       plain = await Actor.create({ name: "__PW__PLAIN", type: "vehicle", flags, system: { isACPA: false } });
       a2 = plain.sheet; await a2.render(true); await new Promise(r => setTimeout(r, 250));
       root = a2.element[0] ?? a2.element;
       out.plainStr = !!root.querySelector('[name="system.strDamage"]');
-      out.plainMelee = !!root.querySelector('.cp-acpa-melee');
+      out.plainMelee = !!root.querySelector('[data-action="acpaMelee"]');
       await a2.close();
     } finally {
       await game.settings.set("cyberpunk2020", "mmEnabled", origMM);
