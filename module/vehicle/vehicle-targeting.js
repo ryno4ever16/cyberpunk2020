@@ -44,8 +44,12 @@ export function computeFacing({ dx = 0, dy = 0, dz = 0, rotationDeg = 0 } = {}) 
   // Angle between the facing vector and the direction to the attacker.
   const dot = (fx * dx + fy * dy) / horiz;             // |facing| = 1
   const angle = Math.acos(Math.max(-1, Math.min(1, dot))) * DEG;
-  if (angle <= 45) return "front";
-  if (angle >= 135) return "rear";
+  // The ±45°/±135° boundaries are front/rear-inclusive per the rule above. Nudge by a tiny
+  // epsilon so IEEE-754 rounding (e.g. acos(√½)·180/π = 45.000000000000014) can't push an
+  // exact-45° (or exact-135°) bearing into the wrong band.
+  const EPS = 1e-9;
+  if (angle <= 45 + EPS) return "front";
+  if (angle >= 135 - EPS) return "rear";
   return "side";
 }
 
