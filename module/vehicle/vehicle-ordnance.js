@@ -166,33 +166,37 @@ export async function openIndirectFireDialog(actor, mount = {}) {
   </fieldset>
 </div>`;
 
-  const dialog = new Dialog({
-    title: `💥 Indirect Fire — ${actor.name}`,
+  const dialog = new foundry.applications.api.DialogV2({
+    window: { title: `💥 Indirect Fire — ${actor.name}` },
     content,
-    default: "fire",
-    buttons: {
-      fire: { label: "💥 Fire for Effect", callback: async (html) => {
-        const root = html instanceof jQuery ? html[0] : html;
-        const shell = shells[_num(root, "#cp-if-shell")] ?? shells[0];
-        const mods = (_chk(root, "#cp-if-distract") ? -10 : 0) + (_chk(root, "#cp-if-optics") ? 10 : 0)
-                   + (_chk(root, "#cp-if-link") ? 5 : 0) + (_chk(root, "#cp-if-dark") ? -3 : 0) + _num(root, "#cp-if-other");
-        const bonus = indirectToHitBonus({ spotterHW: _num(root, "#cp-if-shw"), spotterINT: _num(root, "#cp-if-sint"), firerHW: _num(root, "#cp-if-fhw"), mods });
-        const tn = indirectToHitNumber({ alreadyRangedIn: _chk(root, "#cp-if-ranged") });
-        const rangeM = _num(root, "#cp-if-range");
-        const d10 = (await new Roll("1d10").evaluate()).total;
-        const dir = (await new Roll("1d10").evaluate()).total;
-        const total = d10 + bonus;
-        const land = indirectLanding({ aim: _center(targetTok), rangeM, toHitTotal: total, toHitNumber: tn, d10dir: dir, ppm: _ppm(scene) });
-        await resolveWarheadBurst({ firerToken: firerTok, origin: land.point, warhead: shell.warhead, pen: shell.pen, burstM: shell.burst, payload: { weaponName: shell.name, ap: shell.ap, range: "normal" }, scene });
-        const travel = shellTravelTurns(rangeM, kind);
-        const verdict = land.hit
-          ? `<span style="color:#3ad13a;font-weight:bold;">ON TARGET</span> (1d10 ${d10} + ${bonus} = ${total} vs ${tn})`
-          : `<span style="color:#e0a020;font-weight:bold;">SCATTER</span> ${Math.round(land.deviationM)}m (missed by ${land.missedBy}; 1d10 ${d10} + ${bonus} = ${total} vs ${tn})`;
-        await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} — ${shell.name} (indirect)`, content:
-          `<div class="cyberpunk vehicle-fire-result"><h3>💥 ${shell.name}</h3><div>${verdict}</div><div style="opacity:0.8;font-size:0.85em;margin-top:2px;">Shell travel ≈ <b>${travel}</b> turn${travel !== 1 ? "s" : ""} (${kind === "artillery" ? "600" : "400"} m/turn).</div></div>` });
-      } },
-      cancel: { label: "Cancel" },
-    },
+    buttons: [
+      {
+        action: "fire",
+        label: "💥 Fire for Effect",
+        default: true,
+        callback: async (ev, btn, dlg) => {
+          const root = dlg.element;
+          const shell = shells[_num(root, "#cp-if-shell")] ?? shells[0];
+          const mods = (_chk(root, "#cp-if-distract") ? -10 : 0) + (_chk(root, "#cp-if-optics") ? 10 : 0)
+                     + (_chk(root, "#cp-if-link") ? 5 : 0) + (_chk(root, "#cp-if-dark") ? -3 : 0) + _num(root, "#cp-if-other");
+          const bonus = indirectToHitBonus({ spotterHW: _num(root, "#cp-if-shw"), spotterINT: _num(root, "#cp-if-sint"), firerHW: _num(root, "#cp-if-fhw"), mods });
+          const tn = indirectToHitNumber({ alreadyRangedIn: _chk(root, "#cp-if-ranged") });
+          const rangeM = _num(root, "#cp-if-range");
+          const d10 = (await new Roll("1d10").evaluate()).total;
+          const dir = (await new Roll("1d10").evaluate()).total;
+          const total = d10 + bonus;
+          const land = indirectLanding({ aim: _center(targetTok), rangeM, toHitTotal: total, toHitNumber: tn, d10dir: dir, ppm: _ppm(scene) });
+          await resolveWarheadBurst({ firerToken: firerTok, origin: land.point, warhead: shell.warhead, pen: shell.pen, burstM: shell.burst, payload: { weaponName: shell.name, ap: shell.ap, range: "normal" }, scene });
+          const travel = shellTravelTurns(rangeM, kind);
+          const verdict = land.hit
+            ? `<span style="color:#3ad13a;font-weight:bold;">ON TARGET</span> (1d10 ${d10} + ${bonus} = ${total} vs ${tn})`
+            : `<span style="color:#e0a020;font-weight:bold;">SCATTER</span> ${Math.round(land.deviationM)}m (missed by ${land.missedBy}; 1d10 ${d10} + ${bonus} = ${total} vs ${tn})`;
+          await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} — ${shell.name} (indirect)`, content:
+            `<div class="cyberpunk vehicle-fire-result"><h3>💥 ${shell.name}</h3><div>${verdict}</div><div style="opacity:0.8;font-size:0.85em;margin-top:2px;">Shell travel ≈ <b>${travel}</b> turn${travel !== 1 ? "s" : ""} (${kind === "artillery" ? "600" : "400"} m/turn).</div></div>` });
+        },
+      },
+      { action: "cancel", label: "Cancel" },
+    ],
   });
   return openSingletonDialog(`vehicle-indirect:${actor.id}`, () => dialog);
 }
@@ -228,36 +232,40 @@ export async function openBombDialog(actor, mount = {}) {
   <label>Other to-hit mods <input type="number" id="cp-bm-other" value="0" style="width:44px;"></label>
 </div>`;
 
-  const dialog = new Dialog({
-    title: `🛩 Bombing — ${actor.name}`,
+  const dialog = new foundry.applications.api.DialogV2({
+    window: { title: `🛩 Bombing — ${actor.name}` },
     content,
-    default: "drop",
-    buttons: {
-      drop: { label: "🛩 Drop", callback: async (html) => {
-        const root = html instanceof jQuery ? html[0] : html;
-        const shell = shells[_num(root, "#cp-bm-shell")] ?? shells[0];
-        const heightM = _num(root, "#cp-bm-height");
-        const diveTurns = _num(root, "#cp-bm-dive");
-        const diveSpeed = _num(root, "#cp-bm-speed");
-        const aim = diveBombAimBonus(diveTurns);
-        const mods = aim + _num(root, "#cp-bm-other");
-        const tn = 25;
-        const d10 = (await new Roll("1d10").evaluate()).total;
-        const dir = (await new Roll("1d10").evaluate()).total;
-        const total = d10 + mods;
-        const land = bombLanding({ aim: _center(targetTok), heightM, toHitTotal: total, toHitNumber: tn, d10dir: dir, ppm: _ppm(scene) });
-        // A direct hit multiplies the warhead's Penetration ×5 (MM p.9). The burst carries that.
-        const pen = land.hit ? bombDirectPen(shell.pen) : shell.pen;
-        await resolveWarheadBurst({ firerToken: firerTok, origin: land.point, warhead: shell.warhead, pen, burstM: shell.burst, payload: { weaponName: shell.name, ap: shell.ap, range: "normal" }, scene });
-        const fall = bombFallTurns(heightM, { diveSpeed: diveTurns > 0 ? diveSpeed : 0 });
-        const verdict = land.hit
-          ? `<span style="color:#ff3030;font-weight:bold;">DIRECT HIT ×5</span> (1d10 ${d10} + ${mods} = ${total} vs ${tn}) — Pen ${pen}`
-          : `<span style="color:#e0a020;font-weight:bold;">MISS</span>, scatters ${Math.round(land.deviationM)}m (missed by ${land.missedBy})`;
-        await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} — ${shell.name} (bomb)`, content:
-          `<div class="cyberpunk vehicle-fire-result"><h3>🛩 ${shell.name}</h3><div>${verdict}</div><div style="opacity:0.8;font-size:0.85em;margin-top:2px;">Falls ≈ <b>${fall}</b> turn${fall !== 1 ? "s" : ""}${diveTurns > 0 && diveSpeed > 175 ? " (dive)" : ""}${aim ? ` · dive aim +${aim}` : ""}.</div></div>` });
-      } },
-      cancel: { label: "Cancel" },
-    },
+    buttons: [
+      {
+        action: "drop",
+        label: "🛩 Drop",
+        default: true,
+        callback: async (ev, btn, dlg) => {
+          const root = dlg.element;
+          const shell = shells[_num(root, "#cp-bm-shell")] ?? shells[0];
+          const heightM = _num(root, "#cp-bm-height");
+          const diveTurns = _num(root, "#cp-bm-dive");
+          const diveSpeed = _num(root, "#cp-bm-speed");
+          const aim = diveBombAimBonus(diveTurns);
+          const mods = aim + _num(root, "#cp-bm-other");
+          const tn = 25;
+          const d10 = (await new Roll("1d10").evaluate()).total;
+          const dir = (await new Roll("1d10").evaluate()).total;
+          const total = d10 + mods;
+          const land = bombLanding({ aim: _center(targetTok), heightM, toHitTotal: total, toHitNumber: tn, d10dir: dir, ppm: _ppm(scene) });
+          // A direct hit multiplies the warhead's Penetration ×5 (MM p.9). The burst carries that.
+          const pen = land.hit ? bombDirectPen(shell.pen) : shell.pen;
+          await resolveWarheadBurst({ firerToken: firerTok, origin: land.point, warhead: shell.warhead, pen, burstM: shell.burst, payload: { weaponName: shell.name, ap: shell.ap, range: "normal" }, scene });
+          const fall = bombFallTurns(heightM, { diveSpeed: diveTurns > 0 ? diveSpeed : 0 });
+          const verdict = land.hit
+            ? `<span style="color:#ff3030;font-weight:bold;">DIRECT HIT ×5</span> (1d10 ${d10} + ${mods} = ${total} vs ${tn}) — Pen ${pen}`
+            : `<span style="color:#e0a020;font-weight:bold;">MISS</span>, scatters ${Math.round(land.deviationM)}m (missed by ${land.missedBy})`;
+          await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} — ${shell.name} (bomb)`, content:
+            `<div class="cyberpunk vehicle-fire-result"><h3>🛩 ${shell.name}</h3><div>${verdict}</div><div style="opacity:0.8;font-size:0.85em;margin-top:2px;">Falls ≈ <b>${fall}</b> turn${fall !== 1 ? "s" : ""}${diveTurns > 0 && diveSpeed > 175 ? " (dive)" : ""}${aim ? ` · dive aim +${aim}` : ""}.</div></div>` });
+        },
+      },
+      { action: "cancel", label: "Cancel" },
+    ],
   });
   return openSingletonDialog(`vehicle-bomb:${actor.id}`, () => dialog);
 }

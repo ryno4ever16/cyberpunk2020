@@ -103,20 +103,35 @@ function _confirmInstall(o) {
 </form>`;
   return new Promise((resolve) => {
     // Buttons are built INSIDE the executor so their callbacks close over `resolve`.
-    const buttons = {
-      ok: { icon: '<i class="fas fa-syringe"></i>', label: localize("CyberInstallConfirm"),
-        callback: (h) => { const r = (h[0] ?? h); resolve({ proceed: true, installNow: true,
-          rollHumanity: r.querySelector('[name="rollHumanity"]')?.checked ?? true,
-          applyDamage: r.querySelector('[name="applyDamage"]')?.checked ?? true }); } }
-    };
+    const buttons = [
+      {
+        action: "ok",
+        icon: '<i class="fas fa-syringe"></i>',
+        label: localize("CyberInstallConfirm"),
+        default: true,
+        callback: (ev, btn, dlg) => {
+          const r = dlg.element;
+          resolve({ proceed: true, installNow: true,
+            rollHumanity: r.querySelector('[name="rollHumanity"]')?.checked ?? true,
+            applyDamage: r.querySelector('[name="applyDamage"]')?.checked ?? true });
+        },
+      },
+    ];
     // Only the BUY flow offers "buy only" (from the sheet you already own the item you're installing).
-    if (o.showPart) buttons.buyOnly = {
-      icon: '<i class="fas fa-box"></i>', label: localize("CyberBuyOnly"),
-      callback: () => resolve({ proceed: true, installNow: false })
-    };
-    buttons.cancel = { icon: '<i class="fas fa-times"></i>', label: localize("Cancel"), callback: () => resolve(null) };
-    new Dialog({ title: o.title, content, buttons, default: "ok", close: () => resolve(null) },
-      { classes: ["cyberpunk", "dialog", "cp-cyber-install-dialog"], width: 440 }).render(true);
+    if (o.showPart) buttons.push({
+      action: "buyOnly",
+      icon: '<i class="fas fa-box"></i>',
+      label: localize("CyberBuyOnly"),
+      callback: () => resolve({ proceed: true, installNow: false }),
+    });
+    buttons.push({ action: "cancel", icon: '<i class="fas fa-times"></i>', label: localize("Cancel"), callback: () => resolve(null) });
+    new foundry.applications.api.DialogV2({
+      window: { title: o.title },
+      content,
+      buttons,
+      rejectClose: false,
+      close: () => resolve(null),
+    }).render({ force: true });
   });
 }
 

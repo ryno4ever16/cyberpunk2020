@@ -94,16 +94,28 @@ export async function openBuyAmmoDialog(actor) {
 </form>`;
 
   return new Promise((resolve) => {
-    const dlg = new Dialog({
-      title: localize("AmmoBuyTitle"),
+    new foundry.applications.api.DialogV2({
+      window: { title: localize("AmmoBuyTitle") },
       content,
-      buttons: {
-        buy:    { icon: '<i class="fas fa-cart-plus"></i>', label: localize("AmmoBuyConfirm"), callback: async (html) => { await _doPurchase(actor, html); resolve(true); } },
-        cancel: { icon: '<i class="fas fa-times"></i>',     label: localize("Cancel"), callback: () => resolve(false) }
-      },
-      default: "buy",
-      render: (html) => {
-        const root = html[0] ?? html;
+      buttons: [
+        {
+          action: "buy",
+          icon: '<i class="fas fa-cart-plus"></i>',
+          label: localize("AmmoBuyConfirm"),
+          default: true,
+          callback: async (ev, btn, dlg) => { await _doPurchase(actor, dlg.element); resolve(true); },
+        },
+        {
+          action: "cancel",
+          icon: '<i class="fas fa-times"></i>',
+          label: localize("Cancel"),
+          callback: () => resolve(false),
+        },
+      ],
+      rejectClose: false,
+      close: () => resolve(false),
+      render: (event, dialog) => {
+        const root = dialog.element;
         const preview = root.querySelector(".cp-buy-ammo-preview");
         const update = () => {
           const cal = String(root.querySelector('[name="caliber"]')?.value ?? "");
@@ -117,9 +129,8 @@ export async function openBuyAmmoDialog(actor) {
         };
         root.querySelectorAll("select, input").forEach(el => el.addEventListener("change", update));
         update();
-      }
-    });
-    dlg.render(true);
+      },
+    }).render({ force: true });
   });
 }
 

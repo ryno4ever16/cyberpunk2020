@@ -166,16 +166,16 @@ export function registerDamageHooks() {
 
       const options = remaining.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
       const targetId = await new Promise(resolve => {
-        new Dialog({
-          title: "Wait for Turn",
+        new foundry.applications.api.DialogV2({
+          window: { title: "Wait for Turn" },
           content: `<div style="padding:4px;"><p style="margin:0 0 6px;">Act after which combatant's turn?</p><select id="cp-wait-target" style="width:100%;">${options}</select></div>`,
-          buttons: {
-            confirm: { label: "Wait",   callback: html => resolve(html.find("#cp-wait-target").val()) },
-            cancel:  { label: "Cancel", callback: () => resolve(null) },
-          },
-          default: "confirm",
+          buttons: [
+            { action: "confirm", label: "Wait",   default: true,  callback: (ev, btn, dlg) => resolve(dlg.element.querySelector("#cp-wait-target")?.value ?? null) },
+            { action: "cancel",  label: "Cancel",                  callback: () => resolve(null) },
+          ],
+          rejectClose: false,
           close: () => resolve(null),
-        }).render(true);
+        }).render({ force: true });
       });
       if (!targetId) return; // cancelled
       const targetName = remaining.find(c => c.id === targetId)?.name ?? "chosen combatant";
@@ -747,13 +747,15 @@ function _pickTargetDialog() {
   <select id="cp-target-pick" style="width:100%;">${listOptions}</select>
 </div>`;
 
-    new Dialog({
-      title: "Apply Damage — Select Target",
+    new foundry.applications.api.DialogV2({
+      window: { title: "Apply Damage — Select Target" },
       content,
-      buttons: {
-        useCanvas: {
+      buttons: [
+        {
+          action: "useCanvas",
           icon: '<i class="fas fa-crosshairs"></i>',
           label: "Use Canvas Target",
+          default: !!openTimeTarget,
           callback: () => {
             // Re-read targets at click time — GM may have targeted while dialog was open
             const tok = game.user.targets?.first() ?? null;
@@ -765,22 +767,25 @@ function _pickTargetDialog() {
             }
           },
         },
-        useList: {
+        {
+          action: "useList",
           icon: '<i class="fas fa-list"></i>',
           label: "Use List",
-          callback: (html) => {
-            const idx = Number(html.find("#cp-target-pick").val()) || 0;
+          default: !openTimeTarget,
+          callback: (ev, btn, dlg) => {
+            const idx = Number(dlg.element.querySelector("#cp-target-pick")?.value) || 0;
             resolve(validTokens[idx]?.actor ?? null);
           },
         },
-        cancel: {
+        {
+          action: "cancel",
           label: "Cancel",
           callback: () => resolve(null),
         },
-      },
-      default: openTimeTarget ? "useCanvas" : "useList",
+      ],
+      rejectClose: false,
       close: () => resolve(null),
-    }).render(true);
+    }).render({ force: true });
   });
 }
 
@@ -1866,13 +1871,15 @@ function _hookAutomationMigrationNotice() {
 
     const content = `<div style="padding:8px 4px; font-size:0.9em; line-height:1.5;">${page1}${page2}${nav}</div>`;
 
-    const dlg = new Dialog({
-      title: "Cyberpunk 2020 — Setup & What's New",
+    const dlg = new foundry.applications.api.DialogV2({
+      window: { title: "Cyberpunk 2020 — Setup & What's New" },
       content,
-      buttons: {
-        openSettings: {
+      buttons: [
+        {
+          action: "openSettings",
           icon: '<i class="fas fa-cog"></i>',
           label: "Open System Settings",
+          default: true,
           callback: () => {
             try {
               if (typeof SettingsConfig !== "undefined") {
@@ -1885,11 +1892,11 @@ function _hookAutomationMigrationNotice() {
             }
           },
         },
-      },
-      default: "openSettings",
-      render: (html) => {
-        const root = html[0] ?? html;
-        try { html.closest(".dialog").css("min-width", "520px"); } catch { /* not jQuery */ }
+      ],
+      render: (event, dialog) => {
+        const root = dialog.element;
+        // Set minimum width on the dialog's outer window element
+        try { const win = root.closest(".application") ?? root.closest(".dialog"); if (win) win.style.minWidth = "520px"; } catch { /* non-fatal */ }
         const pages = [...root.querySelectorAll(".cp-feat-page")];
         const back = root.querySelector(".cp-feat-back");
         const next = root.querySelector(".cp-feat-next");
@@ -1911,7 +1918,7 @@ function _hookAutomationMigrationNotice() {
         show(0);
       },
     });
-    dlg.render(true);
+    dlg.render({ force: true });
 }
 
 /**

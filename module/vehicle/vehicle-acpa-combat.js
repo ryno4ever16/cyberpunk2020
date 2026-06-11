@@ -60,38 +60,42 @@ export async function openAcpaMeleeDialog(actor) {
   </div>
 </div>`;
 
-  const dialog = new Dialog({
-    title: `🤜 ACPA Melee — ${actor.name}`,
+  const dialog = new foundry.applications.api.DialogV2({
+    window: { title: `🤜 ACPA Melee — ${actor.name}` },
     content,
-    default: "strike",
-    buttons: {
-      strike: { label: "🤜 Strike", callback: async (html) => {
-        const root = html instanceof jQuery ? html[0] : html;
-        const kind = root.querySelector("#cp-am-kind")?.value || "punch";
-        const ref = Number(root.querySelector("#cp-am-ref")?.value) || 0;
-        const skill = Number(root.querySelector("#cp-am-skill")?.value) || 0;
-        const dv = Number(root.querySelector("#cp-am-dv")?.value) || 15;
-        const dmg = acpaMeleeDamage(effStr, kind);
-        const pen = _meleePen(dmg.dice);
-        const d10 = (await new Roll("1d10").evaluate());
-        const total = d10.total + ref + skill;
-        const hit = total >= dv;
-        const verdict = hit ? `<span style="color:#3ad13a;font-weight:bold;">HIT</span>` : `<span style="color:#ff6060;font-weight:bold;">MISS</span>`;
-        const kindLabel = kind.charAt(0).toUpperCase() + kind.slice(1);
-        await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} — ACPA ${kind}`, rolls: [d10], content:
-          `<div class="cyberpunk vehicle-fire-result"><h3>🤜 ACPA ${kindLabel}</h3>
-             <div>To-hit: 1d10 ${d10.total} + REF ${ref} + skill ${skill} = <b>${total}</b> vs ${dv} — ${verdict}</div>
-             <div style="margin-top:2px;">Damage <b>${dmg.formula}</b> → Penetration <b>${pen}</b> (vehicle scale).</div></div>` });
-        if (hit && targetActor) {
-          // Roll the strike's real damage so an ACPA target's SOP flow uses it, not the Pen×10 estimate.
-          const dmgRoll = await new Roll(dmg.formula).evaluate();
-          const { dispatchAttack, detectFacingFromTokens } = await import("./vehicle-targeting.js");
-          const facing = (firerTok && targetTok) ? detectFacingFromTokens(firerTok, targetTok) : "front";
-          await dispatchAttack({ scale: "penetration", penetration: pen, rawDamage: dmgRoll.total, facing, targetTokenId: targetTok.id, weaponName: `ACPA ${kindLabel}` }, targetActor);
-        }
-      } },
-      cancel: { label: "Cancel" },
-    },
+    buttons: [
+      {
+        action: "strike",
+        label: "🤜 Strike",
+        default: true,
+        callback: async (ev, btn, dlg) => {
+          const root = dlg.element;
+          const kind = root.querySelector("#cp-am-kind")?.value || "punch";
+          const ref = Number(root.querySelector("#cp-am-ref")?.value) || 0;
+          const skill = Number(root.querySelector("#cp-am-skill")?.value) || 0;
+          const dv = Number(root.querySelector("#cp-am-dv")?.value) || 15;
+          const dmg = acpaMeleeDamage(effStr, kind);
+          const pen = _meleePen(dmg.dice);
+          const d10 = (await new Roll("1d10").evaluate());
+          const total = d10.total + ref + skill;
+          const hit = total >= dv;
+          const verdict = hit ? `<span style="color:#3ad13a;font-weight:bold;">HIT</span>` : `<span style="color:#ff6060;font-weight:bold;">MISS</span>`;
+          const kindLabel = kind.charAt(0).toUpperCase() + kind.slice(1);
+          await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} — ACPA ${kind}`, rolls: [d10], content:
+            `<div class="cyberpunk vehicle-fire-result"><h3>🤜 ACPA ${kindLabel}</h3>
+               <div>To-hit: 1d10 ${d10.total} + REF ${ref} + skill ${skill} = <b>${total}</b> vs ${dv} — ${verdict}</div>
+               <div style="margin-top:2px;">Damage <b>${dmg.formula}</b> → Penetration <b>${pen}</b> (vehicle scale).</div></div>` });
+          if (hit && targetActor) {
+            // Roll the strike's real damage so an ACPA target's SOP flow uses it, not the Pen×10 estimate.
+            const dmgRoll = await new Roll(dmg.formula).evaluate();
+            const { dispatchAttack, detectFacingFromTokens } = await import("./vehicle-targeting.js");
+            const facing = (firerTok && targetTok) ? detectFacingFromTokens(firerTok, targetTok) : "front";
+            await dispatchAttack({ scale: "penetration", penetration: pen, rawDamage: dmgRoll.total, facing, targetTokenId: targetTok.id, weaponName: `ACPA ${kindLabel}` }, targetActor);
+          }
+        },
+      },
+      { action: "cancel", label: "Cancel" },
+    ],
   });
   return openSingletonDialog(`acpa-melee:${actor.id}`, () => dialog);
 }

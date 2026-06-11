@@ -122,27 +122,31 @@ export class IpTracker extends HandlebarsApplicationMixin(ApplicationV2) {
   ${simple ? "" : `<div class="form-group"><label>${localize("IpManualSkill")}</label><select name="skill"></select></div>`}
   <div class="form-group"><label>${localize("IpManualAmount")}</label><input type="number" name="amount" value="1" min="1"/></div>
 </form>`;
-    const dlg = new Dialog({
-      title: localize("IpManualTitle"),
+    const dlg = new foundry.applications.api.DialogV2({
+      window: { title: localize("IpManualTitle") },
       content,
-      buttons: {
-        add: { label: localize("IpManualAdd"), callback: async (h) => {
-          const r = h[0] ?? h;
-          const actor = game.actors.get(r.querySelector('[name="actor"]')?.value);
-          const amount = Math.max(1, parseInt(r.querySelector('[name="amount"]')?.value, 10) || 1);
-          if (!actor) return;
-          if (simple) { await addToPool(actor, amount); }
-          else {
-            const skill = actor.items.get(r.querySelector('[name="skill"]')?.value);
-            if (skill) await awardPending(actor, skill, amount);
-          }
-          this.render(false);
-        } },
-        cancel: { label: localize("Cancel") }
-      },
-      default: "add",
-      render: (h) => {
-        const r = h[0] ?? h;
+      buttons: [
+        {
+          action: "add",
+          label: localize("IpManualAdd"),
+          default: true,
+          callback: async (ev, btn, dialog) => {
+            const r = dialog.element;
+            const actor = game.actors.get(r.querySelector('[name="actor"]')?.value);
+            const amount = Math.max(1, parseInt(r.querySelector('[name="amount"]')?.value, 10) || 1);
+            if (!actor) return;
+            if (simple) { await addToPool(actor, amount); }
+            else {
+              const skill = actor.items.get(r.querySelector('[name="skill"]')?.value);
+              if (skill) await awardPending(actor, skill, amount);
+            }
+            this.render(false);
+          },
+        },
+        { action: "cancel", label: localize("Cancel") },
+      ],
+      render: (event, dialog) => {
+        const r = dialog.element;
         const actorSel = r.querySelector('[name="actor"]');
         const skillSel = r.querySelector('[name="skill"]');
         const fillSkills = () => {
@@ -153,9 +157,9 @@ export class IpTracker extends HandlebarsApplicationMixin(ApplicationV2) {
         };
         actorSel?.addEventListener("change", fillSkills);
         fillSkills();
-      }
+      },
     });
-    dlg.render(true);
+    dlg.render({ force: true });
   }
 }
 

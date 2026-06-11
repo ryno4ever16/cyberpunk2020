@@ -340,14 +340,16 @@ export async function openVehicleFireDialog(actor, mount = {}) {
   </fieldset>
 </div>`;
 
-  const dialog = new Dialog({
-    title: `🎯 Fire — ${actor.name}`,
+  const dialog = new foundry.applications.api.DialogV2({
+    window: { title: `🎯 Fire — ${actor.name}` },
     content,
-    buttons: {
-      fire: {
+    buttons: [
+      {
+        action: "fire",
         label: "🎯 Fire",
-        callback: async (html) => {
-          const root = html instanceof jQuery ? html[0] : html;
+        default: true,
+        callback: async (ev, btn, dlg) => {
+          const root = dlg.element;
           const num = (id) => Number(root.querySelector(id)?.value) || 0;
           const chk = (id) => !!root.querySelector(id)?.checked;
           // Strict arc: re-check at fire time (the firer may have been rotated while the dialog was open).
@@ -386,11 +388,10 @@ export async function openVehicleFireDialog(actor, mount = {}) {
           });
         },
       },
-      cancel: { label: "Cancel" },
-    },
-    default: "fire",
-    render: (html) => {
-      const root = html instanceof jQuery ? html[0] : html;
+      { action: "cancel", label: "Cancel" },
+    ],
+    render: (event, dlg) => {
+      const root = dlg.element;
       const gSel = root.querySelector("#cp-vf-gunner");
       const refIn = root.querySelector("#cp-vf-ref");
       const skillIn = root.querySelector("#cp-vf-skill");
@@ -410,14 +411,14 @@ export async function openVehicleFireDialog(actor, mount = {}) {
       // Live arc recheck: spin/move the firing vehicle (or the target) and the warning updates in
       // place — no need to close and reopen. Under strict arc, also enable/disable the Fire button.
       if (firerTok && targetTok) {
-        const appEl = () => { const e = dialog.element; return (e instanceof jQuery ? e[0] : e) ?? root; };
         const refreshArc = () => {
           const bearing = VT.bearingFromFirer(firerTok, targetTok);
           const bears = VT.mountArcBears(bearing, arc);
-          const el = appEl();
+          const el = dialog.element ?? root;
           const warnEl = el?.querySelector("#cp-vf-arcwarn");
           if (warnEl) warnEl.innerHTML = arcWarnHtml(bearing, bears);
-          if (strictArc) { const fb = el?.querySelector('button[data-button="fire"]'); if (fb) fb.disabled = !bears; }
+          // DialogV2 buttons use data-action (not data-button)
+          if (strictArc) { const fb = el?.querySelector('button[data-action="fire"]'); if (fb) fb.disabled = !bears; }
         };
         const onTokUpdate = (doc, change) => {
           if (doc.id !== firerTok.id && doc.id !== targetTok.id) return;

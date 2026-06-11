@@ -242,10 +242,11 @@ export async function levelUpSkill(actor, skill, { confirm = true } = {}) {
   if (have < cost) { ui.notifications?.warn(localize("IpNotEnough", { cost, have })); return false; }
 
   if (confirm) {
-    const ok = await Dialog.confirm({
-      title: localize("IpLevelUpTitle", { skill: skill.name }),
+    const ok = await foundry.applications.api.DialogV2.confirm({
+      window: { title: localize("IpLevelUpTitle", { skill: skill.name }) },
       content: `<p>${localize("IpLevelUpBody", { skill: skill.name, from: Number(skill.system?.level) || 0, to: (Number(skill.system?.level) || 0) + 1, cost })}</p>`,
-      defaultYes: false
+      yes: { callback: () => true },
+      no:  { default: true, callback: () => false },
     });
     if (!ok) return false;
   }

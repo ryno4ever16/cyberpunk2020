@@ -489,16 +489,19 @@ export async function executeStabilize({ actorId }) {
   </div>
 </div>`;
 
-  new Dialog({
-    title: `Stabilize — ${actor.name}`,
+  new foundry.applications.api.DialogV2({
+    window: { title: `Stabilize — ${actor.name}` },
     content: dialogContent,
-    buttons: {
-      roll: {
+    buttons: [
+      {
+        action: "roll",
         label: "💉 Roll Stabilization",
-        callback: async (html) => {
-          const tech     = Number(html.find("#cp-stab-tech").val())     || 0;
-          const med      = Number(html.find("#cp-stab-med").val())      || 0;
-          const facility = Number(html.find("#cp-stab-facility").val()) || 0;
+        default: true,
+        callback: async (event, button, dialog) => {
+          const root = dialog.element;
+          const tech     = Number(root.querySelector("#cp-stab-tech")?.value)     || 0;
+          const med      = Number(root.querySelector("#cp-stab-med")?.value)      || 0;
+          const facility = Number(root.querySelector("#cp-stab-facility")?.value) || 0;
 
           const roll   = await new Roll("1d10").evaluate();
           const result = roll.total;
@@ -532,10 +535,9 @@ export async function executeStabilize({ actorId }) {
           }
         },
       },
-      cancel: { label: "Cancel" },
-    },
-    default: "roll",
-  }).render(true);
+      { action: "cancel", label: "Cancel" },
+    ],
+  }).render({ force: true });
 }
 
 async function _applyStatusEffect(actorId, tokenId, sceneId, statusId, restrictMovement) {

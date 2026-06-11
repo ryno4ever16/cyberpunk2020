@@ -248,14 +248,16 @@ export async function openVehicleDamageDialog(actor) {
   ${isMM ? mmBody : coreBody}
 </div>`;
 
-  const dialog = new Dialog({
-    title: `💥 Damage — ${actor.name}`,
+  const dialog = new foundry.applications.api.DialogV2({
+    window: { title: `💥 Damage — ${actor.name}` },
     content,
-    buttons: {
-      apply: {
+    buttons: [
+      {
+        action: "apply",
         label: "💥 Resolve",
-        callback: async (html) => {
-          const root = html instanceof jQuery ? html[0] : html;
+        default: true,
+        callback: async (ev, btn, dlg) => {
+          const root = dlg.element;
           const num = (id) => Number(root.querySelector(id)?.value) || 0;
           const val = (id) => root.querySelector(id)?.value;
           const facing = val("#cp-vd-facing") || "front";
@@ -270,9 +272,8 @@ export async function openVehicleDamageDialog(actor) {
           }
         },
       },
-      cancel: { label: "Cancel" },
-    },
-    default: "apply",
+      { action: "cancel", label: "Cancel" },
+    ],
   });
   return openSingletonDialog(`vehicle-damage:${actor.id}`, () => dialog);
 }

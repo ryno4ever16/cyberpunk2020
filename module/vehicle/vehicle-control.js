@@ -320,14 +320,16 @@ export async function openControlRollDialog(actor, opts = {}) {
 
   const driversById = Object.fromEntries(drivers.map(a => [a.id, a]));
 
-  const dialog = new Dialog({
-    title: `🎲 ${isMM ? "Maneuver" : "Control"} Roll — ${actor.name}`,
+  const dialog = new foundry.applications.api.DialogV2({
+    window: { title: `🎲 ${isMM ? "Maneuver" : "Control"} Roll — ${actor.name}` },
     content,
-    buttons: {
-      roll: {
+    buttons: [
+      {
+        action: "roll",
         label: "🎲 Roll",
-        callback: async (html) => {
-          const root = html instanceof jQuery ? html[0] : html;
+        default: true,
+        callback: async (ev, btn, dlg) => {
+          const root = dlg.element;
           const num = (id) => Number(root.querySelector(id)?.value) || 0;
           const checked = (id) => !!root.querySelector(id)?.checked;
           const driverId = root.querySelector("#cp-ctl-driver")?.value || "";
@@ -351,11 +353,10 @@ export async function openControlRollDialog(actor, opts = {}) {
           });
         },
       },
-      cancel: { label: "Cancel" },
-    },
-    default: "roll",
-    render: (html) => {
-      const root = html instanceof jQuery ? html[0] : html;
+      { action: "cancel", label: "Cancel" },
+    ],
+    render: (event, dlg) => {
+      const root = dlg.element;
       const refIn = root.querySelector("#cp-ctl-ref");
       const skillIn = root.querySelector("#cp-ctl-skill");
       const skillKey = root.querySelector("#cp-ctl-skillkey");
