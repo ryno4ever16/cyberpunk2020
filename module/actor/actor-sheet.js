@@ -631,15 +631,13 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
   /** Shared delete-item confirm dialog (used by the row delete controls and the gear drag-off gesture). */
   _confirmDeleteItem(item) {
     if (!item) return;
-    new Dialog({
-      title: localize("ItemDeleteConfirmTitle"),
+    foundry.applications.api.DialogV2.confirm({
+      window: { title: localize("ItemDeleteConfirmTitle") },
       content: `<p>${localizeParam("ItemDeleteConfirmText", { itemName: item.name })}</p>`,
-      buttons: {
-        yes: { label: localize("Yes"), callback: () => item.delete() },
-        no: { label: localize("No") },
-      },
-      default: "no",
-    }).render(true);
+      yes: { label: localize("Yes"), callback: () => item.delete() },
+      no: { label: localize("No"), default: true },
+      rejectClose: false,
+    });
   }
 
   /**
@@ -776,19 +774,13 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     function deleteItemDialog(ev) {
       ev.stopPropagation();
       let item = getEventItem(this, ev);
-      let confirmDialog = new Dialog({
-        title: localize("ItemDeleteConfirmTitle"),
+      foundry.applications.api.DialogV2.confirm({
+        window: { title: localize("ItemDeleteConfirmTitle") },
         content: `<p>${localizeParam("ItemDeleteConfirmText", {itemName: item.name})}</p>`,
-        buttons: {
-          yes: {
-            label: localize("Yes"),
-            callback: () => item.delete()
-          },
-          no: { label: localize("No") },
-        },
-        default:"no"
+        yes: { label: localize("Yes"), callback: () => item.delete() },
+        no: { label: localize("No"), default: true },
+        rejectClose: false,
       });
-      confirmDialog.render(true);
     }
 
     // If not editable, do nothing further
@@ -1225,19 +1217,13 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     html.find('.netrun-program .fa-trash').click(ev => {
       const item = getNetrunProgramItem(this, ev);
       if (!item) return;
-      let confirmDialog = new Dialog({
-        title: localize("ItemDeleteConfirmTitle"),
+      foundry.applications.api.DialogV2.confirm({
+        window: { title: localize("ItemDeleteConfirmTitle") },
         content: `<p>${localizeParam("ItemDeleteConfirmText", {itemName: item.name})}</p>`,
-        buttons: {
-          yes: {
-            label: localize("Yes"),
-            callback: () => item.delete()
-          },
-          no: { label: localize("No") },
-        },
-        default:"no"
+        yes: { label: localize("Yes"), callback: () => item.delete() },
+        no: { label: localize("No"), default: true },
+        rejectClose: false,
       });
-      confirmDialog.render(true);
     });
 
     html.find('.netrun-program').each((_, programElem) => {
