@@ -732,7 +732,7 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       ev.preventDefault();
       ev.stopImmediatePropagation?.();
 
-      const fp = new FilePicker({
+      const fp = new (foundry.applications?.apps?.FilePicker?.implementation ?? foundry.applications?.apps?.FilePicker ?? FilePicker)({
         type: "image",
         activeSource: "data",
         current: "",
@@ -1306,7 +1306,7 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       ev.preventDefault();
       const currentPath = this.actor.system.icon || "";
       
-      const fp = new FilePicker({
+      const fp = new (foundry.applications?.apps?.FilePicker?.implementation ?? foundry.applications?.apps?.FilePicker ?? FilePicker)({
         type: "image",
         current: currentPath,
         callback: (path) => {
