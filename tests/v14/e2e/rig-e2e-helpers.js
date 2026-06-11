@@ -37,3 +37,46 @@ export async function loginRig(page, _account, opts = {}) {
   }
   return page;
 }
+
+/**
+ * Multi-account support. The :30000 world ships extra users (a player + an assistant GM);
+ * the rig starts with only the Gamemaster, so multi-account specs first call ensureRigUsers()
+ * (run as GM) to create the matching users, then log a second context in via loginRigAs().
+ * All rig users share FVTT_RIG_PASSWORD (rig throwaway). Names match helpers/accounts.js so the
+ * ported bodies' `game.users.find(u => u.name === "...")` lookups work unchanged.
+ */
+export const RIG_USERS = [
+  { name: "Test User 1", role: 1 },          // PLAYER
+  { name: "Assistant Gamemaster", role: 3 }, // ASSISTANT (GM-for-permissions)
+];
+
+/** As GM: create any missing rig test users (idempotent). Foundry hashes the password on create. */
+export async function ensureRigUsers(gmPage, users = RIG_USERS) {
+  const { evalGameOrThrow } = await import("../../helpers/foundry.js");
+  const password = process.env.FVTT_RIG_PASSWORD ?? "";
+  return evalGameOrThrow(gmPage, async (arg) => {
+    const created = [];
+    for (const u of arg.users) {
+      if (!game.users.find((x) => x.name === u.name)) {
+        await User.create({ name: u.name, role: u.role, password: arg.password });
+        created.push(u.name);
+      }
+    }
+    return { created, totalUsers: game.users.size };
+  }, { password, users });
+}
+
+/** Join the rig as a SPECIFIC user (by display name), e.g. "Test User 1" / "Assistant Gamemaster". */
+export async function loginRigAs(page, name, password = process.env.FVTT_RIG_PASSWORD ?? "") {
+  await page.goto("/join", { waitUntil: "domcontentloaded" });
+  const sel = page.locator('select[name="userid"]');
+  await sel.waitFor({ state: "visible", timeout: 30_000 });
+  await sel.selectOption({ label: name });
+  await page.locator('input[name="password"]').fill(password);
+  await Promise.all([
+    page.waitForNavigation({ url: /\/game/, timeout: 45_000 }).catch(() => {}),
+    page.locator('button[name="join"]').click(),
+  ]);
+  await page.waitForFunction(() => window.game?.ready === true, undefined, { timeout: 60_000 });
+  return page;
+}
