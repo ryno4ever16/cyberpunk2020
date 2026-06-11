@@ -28,16 +28,15 @@ const TAB_META = {
 export const POPOUT_TABS = Object.keys(TAB_META);
 
 export class CyberpunkActorTabSheet extends CyberpunkActorSheet {
-  /** @override */
-  static get defaultOptions() {
-    return foundry.utils.mergeObject(super.defaultOptions, {
-      classes: ["cyberpunk", "sheet", "actor", "cp-tab-popout"],
-      template: "systems/cyberpunk2020/templates/actor/actor-tab-popout.hbs",
-      tabs: [],            // single tab — no in-window tab nav
-      width: 580,
-      height: 620,
-    });
-  }
+  static DEFAULT_OPTIONS = {
+    classes: ["cp-tab-popout"],          // merged with the parent's cyberpunk/sheet/actor classes (V2)
+    position: { width: 580, height: 620 },
+  };
+
+  /** Override the parent's PART so this window renders a single tab body (its own template). */
+  static PARTS = {
+    main: { template: "systems/cyberpunk2020/templates/actor/actor-tab-popout.hbs", scrollable: [""] },
+  };
 
   /** Which tab this window shows (passed through render options). */
   get tabKey() {
@@ -57,8 +56,8 @@ export class CyberpunkActorTabSheet extends CyberpunkActorSheet {
   }
 
   /** @override */
-  getData(options) {
-    const data = super.getData(options);
+  async _prepareContext(options) {
+    const data = await super._prepareContext(options);
     data.tabKey = this.tabKey;
     data.isTabPopout = true;
     return data;
@@ -73,10 +72,9 @@ export class CyberpunkActorTabSheet extends CyberpunkActorSheet {
   }
 
   /** @override */
-  async _render(force, options) {
-    const r = await super._render(force, options);
+  async _onRender(context, options) {
+    await super._onRender(context, options);
     this._syncParentNav();
-    return r;
   }
 
   /** @override */
@@ -99,14 +97,16 @@ export class CyberpunkActorTabSheet extends CyberpunkActorSheet {
       // Already open → just resurface it (NO re-render: a full render flashes the layout and would
       // wipe the shimmer overlay we're about to add).
       if (left != null && top != null) existing.setPosition({ left, top });
-      existing.bringToTop?.();
+      (existing.bringToFront ?? existing.bringToTop)?.call(existing);
       shimmerWindow(existing); // draw the eye to it
       return existing;
     }
     const meta = TAB_META[tabKey];
-    const opts = { tabKey, width: meta.width, height: meta.height };
-    if (left != null) opts.left = left;
-    if (top != null) opts.top = top;
-    return new CyberpunkActorTabSheet(actor, opts).render(true);
+    const position = { width: meta.width, height: meta.height };
+    if (left != null) position.left = left;
+    if (top != null) position.top = top;
+    // V2: ActorSheetV2 takes an options object with the document; `tabKey` is a custom option read
+    // by get tabKey(); get id() derives a per-(actor,tab) element id so windows stay distinct.
+    return new CyberpunkActorTabSheet({ document: actor, tabKey, position }).render({ force: true });
   }
 }

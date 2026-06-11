@@ -1,7 +1,7 @@
 {{!-- A single character-sheet tab, popped out into its own window (CyberpunkActorTabSheet).
       Mirrors the matching body <div> from actor-sheet.hbs (same wrapper classes) so all CSS applies,
       and marks it `active` since there is no in-window tab switcher. --}}
-<form class="{{cssClass}} flexcol cp-tab-popout-form" autocomplete="off">
+<div class="{{cssClass}} flexcol cp-tab-popout-form" style="flex:1;min-height:0;">
     <section class="sheet-body cp-tab-popout-body">
         {{#if (equals tabKey "skills")}}
         <div class="tab skills flexcol active" data-group="primary" data-tab="skills">
@@ -47,4 +47,4 @@
         </div>
         {{/if}}
     </section>
-</form>
+</div>
