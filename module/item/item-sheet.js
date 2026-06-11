@@ -6,7 +6,7 @@ import { deleteFieldUpdate, localize, cwHasType, getSkillIndex } from "../utils.
 import { createCyberpunkChatMessage, getHtmlElement, getPublicMessageMode, getRichEditorHTML, saveRichEditorHTML, rollToCyberpunkChatMessage } from "../compat.js";
 
 /** @extends {ItemSheet} */
-export class CyberpunkItemSheet extends ItemSheet {
+export class CyberpunkItemSheet extends (foundry?.appv1?.sheets?.ItemSheet ?? ItemSheet) {
 
   /** @override */
   static get defaultOptions() {

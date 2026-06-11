@@ -11,7 +11,7 @@ import { ipCost, ipLockState, canEditSkillLevels, levelUpSkill, toggleSkillLock 
 import { shoppingEnabled, ipEnabled, ipSystem, ipShowPending, reputationEnabled } from "../settings.js";
 
 /** @extends {ActorSheet} */
-export class CyberpunkActorSheet extends ActorSheet {
+export class CyberpunkActorSheet extends (foundry?.appv1?.sheets?.ActorSheet ?? ActorSheet) {
 
   /** @override */
   static get defaultOptions() {

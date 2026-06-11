@@ -17,7 +17,7 @@ import { effectiveVehicleRuleSystem, mmEnabled } from "../settings.js";
  * canvas like any other actor. The prototype-token defaults (see vehicle-canvas.js preCreateActor)
  * make that drag produce a correctly sized, low-sorted, art-fitted, vehicle-flagged token.
  */
-export class CyberpunkVehicleSheet extends ActorSheet {
+export class CyberpunkVehicleSheet extends (foundry?.appv1?.sheets?.ActorSheet ?? ActorSheet) {
 
   /** @override */
   static get defaultOptions() {

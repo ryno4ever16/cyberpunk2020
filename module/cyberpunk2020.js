@@ -82,11 +82,17 @@ Hooks.once('init', async function () {
     CONFIG.Item.dataModels.misc = CyberpunkMiscData;
 
     // Register sheets, unregister original core sheets
-    Actors.unregisterSheet("core", ActorSheet);
-    Actors.registerSheet("cyberpunk2020", CyberpunkActorSheet, { types: ["character", "npc"], makeDefault: true });
-    Actors.registerSheet("cyberpunk2020", CyberpunkVehicleSheet, { types: ["vehicle"], makeDefault: true });
-    Items.unregisterSheet("core", ItemSheet);
-    Items.registerSheet("cyberpunk2020", CyberpunkItemSheet, { makeDefault: true });
+    // v15-readiness: globals ActorSheet/ItemSheet/Actors/Items are removed in v15; use the
+    // namespaced forms, falling back to the bare globals on cores that lack them (v13).
+    const _Actors = foundry?.documents?.collections?.Actors ?? Actors;
+    const _Items = foundry?.documents?.collections?.Items ?? Items;
+    const _ActorSheetV1 = foundry?.appv1?.sheets?.ActorSheet ?? ActorSheet;
+    const _ItemSheetV1 = foundry?.appv1?.sheets?.ItemSheet ?? ItemSheet;
+    _Actors.unregisterSheet("core", _ActorSheetV1);
+    _Actors.registerSheet("cyberpunk2020", CyberpunkActorSheet, { types: ["character", "npc"], makeDefault: true });
+    _Actors.registerSheet("cyberpunk2020", CyberpunkVehicleSheet, { types: ["vehicle"], makeDefault: true });
+    _Items.unregisterSheet("core", _ItemSheetV1);
+    _Items.registerSheet("cyberpunk2020", CyberpunkItemSheet, { makeDefault: true });
 
     // Register System Settings
     registerSystemSettings();
