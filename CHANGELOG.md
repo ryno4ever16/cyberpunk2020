@@ -18,7 +18,8 @@ feature-detection). At release: bump `version` → `1.3.0-beta` and set `compati
 - **Gas clouds now drift with the wind by default** (`gasCloudAutoMove` defaults ON): a cloud moves
   ~2 m in a random direction each turn. Turn it off in System Settings to reposition manually.
 - v15-readiness: namespaced the globals Foundry removes in v15 (sheet/collection base classes,
-  `loadTemplates`) and migrated the `renderChatMessage` hook to `renderChatMessageHTML`.
+  `loadTemplates`, `renderTemplate`) and migrated the `renderChatMessage` hook to
+  `renderChatMessageHTML`; removed a dead pre-v12 `Ray`-based distance-measurement branch.
 - The IP Tracker, Damage, and Attack-Modifiers dialogs were rebuilt on the **ApplicationV2** framework.
 - v16-readiness: the ~13 remaining `Dialog` pop-ups (vehicle control/fire/damage, ACPA melee,
   cyberware install, buy-ammo, IP) were converted to **DialogV2**, and the **vehicle / ACPA actor

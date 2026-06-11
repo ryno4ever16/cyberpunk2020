@@ -110,12 +110,10 @@ export function gridDistanceBetween(from, to) {
     const r = grid.measurePath([from, to]);
     return Number.isFinite(r?.distance) ? r.distance : Infinity;
   }
-  // Legacy (<= v11): measureDistances over Ray segments.
-  if (typeof grid.measureDistances === "function") {
-    const d = grid.measureDistances([{ ray: new Ray(from, to) }], { gridSpaces: true });
-    return Number.isFinite(d?.[0]) ? d[0] : Infinity;
-  }
-  // Last resort: Euclidean pixels -> scene units.
+  // Last resort: Euclidean pixels -> scene units. (The pre-v12 `measureDistances`/`Ray`
+  // path was removed — `Ray` is a v15-removed global and `measurePath` is guaranteed on
+  // every supported core (min 13), so that branch was dead. This safety net covers the
+  // impossible "grid has neither method" case without referencing any removed global.)
   const size = canvas.dimensions?.size || grid.size || 100;
   const dist = canvas.dimensions?.distance || grid.distance || 1;
   return (Math.hypot(to.x - from.x, to.y - from.y) / size) * dist;

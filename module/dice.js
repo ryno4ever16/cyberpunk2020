@@ -145,7 +145,7 @@ export function classifyRollDice(roll) {
         await createCyberpunkRollCard({
             rolls: this.rolls,
             speaker,
-            content: await renderTemplate(templatePath, fullTemplateData)
+            content: await (foundry?.applications?.handlebars?.renderTemplate ?? renderTemplate)(templatePath, fullTemplateData)
         });
         return this;
     }
