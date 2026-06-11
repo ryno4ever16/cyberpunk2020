@@ -1439,22 +1439,23 @@ function _hookExplosion() {
 
     const weaponName = payload.weaponName ?? "Explosion";
     const fullWithin = Number(payload.blastFullDamageWithin ?? 1);
-    const templateData = {
-      t: "circle", x: cx, y: cy, direction: 0, distance: radius,
-      fillColor: "#ff8800", borderColor: "#cc4400",
-      flags: { cyberpunk2020: {
+    // Create via the core-agnostic shim (MeasuredTemplate circle on v13, Region ellipse on v14).
+    // originX/originY are stored in flags so _confirmExplosion can compute falloff distances even
+    // on v14 where a Region has no top-level x/y.
+    const handle = await createArea(scene, {
+      kind: "circle", x: cx, y: cy, radiusM: radius,
+      color: "#ff8800", borderColor: "#cc4400",
+      flags: {
         isExplosion: true, baseDamage, blastRadius: radius, blastFullDamageWithin: fullWithin,
         blastMultipliers: Array.isArray(payload.blastMultipliers) ? payload.blastMultipliers : [0.5, 0.25, 0.125, 0.0625],
         attackerId, ap: Boolean(payload.ap), edged: Boolean(payload.edged),
         armorMultSoft: Number(payload.armorMultSoft ?? 1), armorMultHard: Number(payload.armorMultHard ?? 1),
         penDamageMult: Number(payload.penDamageMult ?? 1), blastShrapnel: Boolean(payload.blastShrapnel),
         weaponName, createdRound: game.combat?.round ?? 0,
-      } },
-    };
-
-    let created;
-    try { [created] = await scene.createEmbeddedDocuments("MeasuredTemplate", [templateData]); }
-    catch (err) { console.warn("CP2020 | Explosion template creation failed:", err); return; }
+        originX: cx, originY: cy,
+      },
+    });
+    if (!handle?.doc) { console.warn("CP2020 | Explosion area creation failed"); return; }
 
     await ChatMessage.create({
       content: `<div class="cyberpunk save-prompt">
@@ -1462,8 +1463,8 @@ function _hookExplosion() {
   <div class="save-info"><span>Blast radius <b>${radius}m</b>, base damage <b>${baseDamage}</b>, full damage within <b>${fullWithin}m</b>.</span><br>
   <span style="opacity:0.75; font-size:0.85em;">If the throw missed, click Scatter to roll where it really lands; otherwise reposition for cover and click Confirm. Damage falls off by distance.</span></div>
   <div class="save-buttons" style="margin-top:6px;">
-    <button class="cp-confirm-explosion-scatter" data-template-id="${created.id}">🎲 Scatter (miss)</button>
-    <button class="cp-confirm-explosion" data-template-id="${created.id}">💥 Confirm Blast</button>
+    <button class="cp-confirm-explosion-scatter" data-template-id="${handle.doc.id}">🎲 Scatter (miss)</button>
+    <button class="cp-confirm-explosion" data-template-id="${handle.doc.id}">💥 Confirm Blast</button>
   </div>
 </div>`,
       speaker: ChatMessage.getSpeaker({ actor: attackerId ? (game.actors.get(attackerId) ?? undefined) : undefined }),
@@ -1474,15 +1475,14 @@ function _hookExplosion() {
 /** Detonate a confirmed blast: damage every token in the template with range-banded falloff. */
 async function _confirmExplosion(templateId) {
   if (!canvas?.scene || !templateId) return;
-  const tmplDoc = canvas.scene.templates.get(templateId);
-  if (!tmplDoc) { ui.notifications.warn("Explosion template not found — it may have been removed."); return; }
-  const f = tmplDoc.flags?.cyberpunk2020;
+  const scene = canvas.scene;
+
+  // Shim lookup: works on both v13 (MeasuredTemplate) and v14 (Region).
+  const handle = areaById(scene, templateId);
+  if (!handle) { ui.notifications.warn("Explosion template not found — it may have been removed."); return; }
+  const f = handle.doc.flags?.cyberpunk2020;
   if (!f?.isExplosion) return;
 
-  const tmplObj = tmplDoc.object ?? canvas.templates.placeables.find(t => t.document.id === templateId);
-  if (!tmplObj?.shape) { ui.notifications.warn("Blast shape not ready — try again in a moment."); return; }
-
-  const scene    = canvas.scene;
   const gridSize = scene.grid?.size ?? canvas?.grid?.size ?? 100;
   const gridDist = scene.grid?.distance ?? 1;
   const fullR    = Number(f.blastFullDamageWithin) || 1;
@@ -1490,20 +1490,28 @@ async function _confirmExplosion(templateId) {
   const mults    = Array.isArray(f.blastMultipliers) && f.blastMultipliers.length ? f.blastMultipliers : [0.5, 0.25, 0.125, 0.0625];
   const base     = Number(f.baseDamage) || 0;
 
+  // Blast centre: stored as originX/originY in flags (v14 Regions have no top-level x/y).
+  const originX  = Number(f.originX ?? handle.doc.x ?? 0);
+  const originY  = Number(f.originY ?? handle.doc.y ?? 0);
+
   const detailed = (() => { try { return game.settings.get("cyberpunk2020", "explosivesDetailed"); } catch { return false; } })();
 
-  const tokens = canvas.tokens.placeables.filter(tok => {
-    if (!tok.actor) return false;
-    const lx = (tok.center?.x ?? tok.x) - tmplObj.x;
-    const ly = (tok.center?.y ?? tok.y) - tmplObj.y;
-    if (!tmplObj.shape.contains(lx, ly)) return false;
-    return !_isOccluded(tmplObj.x, tmplObj.y, tok);   // cover between center and target exempts it
+  // Token containment via shim; also apply cover check using origin from flags.
+  const candidates = (scene.tokens?.contents ?? canvas.tokens.placeables.map(t => t.document ?? t))
+    .filter(td => (td.actor ?? td.document?.actor));
+  const inBlast = tokensInArea(handle, candidates);
+  const tokens = inBlast.filter(td => {
+    // td is a TokenDocument; _isOccluded expects the placeable object, so find it.
+    const tok = canvas?.tokens?.placeables?.find(t => (t.document?.id ?? t.id) === (td.id ?? td.document?.id)) ?? td;
+    return !_isOccluded(originX, originY, tok);   // cover between center and target exempts it
   });
   if (!tokens.length) { ui.notifications.info("No tokens in the blast (or all behind cover)."); return; }
 
-  for (const tok of tokens) {
-    const dxPx = (tok.center?.x ?? tok.x) - tmplObj.x;
-    const dyPx = (tok.center?.y ?? tok.y) - tmplObj.y;
+  for (const td of tokens) {
+    // Get pixel position from either a TokenDocument or a placeable.
+    const tok = canvas?.tokens?.placeables?.find(t => (t.document?.id ?? t.id) === (td.id ?? td.document?.id)) ?? td;
+    const dxPx = (tok.center?.x ?? tok.document?.x ?? tok.x ?? 0) - originX;
+    const dyPx = (tok.center?.y ?? tok.document?.y ?? tok.y ?? 0) - originY;
     const distM = (Math.hypot(dxPx, dyPx) / gridSize) * gridDist;
 
     let mult = 1;
@@ -1533,10 +1541,12 @@ async function _confirmExplosion(templateId) {
 /** Scatter a missed grenade: Grenade Table (CP2020 p.108) — 1d10 direction + 1d10 metres. */
 async function _scatterExplosion(templateId) {
   if (!canvas?.scene || !templateId) return;
-  const tmplDoc = canvas.scene.templates.get(templateId);
-  if (!tmplDoc?.flags?.cyberpunk2020?.isExplosion) { ui.notifications.warn("Blast template not found."); return; }
-
   const scene = canvas.scene;
+
+  // Shim lookup: works on both v13 (MeasuredTemplate) and v14 (Region).
+  const handle = areaById(scene, templateId);
+  if (!handle?.doc?.flags?.cyberpunk2020?.isExplosion) { ui.notifications.warn("Blast template not found."); return; }
+
   const gridSize = scene.grid?.size ?? canvas?.grid?.size ?? 100;
   const gridDist = scene.grid?.distance ?? 1;
 
@@ -1549,10 +1559,21 @@ async function _scatterExplosion(templateId) {
   const distM  = distRoll.total;
   const distPx = (distM / gridDist) * gridSize;
   const mag = Math.hypot(vx, vy) || 1;
-  const nx = tmplDoc.x + (vx / mag) * distPx;
-  const ny = tmplDoc.y + (vy / mag) * distPx;
+  const dx = (vx / mag) * distPx;
+  const dy = (vy / mag) * distPx;
 
-  await tmplDoc.update({ x: nx, y: ny });
+  // Move via the shim (MeasuredTemplate.update on v13; shifts Region shape vertices on v14).
+  await moveArea(handle, dx, dy);
+
+  // Update the stored originX/originY flags so _confirmExplosion uses the new blast centre.
+  const f = handle.doc.flags?.cyberpunk2020 ?? {};
+  const newOriginX = (Number(f.originX) || 0) + dx;
+  const newOriginY = (Number(f.originY) || 0) + dy;
+  try {
+    await handle.doc.setFlag("cyberpunk2020", "originX", newOriginX);
+    await handle.doc.setFlag("cyberpunk2020", "originY", newOriginY);
+  } catch { /* non-fatal */ }
+
   await ChatMessage.create({
     content: `<div class="cyberpunk save-prompt">🎲 <b>Scatter</b> — ${DIRNAME[dirRoll.total]}${(vx || vy) ? ` ${distM}m` : " (no drift)"}. Reposition if needed, then Confirm Blast.</div>`,
   });
@@ -1606,20 +1627,19 @@ function _hookSpread() {
       || (band === "Short" ? "4d6" : band === "Long" ? "2d6" : "3d6");   // Core defaults
 
     const weaponName = payload.weaponName ?? "Shotgun";
-    const templateData = {
-      t: "ray", x: ox, y: oy, direction: angleDeg, distance: lengthM, width: widthM,
-      fillColor: "#ffaa00", borderColor: "#cc6600",
-      flags: { cyberpunk2020: {
-        isSpreadZone: true, dmgFormula, band, attackerId,
+    // Create via the core-agnostic shim (MeasuredTemplate ray on v13, Region polygon on v14).
+    const handle = await createArea(scene, {
+      kind: "ray",
+      x: ox, y: oy, dirDeg: angleDeg, lengthM, widthM,
+      color: "#ffaa00", borderColor: "#cc6600",
+      flags: {
+        isSpreadZone: true, dmgFormula, band, attackerId, originX: ox, originY: oy,
         ap: Boolean(payload.ap), edged: Boolean(payload.edged),
         armorMultSoft: Number(payload.armorMultSoft ?? 1), armorMultHard: Number(payload.armorMultHard ?? 1),
         penDamageMult: Number(payload.penDamageMult ?? 1), weaponName, createdRound: game.combat?.round ?? 0,
-      } },
-    };
-
-    let created;
-    try { [created] = await scene.createEmbeddedDocuments("MeasuredTemplate", [templateData]); }
-    catch (err) { console.warn("CP2020 | Spread template creation failed:", err); return; }
+      },
+    });
+    if (!handle?.doc) { console.warn("CP2020 | Spread area creation failed"); return; }
 
     await ChatMessage.create({
       content: `<div class="cyberpunk save-prompt">
@@ -1627,7 +1647,7 @@ function _hookSpread() {
   <div class="save-info"><span>Range band <b>${band}</b>: width <b>${widthM}m</b>, damage <b>${dmgFormula}</b>.</span><br>
   <span style="opacity:0.75; font-size:0.85em;">Aim the pattern, then click Confirm. Everyone in the straight path is hit (CP2020 p.108).</span></div>
   <div class="save-buttons" style="margin-top:6px;">
-    <button class="cp-confirm-spread-zone" data-template-id="${created.id}">🔫 Confirm Spread Pattern</button>
+    <button class="cp-confirm-spread-zone" data-template-id="${handle.doc.id}">🔫 Confirm Spread Pattern</button>
   </div>
 </div>`,
       speaker: ChatMessage.getSpeaker({ actor: attackerId ? (game.actors.get(attackerId) ?? undefined) : undefined }),
@@ -1638,25 +1658,31 @@ function _hookSpread() {
 /** Apply spread damage to every token in the confirmed pattern (no evasion — buckshot just hits). */
 async function _confirmSpreadZone(templateId) {
   if (!canvas?.scene || !templateId) return;
-  const tmplDoc = canvas.scene.templates.get(templateId);
-  if (!tmplDoc) { ui.notifications.warn("Spread template not found — it may have been removed."); return; }
-  const f = tmplDoc.flags?.cyberpunk2020;
+  const scene = canvas.scene;
+
+  // Shim lookup: works on both v13 (MeasuredTemplate) and v14 (Region).
+  const handle = areaById(scene, templateId);
+  if (!handle) { ui.notifications.warn("Spread template not found — it may have been removed."); return; }
+  const f = handle.doc.flags?.cyberpunk2020;
   if (!f?.isSpreadZone) return;
 
-  const tmplObj = tmplDoc.object ?? canvas.templates.placeables.find(t => t.document.id === templateId);
-  if (!tmplObj?.shape) { ui.notifications.warn("Spread shape not ready — try again in a moment."); return; }
+  // Origin for cover checks: stored as originX/originY in flags at creation, with a doc.x/y
+  // fallback for legacy zones (v14 Regions have no top-level x/y).
+  const originX = Number(f.originX ?? handle.doc.x ?? 0);
+  const originY = Number(f.originY ?? handle.doc.y ?? 0);
 
-  const tokens = canvas.tokens.placeables.filter(tok => {
-    if (!tok.actor) return false;
-    if (tok.actor.id === f.attackerId) return false;   // never the shooter
-    const lx = (tok.center?.x ?? tok.x) - tmplObj.x;
-    const ly = (tok.center?.y ?? tok.y) - tmplObj.y;
-    if (!tmplObj.shape.contains(lx, ly)) return false;
-    return !_isOccluded(tmplObj.x, tmplObj.y, tok);    // intervening cover exempts spaces behind it
+  // Token containment via shim; exclude the attacker; apply cover check.
+  const candidates = (scene.tokens?.contents ?? canvas.tokens.placeables.map(t => t.document ?? t))
+    .filter(td => (td.actor ?? td.document?.actor) && (td.actor?.id ?? td.document?.actor?.id) !== f.attackerId);
+  const inPattern = tokensInArea(handle, candidates);
+  const tokens = inPattern.filter(td => {
+    const tok = canvas?.tokens?.placeables?.find(t => (t.document?.id ?? t.id) === (td.id ?? td.document?.id)) ?? td;
+    return !_isOccluded(originX, originY, tok);    // intervening cover exempts spaces behind it
   });
   if (!tokens.length) { ui.notifications.info("No tokens in the spread pattern (or all behind cover)."); return; }
 
-  for (const tok of tokens) {
+  for (const td of tokens) {
+    const tok = canvas?.tokens?.placeables?.find(t => (t.document?.id ?? t.id) === (td.id ?? td.document?.id)) ?? td;
     const dmgRoll = await new Roll(f.dmgFormula || "3d6").evaluate();
     const dmg = Math.max(0, Math.floor(dmgRoll.total));
     await _applyAreaHitToToken(tok, dmg, { ...f, weaponName: (f.weaponName ?? "Shotgun") + " (spread)" });
