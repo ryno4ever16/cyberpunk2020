@@ -181,3 +181,14 @@ export async function deleteArea(handle) {
 export function areaPreUpdateHook() {
   return usesRegions() ? "preUpdateRegion" : "preUpdateMeasuredTemplate";
 }
+
+/** Wrap an existing area document (looked up by id on its scene) into a handle, or null. */
+export function areaById(scene, id) {
+  if (!scene || !id) return null;
+  if (usesRegions()) {
+    const d = scene.regions?.get?.(id);
+    return d ? makeHandle(d, "Region") : null;
+  }
+  const d = scene.templates?.get?.(id);
+  return d ? makeHandle(d, "MeasuredTemplate") : null;
+}

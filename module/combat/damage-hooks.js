@@ -24,6 +24,7 @@ import { applyAreaDamages, ablateLocationOnce, ablateLocationByAmount, assessWou
 import { postStunSavePrompt, postDeathSavePrompt, updateTaserState, applyAcidDotState, applyDotFromPayload } from "./save-rolls.js";
 import { rollLocation }                                       from "../utils.js";
 import { dispatchAttack }                                     from "../vehicle/vehicle-targeting.js";
+import { createArea, tokensInArea, areasByFlag, deleteArea, areaById, usesRegions } from "./area-shapes.js";
 
 // Payload waiting to be attached to the next chat message created
 let _pendingPayload = null;
@@ -441,39 +442,31 @@ async function _placeSuppressiveZone(payload) {
       angleDeg = Math.round((Math.atan2(dy, dx) * 180) / Math.PI);
     }
 
-    const templateData = {
-      t:           "ray",
-      x:           attackerTok.center?.x ?? attackerTok.x,
-      y:           attackerTok.center?.y ?? attackerTok.y,
-      direction:   angleDeg,
-      distance:    Math.max(1, weaponRange ?? 50),
-      width:       Math.max(2, zoneWidth ?? 2),
-      fillColor:   "#ff4400",
-      borderColor: "#ff4400",
-      flags: {
-        cyberpunk2020: {
-          isSuppressiveZone: true,
-          saveDC,
-          dmgFormula,
-          weaponName,
-          actorId,
-          maxDistance:   weaponRange ?? 50,
-          minWidth:      zoneWidth ?? 2,
-          originX:       attackerTok.center?.x ?? attackerTok.x,
-          originY:       attackerTok.center?.y ?? attackerTok.y,
-          createdRound:  game.combat?.round ?? 0,
-        }
-      },
+    // Create the fire zone through the area shim: MeasuredTemplate ray on v13, Region polygon
+    // on v14. The direction is already auto-aimed at the target(s) above (the v14 "#1 auto-aim");
+    // on v13 the GM can still rotate the template before confirming.
+    const origin = {
+      x: attackerTok.center?.x ?? attackerTok.x,
+      y: attackerTok.center?.y ?? attackerTok.y,
     };
-
-    let created;
-    try {
-      [created] = await scene.createEmbeddedDocuments("MeasuredTemplate", [templateData]);
-    } catch (err) {
-      console.warn("CP2020 | Suppressive fire template creation failed:", err);
-      ui.notifications.warn("Could not place fire zone template.");
+    const handle = await createArea(scene, {
+      kind: "ray",
+      x: origin.x, y: origin.y,
+      dirDeg: angleDeg,
+      lengthM: Math.max(1, weaponRange ?? 50),
+      widthM:  Math.max(2, zoneWidth ?? 2),
+      color: "#ff4400",
+      flags: {
+        isSuppressiveZone: true, saveDC, dmgFormula, weaponName, actorId,
+        maxDistance: weaponRange ?? 50, minWidth: zoneWidth ?? 2,
+        originX: origin.x, originY: origin.y, createdRound: game.combat?.round ?? 0,
+      },
+    });
+    if (!handle?.doc) {
+      ui.notifications.warn("Could not place the suppressive fire zone.");
       return;
     }
+    const created = handle.doc;
 
     const content = `
 <div class="cyberpunk save-prompt">
@@ -507,26 +500,19 @@ async function _placeSuppressiveZone(payload) {
  * and post evasion prompts for each (excluding the attacker).
  */
 async function _confirmFireZone({ templateId, saveDC, dmgFormula, attackerId, weaponName }) {
-  if (!canvas?.scene) return;
+  const scene = canvas?.scene;
+  if (!scene) return;
 
-  const tmplDoc = canvas.scene.templates.get(templateId);
-  if (!tmplDoc) {
-    ui.notifications.warn("Fire zone template not found — it may have been removed.");
+  const handle = areaById(scene, templateId);
+  if (!handle) {
+    ui.notifications.warn("Fire zone not found — it may have been removed.");
     return;
   }
 
-  const tmplObj = tmplDoc.object ?? canvas.templates.placeables.find(t => t.document.id === templateId);
-  if (!tmplObj?.shape) {
-    ui.notifications.warn("Fire zone template shape not available. Try again in a moment.");
-    return;
-  }
-
-  const tokensInZone = canvas.tokens.placeables.filter(tok => {
-    if (tok.actor?.id === attackerId) return false;
-    const lx = (tok.center?.x ?? tok.x) - tmplObj.x;
-    const ly = (tok.center?.y ?? tok.y) - tmplObj.y;
-    return tmplObj.shape.contains(lx, ly);
-  });
+  // Tokens whose centre is inside the zone (excluding the attacker). The shim uses
+  // RegionDocument#testPoint on v14 and the template's shape.contains on v13.
+  const candidates = (scene.tokens?.contents ?? []).filter(td => td.actor?.id !== attackerId);
+  const tokensInZone = tokensInArea(handle, candidates);
 
   if (!tokensInZone.length) {
     ui.notifications.info("No tokens in fire zone.");
@@ -577,6 +563,9 @@ async function _postEvasionPrompts(tokens, { saveDC, dmgFormula, weaponName, att
  *   - Width cannot drop below minWidth.
  */
 function _hookSuppressiveTemplateOriginLock() {
+  // The drag-to-aim origin lock only applies to MeasuredTemplates (v13). On v14 the zone is a
+  // Region created already-aimed (not drag-rotated), so there is no draggable origin to lock.
+  if (usesRegions()) return;
   Hooks.on("preUpdateMeasuredTemplate", (doc, change) => {
     const flags = doc.flags?.cyberpunk2020;
     if (!flags?.isSuppressiveZone) return;
@@ -609,47 +598,35 @@ function _hookSuppressiveFirePerTurn() {
     // evasion prompt and races on template deletion.
     if (game.users.activeGM?.id !== game.user.id) return;
     if (updateData.turn === undefined && updateData.round === undefined) return;
-    if (!canvas?.scene) return;
+    const scene = canvas?.scene;
+    if (!scene) return;
 
     const currentRound = combat.round ?? 0;
 
-    // Collect all suppressive zone templates on this scene
-    const zoneTemplates = canvas.templates.placeables.filter(t =>
-      t.document?.flags?.cyberpunk2020?.isSuppressiveZone
-    );
-
-    // Remove zones from previous rounds (fire zones expire after 1 round)
-    for (const tmpl of zoneTemplates) {
-      const createdRound = tmpl.document.flags.cyberpunk2020?.createdRound ?? 0;
-      if (currentRound > createdRound) {
-        await tmpl.document.delete().catch(() => {});
-      }
+    // Expire zones created in a previous round (fire zones last 1 round), via the shim.
+    let zones = areasByFlag(scene, "isSuppressiveZone");
+    for (const z of zones) {
+      const createdRound = z.doc.flags?.cyberpunk2020?.createdRound ?? 0;
+      if (currentRound > createdRound) await deleteArea(z);
     }
-
-    const activeZones = canvas.templates.placeables.filter(t =>
-      t.document?.flags?.cyberpunk2020?.isSuppressiveZone
-    );
-    if (!activeZones.length) return;
+    zones = areasByFlag(scene, "isSuppressiveZone");   // refresh after any deletions
+    if (!zones.length) return;
 
     const combatant = combat.combatant;
     if (!combatant) return;
-    const tok = canvas.tokens.placeables.find(t => t.id === combatant.tokenId);
-    if (!tok?.actor) return;
+    const tokDoc = scene.tokens.get(combatant.tokenId);
+    if (!tokDoc?.actor) return;
 
-    for (const zone of activeZones) {
-      const zoneFlags = zone.document.flags.cyberpunk2020;
-      if (tok.actor.id === zoneFlags?.actorId) continue;   // skip attacker
+    for (const z of zones) {
+      const zf = z.doc.flags?.cyberpunk2020;
+      if (tokDoc.actor.id === zf?.actorId) continue;        // skip the attacker
+      if (!tokensInArea(z, [tokDoc]).length) continue;
 
-      if (!zone.shape) continue;
-      const lx = (tok.center?.x ?? tok.x) - zone.x;
-      const ly = (tok.center?.y ?? tok.y) - zone.y;
-      if (!zone.shape.contains(lx, ly)) continue;
-
-      await _postEvasionPrompts([tok], {
-        saveDC:     zoneFlags.saveDC,
-        dmgFormula: zoneFlags.dmgFormula,
-        weaponName: zoneFlags.weaponName + " (per-turn)",
-        attackerId: zoneFlags.actorId,
+      await _postEvasionPrompts([tokDoc], {
+        saveDC:     zf.saveDC,
+        dmgFormula: zf.dmgFormula,
+        weaponName: (zf.weaponName ?? "") + " (per-turn)",
+        attackerId: zf.actorId,
       });
     }
   });
