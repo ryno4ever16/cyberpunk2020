@@ -1,4 +1,6 @@
-<form class="{{cssClass}} flexcol" autocomplete="off">
+{{!-- V2 single-root part: the <form> is now provided by the sheet's tag:"form"; this div is the
+      part's single root element (HandlebarsApplicationMixin requires exactly one). --}}
+<div class="{{cssClass}} flexcol cp-actor-sheet-root" style="flex:1;min-height:0;">
     {{!-- Sheet Header --}}
     <header class="cyberheader">
         <div class="fieldrow">
@@ -71,5 +73,5 @@
             {{> "systems/cyberpunk2020/templates/actor/parts/netrunning.hbs"}}
         </div>
     </section>
-</form>
+</div>
 

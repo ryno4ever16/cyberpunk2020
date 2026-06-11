@@ -10,27 +10,61 @@ import { classifyService, payService } from "../shop/services.js";
 import { ipCost, ipLockState, canEditSkillLevels, levelUpSkill, toggleSkillLock } from "../ip/ip.js";
 import { shoppingEnabled, ipEnabled, ipSystem, ipShowPending, reputationEnabled } from "../settings.js";
 
-/** @extends {ActorSheet} */
-export class CyberpunkActorSheet extends (foundry?.appv1?.sheets?.ActorSheet ?? ActorSheet) {
+const { HandlebarsApplicationMixin } = foundry.applications.api;
 
-  /** @override */
-  static get defaultOptions() {
-    return foundry.utils.mergeObject(super.defaultOptions, {
-      // Css classes
-      classes: ["cyberpunk", "sheet", "actor"],
-      template: "systems/cyberpunk2020/templates/actor/actor-sheet.hbs",
-      // Default window dimensions
-      width: 590,
-      height: 600,
-      tabs: [{ navSelector: ".sheet-tabs", contentSelector: ".sheet-body", initial: "skills" }]
-    });
-  }
+/**
+ * Character / NPC actor sheet — ApplicationV2 port.
+ *
+ * ⚠ BLIND PORT (2026-06-11): converted to ActorSheetV2 WITHOUT live rig validation (rig login
+ * was down). Strategy = "shell swap": the V1 data prep (getData), the ~760-line jQuery
+ * activateListeners, and every handler/drag helper are preserved verbatim; only the framework
+ * plumbing changed — base class, DEFAULT_OPTIONS/PARTS, getData→_prepareContext, and a new
+ * _onRender that re-invokes the jQuery activateListeners and binds tabs manually (V2 drops the
+ * V1 auto-tab `tabs` option). Recover via tag `pre-blind-sheets-rewrite` if wrong. See PROGRESS.md
+ * for the residual-risk checklist (tabs, item drag-start, editors, _prepareContext base shape).
+ *
+ * @extends {foundry.applications.sheets.ActorSheetV2}
+ */
+export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.applications.sheets.ActorSheetV2) {
+
+  static DEFAULT_OPTIONS = {
+    classes: ["cyberpunk", "sheet", "actor"],
+    position: { width: 590, height: 600 },
+    window: { resizable: true },
+    tag: "form",
+    form: { submitOnChange: true, closeOnSubmit: false },
+    // Drag-drop: declare handlers so DocumentSheetV2 wires dragstart/dragover/drop onto this.element.
+    // The custom _onDragStart / _onDrop / _onDropItem overrides below extend the inherited chain.
+    dragDrop: [{ dragSelector: ".item[data-item-id]", dropSelector: null }],
+  };
+
+  /**
+   * Single wrapper part: the existing actor template. Its root <form> was changed to a <div> so it
+   * satisfies the V2 "one root element per part" rule (the <form> is now provided by tag:"form").
+   */
+  static PARTS = {
+    main: { template: "systems/cyberpunk2020/templates/actor/actor-sheet.hbs", scrollable: [""] },
+  };
+
+  /** V1 tab config, reused by the manual Tabs binding in _onRender (V2 has no auto-tab option). */
+  static TAB_CONFIG = { navSelector: ".sheet-tabs", contentSelector: ".sheet-body", initial: "skills" };
 
   /* -------------------------------------------- */
 
   /** @override */
-  getData(options) {
-    const sheetData = super.getData(options);
+  async _prepareContext(options) {
+    // V2: build the base context explicitly (no V1 super.getData). Downstream code sets
+    // system/owner/editable plus the many derived fields the template consumes.
+    const sheetData = {
+      actor: this.actor,
+      document: this.document,
+      cssClass: this.isEditable ? "editable" : "locked",
+      editable: this.isEditable,
+      owner: this.actor.isOwner,
+      limited: this.actor.limited,
+      options: this.options,
+      title: this.title,
+    };
 
     const actor = this.actor;
     const system = actor.system;
@@ -120,6 +154,34 @@ export class CyberpunkActorSheet extends (foundry?.appv1?.sheets?.ActorSheet ?? 
     };
 
     return sheetData;
+  }
+
+  /**
+   * V2 render hook. Re-creates the interactivity the V1 framework used to wire automatically:
+   * manual tab binding (V2 dropped the `tabs` option) and the existing jQuery activateListeners.
+   * @override
+   */
+  async _onRender(context, options) {
+    await super._onRender?.(context, options);
+    const root = this.element;
+    // Tabs: bind Foundry's Tabs UX class with the same selectors the V1 sheet used; preserve the
+    // active tab across re-renders. (V2 has no auto-tab handling from a `tabs` option.)
+    try {
+      const TabsCls = foundry.applications?.ux?.Tabs?.implementation
+        ?? foundry.applications?.ux?.Tabs
+        ?? globalThis.Tabs;
+      if (TabsCls) {
+        this._cpTabs = new TabsCls({
+          ...CyberpunkActorSheet.TAB_CONFIG,
+          initial: this._cpActiveTab ?? CyberpunkActorSheet.TAB_CONFIG.initial,
+          callback: (_ev, _tabs, active) => { this._cpActiveTab = active; },
+        });
+        this._cpTabs.bind(root);
+      }
+    } catch (e) { console.warn("cyberpunk2020 | actor-sheet tab bind failed", e); }
+    // Re-use the existing jQuery listener wiring verbatim (the V1 activateListeners body).
+    try { this.activateListeners($(root)); }
+    catch (e) { console.error("cyberpunk2020 | actor-sheet activateListeners failed", e); }
   }
 
   _prepareSkills(sheetData) {
@@ -691,7 +753,9 @@ export class CyberpunkActorSheet extends (foundry?.appv1?.sheets?.ActorSheet ?? 
       this._cpAvatarCapture = cpAvatarCapture;
     }
 
-    super.activateListeners(html);
+    // NOTE: no `super.activateListeners` — ActorSheetV2 has none. Core wiring it used to provide
+    // is replaced by V2: form input auto-submit (form.submitOnChange), drag-drop (DEFAULT_OPTIONS
+    // dragDrop), and tab binding (done in _onRender). This method is invoked from _onRender.
     // Life tab (system.notes) autosave
     this._cpSetupNotesAutosave(root);
     html.find('[data-drop-target]').on('dragover', (ev) => ev.preventDefault());
@@ -728,7 +792,7 @@ export class CyberpunkActorSheet extends (foundry?.appv1?.sheets?.ActorSheet ?? 
     }
 
     // If not editable, do nothing further
-    if (!this.options.editable) return;
+    if (!this.isEditable) return;
 
     // SDP: manual edit current — save and do not overwrite until the amount changes
     html.on('change', 'input[name^="system.sdp.current."]', ev => {
