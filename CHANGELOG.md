@@ -20,12 +20,17 @@ feature-detection). At release: bump `version` → `1.3.0-beta` and set `compati
 - v15-readiness: namespaced the globals Foundry removes in v15 (sheet/collection base classes,
   `loadTemplates`) and migrated the `renderChatMessage` hook to `renderChatMessageHTML`.
 - The IP Tracker, Damage, and Attack-Modifiers dialogs were rebuilt on the **ApplicationV2** framework.
+- v16-readiness: the ~13 remaining `Dialog` pop-ups (vehicle control/fire/damage, ACPA melee,
+  cyberware install, buy-ammo, IP) were converted to **DialogV2**, and the **vehicle / ACPA actor
+  sheet** was rebuilt on **ActorSheetV2**.
 
 ### Known issues / verify before release
-- The 3 ApplicationV2 dialogs are render-validated on both cores; confirm their button/submit
-  **interactions** on a live world (the `ip` / `damage-dialog` / `tracker-controls` E2E specs).
-- Not yet ported (these still work on v14/v15 — the V1 framework is only removed in v16): the large
-  character/item/vehicle **sheets** and the remaining `Dialog` pop-ups → DialogV2.
+- The ApplicationV2 dialogs, the DialogV2 pop-ups, and the V2 vehicle sheet are **render-validated
+  on both cores**; confirm their **interactions** (buttons, form submit, drag-drop a vehicle
+  weapon/system) on a live world (the `:30000` E2E suite + manual) before release.
+- Not yet ported (still work on v14/v15 — the V1 framework is removed only in v16): the large
+  **character (actor) and item sheets** → ApplicationV2. Defer to a dedicated, interaction-tested
+  effort; `module/actor/vehicle-sheet.js` is the working reference pattern.
 
 ## [1.2.1-beta] — 2026-06-10
 
