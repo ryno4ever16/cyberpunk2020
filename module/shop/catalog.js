@@ -721,23 +721,25 @@ export async function purchaseShopItem(buyer, shopId, sourceKey, { qty } = {}) {
 }
 
 /** A small Buy/Cancel confirm for drag-to-buy. Resolves to the chosen qty, or null on cancel. */
-function confirmPurchaseDialog({ name, unitPrice, buyerName, isService, allowQty }) {
-  return new Promise(resolve => {
-    const msg = game.i18n.format(isService ? "CYBERPUNK.ShopDropConfirmService" : "CYBERPUNK.ShopDropConfirmItem",
-      { name: foundry.utils.escapeHTML(name), price: unitPrice, buyer: foundry.utils.escapeHTML(buyerName) });
-    const qtyRow = allowQty
-      ? `<div class="form-group"><label>${game.i18n.localize("CYBERPUNK.ShopQty")}</label><input type="number" name="qty" value="1" min="1" style="width:64px;"/></div>` : "";
-    new Dialog({
-      title: game.i18n.localize("CYBERPUNK.ShopBuy"),
-      content: `<form><p>${msg}</p>${qtyRow}</form>`,
-      buttons: {
-        buy: { icon: '<i class="fa-solid fa-cart-shopping"></i>', label: game.i18n.localize("CYBERPUNK.ShopBuy"),
-          callback: (h) => { const el = h[0] ?? h; resolve(allowQty ? Math.max(1, parseInt(el.querySelector('[name="qty"]')?.value, 10) || 1) : 1); } },
-        cancel: { label: game.i18n.localize("CYBERPUNK.Cancel"), callback: () => resolve(null) }
-      },
-      default: "buy", close: () => resolve(null)
-    }).render(true);
+async function confirmPurchaseDialog({ name, unitPrice, buyerName, isService, allowQty }) {
+  const msg = game.i18n.format(isService ? "CYBERPUNK.ShopDropConfirmService" : "CYBERPUNK.ShopDropConfirmItem",
+    { name: foundry.utils.escapeHTML(name), price: unitPrice, buyer: foundry.utils.escapeHTML(buyerName) });
+  const qtyRow = allowQty
+    ? `<div class="form-group"><label>${game.i18n.localize("CYBERPUNK.ShopQty")}</label><input type="number" name="qty" value="1" min="1" style="width:64px;"/></div>` : "";
+  const result = await foundry.applications.api.DialogV2.wait({
+    window: { title: game.i18n.localize("CYBERPUNK.ShopBuy") },
+    content: `<p>${msg}</p>${qtyRow}`,
+    buttons: [
+      { action: "buy", icon: "fa-solid fa-cart-shopping", label: game.i18n.localize("CYBERPUNK.ShopBuy"), default: true,
+        callback: (ev, btn, dlg) => allowQty ? Math.max(1, parseInt(dlg.element.querySelector('[name="qty"]')?.value, 10) || 1) : 1 },
+      { action: "cancel", label: game.i18n.localize("CYBERPUNK.Cancel"), callback: () => null },
+    ],
+    rejectClose: false,
   });
+  // DialogV2.wait resolves to the chosen button callback's return value; a null/undefined return
+  // (Cancel) falls back to the button's action id ("cancel"), and X-close (rejectClose:false)
+  // resolves null. So only a numeric result means a real purchase quantity.
+  return typeof result === "number" ? result : null;
 }
 
 /**
@@ -783,18 +785,20 @@ export async function purchaseByDrop(buyer, { sourceKey, shopId = null } = {}) {
 }
 
 /** Modal text prompt; resolves to the entered string, or null on cancel. */
-function promptText(title, initial = "") {
-  return new Promise(resolve => {
-    new Dialog({
-      title,
-      content: `<form><div class="form-group"><input type="text" name="t" value="${foundry.utils.escapeHTML(initial)}"/></div></form>`,
-      buttons: {
-        ok: { label: game.i18n.localize("CYBERPUNK.ShopCreate"), callback: (h) => resolve((h[0] ?? h).querySelector('[name="t"]')?.value?.trim() ?? "") },
-        cancel: { label: game.i18n.localize("CYBERPUNK.Cancel"), callback: () => resolve(null) }
-      },
-      default: "ok", close: () => resolve(null)
-    }).render(true);
+async function promptText(title, initial = "") {
+  const result = await foundry.applications.api.DialogV2.wait({
+    window: { title },
+    content: `<div class="form-group"><input type="text" name="t" value="${foundry.utils.escapeHTML(initial)}"/></div>`,
+    buttons: [
+      { action: "ok", label: game.i18n.localize("CYBERPUNK.ShopCreate"), default: true,
+        callback: (ev, btn, dlg) => ({ ok: true, text: (dlg.element.querySelector('[name="t"]')?.value ?? "").trim() }) },
+      { action: "cancel", label: game.i18n.localize("CYBERPUNK.Cancel"), callback: () => null },
+    ],
+    rejectClose: false,
   });
+  // Only the OK button returns an object; Cancel falls back to its action id and X-close to null
+  // (see confirmPurchaseDialog). This distinguishes "OK with (possibly empty) text" from cancel.
+  return (result && typeof result === "object" && result.ok) ? result.text : null;
 }
 
 // ── Window + entry points ─────────────────────────────────────────────────────
