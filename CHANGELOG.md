@@ -13,8 +13,10 @@ feature-detection). At release: bump `version` → `1.3.0-beta` and set `compati
   A new core-agnostic area layer creates a MeasuredTemplate on v13 and a Scene **Region** on v14,
   detected per world. Validated on both v13.350 and v14.364.
 - A **Vitest** unit-test harness for pure logic, alongside the Playwright E2E suite — now
-  **929 tests**, including full coverage of the Maximum Metal vehicle/ACPA rules math
-  (damage, penetration, armor, hit locations, control, missiles, indirect fire, targeting).
+  **1230 tests**, including full coverage of the Maximum Metal vehicle/ACPA rules math
+  (damage, penetration, armor, hit locations, control, missiles, indirect fire, targeting),
+  core combat (range / armor layers / stun-death saves) + IP cost, shop pricing, and the
+  DataModel normalizers.
 
 ### Fixed
 - **Vehicle facing at an exact 45° bearing** was misclassified as a *side* hit (taking side
@@ -28,17 +30,20 @@ feature-detection). At release: bump `version` → `1.3.0-beta` and set `compati
   `loadTemplates`, `renderTemplate`) and migrated the `renderChatMessage` hook to
   `renderChatMessageHTML`; removed a dead pre-v12 `Ray`-based distance-measurement branch.
 - The IP Tracker, Damage, and Attack-Modifiers dialogs were rebuilt on the **ApplicationV2** framework.
-- v16-readiness: the ~13 remaining `Dialog` pop-ups (vehicle control/fire/damage, ACPA melee,
-  cyberware install, buy-ammo, IP) were converted to **DialogV2**, and the **vehicle / ACPA actor
-  sheet** was rebuilt on **ActorSheetV2**.
+- **Full v16 readiness — the entire legacy UI framework was migrated to ApplicationV2.** Every
+  `Dialog` pop-up is now **DialogV2** (vehicle/ACPA/cyberware/buy-ammo/IP + the shop catalog
+  prompts), and every sheet was rebuilt on **ApplicationV2**: the **character (actor), item, and
+  vehicle/ACPA** sheets (ActorSheetV2 / ItemSheetV2) plus the **tear-off-tab** windows. The
+  avatar/icon `FilePicker` was namespaced to its V2 form. No `new Dialog`, no bare `FilePicker`,
+  and no V1 sheet class remain — all validated on both v13.350 and v14.364.
 
 ### Known issues / verify before release
-- The ApplicationV2 dialogs, the DialogV2 pop-ups, and the V2 vehicle sheet are **render-validated
-  on both cores**; confirm their **interactions** (buttons, form submit, drag-drop a vehicle
-  weapon/system) on a live world (the `:30000` E2E suite + manual) before release.
-- Not yet ported (still work on v14/v15 — the V1 framework is removed only in v16): the large
-  **character (actor) and item sheets** → ApplicationV2. Defer to a dedicated, interaction-tested
-  effort; `module/actor/vehicle-sheet.js` is the working reference pattern.
+- All ApplicationV2 sheets and DialogV2 pop-ups are **rig-validated on both cores** (render, tab
+  switching, form submit, the converted dialogs incl. the cancel path, FilePicker open, tear-off
+  tabs). A few pure-click interactions aren't covered by automated specs and deserve a quick manual
+  pass before release: dragging an item onto a sheet, saving the ProseMirror **notes** editor, gear
+  drag-to-reorder, and clicking an in-sheet delete-confirm. Run the `:30000` E2E suite + a manual
+  sheet pass before release.
 
 ## [1.2.1-beta] — 2026-06-10
 
