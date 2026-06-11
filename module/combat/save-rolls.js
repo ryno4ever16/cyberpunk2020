@@ -552,9 +552,10 @@ async function _applyStatusEffect(actorId, tokenId, sceneId, statusId, restrictM
     }
     if (!tokenDoc) return;
 
-    const effect = CONFIG.statusEffects.find(e => e.id === statusId);
-    if (effect) {
-      await tokenDoc.toggleActiveEffect(effect, { active: true });
+    // v13+: TokenDocument#toggleActiveEffect was removed — toggle the status on the Actor.
+    const effActor = tokenDoc.actor;
+    if (effActor?.toggleStatusEffect) {
+      await effActor.toggleStatusEffect(statusId, { active: true });
     }
 
     if (restrictMovement && statusId === "unconscious") {

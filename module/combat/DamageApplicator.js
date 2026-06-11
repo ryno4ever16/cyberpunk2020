@@ -168,9 +168,10 @@ export async function assessWoundSeverity(target, location, netDamage, { token =
 </div>`,
         speaker: ChatMessage.getSpeaker({ actor: liveTarget }),
       });
-      const deadEffect = CONFIG.statusEffects.find(e => e.id === "dead");
-      if (deadEffect && liveToken?.document) {
-        await liveToken.document.toggleActiveEffect(deadEffect, { active: true });
+      // v13+: TokenDocument#toggleActiveEffect was removed — toggle the status on the Actor.
+      const deadActor = liveToken?.actor ?? liveTarget;
+      if (deadActor?.toggleStatusEffect) {
+        await deadActor.toggleStatusEffect("dead", { active: true });
       }
     }
     return;
