@@ -2,6 +2,31 @@
 
 All notable changes to this system are recorded here. Dates are ISO (YYYY-MM-DD).
 
+## [Unreleased] — Foundry v14 compatibility (branch `v14-compat`; DRAFT, not yet released)
+
+Adds **Foundry v14** support while keeping **v13.350** working from one codebase (runtime
+feature-detection). At release: bump `version` → `1.3.0-beta` and set `compatibility.verified` to 14.
+
+### Added
+- **Foundry v14 support.** All area-effect automation — suppressive fire, gas/chemical clouds,
+  explosions, and shotgun spread — works on v14, which removed the MeasuredTemplate document type.
+  A new core-agnostic area layer creates a MeasuredTemplate on v13 and a Scene **Region** on v14,
+  detected per world. Validated on both v13.350 and v14.364.
+- A **Vitest** unit-test harness for pure logic, alongside the Playwright E2E suite.
+
+### Changed
+- **Gas clouds now drift with the wind by default** (`gasCloudAutoMove` defaults ON): a cloud moves
+  ~2 m in a random direction each turn. Turn it off in System Settings to reposition manually.
+- v15-readiness: namespaced the globals Foundry removes in v15 (sheet/collection base classes,
+  `loadTemplates`) and migrated the `renderChatMessage` hook to `renderChatMessageHTML`.
+- The IP Tracker, Damage, and Attack-Modifiers dialogs were rebuilt on the **ApplicationV2** framework.
+
+### Known issues / verify before release
+- The 3 ApplicationV2 dialogs are render-validated on both cores; confirm their button/submit
+  **interactions** on a live world (the `ip` / `damage-dialog` / `tracker-controls` E2E specs).
+- Not yet ported (these still work on v14/v15 — the V1 framework is only removed in v16): the large
+  character/item/vehicle **sheets** and the remaining `Dialog` pop-ups → DialogV2.
+
 ## [1.2.1-beta] — 2026-06-10
 
 Patch over 1.2.0-beta.
