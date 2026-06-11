@@ -20,7 +20,22 @@ import {
   computeNetDamage,
   activeLimbModel,
   ARMOR_MODES,
+  effectiveArmorSP,
+  personnelArmorValue,
 } from "../../module/combat/DamageApplicator.js";
+
+// Minimal actor mock for the armor helpers. getArmorContributors reads
+// actor.items.contents and actor.system.armorLayers (see armor-layers.test.js).
+let _armorId = 0;
+const armorItem = (coverage, equipped = true) => ({
+  id: `arm-${++_armorId}`, type: "armor", name: "Mock Armor",
+  system: { equipped, encumbrance: 0, coverage },
+});
+// coverageMap: { [location]: stoppingPower }; builds one armor item covering all listed locations.
+const armorActor = (coverageMap) => {
+  const coverage = Object.fromEntries(Object.entries(coverageMap).map(([loc, sp]) => [loc, { stoppingPower: sp }]));
+  return { system: { armorLayers: {} }, items: { contents: [armorItem(coverage)] } };
+};
 
 // ─── ARMOR_MODES constant ─────────────────────────────────────────────────────
 
@@ -130,5 +145,46 @@ describe("computeNetDamage (Core/no-doubling fallback)", () => {
 
   it("penetrating damage of exactly BTM floors to 1", () => {
     expect(computeNetDamage(3, 3, true, "Torso")).toBe(1);
+  });
+});
+
+// ─── effectiveArmorSP ─────────────────────────────────────────────────────────
+
+describe("effectiveArmorSP", () => {
+  it("returns the equipped armor's SP at a covered location", () => {
+    const actor = armorActor({ Torso: 19, Head: 14 });
+    expect(effectiveArmorSP(actor, "Torso")).toBe(19);
+    expect(effectiveArmorSP(actor, "Head")).toBe(14);
+  });
+
+  it("returns 0 at an uncovered location", () => {
+    const actor = armorActor({ Torso: 19 });
+    expect(effectiveArmorSP(actor, "lLeg")).toBe(0);
+  });
+
+  it("ignores unequipped armor", () => {
+    const actor = { system: { armorLayers: {} }, items: { contents: [armorItem({ Torso: { stoppingPower: 19 } }, false)] } };
+    expect(effectiveArmorSP(actor, "Torso")).toBe(0);
+  });
+});
+
+// ─── personnelArmorValue (Maximum Metal p.8) ──────────────────────────────────
+
+describe("personnelArmorValue", () => {
+  it("matches the book worked example: SP19 over 3 of 6 locations → AV 1", () => {
+    // mean SP = (19+19+19+0+0+0)/6 = 9.5 → round 10 → /20 = 0.5 → round 1.
+    const actor = armorActor({ Torso: 19, lLeg: 19, rLeg: 19 });
+    expect(personnelArmorValue(actor)).toBe(1);
+  });
+
+  it("returns 0 with no armor", () => {
+    expect(personnelArmorValue(armorActor({}))).toBe(0);
+    expect(personnelArmorValue(null)).toBe(0);
+  });
+
+  it("full-body heavy armor yields a higher AV", () => {
+    // SP20 on all six locations → mean 20 → /20 = 1.
+    const actor = armorActor({ Head: 20, Torso: 20, lArm: 20, rArm: 20, lLeg: 20, rLeg: 20 });
+    expect(personnelArmorValue(actor)).toBe(1);
   });
 });

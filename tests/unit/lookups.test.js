@@ -3,13 +3,18 @@
  *
  * Skipped (not pure / need Foundry):
  *   - getCalibers, getCaliberBox, getModifierCostMult, getAmmoBoxPrice  — call game.settings
- *   - isFnff2Enabled, getMartialActionBonus (calls isFnff2Enabled)      — call game.settings
- *   - martialOptions, martialActionGroups                               — call isFnff2Enabled
+ *   - isFnff2Enabled                                                    — calls game.settings
+ *   - martialOptions, martialActionGroups                               — call isFnff2Enabled (localized lists)
  *   - rangedModifiers                                                   — calls weapon.__getFireModes
  *   - defaultHitLocations (via cloneSystemDefault)                      — uses foundry.utils if present
+ *
+ * getMartialActionBonus IS tested below. It calls isFnff2Enabled(), which reads a BARE
+ * `game` global (`game?.settings?.get(...)`) — an undeclared `game` throws ReferenceError,
+ * so we stub globalThis.game.settings.get for these tests (returning false = core rules by
+ * default; one test returns true to exercise the FNFF2 branch).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   btmFromBT,
   strengthDamageBonus,
@@ -20,6 +25,11 @@ import {
   isFnff2OnlyMartialArtId,
   martialArtDisplayName,
   getFnff2DamageBonusSymbol,
+  getMartialActionBonus,
+  getStatNames,
+  MARTIAL_BONUS_ACTIONS,
+  martialActionBonusesCore,
+  martialActionBonusesFNFF2,
   rangeDCs,
   rangeResolve,
   AMMO_COST_CLASSES,
@@ -489,5 +499,82 @@ describe("ANATOMY_IMAGES", () => {
 
   it("DEFAULT_ANATOMY_KEY is a valid key", () => {
     expect(ANATOMY_IMAGES).toHaveProperty(DEFAULT_ANATOMY_KEY);
+  });
+});
+
+// ─── getStatNames ─────────────────────────────────────────────────────────────
+
+describe("getStatNames", () => {
+  it("returns the nine CP2020 stat keys in order", () => {
+    expect(getStatNames()).toEqual(["int", "ref", "tech", "cool", "attr", "luck", "ma", "bt", "emp"]);
+  });
+
+  it("returns a fresh copy each call (caller cannot mutate the frozen source)", () => {
+    const a = getStatNames();
+    const b = getStatNames();
+    expect(a).not.toBe(b);
+    a.push("xxx");
+    expect(getStatNames()).toHaveLength(9); // source untouched
+  });
+});
+
+// ─── getMartialActionBonus ────────────────────────────────────────────────────
+// isFnff2Enabled() reads a bare `game` global, so we stub globalThis.game per test.
+// Default stub returns false → CORE table; the last test flips it to true → FNFF2 table.
+
+describe("getMartialActionBonus (CORE table by default)", () => {
+  beforeEach(() => { globalThis.game = { settings: { get: () => false } }; });
+  afterEach(() => { delete globalThis.game; });
+
+  it("reads a built-in style's per-action bonus from the core table", () => {
+    expect(getMartialActionBonus("Martial Arts: Karate", "Strike")).toBe(2);
+    expect(getMartialActionBonus("Martial Arts: Karate", "Kick")).toBe(2);
+    expect(getMartialActionBonus("Martial Arts: Judo", "Throw")).toBe(3);
+  });
+
+  it("returns 0 for an action the style has no bonus for, and for unknown/empty styles", () => {
+    expect(getMartialActionBonus("Martial Arts: Karate", "Choke")).toBe(0); // Karate has no Choke (core)
+    expect(getMartialActionBonus("Brawling", "Strike")).toBe(0);            // Brawling: {}
+    expect(getMartialActionBonus("Martial Arts: Nonexistent", "Strike")).toBe(0);
+  });
+
+  it("lets a per-skill bonus override the built-in table", () => {
+    expect(getMartialActionBonus("Martial Arts: Karate", "Strike", { Strike: 7 })).toBe(7);
+    // Custom (non-built-in) style with only a per-skill map:
+    expect(getMartialActionBonus("My Custom Style", "Kick", { Kick: 5 })).toBe(5);
+  });
+
+  it("ignores a zero/absent per-skill bonus and falls through to the table", () => {
+    expect(getMartialActionBonus("Martial Arts: Karate", "Strike", { Strike: 0 })).toBe(2);
+    expect(getMartialActionBonus("Martial Arts: Karate", "Strike", {})).toBe(2);
+  });
+
+  it("zeroes out FNFF2-only styles under core rules (unless explicitly overridden)", () => {
+    // ArasakaTe is an FNFF2-only style; under core rules it contributes nothing...
+    expect(getMartialActionBonus("Martial Arts: ArasakaTe", "Strike")).toBe(0);
+    // ...but a per-skill override is honoured before the FNFF2-only gate.
+    expect(getMartialActionBonus("Martial Arts: ArasakaTe", "Strike", { Strike: 9 })).toBe(9);
+  });
+
+  it("uses the FNFF2 table when fnff2 is enabled (stubbed game.settings)", () => {
+    globalThis.game = { settings: { get: () => true } }; // afterEach deletes it
+    // FNFF2 ArasakaTe is now live (Choke 2), and Karate gains a Punch bonus it lacks under core.
+    expect(getMartialActionBonus("Martial Arts: ArasakaTe", "Choke")).toBe(2);
+    expect(getMartialActionBonus("Martial Arts: Karate", "Punch")).toBe(2);
+  });
+});
+
+// ─── martial bonus-table consistency ──────────────────────────────────────────
+
+describe("martial bonus tables", () => {
+  it("every action key in the core + FNFF2 tables is a declared MARTIAL_BONUS_ACTION", () => {
+    const declared = new Set(MARTIAL_BONUS_ACTIONS);
+    for (const table of [martialActionBonusesCore, martialActionBonusesFNFF2]) {
+      for (const [, bonuses] of Object.entries(table)) {
+        for (const action of Object.keys(bonuses)) {
+          expect(declared.has(action), `${action} should be a declared MARTIAL_BONUS_ACTION`).toBe(true);
+        }
+      }
+    }
   });
 });
