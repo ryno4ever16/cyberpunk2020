@@ -106,7 +106,9 @@ Hooks.once('init', async function () {
     preloadHandlebarsTemplates();
 
     // Fumble inline results
-    Hooks.on("renderChatMessage", (message, html) => {
+    // renderChatMessageHTML replaced the deprecated renderChatMessage in v15;
+    // it passes a native HTMLElement on v13.331+, v14, and v15.
+    Hooks.on("renderChatMessageHTML", (message, html) => {
       const root = getHtmlElement(html);
       if (!root?.querySelectorAll) return;
 

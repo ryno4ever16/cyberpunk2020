@@ -10,7 +10,7 @@
  * PATH B — Everything else (semi-auto, burst, untargeted full-auto):
  *   We listen for "cyberpunk2020.weaponFired" with no targetTokenId and
  *   write the payload as a flag onto the chat message that Foundry creates
- *   immediately afterward. renderChatMessage then injects the Apply Damage
+ *   immediately afterward. renderChatMessageHTML then injects the Apply Damage
  *   button onto any message carrying that flag.
  *
  *   The flag-writing uses a short-lived pending payload that is consumed
@@ -332,21 +332,23 @@ function _hookCreateChatMessage() {
 }
 
 function _hookRenderChatMessage() {
-  Hooks.on("renderChatMessage", (message, html) => {
+  // renderChatMessageHTML replaced the deprecated renderChatMessage in Foundry v15.
+  // It passes a native HTMLElement as the second argument on v13 (since v13.331) and v14+.
+  // Using this hook name means we work on v13.350, v14, and v15 with a single registration.
+  Hooks.on("renderChatMessageHTML", (message, html) => {
     const payload = message.getFlag?.("cyberpunk2020", "damagePayload");
     if (!payload?.areaDamages || Object.keys(payload.areaDamages).length === 0) return;
 
     // Show button to GM always; show to players only if they own the attacker actor.
-    // Avoids any dependency on message.userId / message.author which can be undefined in v14.
+    // Avoids any dependency on message.userId / message.author which can be undefined in v14+.
     const attackerActorId = payload.attackerId ?? payload.actorId ?? null;
     const attackerActor = attackerActorId ? game.actors.get(attackerActorId) : null;
     const canApply = game.user.isGM || (attackerActor?.isOwner ?? false);
     if (!canApply) return;
 
-    // renderChatMessage fires again after setFlag and on any later re-render
+    // renderChatMessageHTML fires again after setFlag and on any later re-render
     // (edit, popout, scrollback). Without this guard each re-render stacks another button.
-    const root = html[0] ?? html;
-    if (root.querySelector?.(".cp2020-apply-damage-btn")) return;
+    if (html.querySelector(".cp2020-apply-damage-btn")) return;
 
     const btn = document.createElement("button");
     btn.classList.add("cp2020-apply-damage-btn");
@@ -383,7 +385,7 @@ function _hookRenderChatMessage() {
       }
     });
 
-    const container = html[0].querySelector(".cyberpunk-card") ?? html[0];
+    const container = html.querySelector(".cyberpunk-card") ?? html;
     container.appendChild(btn);
   });
 }
