@@ -8,6 +8,7 @@
     "pack": "node tools/pack.mjs"
   },
   "devDependencies": {
-    "@foundryvtt/foundryvtt-cli": "^1.0.4"
+    "@foundryvtt/foundryvtt-cli": "^1.0.4",
+    "vitest": "^4.1.8"
   }
 }
