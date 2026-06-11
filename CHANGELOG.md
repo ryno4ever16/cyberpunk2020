@@ -12,7 +12,14 @@ feature-detection). At release: bump `version` → `1.3.0-beta` and set `compati
   explosions, and shotgun spread — works on v14, which removed the MeasuredTemplate document type.
   A new core-agnostic area layer creates a MeasuredTemplate on v13 and a Scene **Region** on v14,
   detected per world. Validated on both v13.350 and v14.364.
-- A **Vitest** unit-test harness for pure logic, alongside the Playwright E2E suite.
+- A **Vitest** unit-test harness for pure logic, alongside the Playwright E2E suite — now
+  **929 tests**, including full coverage of the Maximum Metal vehicle/ACPA rules math
+  (damage, penetration, armor, hit locations, control, missiles, indirect fire, targeting).
+
+### Fixed
+- **Vehicle facing at an exact 45° bearing** was misclassified as a *side* hit (taking side
+  armor) instead of *front*, due to a floating-point boundary in the facing calculation. Exact
+  ±45°/±135° bearings are now correctly front/rear-inclusive.
 
 ### Changed
 - **Gas clouds now drift with the wind by default** (`gasCloudAutoMove` defaults ON): a cloud moves
