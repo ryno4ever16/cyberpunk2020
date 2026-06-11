@@ -7,6 +7,9 @@ import { test } from "@playwright/test";
  * Run per rig:  $env:FVTT_URL=...; $env:FVTT_RIG_PASSWORD=...; npx playwright test --config playwright.v14.config.js _set-rig-password
  */
 test("set rig GM password", async ({ page }) => {
+  // Utility, not a validation test — skip in normal suite runs. Opt in explicitly:
+  //   $env:FVTT_SET_RIG_PW=1; $env:FVTT_RIG_PASSWORD_OLD=<current>; $env:FVTT_RIG_PASSWORD=<new>
+  test.skip(!process.env.FVTT_SET_RIG_PW, "utility — set FVTT_SET_RIG_PW=1 (+ old/new pw env) to run");
   const oldPw = process.env.FVTT_RIG_PASSWORD_OLD ?? "";
   const newPw = process.env.FVTT_RIG_PASSWORD;
   if (!newPw) throw new Error("FVTT_RIG_PASSWORD env not set");
