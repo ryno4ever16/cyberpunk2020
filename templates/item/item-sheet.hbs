@@ -4,7 +4,9 @@
         settings tab contents
     {{/systems/cyberpunk2020/templates/item/item-sheet.hbs}}
  --}}
-<form class="cyberpunk {{cssClass}}" autocomplete="off">
+{{!-- V2 single-root part: <form> is now provided by the sheet's tag:"form"; this div is the part's
+      single root element. flex:1 fills the V2 form; inner content keeps its original block flow. --}}
+<div class="cyberpunk {{cssClass}} cp-item-sheet-root" style="flex:1;min-height:0;">
     <header class="flexrow nowrap">
         <div class="flexcol item-info">
             <span class="infoline">
@@ -47,4 +49,4 @@
             {{/if}}
         </div>
     </section>
-</form>
+</div>

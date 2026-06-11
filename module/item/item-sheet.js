@@ -5,32 +5,54 @@ import { installCyberware, rollCyberwareHumanity } from "../cyberware/install.js
 import { deleteFieldUpdate, localize, cwHasType, getSkillIndex } from "../utils.js";
 import { createCyberpunkChatMessage, getHtmlElement, getPublicMessageMode, getRichEditorHTML, saveRichEditorHTML, rollToCyberpunkChatMessage } from "../compat.js";
 
-/** @extends {ItemSheet} */
-export class CyberpunkItemSheet extends (foundry?.appv1?.sheets?.ItemSheet ?? ItemSheet) {
+const { HandlebarsApplicationMixin } = foundry.applications.api;
 
-  /** @override */
-  static get defaultOptions() {
-    return foundry.utils.mergeObject(super.defaultOptions, {
-      classes: ["cyberpunk", "sheet", "item"],
-      width: 520,
-      height: 480,
-      tabs: [{ navSelector: ".sheet-tabs", contentSelector: ".sheet-body", initial: "description" }]
-    });
-  }
+/**
+ * Item sheet — ApplicationV2 port.
+ *
+ * ⚠ BLIND PORT (2026-06-11): converted to ItemSheetV2 WITHOUT live rig validation (rig login down).
+ * Shell-swap: the V1 data prep, the jQuery activateListeners, and every handler are preserved
+ * verbatim; only framework plumbing changed. The V1 `_updateObject` form hook became
+ * `_prepareSubmitData`. Recover via tag pre-blind-sheets-rewrite. See PROGRESS.md risk checklist.
+ *
+ * @extends {foundry.applications.sheets.ItemSheetV2}
+ */
+export class CyberpunkItemSheet extends HandlebarsApplicationMixin(foundry.applications.sheets.ItemSheetV2) {
 
-  /** @override */
-  get template() {
-    return "systems/cyberpunk2020/templates/item/item-sheet.hbs";
-  }
+  static DEFAULT_OPTIONS = {
+    classes: ["cyberpunk", "sheet", "item"],
+    position: { width: 520, height: 480 },
+    window: { resizable: true },
+    tag: "form",
+    form: { submitOnChange: true, closeOnSubmit: false },
+  };
+
+  // Single wrapper part: the existing item template (root <form> -> <div>; form provided by tag:"form").
+  static PARTS = {
+    main: { template: "systems/cyberpunk2020/templates/item/item-sheet.hbs", scrollable: [""] },
+  };
+
+  /** V1 tab config, reused by the manual Tabs binding in _onRender (V2 has no auto-tab option). */
+  static TAB_CONFIG = { navSelector: ".sheet-tabs", contentSelector: ".sheet-body", initial: "description" };
 
   /* -------------------------------------------- */
 
   /** @override */
-  async getData() {
-    const data = await super.getData();
+  async _prepareContext(options) {
+    // V2: build the base context explicitly (no V1 super.getData).
+    const data = {
+      item: this.item,
+      document: this.document,
+      cssClass: this.isEditable ? "editable" : "locked",
+      editable: this.isEditable,
+      owner: this.item.isOwner,
+      limited: this.item.limited,
+      options: this.options,
+      title: this.title,
+    };
     data.system = this.item.system;
     data.owner = this.item.isOwner;
-    data.editable = this.isEditable ?? this.options?.editable ?? false;
+    data.editable = this.isEditable ?? false;
     data.isGM = game.user.isGM;
     data.ammoLockerFeature = ammoLockerEnabled();
     data.isAmmoLocker = data.ammoLockerFeature && !!this.item.getFlag?.("cyberpunk2020", "ammoLocker");
@@ -658,16 +680,40 @@ async _prepareCyberware(sheet) {
   /** @override */
   setPosition(options = {}) {
     const position = super.setPosition(options);
-    const sheetBody = this.element.find(".sheet-body");
-    const bodyHeight = position.height - 192;
-    sheetBody.css("height", bodyHeight);
+    // V2: this.element is a native HTMLElement (not jQuery) — use querySelector/style.
+    const body = this.element?.querySelector?.(".sheet-body");
+    if (body && Number.isFinite(position?.height)) body.style.height = `${position.height - 192}px`;
     return position;
   }
 
-  /** @override */
-  activateListeners(html) {
-    super.activateListeners(html);
+  /**
+   * V2 render hook. Re-creates the interactivity the V1 framework wired automatically: manual tab
+   * binding (V2 dropped the `tabs` option) and the existing jQuery activateListeners.
+   * @override
+   */
+  async _onRender(context, options) {
+    await super._onRender?.(context, options);
+    const root = this.element;
+    try {
+      const TabsCls = foundry.applications?.ux?.Tabs?.implementation
+        ?? foundry.applications?.ux?.Tabs
+        ?? globalThis.Tabs;
+      if (TabsCls) {
+        this._cpTabs = new TabsCls({
+          ...CyberpunkItemSheet.TAB_CONFIG,
+          initial: this._cpActiveTab ?? CyberpunkItemSheet.TAB_CONFIG.initial,
+          callback: (_ev, _tabs, active) => { this._cpActiveTab = active; },
+        });
+        this._cpTabs.bind(root);
+      }
+    } catch (e) { console.warn("cyberpunk2020 | item-sheet tab bind failed", e); }
+    try { this.activateListeners($(this.element)); }
+    catch (e) { console.error("cyberpunk2020 | item-sheet activateListeners failed", e); }
+  }
 
+  /** Invoked from _onRender (was a V1 lifecycle method). */
+  activateListeners(html) {
+    // No super.activateListeners — ItemSheetV2 has none; V2 form auto-submit + manual tabs replace it.
     const root = getHtmlElement(html);
 
     const editable = this.isEditable ?? this.options?.editable ?? false;
@@ -1490,9 +1536,14 @@ async _prepareCyberware(sheet) {
     return super.close(options);
   }
 
-  /** @override */
-  async _updateObject(event, formData) {
-    const data = foundry.utils.expandObject(formData);
+  /**
+   * V2 replacement for the V1 `_updateObject` form hook: normalize submitted item data before the
+   * document update. DocumentSheetV2 performs `document.update(...)` with the returned object, so
+   * this returns `data` instead of calling `this.item.update`.
+   * @override
+   */
+  _prepareSubmitData(event, form, formData) {
+    const data = super._prepareSubmitData(event, form, formData);
 
     if (this.item.type === "cyberware") {
       const pickLastString = (v) => {
@@ -1560,7 +1611,7 @@ async _prepareCyberware(sheet) {
       }
     }
 
-    await this.item.update(data);
+    return data;
   }
 
   /**
