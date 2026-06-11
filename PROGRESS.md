@@ -8,12 +8,15 @@
 > ```
 > Then install the backlog of updates. (Sleep/hibernate were already "Never" — nothing to undo there.)
 
+> 🚧 **BLIND-WORK DEMARCATION (2026-06-11).** Everything from git tag **`pre-blind-sheets-rewrite`** (commit `3efbde3`) onward is the **blind big-sheet ApplicationV2 port** (actor-sheet ~1974 LOC + item-sheet ~1654 LOC), done while the user is away and WITHOUT live rig interaction-validation (the v14 rig login broke during a password-reset attempt). Everything at/before the tag is reviewed + tested (18/18 dual-core, 1102 Vitest, computeFacing fix).
+> **RECOVER if it looks wrong:** `git reset --hard pre-blind-sheets-rewrite` (or `git switch -c v14-compat-recover pre-blind-sheets-rewrite`). Blind commits are prefixed **`BLIND(...)`** for easy individual revert. Nothing is pushed.
+
 **Run window:** started 2026-06-11, user back 2026-06-15. Branch: `v14-compat` (off `Beta-v1.2.0`). Orchestrator: Opus 4.8 (single orchestrator; all subagents dispatched + integrated by me).
 
 ## ✅ RETURN SUMMARY (read me first)
 **Planned scope is COMPLETE and dual-core green. Nothing pushed; nothing on the release branch; version + `verified` untouched (your call).**
 
-**Validation:** the full v14 Playwright suite is **18/18 on BOTH rigs** — v13.350 (`:30003`) and v14.364 (`:30002`) — plus **929/929 Vitest** unit tests across 17 files (pure-logic coverage of all Maximum Metal vehicle/ACPA rules math was added this run). Specs live in `tests/v14/` and `tests/unit/`. **Nothing pushed** (review the run with `git log Beta-v1.2.0..v14-compat`).
+**Validation:** the full v14 Playwright suite is **18/18 on BOTH rigs** — v13.350 (`:30003`) and v14.364 (`:30002`) — plus **1102/1102 Vitest** unit tests across 22 files (pure-logic coverage of all Maximum Metal vehicle/ACPA math + core combat/IP + DataModel normalizers was added this run). Specs live in `tests/v14/` and `tests/unit/`. **Nothing pushed** (review the run with `git log Beta-v1.2.0..v14-compat`).
 
 **Core v14/v15 work shipped on `v14-compat`:**
 1. Launch: isolated v13.350 + v14.364 rigs (hardened: UPnP off + GM password) + Vitest + pure Region geometry generators.
