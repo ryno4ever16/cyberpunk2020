@@ -192,3 +192,25 @@ export function areaById(scene, id) {
   const d = scene.templates?.get?.(id);
   return d ? makeHandle(d, "MeasuredTemplate") : null;
 }
+
+/**
+ * Shift an area by (dx, dy) pixels — used for gas-cloud wind drift. v13 MeasuredTemplates move
+ * by their doc x/y; v14 Regions have no top-level position, so we shift every shape (ellipse
+ * centre, or each polygon vertex). Never throws.
+ */
+export async function moveArea(handle, dx, dy) {
+  if (!handle?.doc || (!dx && !dy)) return;
+  try {
+    if (handle.isRegion) {
+      const shapes = (handle.doc.shapes ?? []).map((s) => {
+        const o = typeof s.toObject === "function" ? s.toObject() : { ...s };
+        if (Array.isArray(o.points)) o.points = o.points.map((v, i) => v + (i % 2 === 0 ? dx : dy));
+        else { o.x = (o.x ?? 0) + dx; o.y = (o.y ?? 0) + dy; }
+        return o;
+      });
+      await handle.doc.update({ shapes });
+    } else {
+      await handle.doc.update({ x: (handle.doc.x ?? 0) + dx, y: (handle.doc.y ?? 0) + dy });
+    }
+  } catch (e) { console.warn("Cyberpunk2020 | moveArea failed", e); }
+}

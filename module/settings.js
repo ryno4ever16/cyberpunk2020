@@ -563,7 +563,7 @@ export function registerSystemSettings() {
     scope: "world",
     config: true,
     type: Boolean,
-    default: false,
+    default: true,
   });
 
   // --- Combat Automation: Taser cumulative save penalty ---

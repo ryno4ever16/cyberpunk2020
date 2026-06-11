@@ -24,7 +24,7 @@ import { applyAreaDamages, ablateLocationOnce, ablateLocationByAmount, assessWou
 import { postStunSavePrompt, postDeathSavePrompt, updateTaserState, applyAcidDotState, applyDotFromPayload } from "./save-rolls.js";
 import { rollLocation }                                       from "../utils.js";
 import { dispatchAttack }                                     from "../vehicle/vehicle-targeting.js";
-import { createArea, tokensInArea, areasByFlag, deleteArea, areaById, usesRegions } from "./area-shapes.js";
+import { createArea, tokensInArea, areasByFlag, deleteArea, areaById, usesRegions, moveArea } from "./area-shapes.js";
 
 // Payload waiting to be attached to the next chat message created
 let _pendingPayload = null;
@@ -1234,32 +1234,15 @@ function _hookGasCloud() {
     const gridDist  = scene.grid?.distance ?? scene.gridDistance ?? 1;
     const radiusPx  = Math.max(gridSize, (radius / gridDist) * gridSize);
 
-    const templateData = {
-      t:           "circle",
-      x:           cloudX,
-      y:           cloudY,
-      direction:   0,
-      distance:    radius,
-      fillColor:   "#88ff44",
-      borderColor: "#44aa22",
+    const handle = await createArea(scene, {
+      kind: "circle", x: cloudX, y: cloudY, radiusM: radius,
+      color: "#88ff44", borderColor: "#44aa22",
       flags: {
-        cyberpunk2020: {
-          isGasCloud:   true,
-          turnsLeft:    duration,
-          stunSaveMod,
-          createdRound: game.combat?.round ?? 0,
-          weaponName:   payload.weaponName ?? "Gas Grenade",
-        }
+        isGasCloud: true, turnsLeft: duration, stunSaveMod,
+        createdRound: game.combat?.round ?? 0, weaponName: payload.weaponName ?? "Gas Grenade",
       },
-    };
-
-    let created;
-    try {
-      [created] = await scene.createEmbeddedDocuments("MeasuredTemplate", [templateData]);
-    } catch (err) {
-      console.warn("CP2020 | Gas cloud template creation failed:", err);
-      return;
-    }
+    });
+    if (!handle?.doc) { console.warn("CP2020 | Gas cloud creation failed"); return; }
 
     await ChatMessage.create({
       content: `<div class="cyberpunk save-prompt">
@@ -1282,39 +1265,31 @@ function _hookGasCloud() {
     const scene = canvas?.scene;
     if (!scene) return;
 
-    const cloudTemplates = canvas.templates?.placeables?.filter(t =>
-      t.document?.flags?.cyberpunk2020?.isGasCloud
-    ) ?? [];
+    const clouds = areasByFlag(scene, "isGasCloud");
 
-    for (const tmpl of cloudTemplates) {
-      const flags = tmpl.document.flags.cyberpunk2020;
+    for (const cloud of clouds) {
+      const flags = cloud.doc.flags.cyberpunk2020;
       const turnsLeft    = Number(flags.turnsLeft   ?? 0);
       const stunSaveMod  = Number(flags.stunSaveMod ?? 0);
       const weaponName   = flags.weaponName ?? "Gas Grenade";
 
       if (turnsLeft <= 0) {
-        await tmpl.document.delete().catch(() => {});
+        await deleteArea(cloud);
         continue;
       }
 
-      const shape    = tmpl.shape;
-      const tmplPos  = { x: tmpl.document.x, y: tmpl.document.y };
-      const tokensInCloud = canvas.tokens?.placeables?.filter(tok => {
-        if (!shape) return false;
-        const localX = (tok.center?.x ?? tok.x) - tmplPos.x;
-        const localY = (tok.center?.y ?? tok.y) - tmplPos.y;
-        return shape.contains(localX, localY);
-      }) ?? [];
+      // Tokens inside the cloud (shim: RegionDocument#testPoint on v14, shape.contains on v13).
+      const tokensInCloud = tokensInArea(cloud, scene.tokens?.contents ?? []);
 
       if (tokensInCloud.length > 0) {
         await ChatMessage.create({
           content: `<div class="cyberpunk save-prompt"><h3>☠ Gas Cloud — ${weaponName} (${turnsLeft} turn${turnsLeft !== 1 ? "s" : ""} left)</h3>
             <div>${tokensInCloud.map(t => `<b>${t.name}</b>`).join(", ")} ${tokensInCloud.length === 1 ? "is" : "are"} in the gas cloud. Each must make a Stun Save${stunSaveMod < 0 ? ` (${stunSaveMod} penalty)` : ""}.</div></div>`,
         });
-        for (const tok of tokensInCloud) {
-          if (!tok.actor) continue;
-          const liveActor = game.actors.get(tok.actor.id) ?? tok.actor;
-          // Temporarily apply stunSaveMod via taserState-like mechanism (re-use the additive threshold path)
+        for (const tokDoc of tokensInCloud) {
+          if (!tokDoc.actor) continue;
+          const liveActor = game.actors.get(tokDoc.actor.id) ?? tokDoc.actor;
+          // Temporarily apply stunSaveMod via the taser additive-threshold path
           if (stunSaveMod < 0) {
             const existingState = liveActor.getFlag?.("cyberpunk2020", "taserState");
             const round = game?.combat?.round ?? 0;
@@ -1322,27 +1297,24 @@ function _hookGasCloud() {
               ? (existingState.count ?? 0) + 1 : 1;
             await liveActor.setFlag("cyberpunk2020", "taserState", { count, round, mod: stunSaveMod });
           }
-          await postStunSavePrompt(liveActor, tok);
+          await postStunSavePrompt(liveActor, tokDoc);
         }
       }
 
       const autoMove = (() => { try { return game.settings.get("cyberpunk2020", "gasCloudAutoMove"); } catch { return false; } })();
-      const updates = { [`flags.cyberpunk2020.turnsLeft`]: turnsLeft - 1 };
+      await cloud.doc.update({ ["flags.cyberpunk2020.turnsLeft"]: turnsLeft - 1 }).catch(() => {});
 
       if (autoMove) {
-        // Move 2m in a random direction
+        // Drift 2m in a random direction (wind) — shifts the template (v13) or region shape (v14).
         const gridDist = scene.grid?.distance ?? 1;
         const gridSize = scene.grid?.size ?? canvas?.grid?.size ?? 100;
         const movePx   = (2 / gridDist) * gridSize;
         const angle    = Math.random() * 2 * Math.PI;
-        updates.x = tmpl.document.x + Math.cos(angle) * movePx;
-        updates.y = tmpl.document.y + Math.sin(angle) * movePx;
+        await moveArea(cloud, Math.cos(angle) * movePx, Math.sin(angle) * movePx);
       }
 
-      await tmpl.document.update(updates).catch(() => {});
-
       if (turnsLeft - 1 <= 0) {
-        await tmpl.document.delete().catch(() => {});
+        await deleteArea(cloud);
         await ChatMessage.create({
           content: `<div class="cyberpunk save-prompt">💨 <b>${weaponName}</b> — Gas cloud dispersed.</div>`,
         });
