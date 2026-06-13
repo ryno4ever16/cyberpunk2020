@@ -78,6 +78,9 @@ export const preloadHandlebarsTemplates = async function() {
 
         // Damage application dialog
         "systems/cyberpunk2020/templates/dialog/damage-dialog.hbs",
+
+        // Setup & What's New notice
+        "systems/cyberpunk2020/templates/dialog/automation-notice.hbs",
     ]);
   };
   
