@@ -1,6 +1,9 @@
 {{!-- Dialog content for when a ranged weapon is fired --}}
 {{!-- By this point, fire mode and range should be selected, and possibly target --}}
-<form class="cyberpunk weapon-modifiers">
+{{!-- V2: NOT a <form> — the outer <form> is provided by the dialog's tag:"form". A nested form here
+     submits natively (GET → game?firemode=…) and bricks the app; the fire <button type="submit">
+     instead routes to the V2 form.handler (_formHandler). --}}
+<div class="cyberpunk weapon-modifiers">
     {{#each modifierGroups as |group|}}
         <div class="field-list">
             {{#each group}}
@@ -67,4 +70,4 @@
         {{CPLocal "OK"}}
     </button>
     </div>
-</form>
+</div>

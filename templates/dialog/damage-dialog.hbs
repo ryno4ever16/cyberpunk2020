@@ -8,7 +8,10 @@
   BTM is NOT pre-applied in the preview. It is the character's personal
   toughness and is only subtracted at the moment damage is actually received.
 --}}
-<form class="cyberpunk flexcol damage-dialog" autocomplete="off">
+{{!-- V2: NOT a <form> — the outer <form> is provided by the dialog's tag:"form". The Apply/Cancel
+     buttons are data-action handlers; a nested form here lets Enter submit natively (GET) and brick
+     the app. --}}
+<div class="cyberpunk flexcol damage-dialog">
 
   {{!-- Header --}}
   <div class="field-list one-col">
@@ -113,4 +116,4 @@
     <button type="button" data-action="cancelDialog">Cancel</button>
   </div>
 
-</form>
+</div>
