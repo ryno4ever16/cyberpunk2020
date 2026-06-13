@@ -13,6 +13,8 @@ import {
   normalizeShopItem, effectivePrice
 } from "./shops.js";
 
+const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
+
 /**
  * The Shop window ([[shopping-design]] round-7). ONE standalone window (a singleton) that navigates
  * between four internal VIEWS — no native sidebar tab (V14-friendlier; see the design note):
@@ -75,7 +77,7 @@ export function clearCatalogIndexCache() { _catalogIndexPromise = null; }
 /** key → index row, for resolving a shop's sourceKeys to catalog entries. */
 function indexByKey(all) { const m = new Map(); for (const it of all) m.set(it.key, it); return m; }
 
-export class CatalogBrowser extends Application {
+export class CatalogBrowser extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * @param {Actor|null} buyer
    * @param {{view?:string, shopId?:string}} [options]
@@ -90,16 +92,17 @@ export class CatalogBrowser extends Application {
     this._books = new Set();
   }
 
-  static get defaultOptions() {
-    return foundry.utils.mergeObject(super.defaultOptions, {
-      classes: ["cyberpunk", "cp-catalog"],
-      template: "systems/cyberpunk2020/templates/shop/catalog.hbs",
-      title: game.i18n.localize("CYBERPUNK.ShopTitle"),
-      width: 880,
-      height: 720,
-      resizable: true
-    });
-  }
+  static DEFAULT_OPTIONS = {
+    classes: ["cyberpunk", "cp-catalog"],
+    position: { width: 880, height: 720 },
+    window: { title: "CYBERPUNK.ShopTitle", resizable: true },
+  };
+
+  static PARTS = {
+    // Single part = the existing one-template, conditional-by-view shop UI. `scrollable` preserves the
+    // item-list scroll position across re-renders (replaces the old V1 _render scroll-capture override).
+    main: { template: "systems/cyberpunk2020/templates/shop/catalog.hbs", scrollable: [".cp-catalog-list"] },
+  };
 
   get title() {
     if (this.view === "build")      return game.i18n.format("CYBERPUNK.ShopBuilderTitle", { name: this._shop()?.name ?? "" });
@@ -130,7 +133,7 @@ export class CatalogBrowser extends Application {
     this._search = "";
     this._cats = new Set();
     this._books = new Set();
-    if (render) this.render(true);
+    if (render) this.render({ force: true });
   }
 
   // ── Shared row helpers ─────────────────────────────────────────────────────
@@ -231,8 +234,8 @@ export class CatalogBrowser extends Application {
     }));
   }
 
-  // ── getData ─────────────────────────────────────────────────────────────────
-  async getData() {
+  // ── context (V2 _prepareContext; was getData) ───────────────────────────────
+  async _prepareContext(options) {
     const isGM = game.user.isGM;
     const common = {
       isGM, view: this.view,
@@ -371,24 +374,20 @@ export class CatalogBrowser extends Application {
     let { packId, itemId } = rowEl.dataset;
     if ((!packId || !itemId) && rowEl.dataset.sourceKey) [packId, itemId] = splitSourceKey(rowEl.dataset.sourceKey);
     if (!packId || !itemId) return;
-    try { (await game.packs.get(packId)?.getDocument(itemId))?.sheet?.render(true); } catch { /* gone */ }
+    try { (await game.packs.get(packId)?.getDocument(itemId))?.sheet?.render({ force: true }); } catch { /* gone */ }
   }
 
-  /** Preserve the item list's scroll position across re-renders. A buyer/token change (or any in-place
-   *  re-render) rebuilds the list DOM, which would otherwise snap it back to the top — yanking the window
-   *  away from the item you were about to buy. Capture scrollTop before, restore it after. */
-  async _render(force, options) {
-    const prev = this.element?.[0]?.querySelector?.(".cp-catalog-list")?.scrollTop ?? 0;
-    await super._render(force, options);
-    if (prev) {
-      const list = this.element?.[0]?.querySelector?.(".cp-catalog-list");
-      if (list) list.scrollTop = prev;
-    }
+  /** V2: re-invoke the preserved jQuery `activateListeners` on each render (V2 has no auto-listener
+   *  wiring), and keep the window header title in sync with the dynamic, view-based `get title()`. */
+  _onRender(context, options) {
+    super._onRender?.(context, options);
+    const titleEl = this.element?.querySelector?.(".window-title");
+    if (titleEl) titleEl.textContent = this.title;
+    if (this.element) this.activateListeners(this.element);
   }
 
   // ── Listeners ────────────────────────────────────────────────────────────────
   activateListeners(html) {
-    super.activateListeners(html);
     const root = html instanceof jQuery ? html[0] : html;
     if (!root) return;
     const isGM = game.user.isGM;
@@ -419,22 +418,22 @@ export class CatalogBrowser extends Application {
     root.querySelector(".cp-buyer-pick")?.addEventListener("change", (ev) => {
       const id = ev.currentTarget.value;
       this.buyer = id ? (game.actors?.get(id) ?? null) : null;
-      this.render(false);
+      this.render();
     });
 
     // Search + source toggle. Search filters in place (no re-render) so the box stays responsive even when
     // popped out into a second window; see _applySearch.
     root.querySelector(".cp-catalog-search")?.addEventListener("input", (ev) => { this._search = ev.currentTarget.value; this._applySearch(root); });
-    root.querySelector(".cp-catalog-showsource")?.addEventListener("change", async (ev) => { try { await game.settings.set(SCOPE, "shopShowSource", ev.currentTarget.checked); } catch {} this.render(false); });
+    root.querySelector(".cp-catalog-showsource")?.addEventListener("change", async (ev) => { try { await game.settings.set(SCOPE, "shopShowSource", ev.currentTarget.checked); } catch {} this.render(); });
 
     // Category filters + clear + jump.
-    root.querySelectorAll(".cp-cat-chip").forEach(el => el.addEventListener("click", (ev) => { ev.preventDefault(); const k = ev.currentTarget.dataset.cat; this._cats.has(k) ? this._cats.delete(k) : this._cats.add(k); this.render(false); }));
-    root.querySelector(".cp-cat-clear")?.addEventListener("click", (ev) => { ev.preventDefault(); this._cats.clear(); this.render(false); });
+    root.querySelectorAll(".cp-cat-chip").forEach(el => el.addEventListener("click", (ev) => { ev.preventDefault(); const k = ev.currentTarget.dataset.cat; this._cats.has(k) ? this._cats.delete(k) : this._cats.add(k); this.render(); }));
+    root.querySelector(".cp-cat-clear")?.addEventListener("click", (ev) => { ev.preventDefault(); this._cats.clear(); this.render(); });
     root.querySelectorAll(".cp-jump").forEach(el => el.addEventListener("click", (ev) => { ev.preventDefault(); root.querySelector(`.cp-catalog-row[data-letter="${ev.currentTarget.dataset.letter}"]`)?.scrollIntoView({ block: "start", behavior: "smooth" }); }));
 
     // Book (supplement) filters + clear — same additive behavior as categories.
-    root.querySelectorAll(".cp-book-chip").forEach(el => el.addEventListener("click", (ev) => { ev.preventDefault(); const k = ev.currentTarget.dataset.book; this._books.has(k) ? this._books.delete(k) : this._books.add(k); this.render(false); }));
-    root.querySelector(".cp-book-clear")?.addEventListener("click", (ev) => { ev.preventDefault(); this._books.clear(); this.render(false); });
+    root.querySelectorAll(".cp-book-chip").forEach(el => el.addEventListener("click", (ev) => { ev.preventDefault(); const k = ev.currentTarget.dataset.book; this._books.has(k) ? this._books.delete(k) : this._books.add(k); this.render(); }));
+    root.querySelector(".cp-book-clear")?.addEventListener("click", (ev) => { ev.preventDefault(); this._books.clear(); this.render(); });
 
     // GM per-book player-visibility (eye) toggles.
     root.querySelectorAll(".cp-src-toggle").forEach(el => el.addEventListener("change", async (ev) => {
@@ -442,7 +441,7 @@ export class CatalogBrowser extends Application {
       const map = { ...(() => { try { return game.settings.get(SCOPE, "shopEnabledSources") || {}; } catch { return {}; } })() };
       if (ev.currentTarget.checked) map[name] = true; else delete map[name];
       try { await game.settings.set(SCOPE, "shopEnabledSources", map); } catch (e) { console.warn(e); }
-      this.render(false);
+      this.render();
     }));
 
     // Click name/thumb → compendium sheet.
@@ -460,11 +459,11 @@ export class CatalogBrowser extends Application {
       const rowEl = ev.currentTarget.closest("[data-ammo-caliber], [data-item-id], [data-source-key]"); if (!rowEl) return;
       const qty = qtyOf(rowEl);
       // Ammo rows: box pricing via the selected load. qty = number of boxes.
-      if (rowEl.dataset.ammoCaliber) { await this._buyAmmo(rowEl.dataset.ammoCaliber, rowEl.querySelector(".cp-catalog-ammo-load")?.value ?? "standard", qty); this.render(false); return; }
+      if (rowEl.dataset.ammoCaliber) { await this._buyAmmo(rowEl.dataset.ammoCaliber, rowEl.querySelector(".cp-catalog-ammo-load")?.value ?? "standard", qty); this.render(); return; }
       // Storefront items use the GM-set style (handled in _shopBuy); the open catalog lets the buyer pick.
       if (this.view === "storefront" && rowEl.dataset.curated === "1") await this._shopBuy(rowEl.dataset.sourceKey, { qty });
       else { const { styleMult, styleLabel } = styleOf(rowEl); await this._directBuy(rowEl.dataset.packId, rowEl.dataset.itemId, { qty, styleMult, styleLabel }); }
-      this.render(false);
+      this.render();
     }));
 
     this._activateBuildControls(root, isGM);
@@ -561,8 +560,8 @@ export class CatalogBrowser extends Application {
     const id = this.shopId;
     const skOf = (el) => el?.closest?.("[data-source-key]")?.dataset?.sourceKey;
 
-    root.querySelectorAll(".cp-shop-add").forEach(btn => btn.addEventListener("click", async (ev) => { ev.preventDefault(); const rowEl = ev.currentTarget.closest("[data-source-key]"); if (rowEl) { await addShopItem(id, rowEl.dataset.sourceKey); this.render(false); } }));
-    root.querySelectorAll(".cp-shop-remove").forEach(btn => btn.addEventListener("click", async (ev) => { ev.preventDefault(); const sk = skOf(ev.currentTarget); if (sk) { await removeShopItem(id, sk); this.render(false); } }));
+    root.querySelectorAll(".cp-shop-add").forEach(btn => btn.addEventListener("click", async (ev) => { ev.preventDefault(); const rowEl = ev.currentTarget.closest("[data-source-key]"); if (rowEl) { await addShopItem(id, rowEl.dataset.sourceKey); this.render(); } }));
+    root.querySelectorAll(".cp-shop-remove").forEach(btn => btn.addEventListener("click", async (ev) => { ev.preventDefault(); const sk = skOf(ev.currentTarget); if (sk) { await removeShopItem(id, sk); this.render(); } }));
     root.querySelector(".cp-bulk-add")?.addEventListener("click", async (ev) => {
       ev.preventDefault();
       const def = getShop(id);
@@ -574,32 +573,32 @@ export class CatalogBrowser extends Application {
         .map(r => r.dataset.sourceKey).filter(sk => sk && !def?.items?.[sk]);
       if (!newKeys.length) { ui.notifications?.info(game.i18n.localize("CYBERPUNK.ShopBulkNone")); return; }
       if (newKeys.length > BULK_ADD_CONFIRM_OVER &&
-          !(await Dialog.confirm({ title: def?.name ?? "", content: `<p>${game.i18n.format("CYBERPUNK.ShopBulkAddConfirm", { n: newKeys.length })}</p>` }))) return;
+          !(await foundry.applications.api.DialogV2.confirm({ window: { title: def?.name ?? "" }, rejectClose: false, content: `<p>${game.i18n.format("CYBERPUNK.ShopBulkAddConfirm", { n: newKeys.length })}</p>` }))) return;
       const n = await addShopItems(id, newKeys.map(sk => ({ sourceKey: sk })));
       ui.notifications?.info(game.i18n.format("CYBERPUNK.ShopBulkAdded", { n }));
-      this.render(false);
+      this.render();
     });
     root.querySelector(".cp-vendor-clear")?.addEventListener("click", async (ev) => {
       ev.preventDefault();
       const def = getShop(id);
       const count = Object.keys(def?.items ?? {}).length;
       if (!count) return;
-      if (await Dialog.confirm({ title: def?.name ?? "", content: `<p>${game.i18n.format("CYBERPUNK.ShopClearVendorConfirm", { n: count })}</p>` })) {
+      if (await foundry.applications.api.DialogV2.confirm({ window: { title: def?.name ?? "" }, rejectClose: false, content: `<p>${game.i18n.format("CYBERPUNK.ShopClearVendorConfirm", { n: count })}</p>` })) {
         await clearShopItems(id);
-        this.render(false);
+        this.render();
       }
     });
 
     // Inline economics (vendor tray).
-    root.querySelectorAll(".cp-shop-price").forEach(el => el.addEventListener("change", async (ev) => { const sk = skOf(ev.currentTarget); if (!sk) return; const raw = ev.currentTarget.value.trim(); await setShopItem(id, sk, { price: raw === "" ? null : Math.max(0, Math.round(Number(raw) || 0)) }); this.render(false); }));
+    root.querySelectorAll(".cp-shop-price").forEach(el => el.addEventListener("change", async (ev) => { const sk = skOf(ev.currentTarget); if (!sk) return; const raw = ev.currentTarget.value.trim(); await setShopItem(id, sk, { price: raw === "" ? null : Math.max(0, Math.round(Number(raw) || 0)) }); this.render(); }));
     // Stock: the qty field is always editable — typing a number makes the item limited (no need to flip
     // ∞ off first). An empty field is a no-op (use the ∞ button for unlimited).
     root.querySelectorAll(".cp-shop-stock-qty").forEach(el => el.addEventListener("change", async (ev) => {
       const sk = skOf(ev.currentTarget); if (!sk) return;
       const raw = ev.currentTarget.value.trim();
-      if (raw === "") { this.render(false); return; }
+      if (raw === "") { this.render(); return; }
       await setShopItem(id, sk, { qty: Math.max(0, parseInt(raw, 10) || 0), unlimited: false });
-      this.render(false);
+      this.render();
     }));
     // ∞ button toggles unlimited; flipping OFF defaults qty to 1 if it was 0 (so it isn't instantly sold out).
     root.querySelectorAll(".cp-shop-inf").forEach(el => el.addEventListener("click", async (ev) => {
@@ -607,32 +606,32 @@ export class CatalogBrowser extends Application {
       const sk = skOf(ev.currentTarget); if (!sk) return;
       const e = normalizeShopItem(getShop(id)?.items?.[sk]);
       await setShopItem(id, sk, e.unlimited ? { unlimited: false, qty: e.qty > 0 ? e.qty : 1 } : { unlimited: true });
-      this.render(false);
+      this.render();
     }));
     // "Set all" (vendor header): apply one stock value to every item at once.
     root.querySelector(".cp-stockall-apply")?.addEventListener("click", async (ev) => {
       ev.preventDefault();
       const n = Math.max(0, parseInt(root.querySelector(".cp-stockall-qty")?.value, 10) || 0);
       await setAllShopStock(id, { unlimited: false, qty: n });
-      this.render(false);
+      this.render();
     });
     root.querySelector(".cp-stockall-inf")?.addEventListener("click", async (ev) => {
       ev.preventDefault();
       await setAllShopStock(id, { unlimited: true });
-      this.render(false);
+      this.render();
     });
     // Clothing style tier (sets the style multiplier on the price). "" → null (Generic ×1).
-    root.querySelectorAll(".cp-shop-style").forEach(el => el.addEventListener("change", async (ev) => { const sk = skOf(ev.currentTarget); if (sk) { await setShopItem(id, sk, { style: ev.currentTarget.value || null }); this.render(false); } }));
+    root.querySelectorAll(".cp-shop-style").forEach(el => el.addEventListener("change", async (ev) => { const sk = skOf(ev.currentTarget); if (sk) { await setShopItem(id, sk, { style: ev.currentTarget.value || null }); this.render(); } }));
 
     // Config bar.
-    root.querySelector(".cp-shop-name")?.addEventListener("change", async (ev) => { const name = ev.currentTarget.value.trim(); if (name) { await updateShop(id, { name }); this.render(false); } });
-    root.querySelector(".cp-shop-open")?.addEventListener("change", async (ev) => { await updateShop(id, { open: ev.currentTarget.checked }); this.render(false); });
+    root.querySelector(".cp-shop-name")?.addEventListener("change", async (ev) => { const name = ev.currentTarget.value.trim(); if (name) { await updateShop(id, { name }); this.render(); } });
+    root.querySelector(".cp-shop-open")?.addEventListener("change", async (ev) => { await updateShop(id, { open: ev.currentTarget.checked }); this.render(); });
     root.querySelector(".cp-shop-fullsearch")?.addEventListener("change", async (ev) => { await updateShop(id, { fullSearch: ev.currentTarget.checked }); });
-    root.querySelector(".cp-shop-discount")?.addEventListener("change", async (ev) => { await updateShop(id, { discountPct: Math.min(100, Math.max(0, parseInt(ev.currentTarget.value, 10) || 0)) }); this.render(false); });
+    root.querySelector(".cp-shop-discount")?.addEventListener("change", async (ev) => { await updateShop(id, { discountPct: Math.min(100, Math.max(0, parseInt(ev.currentTarget.value, 10) || 0)) }); this.render(); });
     root.querySelector(".cp-shop-notes")?.addEventListener("change", async (ev) => { await updateShop(id, { notes: ev.currentTarget.value }); });
-    root.querySelector(".cp-shop-publish")?.addEventListener("click", async (ev) => { ev.preventDefault(); await publishShop(id); this.render(false); });
+    root.querySelector(".cp-shop-publish")?.addEventListener("click", async (ev) => { ev.preventDefault(); await publishShop(id); this.render(); });
     root.querySelector(".cp-shop-preview")?.addEventListener("click", (ev) => { ev.preventDefault(); this.navigate("storefront", id); });
-    root.querySelector(".cp-shop-delete")?.addEventListener("click", async (ev) => { ev.preventDefault(); if (await Dialog.confirm({ title: getShop(id)?.name ?? "", content: `<p>${game.i18n.localize("CYBERPUNK.ShopDeleteConfirm")}</p>` })) { await deleteShop(id); this.navigate("home"); } });
+    root.querySelector(".cp-shop-delete")?.addEventListener("click", async (ev) => { ev.preventDefault(); if (await foundry.applications.api.DialogV2.confirm({ window: { title: getShop(id)?.name ?? "" }, rejectClose: false, content: `<p>${game.i18n.localize("CYBERPUNK.ShopDeleteConfirm")}</p>` })) { await deleteShop(id); this.navigate("home"); } });
     // NOTE: the storefront "Manage" button is bound in activateListeners (this method early-returns outside build view).
 
     // Drag a catalog row into the vendor tray (in addition to ＋Add).
@@ -644,7 +643,7 @@ export class CatalogBrowser extends Application {
     if (tray) {
       tray.addEventListener("dragover", (ev) => { ev.preventDefault(); tray.classList.add("cp-drop-hot"); });
       tray.addEventListener("dragleave", () => tray.classList.remove("cp-drop-hot"));
-      tray.addEventListener("drop", async (ev) => { ev.preventDefault(); tray.classList.remove("cp-drop-hot"); const sk = ev.dataTransfer?.getData("text/cp-sourcekey"); if (sk) { await addShopItem(id, sk); this.render(false); } });
+      tray.addEventListener("drop", async (ev) => { ev.preventDefault(); tray.classList.remove("cp-drop-hot"); const sk = ev.dataTransfer?.getData("text/cp-sourcekey"); if (sk) { await addShopItem(id, sk); this.render(); } });
     }
   }
 
@@ -659,10 +658,10 @@ export class CatalogBrowser extends Application {
     const item = (label, fn) => { const b = doc.createElement("button"); b.type = "button"; b.textContent = label; b.addEventListener("click", async () => { menu.remove(); await fn(); }); menu.appendChild(b); };
     item(game.i18n.localize("CYBERPUNK.ShopCtxEdit"), () => this.navigate("build", shopId));
     item(game.i18n.localize("CYBERPUNK.ShopCtxPreview"), () => this.navigate("storefront", shopId));
-    item(def.open ? game.i18n.localize("CYBERPUNK.ShopClose") : game.i18n.localize("CYBERPUNK.ShopShowToPlayers"), async () => { await updateShop(shopId, { open: !def.open }); this.render(false); });
-    item(game.i18n.localize("CYBERPUNK.ShopCtxDuplicate"), async () => { await duplicateShop(shopId); this.render(false); });
-    item(game.i18n.localize("CYBERPUNK.ShopCtxRename"), async () => { const name = await promptText(game.i18n.localize("CYBERPUNK.ShopName"), def.name); if (name) { await updateShop(shopId, { name }); this.render(false); } });
-    item(game.i18n.localize("CYBERPUNK.ShopCtxDelete"), async () => { if (await Dialog.confirm({ title: def.name, content: `<p>${game.i18n.localize("CYBERPUNK.ShopDeleteConfirm")}</p>` })) { await deleteShop(shopId); this.render(false); } });
+    item(def.open ? game.i18n.localize("CYBERPUNK.ShopClose") : game.i18n.localize("CYBERPUNK.ShopShowToPlayers"), async () => { await updateShop(shopId, { open: !def.open }); this.render(); });
+    item(game.i18n.localize("CYBERPUNK.ShopCtxDuplicate"), async () => { await duplicateShop(shopId); this.render(); });
+    item(game.i18n.localize("CYBERPUNK.ShopCtxRename"), async () => { const name = await promptText(game.i18n.localize("CYBERPUNK.ShopName"), def.name); if (name) { await updateShop(shopId, { name }); this.render(); } });
+    item(game.i18n.localize("CYBERPUNK.ShopCtxDelete"), async () => { if (await foundry.applications.api.DialogV2.confirm({ window: { title: def.name }, rejectClose: false, content: `<p>${game.i18n.localize("CYBERPUNK.ShopDeleteConfirm")}</p>` })) { await deleteShop(shopId); this.render(); } });
     doc.body.appendChild(menu);
     const close = (e) => { if (!menu.contains(e.target)) { menu.remove(); doc.removeEventListener("click", close); } };
     setTimeout(() => doc.addEventListener("click", close), 0);
@@ -812,12 +811,12 @@ function resolveSidebarBuyer() {
 /** Open (or focus) the single Shop window at the given view. */
 export function openShopWindow(buyer, { view = "home", shopId = null } = {}) {
   if (!shoppingEnabled()) { ui.notifications?.warn(game.i18n.localize("CYBERPUNK.ShopDisabled")); return; }
-  let win = Object.values(ui.windows).find(w => w instanceof CatalogBrowser) ?? null;
-  if (!win) { win = new CatalogBrowser(buyer ?? resolveSidebarBuyer(), { view, shopId }); win.render(true); return win; }
+  let win = [...foundry.applications.instances.values()].find(w => w instanceof CatalogBrowser) ?? null;
+  if (!win) { win = new CatalogBrowser(buyer ?? resolveSidebarBuyer(), { view, shopId }); win.render({ force: true }); return win; }
   win.buyer = buyer ?? win.buyer;
   win.navigate(view, shopId, false);
-  if (win.rendered && win.element?.length) { win.render(false); try { win.bringToTop?.(); } catch { /* not ready */ } shimmerWindow(win); }
-  else win.render(true);
+  if (win.rendered && win.element) { win.render(); try { win.bringToFront?.(); } catch { /* not ready */ } shimmerWindow(win); }
+  else win.render({ force: true });
   return win;
 }
 
@@ -869,11 +868,11 @@ export function registerShopHooks() {
     clearTimeout(_ctrlTimer);
     _ctrlTimer = setTimeout(() => {
       const buyer = resolveSidebarBuyer();
-      for (const w of Object.values(ui.windows)) {
+      for (const w of foundry.applications.instances.values()) {
         if (!(w instanceof CatalogBrowser) || w.view === "build") continue;
         if (w.buyer?.id === buyer?.id) continue;   // unchanged → don't disturb an open window
         w.buyer = buyer;
-        w.render(false);                            // scroll is preserved by _render
+        w.render();                                 // scroll preserved by the PART's `scrollable`
       }
     }, 50);
   });
