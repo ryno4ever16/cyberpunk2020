@@ -72,11 +72,10 @@
             <option value="{{opt.key}}" {{#if opt.selected}}selected{{/if}}>{{opt.label}}</option>
             {{/each}}
         </select>
-        {{#if anatomy.svg}}
-        <object type="image/svg+xml" data="{{anatomy.src}}" id="anatomy-img"></object>
-        {{else}}
+        {{!-- V14 strips <object> SVG embeds during sheet HTML rendering, so the male SVG vanished.
+             <img> renders both the SVG and the female PNG fine; CSS sizes #anatomy-img and
+             img#anatomy-img adds object-fit:contain. (anatomy.svg flag retained for callers.) --}}
         <img src="{{anatomy.src}}" id="anatomy-img" alt="anatomy"/>
-        {{/if}}
     </div>
     <div class="active-cyberware-left">
         {{#each cyberwareSegmentsLeft}}

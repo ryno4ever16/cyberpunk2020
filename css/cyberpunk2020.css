@@ -1216,8 +1216,8 @@ div.statderive .value.rightborder {
   height: 700px;
 }
 
-/* Raster anatomy art (e.g. the female PNG) keeps its aspect inside the fixed box; the <object>
-   SVG already scales to its viewBox, so this only affects the <img> variant. */
+/* Anatomy art (the male SVG and the female PNG, both <img> now) keeps its aspect inside the
+   fixed box. */
 img#anatomy-img {
   object-fit: contain;
 }
