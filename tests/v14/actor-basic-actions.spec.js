@@ -112,3 +112,163 @@ test("actor-sheet V2: basic-action elements are wired to their actions", async (
     }
   }
 });
+
+test("actor-sheet V2: item controls (edit / roll / delete) are wired", async ({ page }) => {
+  const consoleErrors = [];
+  page.on("console", (m) => { if (m.type() === "error") consoleErrors.push(m.text()); });
+  page.on("pageerror", (e) => consoleErrors.push(String(e?.message ?? e)));
+
+  await joinAsGM(page);
+
+  const result = await page.evaluate(async () => {
+    const out = { errors: [], present: {}, fired: {} };
+    let actor, weaponId;
+    try {
+      actor = await Actor.create({ name: "ZZ ItemCtl Probe", type: "character" });
+      const [weapon] = await actor.createEmbeddedDocuments("Item", [
+        { name: "ZZ Probe Pistol", type: "weapon", system: {} },
+      ]);
+      weaponId = weapon.id;
+
+      const sheet = actor.sheet;
+      await sheet.render({ force: true });
+      await new Promise((r) => setTimeout(r, 700));
+      const root = sheet.element;
+
+      // The control may carry data-item-id itself, or sit inside a [data-item-id] row.
+      const findCtl = (cls) =>
+        root.querySelector(`.${cls}[data-item-id="${weaponId}"]`) ||
+        root.querySelector(`[data-item-id="${weaponId}"] .${cls}`);
+
+      // item-edit -> opens the weapon's own sheet
+      const editEl = findCtl("item-edit");
+      out.present["item-edit"] = !!editEl;
+      if (editEl) {
+        editEl.click();
+        await new Promise((r) => setTimeout(r, 350));
+        out.fired["item-edit:sheetRendered"] = actor.items.get(weaponId)?.sheet?.rendered ? 1 : 0;
+        try { await actor.items.get(weaponId)?.sheet?.close(); } catch (_) {}
+      }
+
+      // item-roll -> item.roll() (spy the resolved instance; record + no-op)
+      const w = actor.items.get(weaponId);
+      out.fired["item-roll"] = 0;
+      const origRoll = w.roll;
+      w.roll = function () { out.fired["item-roll"]++; };
+      const rollEl = findCtl("item-roll");
+      out.present["item-roll"] = !!rollEl;
+      if (rollEl) { rollEl.click(); await new Promise((r) => setTimeout(r, 150)); }
+      w.roll = origRoll;
+
+      // item-delete -> opens a confirm dialog (detect, then dismiss without confirming)
+      const delEl = findCtl("item-delete");
+      out.present["item-delete"] = !!delEl;
+      if (delEl) {
+        delEl.click();
+        await new Promise((r) => setTimeout(r, 350));
+        const dlg = Array.from(foundry.applications.instances?.values?.() ?? [])
+          .find((a) => a.rendered && /Dialog/.test(a.constructor?.name ?? ""));
+        out.fired["item-delete:dialogOpened"] = dlg ? 1 : 0;
+        try { await dlg?.close(); } catch (_) {}
+      }
+
+      await sheet.close();
+    } catch (e) {
+      out.errors.push(String(e?.stack ?? e?.message ?? e));
+    } finally {
+      try { await actor?.delete(); } catch (_) {}
+    }
+    return out;
+  });
+
+  console.log("item-controls wiring:", JSON.stringify(result, null, 2));
+  console.log("console errors:", JSON.stringify(consoleErrors, null, 2));
+
+  expect(result.errors, "no thrown errors").toEqual([]);
+  // item-edit is the reliable coverage (a weapon row renders it): it exercises item resolution
+  // (_cpGetItemFromTarget) + the click dispatch + the open-sheet outcome — the mechanism every item
+  // control shares.
+  expect(result.present["item-edit"], ".item-edit present for the weapon").toBe(true);
+  expect(result.fired["item-edit:sheetRendered"], "item-edit opened the item sheet").toBe(1);
+  // item-delete / item-roll are best-effort: a weapon row may use .fire-weapon and right-click
+  // delete rather than rendering those controls. Assert only when present.
+  if (result.present["item-delete"]) {
+    expect(result.fired["item-delete:dialogOpened"], "item-delete opened a confirm dialog").toBe(1);
+  }
+  if (result.present["item-roll"]) {
+    expect(result.fired["item-roll"], "item-roll called item.roll()").toBeGreaterThan(0);
+  }
+});
+
+test("actor-sheet V2: fire control opens attack dialog; nested item image opens sheet (dispatch order)", async ({ page }) => {
+  const consoleErrors = [];
+  page.on("console", (m) => { if (m.type() === "error") consoleErrors.push(m.text()); });
+  page.on("pageerror", (e) => consoleErrors.push(String(e?.message ?? e)));
+
+  await joinAsGM(page);
+
+  const result = await page.evaluate(async () => {
+    const out = { errors: [], present: {}, fired: {} };
+    let actor, weaponId;
+    const openDialogs = () => [...(foundry.applications.instances?.values?.() ?? [])]
+      .filter((a) => a.rendered && /ModifiersDialog/.test(a.constructor?.name ?? ""));
+    try {
+      actor = await Actor.create({ name: "ZZ Fire Probe", type: "character" });
+      const [weapon] = await actor.createEmbeddedDocuments("Item", [
+        { name: "ZZ Probe Rifle", type: "weapon", system: {} },
+      ]);
+      weaponId = weapon.id;
+
+      const sheet = actor.sheet;
+      await sheet.render({ force: true });
+      await new Promise((r) => setTimeout(r, 700));
+      const root = sheet.element;
+
+      const fireEl = root.querySelector(`.fire-weapon[data-item-id="${weaponId}"]`)
+        || root.querySelector(`[data-item-id="${weaponId}"] .fire-weapon`)
+        || root.querySelector(".fire-weapon");
+
+      // (a) Clicking the fire area opens the attack (Modifiers) dialog.
+      out.present["fire-weapon"] = !!fireEl;
+      if (fireEl) {
+        fireEl.click();
+        await new Promise((r) => setTimeout(r, 350));
+        out.fired["fire:dialogOpened"] = openDialogs().length > 0 ? 1 : 0;
+        for (const d of openDialogs()) { try { await d.close(); } catch (_) {} }
+        await new Promise((r) => setTimeout(r, 100));
+      }
+
+      // (b) Clicking the item image NESTED INSIDE the fire area opens the item sheet, NOT the dialog.
+      const imageEl = fireEl?.querySelector(".item-edit");
+      out.present["fire>item-edit"] = !!imageEl;
+      if (imageEl) {
+        imageEl.click();
+        await new Promise((r) => setTimeout(r, 350));
+        out.fired["image:sheetRendered"] = actor.items.get(weaponId)?.sheet?.rendered ? 1 : 0;
+        out.fired["image:noDialog"] = openDialogs().length === 0 ? 1 : 0;
+        try { await actor.items.get(weaponId)?.sheet?.close(); } catch (_) {}
+        for (const d of openDialogs()) { try { await d.close(); } catch (_) {} }
+      }
+
+      await sheet.close();
+    } catch (e) {
+      out.errors.push(String(e?.stack ?? e?.message ?? e));
+    } finally {
+      try { await actor?.delete(); } catch (_) {}
+    }
+    return out;
+  });
+
+  console.log("fire-dispatch wiring:", JSON.stringify(result, null, 2));
+  console.log("console errors:", JSON.stringify(consoleErrors, null, 2));
+
+  expect(result.errors, "no thrown errors").toEqual([]);
+  expect(result.present["fire-weapon"], ".fire-weapon present").toBe(true);
+  expect(result.fired["fire:dialogOpened"], "clicking the fire area opened the attack dialog").toBe(1);
+  // The nested image must open the item sheet and NOT the attack dialog (proves item-edit is
+  // dispatched before fire-weapon).
+  if (result.present["fire>item-edit"]) {
+    expect(result.fired["image:sheetRendered"], "image opened the item sheet").toBe(1);
+    expect(result.fired["image:noDialog"], "image did NOT open the attack dialog").toBe(1);
+  }
+});
