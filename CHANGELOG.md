@@ -2,6 +2,20 @@
 
 All notable changes to this system are recorded here. Dates are ISO (YYYY-MM-DD).
 
+## [1.2.2-beta] — 2026-06-14
+
+Patch over 1.2.1-beta — compendium data fix only.
+
+### Fixed
+- **Duplicate weapons in the Community & Non-Canon compendia.** The *Weapons (Community)* and
+  *Weapons (Non-Canon)* packs each listed every item twice — byte-identical copies left over from a
+  double-import when the packs were first built. Removed the 654 redundant copies, keeping one of
+  each (no item stats changed). *Cyberware (Non-Canon)* was unaffected.
+
+### Housekeeping
+- `version` → `1.2.2-beta`; `download` → `v1.2.2-beta`. Manifest stays on the `Beta-v1.2.0` branch so
+  existing 1.2.x installs detect the update.
+
 ## [1.2.1-beta] — 2026-06-10
 
 Patch over 1.2.0-beta.
