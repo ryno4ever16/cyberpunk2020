@@ -169,6 +169,8 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     this._cpActivateActorFilePickers(root);
     // Life-tab (system.notes) ProseMirror autosave — extracted to an upstream-aligned helper (Stage A2).
     this._cpActivateNotesEditor(root);
+    // Drag-drop (drop-target dragover, gear sort, owned-item drag sources) — upstream-aligned helper (Stage A2).
+    this._cpActivateActorDragDrop(root);
     // Re-use the existing jQuery listener wiring verbatim (the V1 activateListeners body).
     try { this.activateListeners($(root)); }
     catch (e) { console.error("cyberpunk2020 | actor-sheet activateListeners failed", e); }
@@ -241,6 +243,55 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     // Tear-off tabs: press-and-hold a tab, then drag it out to pop it into its own window.
     this._activateTabTearOff(root);
     this._refreshDetachedTabs();
+  }
+
+  /**
+   * Actor drag-drop wiring. Mirrors upstream's `_cpActivateActorDragDrop`: prevents default dragover
+   * on declared drop targets, wires the gear-tab reorder / drag-off-to-delete gestures, and (on an
+   * editable sheet) makes owned-item rows drag sources. Per-node `draggableInit` + the gear helper's
+   * own guards keep it safe to call every render. (Framework dragstart/drop are declared in
+   * DEFAULT_OPTIONS.dragDrop.) Consolidated from activateListeners in Stage A2.
+   */
+  _cpActivateActorDragDrop(root) {
+    if (!root) return;
+
+    // Prevent default dragover on declared drop targets (bound to the per-render child elements).
+    $(root).find('[data-drop-target]').on('dragover', (ev) => ev.preventDefault());
+
+    // Gear tab: drag a row to reorder, or drag it off the window to delete.
+    this._activateGearDragSort(root);
+
+    // Owned-item drag sources — only on an editable sheet (preserves the prior placement after the
+    // activateListeners editable guard).
+    const editable = this.isEditable ?? this.options?.editable ?? false;
+    if (!editable) return;
+
+    const el = getHtmlElement(root);
+    if (!el?.querySelectorAll) return;
+
+    const selector = [
+      '.field[data-item-id]',
+      '.item[data-item-id]',
+      '.skill[data-item-id]',
+      '.gear[data-item-id]',
+      '.fire-weapon[data-item-id]',
+      '.netrun-program[data-item-id]',
+      '.chipware[data-item-id]'
+    ].join(',');
+
+    el.querySelectorAll(selector).forEach((node) => {
+      if (node.dataset.draggableInit === '1') return;
+      if (node.closest?.('.item-delete, .item-unequip, .item-controls')) return;
+
+      node.dataset.draggableInit = '1';
+      node.setAttribute('draggable', 'true');
+      node.addEventListener('dragstart', (ev) => {
+        const id = node.dataset.itemId;
+        const it = this.actor.items.get(id);
+        if (!it) return;
+        this._cpWriteOwnedItemDragData(ev, it);
+      });
+    });
   }
 
   _prepareSkills(sheetData) {
@@ -792,11 +843,10 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     // is replaced by V2: form input auto-submit (form.submitOnChange), drag-drop (DEFAULT_OPTIONS
     // dragDrop), and tab binding (done in _onRender). This method is invoked from _onRender.
     // NOTE: Life-tab notes autosave moved to _cpActivateNotesEditor (called from _onRender) in Stage A2.
-    html.find('[data-drop-target]').on('dragover', (ev) => ev.preventDefault());
     // NOTE: tab binding + tear-off + detached-tab refresh moved to _cpActivateTabs (called from
     // _onRender) in Stage A2.
-    // Gear tab: drag a row to reorder, or drag it off the window to delete.
-    this._activateGearDragSort(root);
+    // NOTE: drop-target dragover + gear drag-sort + owned-item drag sources moved to
+    // _cpActivateActorDragDrop (called from _onRender) in Stage A2.
 
     /**
      * Get an owned item from a click event, for any event trigger with a data-item-id property
@@ -1460,44 +1510,14 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     });
 
 
-    // Drag sources for owned Actor Items.
-    const makeDraggable = (root) => {
-      const el = getHtmlElement(root);
-      if (!el?.querySelectorAll) return;
-
-      const selector = [
-        '.field[data-item-id]',
-        '.item[data-item-id]',
-        '.skill[data-item-id]',
-        '.gear[data-item-id]',
-        '.fire-weapon[data-item-id]',
-        '.netrun-program[data-item-id]',
-        '.chipware[data-item-id]'
-      ].join(',');
-
-      el.querySelectorAll(selector).forEach((node) => {
-        if (node.dataset.draggableInit === '1') return;
-        if (node.closest?.('.item-delete, .item-unequip, .item-controls')) return;
-
-        node.dataset.draggableInit = '1';
-        node.setAttribute('draggable', 'true');
-        node.addEventListener('dragstart', (ev) => {
-          const id = node.dataset.itemId;
-          const it = this.actor.items.get(id);
-          if (!it) return;
-          this._cpWriteOwnedItemDragData(ev, it);
-        });
-      });
-    };
-
     html.on('mousedown.cpActor', '.item-unequip', (e) => {
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation?.();
     });
     html.on('click.cpActor', '.item-unequip', (e) => this._onActiveUnequip(e));
-
-    makeDraggable(getHtmlElement(html) ?? html);
+    // NOTE: owned-item drag sources (makeDraggable) moved to _cpActivateActorDragDrop (called from
+    // _onRender) in Stage A2.
   }
 
   /**
