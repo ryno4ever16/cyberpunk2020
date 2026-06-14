@@ -751,6 +751,15 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       this._cpAvatarCapture = cpAvatarCapture;
     }
 
+    // V2 keeps this.element across re-renders (application.mjs creates this.#element once and only
+    // swaps the inner content via _replaceHTML). The delegated jQuery handlers below are bound to
+    // that persistent root, so without this they'd stack one duplicate copy every render (e.g. a
+    // single skill-level edit would fire N updates after N renders). Clear our namespace before
+    // (re)binding — every delegated root handler is tagged `.cpActor`. We re-bind each render
+    // (rather than bind-once like SuperCoon's `_cpActivate*` dataset guards) because some of these
+    // handlers close over per-render locals; fresh closures preserve behaviour exactly.
+    $(html).off('.cpActor');
+
     // NOTE: no `super.activateListeners` — ActorSheetV2 has none. Core wiring it used to provide
     // is replaced by V2: form input auto-submit (form.submitOnChange), drag-drop (DEFAULT_OPTIONS
     // dragDrop), and tab binding (done in _onRender). This method is invoked from _onRender.
@@ -787,7 +796,7 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     if (!this.isEditable) return;
 
     // SDP: manual edit current — save and do not overwrite until the amount changes
-    html.on('change', 'input[name^="system.sdp.current."]', ev => {
+    html.on('change.cpActor', 'input[name^="system.sdp.current."]', ev => {
       const input = ev.currentTarget;
       const path = input.getAttribute('name');
       const zone = path.split('.').pop();
@@ -865,8 +874,8 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     };
 
     html.find(".skill-level").click((event) => event.target.select());
-    html.on("change", ".skill-level", saveSkillLevel);
-    html.on("keydown", ".skill-level", (event) => {
+    html.on("change.cpActor", ".skill-level", saveSkillLevel);
+    html.on("keydown.cpActor", ".skill-level", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
         event.currentTarget.blur();
@@ -911,13 +920,13 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       searchTypingTimer = setTimeout(() => this.render(false), 120);
     });
 
-    html.on('pointerdown mousedown', '[data-action="clear-skill-search"]', (ev) => {
+    html.on('pointerdown.cpActor mousedown.cpActor', '[data-action="clear-skill-search"]', (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
     });
 
     // Clear the field and instantly reset the filter
-    html.on('click', '[data-action="clear-skill-search"]', (ev) => {
+    html.on('click.cpActor', '[data-action="clear-skill-search"]', (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
 
@@ -1384,7 +1393,7 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       listenerDoc = null;
     };
     
-    html.on("change", ".chip-toggle input[data-skill-id]", async (ev) => {
+    html.on("change.cpActor", ".chip-toggle input[data-skill-id]", async (ev) => {
       const checked = !!ev.currentTarget.checked;
       const skillId = ev.currentTarget.dataset.skillId;
       const skill = this.actor.items.get(skillId);
@@ -1455,12 +1464,12 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       });
     };
 
-    html.on('mousedown', '.item-unequip', (e) => {
+    html.on('mousedown.cpActor', '.item-unequip', (e) => {
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation?.();
     });
-    html.on('click', '.item-unequip', (e) => this._onActiveUnequip(e));
+    html.on('click.cpActor', '.item-unequip', (e) => this._onActiveUnequip(e));
 
     makeDraggable(getHtmlElement(html) ?? html);
   }

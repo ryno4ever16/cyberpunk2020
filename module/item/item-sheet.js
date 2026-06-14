@@ -716,6 +716,13 @@ async _prepareCyberware(sheet) {
     // No super.activateListeners — ItemSheetV2 has none; V2 form auto-submit + manual tabs replace it.
     const root = getHtmlElement(html);
 
+    // V2 keeps this.element across re-renders (core application.mjs creates this.#element once and
+    // only swaps the inner content via _replaceHTML). Every delegated jQuery handler below is bound
+    // to that persistent root, so without this they'd stack one duplicate copy per render. Clear our
+    // namespace before (re)binding — every html.on(...) below is tagged `.cpItem`. (Same guard as
+    // actor-sheet.js; covered by tests/v14/sheet-listener-idempotency.spec.js.)
+    $(html).off('.cpItem');
+
     const editable = this.isEditable ?? this.options?.editable ?? false;
 
     // Notes editor autosave must be registered while the sheet is editable,
@@ -736,11 +743,11 @@ async _prepareCyberware(sheet) {
     "select.cw-add-penalty",
     "select.cw-add-mountpolicy"
     ].forEach(sel => {
-      html.on("mousedown", sel, ev => { ev.currentTarget.value = ""; });
+      html.on("mousedown.cpItem", sel, ev => { ev.currentTarget.value = ""; });
     });
 
     // Stat
-    html.on("change", "select.cw-add-stat", async ev => {
+    html.on("change.cpItem", "select.cw-add-stat", async ev => {
       const key = ev.currentTarget.value;
       if (!key) return;
       await this._cwSet(`system.CyberWorkType.Stat.${key}`, 0);
@@ -748,7 +755,7 @@ async _prepareCyberware(sheet) {
     });
 
     // Checks
-    html.on("change", "select.cw-add-check", async ev => {
+    html.on("change.cpItem", "select.cw-add-check", async ev => {
       const key = ev.currentTarget.value;
       if (!key) return;
 
@@ -759,7 +766,7 @@ async _prepareCyberware(sheet) {
     });
 
     // Locations
-    html.on("change", "select.cw-add-location", async ev => {
+    html.on("change.cpItem", "select.cw-add-location", async ev => {
       const key = ev.currentTarget.value;
       if (!key) return;
       await this._cwSet(`system.CyberWorkType.Locations.${key}`, 0);
@@ -767,7 +774,7 @@ async _prepareCyberware(sheet) {
     });
 
     // Penalties
-    html.on("change", "select.cw-add-penalty", async ev => {
+    html.on("change.cpItem", "select.cw-add-penalty", async ev => {
       const key = ev.currentTarget.value;
       if (!key) return;
       await this._cwSet(`system.CyberWorkType.Penalties.${key}`, 0);
@@ -775,7 +782,7 @@ async _prepareCyberware(sheet) {
     });
 
     // MountPolicy
-    html.on("change", "select.cw-add-mountpolicy", async ev => {
+    html.on("change.cpItem", "select.cw-add-mountpolicy", async ev => {
       const key = ev.currentTarget.value;
       if (!key) return;
       const mp = this.item.system?.CyberWorkType?.MountPolicy;
@@ -795,12 +802,12 @@ async _prepareCyberware(sheet) {
     };
 
     // Characteristic.Skill
-    html.on("input", "input[name='cw-skill-search']", ev => {
+    html.on("input.cpItem", "input[name='cw-skill-search']", ev => {
       addSkillFromInput(ev.currentTarget, "system.CyberWorkType.Skill");
     });
 
     // Chip.ChipSkills
-    html.on("input", "input[name='cw-chip-skill-search']", async ev => {
+    html.on("input.cpItem", "input[name='cw-chip-skill-search']", async ev => {
       await addSkillFromInput(ev.currentTarget, "system.CyberWorkType.ChipSkills");
       await this._cp_syncChipLevelsToSkills();
       if (typeof this._cp_syncActiveFlagsToSkills === "function") {
@@ -808,13 +815,13 @@ async _prepareCyberware(sheet) {
       }
     });
 
-    html.on("change", "select[name='system.ammoItemId']", async (ev) => {
+    html.on("change.cpItem", "select[name='system.ammoItemId']", async (ev) => {
       if (this.item.type !== "weapon") return;
 
       const value = String(ev.currentTarget.value ?? "");
       await this.item.update({ "system.ammoItemId": value }, { render: false });
     });
-    html.on("change", "select[name='system.CyberWorkType.Weapon.ammoItemId']", async (ev) => {
+    html.on("change.cpItem", "select[name='system.CyberWorkType.Weapon.ammoItemId']", async (ev) => {
       if (this.item.type !== "cyberware") return;
 
       const value = String(ev.currentTarget.value ?? "");
@@ -822,7 +829,7 @@ async _prepareCyberware(sheet) {
     });
 
     // Allow comma decimal separator in numeric inputs (convert to dot)
-    html.on("change", 'input[type="number"]', (ev) => {
+    html.on("change.cpItem", 'input[type="number"]', (ev) => {
       const el = ev.currentTarget;
       if (typeof el.value === "string" && el.value.includes(",")) {
         el.value = el.value.replace(",", ".");
@@ -832,21 +839,21 @@ async _prepareCyberware(sheet) {
     // Vehicle weapon shell/warhead variants (array of {name, pen, burst, warhead, ap}). Edited in
     // place like the ammo blast-multipliers: read the array, mutate, write it back.
     const _svArray = () => Array.isArray(this.item.system?.shellVariants) ? foundry.utils.duplicate(this.item.system.shellVariants) : [];
-    html.on("click", ".cp-sv-add", async (ev) => {
+    html.on("click.cpItem", ".cp-sv-add", async (ev) => {
       if (this.item.type !== "vehicleWeapon") return;
       ev.preventDefault();
       const arr = _svArray();
       arr.push({ name: "New Shell", pen: Number(this.item.system?.penetration) || 0, burst: Number(this.item.system?.burst) || 0, warhead: "", ap: false });
       await this.item.update({ "system.shellVariants": arr });
     });
-    html.on("click", ".cp-sv-remove", async (ev) => {
+    html.on("click.cpItem", ".cp-sv-remove", async (ev) => {
       if (this.item.type !== "vehicleWeapon") return;
       ev.preventDefault();
       const idx = Number(ev.currentTarget.dataset.index);
       const arr = _svArray();
       if (Number.isFinite(idx) && idx >= 0 && idx < arr.length) { arr.splice(idx, 1); await this.item.update({ "system.shellVariants": arr }); }
     });
-    html.on("change", ".cp-sv", async (ev) => {
+    html.on("change.cpItem", ".cp-sv", async (ev) => {
       if (this.item.type !== "vehicleWeapon") return;
       const idx = Number(ev.currentTarget.closest(".cp-shellvar")?.dataset?.index);
       const field = ev.currentTarget.dataset.field;
@@ -859,7 +866,7 @@ async _prepareCyberware(sheet) {
     });
 
     // Ammo Blast Multipliers
-    html.on("change", "input.ammo-blast-mult", async (ev) => {
+    html.on("change.cpItem", "input.ammo-blast-mult", async (ev) => {
       if (this.item.type !== "ammo") return;
 
       ev.preventDefault();
@@ -891,7 +898,7 @@ async _prepareCyberware(sheet) {
     });
 
     // Ammo quantity manual-edit lock toggle.
-    html.on("click", ".cp-ammo-qty-lock", async (ev) => {
+    html.on("click.cpItem", ".cp-ammo-qty-lock", async (ev) => {
       if (this.item.type !== "ammo") return;
       ev.preventDefault();
       ev.stopPropagation();
@@ -901,7 +908,7 @@ async _prepareCyberware(sheet) {
 
     // Ammo "Buy box": restock THIS exact ammo item by one box. Box size/price come from the
     // caliber+modifier registry, with the item's own boxSize/boxCost as optional overrides.
-    html.on("click", ".cp-ammo-buy-box", async (ev) => {
+    html.on("click.cpItem", ".cp-ammo-buy-box", async (ev) => {
       if (this.item.type !== "ammo") return;
       ev.preventDefault();
       ev.stopPropagation();
@@ -943,7 +950,7 @@ async _prepareCyberware(sheet) {
 
     // Ammo modifier (load) change: seed the mechanical fields from the modifier definition.
     // Fields remain editable afterward (this only fires when the user picks a new modifier).
-    html.on("change", "select.cp-ammo-modifier", async (ev) => {
+    html.on("change.cpItem", "select.cp-ammo-modifier", async (ev) => {
       if (this.item.type !== "ammo") return;
       ev.preventDefault();
       const modId = String(ev.currentTarget.value ?? "standard");
@@ -951,15 +958,15 @@ async _prepareCyberware(sheet) {
     });
 
     // Ammo Locker (misc item): toggle the flag, and open the Buy-Ammo dialog from the item.
-    html.on("change", ".cp-locker-toggle", async (ev) => {
+    html.on("change.cpItem", ".cp-locker-toggle", async (ev) => {
       await this.item.setFlag("cyberpunk2020", "ammoLocker", !!ev.currentTarget.checked);
     });
-    html.on("click", ".cp-locker-buy", async (ev) => {
+    html.on("click.cpItem", ".cp-locker-buy", async (ev) => {
       ev.preventDefault();
       await openBuyAmmoDialog(this.item.actor ?? null);
     });
 
-    html.on("mousedown", "input[name='cw-skill-search'], input[name='cw-chip-skill-search']", ev => {
+    html.on("mousedown.cpItem", "input[name='cw-skill-search'], input[name='cw-chip-skill-search']", ev => {
       const el = ev.currentTarget;
       // PopOut!: compare against the element's OWN document (it may live in a popped-out window).
       if (el.ownerDocument.activeElement === el) {
@@ -974,12 +981,12 @@ async _prepareCyberware(sheet) {
     });
 
     // Remove
-    html.on("click", ".cw-remove-stat", ev => this._cwDelete("system.CyberWorkType.Stat", ev.currentTarget.dataset.key));
-    html.on("click", ".cw-remove-check", ev => this._cwDelete("system.CyberWorkType.Checks", ev.currentTarget.dataset.key));
-    html.on("click", ".cw-remove-skill", ev => this._cwDelete("system.CyberWorkType.Skill", ev.currentTarget.dataset.key));
-    html.on("click", ".cw-remove-location", ev => this._cwDelete("system.CyberWorkType.Locations", ev.currentTarget.dataset.key));
-    html.on("click", ".cw-remove-penalty", ev => this._cwDelete("system.CyberWorkType.Penalties", ev.currentTarget.dataset.key));
-    html.on("click", ".cw-remove-chipskill", async ev => {
+    html.on("click.cpItem", ".cw-remove-stat", ev => this._cwDelete("system.CyberWorkType.Stat", ev.currentTarget.dataset.key));
+    html.on("click.cpItem", ".cw-remove-check", ev => this._cwDelete("system.CyberWorkType.Checks", ev.currentTarget.dataset.key));
+    html.on("click.cpItem", ".cw-remove-skill", ev => this._cwDelete("system.CyberWorkType.Skill", ev.currentTarget.dataset.key));
+    html.on("click.cpItem", ".cw-remove-location", ev => this._cwDelete("system.CyberWorkType.Locations", ev.currentTarget.dataset.key));
+    html.on("click.cpItem", ".cw-remove-penalty", ev => this._cwDelete("system.CyberWorkType.Penalties", ev.currentTarget.dataset.key));
+    html.on("click.cpItem", ".cw-remove-chipskill", async ev => {
       const skillKey = ev.currentTarget.dataset.key;
 
       await this._cwDelete("system.CyberWorkType.ChipSkills", skillKey);
@@ -1002,7 +1009,7 @@ async _prepareCyberware(sheet) {
 
       if (actor?.sheet?.rendered) actor.sheet.render(true);
     });
-    html.on("click", ".cw-remove-mount", async ev => {
+    html.on("click.cpItem", ".cw-remove-mount", async ev => {
       const key = ev.currentTarget.dataset.key;
       const mp = this.item.system?.CyberWorkType?.MountPolicy || [];
       const list = mp.filter(x => x !== key);
@@ -1010,7 +1017,7 @@ async _prepareCyberware(sheet) {
     });
 
     // Change body zone: if not Arm/Leg — clear the side
-    html.on("change", "select[name='system.CyberBodyType.Type']", async ev => {
+    html.on("change.cpItem", "select[name='system.CyberBodyType.Type']", async ev => {
       const t = ev.currentTarget.value;
       if (t !== "Arm" && t !== "Leg") {
         await this._cwSet("system.CyberBodyType.Location", "");
@@ -1018,7 +1025,7 @@ async _prepareCyberware(sheet) {
     });
 
     // Weapon selection: always store the id in system.CyberWorkType.ItemId
-    html.on("change", "select.cw-select-weapon", async ev => {
+    html.on("change.cpItem", "select.cw-select-weapon", async ev => {
       const selectedId = ev.currentTarget.value || "";
       await this._cwSet("system.CyberWorkType.ItemId", selectedId);
     });
@@ -1047,12 +1054,12 @@ async _prepareCyberware(sheet) {
       this._onSubmit(ev);
     });
 
-    html.on("change", "select[name='system.Module.ParentId']", async ev => {
+    html.on("change.cpItem", "select[name='system.Module.ParentId']", async ev => {
       await this._cwSet("system.Module.ParentId", String(ev.currentTarget.value || ""));
     });
 
     // MODULE: implant replacement
-    html.on("change", "select[name='system.Module.ParentId']", async ev => {
+    html.on("change.cpItem", "select[name='system.Module.ParentId']", async ev => {
       const prevId = this.item.system?.Module?.ParentId || "";
       const newId = String(ev.currentTarget.value || "");
 
@@ -1067,7 +1074,7 @@ async _prepareCyberware(sheet) {
     });
 
     // MODULE: change “occupies options”
-    html.on("change", "input[name='system.Module.SlotsTaken']", async ev => {
+    html.on("change.cpItem", "input[name='system.Module.SlotsTaken']", async ev => {
       const n = Number(ev.currentTarget.value);
       await this._cwSet("system.Module.SlotsTaken", Number.isFinite(n) ? n : 0);
 
@@ -1077,7 +1084,7 @@ async _prepareCyberware(sheet) {
     });
 
     // MODULE: turning off “Module” — freeing up options from the parent
-    html.on("change", "input[name='system.Module.IsModule']", async ev => {
+    html.on("change.cpItem", "input[name='system.Module.IsModule']", async ev => {
       const enabled = ev.currentTarget.checked;
       const prevId = this.item.system?.Module?.ParentId || "";
       await this._cwSet("system.Module.IsModule", enabled);
@@ -1088,7 +1095,7 @@ async _prepareCyberware(sheet) {
       }
     });
 
-    html.on("change", "select[name='system.cyberwareType']", async ev => {
+    html.on("change.cpItem", "select[name='system.cyberwareType']", async ev => {
       const v = ev.currentTarget.value;
       let bodyType = "";
       if (v === "CyberArm") bodyType = "Arm";
@@ -1103,7 +1110,7 @@ async _prepareCyberware(sheet) {
     });
 
     // Changing the ChipSkills level
-    html.on("change", "input[name^='system.CyberWorkType.ChipSkills.']", async ev => {
+    html.on("change.cpItem", "input[name^='system.CyberWorkType.ChipSkills.']", async ev => {
       const el = ev.currentTarget;
       const skillName = el.name.split(".").pop();
       const n = Number(el.value);
@@ -1128,7 +1135,7 @@ async _prepareCyberware(sheet) {
       this.render(true);
     });
 
-    html.on("change", "input[name='system.CyberWorkType.ChipActive']", async ev => {
+    html.on("change.cpItem", "input[name='system.CyberWorkType.ChipActive']", async ev => {
       const checked = !!ev.currentTarget.checked;
       const prev = !!this.item.system?.CyberWorkType?.ChipActive;
       if (prev === checked) return;
@@ -1191,7 +1198,7 @@ async _prepareCyberware(sheet) {
         });
       };
 
-      html.on("change", "input[name='system.level']", async (ev) => {
+      html.on("change.cpItem", "input[name='system.level']", async (ev) => {
         const value = parseSkillNumber(ev.currentTarget.value);
         const prev = Number(this.item.system?.level || 0);
         if (prev === value) return;
@@ -1203,7 +1210,7 @@ async _prepareCyberware(sheet) {
         this.render(true);
       });
 
-      html.on("change", "input[name='system.isChipped']", async (ev) => {
+      html.on("change.cpItem", "input[name='system.isChipped']", async (ev) => {
         const checked = !!ev.currentTarget.checked;
 
         const prev = !!this.item.system?.isChipped;
@@ -1242,7 +1249,7 @@ async _prepareCyberware(sheet) {
 
       // Changing “Level (with chip)” always persists the skill's own chipLevel.
       // If a real chip implant exists for this skill, mirror the value into that chip as well.
-      html.on("change", "input[name='system.chipLevel']", async (ev) => {
+      html.on("change.cpItem", "input[name='system.chipLevel']", async (ev) => {
         const actor = this.item.actor;
         const skillId = this.item.id;
         const skillName = this.item.name;
@@ -1285,7 +1292,7 @@ async _prepareCyberware(sheet) {
     }
 
     // Open/close menu
-    html.on("click", ".cw-ms-trigger", ev => {
+    html.on("click.cpItem", ".cw-ms-trigger", ev => {
       ev.preventDefault();
       const root = ev.currentTarget.closest(".cw-ms");
       if (!root) return;
@@ -1293,13 +1300,13 @@ async _prepareCyberware(sheet) {
     });
 
     // Close on click outside the block
-    html.on("click", ev => {
+    html.on("click.cpItem", ev => {
       if ($(ev.target).closest(".cw-ms").length) return;
       html.find(".cw-ms.open").removeClass("open");
     });
 
     // Selecting checkboxes within the menu
-    html.on("change", ".cw-ms-menu input[type=checkbox]", async ev => {
+    html.on("change.cpItem", ".cw-ms-menu input[type=checkbox]", async ev => {
       const root = ev.currentTarget.closest(".cw-ms");
       if (!root) return;
 
@@ -1329,7 +1336,7 @@ async _prepareCyberware(sheet) {
       await this._cwSet("system.CyberWorkType.Types", next);
     });
 
-    html.on("click", ".ammo-ms-trigger", ev => {
+    html.on("click.cpItem", ".ammo-ms-trigger", ev => {
       if (this.item.type !== "ammo") return;
       ev.preventDefault();
       const root = ev.currentTarget.closest(".ammo-ms");
@@ -1337,13 +1344,13 @@ async _prepareCyberware(sheet) {
       root.classList.toggle("open");
     });
 
-    html.on("click", ev => {
+    html.on("click.cpItem", ev => {
       if (this.item.type !== "ammo") return;
       if ($(ev.target).closest(".ammo-ms").length) return;
       html.find(".ammo-ms.open").removeClass("open");
     });
 
-    html.on("change", ".ammo-ms-menu input[type=checkbox]", async ev => {
+    html.on("change.cpItem", ".ammo-ms-menu input[type=checkbox]", async ev => {
       if (this.item.type !== "ammo") return;
       const root = ev.currentTarget.closest(".ammo-ms");
       if (!root) return;
@@ -1423,7 +1430,7 @@ async _prepareCyberware(sheet) {
     }
 
     // MODULE: toggling equipped should refresh parent implant sheet (slots left)
-    html.on("change", "input[name='system.equipped']", async ev => {
+    html.on("change.cpItem", "input[name='system.equipped']", async ev => {
       const checked = !!ev.currentTarget.checked;
 
       const patch = { "system.equipped": checked };
