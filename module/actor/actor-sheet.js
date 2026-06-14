@@ -177,6 +177,8 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     this._cpActivateCyberwareControls(root);
     // Netrunning controls (interface roll / program edit/trash / deactivate) — Stage A2.
     this._cpActivateNetrunningControls(root);
+    // CP2020-specific controls (ammo toggle / shop / services / IP / martial) — Stage A2.
+    this._cpActivateActorCustomControls(root);
     // Life-tab (system.notes) ProseMirror autosave — extracted to an upstream-aligned helper (Stage A2).
     this._cpActivateNotesEditor(root);
     // Drag-drop (drop-target dragover, gear sort, owned-item drag sources) — upstream-aligned helper (Stage A2).
@@ -981,6 +983,128 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     });
   }
 
+  /**
+   * CP2020-specific actor controls with no upstream equivalent: the ammo-tracking toggle, the Shop
+   * button, the Services tab (add/pay/edit/delete), the IP tracker (level-up / lock-toggle), and the
+   * martial-action panel. Same native bind-once dispatch shape as the upstream-mirrored clusters
+   * (Stage A2); covered by tests/v14/actor-custom-controls.spec.js.
+   */
+  _cpActivateActorCustomControls(root) {
+    if (!root?.addEventListener) return;
+    if (root.dataset.cpActorCustomControlsBound === "1") return;
+    root.dataset.cpActorCustomControlsBound = "1";
+
+    const editable = this.isEditable ?? this.options?.editable ?? false;
+    if (!editable) return;
+
+    // Ammo-tracking / Free Fire toggle (per-actor flag).
+    root.addEventListener("change", async (event) => {
+      if (event.target?.matches?.(".cp-ammo-tracking")) {
+        await this.actor.setFlag("cyberpunk2020", "ammoTracking", event.target.checked);
+      }
+    });
+
+    root.addEventListener("click", async (event) => {
+      const target = event.target;
+      if (!target?.closest) return;
+
+      if (target.closest(".cp-open-shop")) {
+        event.preventDefault();
+        openShopForPlayer(this.actor);
+        return;
+      }
+
+      // Services tab (recurring bills).
+      const svcAdd = target.closest(".cp-service-add");
+      if (svcAdd) {
+        event.preventDefault();
+        const [created] = await this.actor.createEmbeddedDocuments("Item", [{
+          name: "New Service", type: "misc", system: { serviceMode: "recurring", servicePeriod: "month", cost: 0 }
+        }]);
+        created?.sheet?.render(true);
+        return;
+      }
+      const svcPay = target.closest(".cp-service-pay");
+      if (svcPay) {
+        event.preventDefault();
+        const item = this._cpGetItemFromTarget(svcPay);
+        if (item) await payService(this.actor, item);
+        return;
+      }
+      const svcEdit = target.closest(".cp-service-edit");
+      if (svcEdit) {
+        event.preventDefault();
+        this._cpGetItemFromTarget(svcEdit)?.sheet?.render(true);
+        return;
+      }
+      const svcDelete = target.closest(".cp-service-delete");
+      if (svcDelete) {
+        event.preventDefault();
+        const item = this._cpGetItemFromTarget(svcDelete);
+        if (item) await item.delete();
+        return;
+      }
+
+      // IP tracker: self-service level-up + skill-lock toggle.
+      const ipLevel = target.closest(".ip-level-up");
+      if (ipLevel) {
+        event.preventDefault();
+        event.stopPropagation();
+        const skill = this.actor.items.get(ipLevel.dataset.skillId);
+        if (skill) await levelUpSkill(this.actor, skill);
+        return;
+      }
+      const ipLock = target.closest(".ip-lock-toggle");
+      if (ipLock) {
+        event.preventDefault();
+        await toggleSkillLock(this.actor);
+        this.render(false);
+        return;
+      }
+
+      // Martial-arts action button (combat tab).
+      const martial = target.closest(".martial-action");
+      if (martial) {
+        event.preventDefault();
+        event.stopPropagation();
+        this._cpOpenMartialActionDialog(martial);
+        return;
+      }
+    });
+  }
+
+  /**
+   * Open the attack dialog for a martial-arts action button: the action is fixed by the button, so
+   * the dialog only collects martial-art style + cyberlimb, injecting the action into the fire
+   * options. Uses a real martial weapon if the button names one, else a transient unarmed weapon.
+   * (Body ported verbatim from the former .martial-action jQuery handler; Stage A2.)
+   */
+  _cpOpenMartialActionDialog(button) {
+    const action = button.dataset.action;
+    if (!action) return;
+
+    let item = button.dataset.itemId ? this.actor.items.get(button.dataset.itemId) : null;
+    if (!item) {
+      item = new CONFIG.Item.documentClass(
+        { name: localize("MartialArt"), type: "weapon", img: "systems/cyberpunk2020/img/punch-icon.svg",
+          system: { attackType: meleeAttackTypes.martial, weaponType: "Melee" } },
+        { parent: this.actor }
+      );
+    }
+
+    const targetTokens = Array.from(game.users.current.targets.values()).map(target => ({
+      name: target.document.name, id: target.id,
+    }));
+
+    const dialog = new ModifiersDialog(this.actor, {
+      weapon: item,
+      targetTokens,
+      modifierGroups: martialOptions(this.actor),
+      onConfirm: (fireOptions) => item.__weaponRoll({ ...fireOptions, action }, targetTokens),
+    });
+    dialog.render(true);
+  }
+
   _prepareSkills(sheetData) {
     sheetData.skillsSort = this.actor.system.skillsSortedBy || "Name";
     sheetData.skillsSortChoices = Object.keys(SortOrders);
@@ -1549,53 +1673,9 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     // NOTE: .roll-initiative click + .roll-initiative-modificator change moved to
     // _cpActivateBasicActorActions / _cpActivateActorFormControls in Stage A2.
 
-    // Ammo tracking / Free Fire toggle (per-actor flag, default ON)
-    html.find(".cp-ammo-tracking").on("change", async ev => {
-      await this.actor.setFlag("cyberpunk2020", "ammoTracking", ev.target.checked);
-    });
-
-    // Shop button -> opens the catalog browser or a published shop (gated by the shopping setting).
-    html.find(".cp-open-shop").on("click", ev => {
-      ev.preventDefault();
-      openShopForPlayer(this.actor);
-    });
-
-    // ── Services tab (recurring bills) ──────────────────────────────────────
-    const getServiceItem = (ev) => this.actor.items.get(ev.currentTarget.closest("[data-item-id]")?.dataset?.itemId);
-    html.find(".cp-service-add").on("click", async ev => {
-      ev.preventDefault();
-      const [created] = await this.actor.createEmbeddedDocuments("Item", [{
-        name: "New Service", type: "misc", system: { serviceMode: "recurring", servicePeriod: "month", cost: 0 }
-      }]);
-      created?.sheet?.render(true);
-    });
-    html.find(".cp-service-pay").on("click", async ev => {
-      ev.preventDefault();
-      const item = getServiceItem(ev);
-      if (item) await payService(this.actor, item);
-    });
-    html.find(".cp-service-edit").on("click", ev => {
-      ev.preventDefault();
-      getServiceItem(ev)?.sheet?.render(true);
-    });
-    html.find(".cp-service-delete").on("click", async ev => {
-      ev.preventDefault();
-      const item = getServiceItem(ev);
-      if (item) await item.delete();
-    });
-
-    // ── IP tracker: self-service level-up + skill-lock toggle ───────────────
-    html.find(".ip-level-up").on("click", async ev => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      const skill = this.actor.items.get(ev.currentTarget.dataset.skillId);
-      if (skill) await levelUpSkill(this.actor, skill);
-    });
-    html.find(".ip-lock-toggle").on("click", async ev => {
-      ev.preventDefault();
-      await toggleSkillLock(this.actor);
-      this.render(false);
-    });
+    // NOTE: ammo-tracking toggle, the Shop button, the Services tab (add/pay/edit/delete), and the
+    // IP tracker (level-up / lock-toggle) moved to _cpActivateActorCustomControls (native dispatch,
+    // called from _onRender) in Stage A2.
 
     // Stun/Death save
     // NOTE: .roll-stun-death-modificator change moved to _cpActivateActorFormControls in Stage A2.
@@ -1610,38 +1690,8 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     // _cpOpenWeaponAttackDialog (called from _onRender) in Stage A2. Migrated together with the item
     // controls because the item image is nested inside .fire-weapon (see DEV-GUIDE.md Part 6).
 
-    // Martial-arts action buttons (combat tab): the action is chosen by the button, so the dialog
-    // only collects martial-art style + cyberlimb, and we inject the action into the fire options.
-    html.find('.martial-action').click(ev => {
-      ev.stopPropagation();
-      ev.preventDefault();
-      const btn = ev.currentTarget;
-      const action = btn.dataset.action;
-      if (!action) return;
-      // Use a real martial weapon if the actor has one (e.g. a cyber-claw), else a transient,
-      // unsaved unarmed weapon owned by the actor — the panel is weapon-less, so unarmed combat
-      // works with no item in the gear tab. Damage derives from the action (Strike 1d3 / Kick 1d6).
-      let item = btn.dataset.itemId ? this.actor.items.get(btn.dataset.itemId) : null;
-      if (!item) {
-        item = new CONFIG.Item.documentClass(
-          { name: localize("MartialArt"), type: "weapon", img: "systems/cyberpunk2020/img/punch-icon.svg",
-            system: { attackType: meleeAttackTypes.martial, weaponType: "Melee" } },
-          { parent: this.actor }
-        );
-      }
-
-      const targetTokens = Array.from(game.users.current.targets.values()).map(target => ({
-        name: target.document.name, id: target.id,
-      }));
-
-      const dialog = new ModifiersDialog(this.actor, {
-        weapon: item,
-        targetTokens,
-        modifierGroups: martialOptions(this.actor),
-        onConfirm: (fireOptions) => item.__weaponRoll({ ...fireOptions, action }, targetTokens),
-      });
-      dialog.render(true);
-    });
+    // NOTE: the .martial-action buttons moved to _cpActivateActorCustomControls +
+    // _cpOpenMartialActionDialog (native dispatch, called from _onRender) in Stage A2.
 
     // Cyberware-tab body-type picker: store the choice; the sheet re-renders with the new image.
     // NOTE: .anatomy-select change moved to _cpActivateCyberwareControls (native dispatch) in Stage A2.
