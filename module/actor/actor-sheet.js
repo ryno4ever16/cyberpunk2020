@@ -178,9 +178,54 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
         this._cpTabs.bind(root);
       }
     } catch (e) { console.warn("cyberpunk2020 | actor-sheet tab bind failed", e); }
+    // FilePicker (avatar/image) wiring — extracted to an upstream-aligned helper (Stage A2).
+    this._cpActivateActorFilePickers(root);
     // Re-use the existing jQuery listener wiring verbatim (the V1 activateListeners body).
     try { this.activateListeners($(root)); }
     catch (e) { console.error("cyberpunk2020 | actor-sheet activateListeners failed", e); }
+  }
+
+  /**
+   * Avatar / image FilePicker wiring. Mirrors upstream's `_cpActivateActorFilePickers`: a single
+   * capture-phase listener on the persistent root opens a FilePicker when the avatar
+   * ([data-edit="img"]) is clicked. The prior listener is removed before re-adding so it stays
+   * single-bound across re-renders (the root element persists in V2). Extracted verbatim from
+   * activateListeners in Stage A2 — still uses the same FilePicker namespacing.
+   */
+  _cpActivateActorFilePickers(root) {
+    if (!root) return;
+
+    if (this._cpAvatarCapture) {
+      try {
+        root.removeEventListener("pointerdown", this._cpAvatarCapture, { capture: true });
+        root.removeEventListener("click", this._cpAvatarCapture, { capture: true });
+      } catch (_) {}
+    }
+
+    const cpAvatarCapture = (ev) => {
+      const editable = ev.target?.closest?.("[data-edit]");
+      if (!editable) return;
+      if ((editable.dataset?.edit || "") !== "img") return;
+
+      ev.preventDefault();
+      ev.stopImmediatePropagation?.();
+
+      const fp = new (foundry.applications?.apps?.FilePicker?.implementation ?? foundry.applications?.apps?.FilePicker ?? FilePicker)({
+        type: "image",
+        activeSource: "data",
+        current: "",
+        callback: (path) => this.actor.update({ img: path })
+      });
+      fp.render(true);
+      setTimeout(() => {
+        try { fp.browse({ activeSource: "data", current: "" }); }
+        catch { try { fp.browse("data", "", {}); } catch (e) { console.warn(e); } }
+      }, 0);
+    };
+
+    root.addEventListener("pointerdown", cpAvatarCapture, { capture: true });
+    root.addEventListener("click", cpAvatarCapture, { capture: true });
+    this._cpAvatarCapture = cpAvatarCapture;
   }
 
   _prepareSkills(sheetData) {
@@ -716,39 +761,8 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
   activateListeners(html) {
     const root = getHtmlElement(html);
 
-    if (root && this._cpAvatarCapture) {
-      try {
-        root.removeEventListener("pointerdown", this._cpAvatarCapture, { capture: true });
-        root.removeEventListener("click", this._cpAvatarCapture, { capture: true });
-      } catch (_) {}
-    }
-
-    const cpAvatarCapture = (ev) => {
-      const editable = ev.target?.closest?.("[data-edit]");
-      if (!editable) return;
-      if ((editable.dataset?.edit || "") !== "img") return;
-
-      ev.preventDefault();
-      ev.stopImmediatePropagation?.();
-
-      const fp = new (foundry.applications?.apps?.FilePicker?.implementation ?? foundry.applications?.apps?.FilePicker ?? FilePicker)({
-        type: "image",
-        activeSource: "data",
-        current: "",
-        callback: (path) => this.actor.update({ img: path })
-      });
-      fp.render(true);
-      setTimeout(() => {
-        try { fp.browse({ activeSource: "data", current: "" }); }
-        catch { try { fp.browse("data", "", {}); } catch (e) { console.warn(e); } }
-      }, 0);
-    };
-
-    if (root) {
-      root.addEventListener("pointerdown", cpAvatarCapture, { capture: true });
-      root.addEventListener("click", cpAvatarCapture, { capture: true });
-      this._cpAvatarCapture = cpAvatarCapture;
-    }
+    // NOTE: avatar/image FilePicker wiring moved to _cpActivateActorFilePickers (called from
+    // _onRender) in Stage A2.
 
     // V2 keeps this.element across re-renders (application.mjs creates this.#element once and only
     // swaps the inner content via _replaceHTML). The delegated jQuery handlers below are bound to
