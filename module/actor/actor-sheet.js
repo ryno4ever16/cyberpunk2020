@@ -294,6 +294,26 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     });
   }
 
+  /** Resolve the owned Item for a click/drag event carrying a data-item-id.
+   *  (Was the local getEventItem fn in activateListeners; promoted in Stage A2.) */
+  _cpGetEventItem(ev) {
+    return this.actor.items.get(ev.currentTarget.dataset.itemId);
+  }
+
+  /** Confirm-and-delete the owned Item for an event (item-delete control / right-click delete).
+   *  (Was the local deleteItemDialog fn in activateListeners; promoted in Stage A2.) */
+  _cpDeleteItemDialog(ev) {
+    ev.stopPropagation();
+    const item = this._cpGetEventItem(ev);
+    foundry.applications.api.DialogV2.confirm({
+      window: { title: localize("ItemDeleteConfirmTitle") },
+      content: `<p>${localizeParam("ItemDeleteConfirmText", { itemName: item.name })}</p>`,
+      yes: { label: localize("Yes"), callback: () => item.delete() },
+      no: { label: localize("No"), default: true },
+      rejectClose: false,
+    });
+  }
+
   _prepareSkills(sheetData) {
     sheetData.skillsSort = this.actor.system.skillsSortedBy || "Name";
     sheetData.skillsSortChoices = Object.keys(SortOrders);
@@ -848,25 +868,8 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     // NOTE: drop-target dragover + gear drag-sort + owned-item drag sources moved to
     // _cpActivateActorDragDrop (called from _onRender) in Stage A2.
 
-    /**
-     * Get an owned item from a click event, for any event trigger with a data-item-id property
-     * @param {*} ev 
-    */
-    function getEventItem(sheet, ev) {
-      let itemId = ev.currentTarget.dataset.itemId;
-      return sheet.actor.items.get(itemId);
-    }
-    function deleteItemDialog(ev) {
-      ev.stopPropagation();
-      let item = getEventItem(this, ev);
-      foundry.applications.api.DialogV2.confirm({
-        window: { title: localize("ItemDeleteConfirmTitle") },
-        content: `<p>${localizeParam("ItemDeleteConfirmText", {itemName: item.name})}</p>`,
-        yes: { label: localize("Yes"), callback: () => item.delete() },
-        no: { label: localize("No"), default: true },
-        rejectClose: false,
-      });
-    }
+    // NOTE: getEventItem + deleteItemDialog promoted to instance methods _cpGetEventItem /
+    // _cpDeleteItemDialog in Stage A2 (so extracted helpers can share them).
 
     // If not editable, do nothing further
     if (!this.isEditable) return;
@@ -1139,7 +1142,7 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     html.find('.item-roll').click(ev => {
       // Roll is often within child events, don't bubble please
       ev.stopPropagation();
-      let item = getEventItem(this, ev);
+      let item = this._cpGetEventItem(ev);
       item.roll();
     });
 
@@ -1147,7 +1150,7 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     html.find('.item-edit').on('click', (ev) => {
       if (ev.target.closest('.item-unequip')) return;
       ev.stopPropagation();
-      const item = getEventItem(this, ev);
+      const item = this._cpGetEventItem(ev);
       item.sheet.render(true);
     });
 
@@ -1156,19 +1159,19 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       if (ev.target.closest('.item-unequip') || ev.target.closest('.item-delete')) return;
 
       ev.stopPropagation();
-      const item = getEventItem(this, ev);
+      const item = this._cpGetEventItem(ev);
       if (!item) return;
       item.sheet.render(true);
     });
 
     // Delete item
-    html.find('.item-delete').click(deleteItemDialog.bind(this));
-    html.find('.rc-item-delete').bind("contextmenu", deleteItemDialog.bind(this)); 
+    html.find('.item-delete').click(ev => this._cpDeleteItemDialog(ev));
+    html.find('.rc-item-delete').bind("contextmenu", ev => this._cpDeleteItemDialog(ev));
 
     // "Fire" button for weapons
     html.find('.fire-weapon').click(ev => {
       ev.stopPropagation();
-      let item = getEventItem(this, ev);
+      let item = this._cpGetEventItem(ev);
       let isRanged = item.isRanged();
 
       let modifierGroups = undefined;
