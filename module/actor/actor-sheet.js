@@ -169,6 +169,8 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     this._cpActivateActorFilePickers(root);
     // Basic actor click actions (rolls + damage box) — upstream-aligned native helper (Stage A2).
     this._cpActivateBasicActorActions(root);
+    // Form controls (SDP / skill-level / skill-sort / ask-mod / init+stun modifiers) — Stage A2.
+    this._cpActivateActorFormControls(root);
     // Life-tab (system.notes) ProseMirror autosave — extracted to an upstream-aligned helper (Stage A2).
     this._cpActivateNotesEditor(root);
     // Drag-drop (drop-target dragover, gear sort, owned-item drag sources) — upstream-aligned helper (Stage A2).
@@ -547,6 +549,138 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       onConfirm: (fireOptions) => item.__weaponRoll(fireOptions, targetTokens)
     });
     dialog.render(true);
+  }
+
+  /**
+   * Actor form controls — SDP current, skill-level (select-on-click / Enter-to-blur / change),
+   * skill-sort, skill-ask-mod, and the initiative / stun-death modifier fields. Mirrors upstream's
+   * `_cpActivateActorFormControls`: native click/keydown/change listeners on the persistent root,
+   * dispatched via `closest`/`matches`, bound once per window. Native-DOM rewrite of the former
+   * jQuery handlers (Stage A2); covered by tests/v14/actor-form-controls.spec.js.
+   * NOTE: the skill-search input/clear/caret handling is intentionally NOT migrated here — it stays
+   * jQuery (per-render) because ours re-renders to filter, whereas upstream filters the DOM in place
+   * (`_cpApplySkillFilterToDOM`); that architecture choice is deferred to a dedicated step.
+   */
+  _cpActivateActorFormControls(root) {
+    if (!root?.addEventListener) return;
+    const editable = this.isEditable ?? this.options?.editable ?? false;
+    if (!editable) return;
+    if (root.dataset.cpActorFormControlsBound === "1") return;
+    root.dataset.cpActorFormControlsBound = "1";
+
+    root.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!target?.closest) return;
+
+      const skillLevel = target.closest(".skill-level");
+      if (skillLevel) { skillLevel.select?.(); return; }
+
+      const askMods = target.closest(".skill-ask-mod");
+      if (askMods) { event.stopPropagation(); return; }
+    });
+
+    root.addEventListener("keydown", (event) => {
+      const target = event.target;
+      if (!target?.matches?.(".skill-level")) return;
+      if (event.key === "Enter") {
+        event.preventDefault();
+        target.blur();
+      }
+    });
+
+    root.addEventListener("change", async (event) => {
+      const target = event.target;
+      if (!target?.matches) return;
+
+      if (target.matches('input[name^="system.sdp.current."]')) {
+        const path = target.getAttribute("name");
+        const zone = path?.split(".").pop();
+        if (zone) await this.actor.update({ [`system.sdp.current.${zone}`]: Number(target.value || 0) });
+        return;
+      }
+      if (target.matches(".skill-level")) { await this._cpSaveSkillLevelFromInput(target); return; }
+      if (target.matches(".skill-sort > select, .skill-sort select")) { this.actor.sortSkills(target.value); return; }
+      if (target.matches(".skill-ask-mod")) { await this._cpUpdateAskModsFromInput(target); return; }
+      if (target.matches(".roll-initiative-modificator")) { await this.actor.update({ "system.initiativeMod": Number(target.value) }); return; }
+      if (target.matches(".roll-stun-death-modificator")) { await this.actor.update({ "system.StunDeathMod": Number(target.value) }); return; }
+    });
+  }
+
+  /**
+   * Persist a skill's level from its `.skill-level` input (chipped → chipLevel, else level), sync any
+   * linked active chips, refresh the Combat Sense modifier, and re-render. Body ported verbatim from
+   * the former saveSkillLevel closure (Stage A2; takes the input element instead of the event).
+   */
+  async _cpSaveSkillLevelFromInput(input) {
+    const skill = this.actor.items.get(input.dataset.skillId);
+    if (!skill) return;
+
+    const isChipped = !!skill.system.isChipped;
+    const value = Number.parseInt(input.value, 10);
+    const safeValue = Number.isFinite(value) ? value : 0;
+
+    const targetKey = isChipped ? "system.chipLevel" : "system.level";
+    await skill.update({ [targetKey]: safeValue }, { render: false });
+
+    if (isChipped) {
+      const skillId = skill.id;
+      const skillName = skill.name;
+
+      const chips = this.actor.items.filter((i) => {
+        if (i.type !== "cyberware") return false;
+        if (!cwHasType(i, "Chip")) return false;
+        if (i.system?.equipped === false) return false;
+        const map = i.system?.CyberWorkType?.ChipSkills;
+        if (!map) return false;
+
+        if (skillId && Object.prototype.hasOwnProperty.call(map, skillId)) return true;
+
+        return Object.prototype.hasOwnProperty.call(map, skillName);
+      });
+
+      if (chips.length) {
+        const updates = [];
+        for (const ch of chips) {
+          const map = ch.system?.CyberWorkType?.ChipSkills || {};
+          const key =
+            (skillId && Object.prototype.hasOwnProperty.call(map, skillId)) ? skillId : skillName;
+
+          updates.push({
+            _id: ch.id,
+            [`system.CyberWorkType.ChipSkills.${key}`]: safeValue
+          });
+        }
+
+        await this.actor.updateEmbeddedDocuments("Item", updates, { render: false });
+
+        for (const ch of chips) if (ch.sheet?.rendered) ch.sheet.render(true);
+      }
+    }
+
+    const combatSenseItemFind =
+      this.actor.items.find(item => item.type === 'skill' && item.name.includes('Combat'))?.system.level
+      ?? this.actor.items.find(item => item.type === 'skill' && item.name.includes('Боя'))?.system.level
+      ?? 0;
+    await this.actor.update({ "system.CombatSenseMod": Number(combatSenseItemFind) }, { render: false });
+
+    if (this.rendered) this.render(true);
+
+    if (skill.sheet?.rendered) skill.sheet.render(true);
+  }
+
+  /** Toggle a skill's askMods flag from its `.skill-ask-mod` checkbox, reverting the box on failure.
+   *  (Was the inline .skill-ask-mod change handler; ported in Stage A2.) */
+  async _cpUpdateAskModsFromInput(input) {
+    const skill = this.actor.items.get(input.dataset.skillId);
+    if (!skill) return ui.notifications.warn(localize("SkillNotFound"));
+
+    try {
+      await skill.update({ "system.askMods": !!input.checked });
+    } catch (err) {
+      console.error(err);
+      ui.notifications.error(localize("UpdateAskModsError"));
+      input.checked = !input.checked;
+    }
   }
 
   _prepareSkills(sheetData) {
@@ -1109,91 +1243,12 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     // If not editable, do nothing further
     if (!this.isEditable) return;
 
-    // SDP: manual edit current — save and do not overwrite until the amount changes
-    html.on('change.cpActor', 'input[name^="system.sdp.current."]', ev => {
-      const input = ev.currentTarget;
-      const path = input.getAttribute('name');
-      const zone = path.split('.').pop();
-      const value = Number(input.value || 0);
-
-      this.actor.update({
-        [`system.sdp.current.${zone}`]: value
-      });
-    });
+    // NOTE: SDP current-value change moved to _cpActivateActorFormControls (native dispatch) in Stage A2.
 
     // NOTE: .stat-roll / .facedown-roll / .recognition-roll clicks moved to
     // _cpActivateBasicActorActions (native dispatch, called from _onRender) in Stage A2.
-    // Skill level changes
-    const saveSkillLevel = async (event) => {
-      const skill = this.actor.items.get(event.currentTarget.dataset.skillId);
-      if (!skill) return;
-
-      const isChipped = !!skill.system.isChipped;
-      const value = Number.parseInt(event.currentTarget.value, 10);
-      const safeValue = Number.isFinite(value) ? value : 0;
-
-      const targetKey = isChipped ? "system.chipLevel" : "system.level";
-      await skill.update({ [targetKey]: safeValue }, { render: false });
-
-      if (isChipped) {
-        const skillId = skill.id;
-        const skillName = skill.name;
-
-        const chips = this.actor.items.filter((i) => {
-          if (i.type !== "cyberware") return false;
-          if (!cwHasType(i, "Chip")) return false;
-          if (i.system?.equipped === false) return false;
-          const map = i.system?.CyberWorkType?.ChipSkills;
-          if (!map) return false;
-
-          if (skillId && Object.prototype.hasOwnProperty.call(map, skillId)) return true;
-
-          return Object.prototype.hasOwnProperty.call(map, skillName);
-        });
-
-        if (chips.length) {
-          const updates = [];
-          for (const ch of chips) {
-            const map = ch.system?.CyberWorkType?.ChipSkills || {};
-            const key =
-              (skillId && Object.prototype.hasOwnProperty.call(map, skillId)) ? skillId : skillName;
-
-            updates.push({
-              _id: ch.id,
-              [`system.CyberWorkType.ChipSkills.${key}`]: safeValue
-            });
-          }
-
-          await this.actor.updateEmbeddedDocuments("Item", updates, { render: false });
-
-          for (const ch of chips) if (ch.sheet?.rendered) ch.sheet.render(true);
-        }
-      }
-
-      const combatSenseItemFind =
-        this.actor.items.find(item => item.type === 'skill' && item.name.includes('Combat'))?.system.level
-        ?? this.actor.items.find(item => item.type === 'skill' && item.name.includes('Боя'))?.system.level
-        ?? 0;
-      await this.actor.update({ "system.CombatSenseMod": Number(combatSenseItemFind) }, { render: false });
-
-      if (this.rendered) this.render(true);
-
-      if (skill.sheet?.rendered) skill.sheet.render(true);
-    };
-
-    html.find(".skill-level").click((event) => event.target.select());
-    html.on("change.cpActor", ".skill-level", saveSkillLevel);
-    html.on("keydown.cpActor", ".skill-level", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        event.currentTarget.blur();
-      }
-    });
-    // Skill sorting
-    html.find(".skill-sort > select").change(ev => {
-      let sort = ev.currentTarget.value;
-      this.actor.sortSkills(sort);
-    });
+    // NOTE: skill-level (select/Enter/change → _cpSaveSkillLevelFromInput) and skill-sort moved to
+    // _cpActivateActorFormControls (native dispatch, called from _onRender) in Stage A2.
 
     // Skill search: auto-filter + clear button
     const $skillSearch = html.find('input.skill-search');
@@ -1244,34 +1299,14 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       this.render(false);
     });
 
-    // Prompt for modifiers
-    html.find(".skill-ask-mod")
-      .on("click", ev => ev.stopPropagation())
-      .on("change", async ev => {
-        ev.stopPropagation();
-
-        const cb = ev.currentTarget;
-        const skillId = cb.dataset.skillId;
-        const skill = this.actor.items.get(skillId);
-        if (!skill) return ui.notifications.warn(localize("SkillNotFound"));
-
-        try {
-          await skill.update({ "system.askMods": cb.checked });
-        } catch (err) {
-          console.error(err);
-          ui.notifications.error(localize("UpdateAskModsError"));
-          cb.checked = !cb.checked;
-        }
-      });
+    // NOTE: .skill-ask-mod (click stopProp + change → _cpUpdateAskModsFromInput) moved to
+    // _cpActivateActorFormControls in Stage A2.
 
     // NOTE: .skill-roll click moved to _cpActivateBasicActorActions / _cpRollSkillFromElement
     // (native dispatch, called from _onRender) in Stage A2.
 
-    // NOTE: .roll-initiative click moved to _cpActivateBasicActorActions in Stage A2.
-    html.find(".roll-initiative-modificator").change(ev => {
-      const value = ev.target.value;
-      this.actor.update({"system.initiativeMod": Number(value)});
-    });
+    // NOTE: .roll-initiative click + .roll-initiative-modificator change moved to
+    // _cpActivateBasicActorActions / _cpActivateActorFormControls in Stage A2.
 
     // Ammo tracking / Free Fire toggle (per-actor flag, default ON)
     html.find(".cp-ammo-tracking").on("change", async ev => {
@@ -1322,10 +1357,7 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     });
 
     // Stun/Death save
-    html.find(".roll-stun-death-modificator").change(ev => {
-      const value = ev.target.value;
-      this.actor.update({"system.StunDeathMod": Number(value)});
-    });
+    // NOTE: .roll-stun-death-modificator change moved to _cpActivateActorFormControls in Stage A2.
     // NOTE: .stun-death-save click + .damage box click moved to _cpActivateBasicActorActions
     // (native dispatch, called from _onRender) in Stage A2.
 
