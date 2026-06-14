@@ -171,6 +171,8 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     this._cpActivateBasicActorActions(root);
     // Form controls (SDP / skill-level / skill-sort / ask-mod / init+stun modifiers) — Stage A2.
     this._cpActivateActorFormControls(root);
+    // Re-apply the skill-search DOM filter (+ clear-button state) every render so it persists.
+    this._cpRefreshSkillSearchUI(root);
     // Life-tab (system.notes) ProseMirror autosave — extracted to an upstream-aligned helper (Stage A2).
     this._cpActivateNotesEditor(root);
     // Drag-drop (drop-target dragover, gear sort, owned-item drag sources) — upstream-aligned helper (Stage A2).
@@ -557,9 +559,8 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
    * `_cpActivateActorFormControls`: native click/keydown/change listeners on the persistent root,
    * dispatched via `closest`/`matches`, bound once per window. Native-DOM rewrite of the former
    * jQuery handlers (Stage A2); covered by tests/v14/actor-form-controls.spec.js.
-   * NOTE: the skill-search input/clear/caret handling is intentionally NOT migrated here — it stays
-   * jQuery (per-render) because ours re-renders to filter, whereas upstream filters the DOM in place
-   * (`_cpApplySkillFilterToDOM`); that architecture choice is deferred to a dedicated step.
+   * Skill search is also handled here now: typing filters the rendered rows in place via
+   * `_cpApplySkillFilterToDOM` (upstream's no-re-render approach), instead of our old re-render filter.
    */
   _cpActivateActorFormControls(root) {
     if (!root?.addEventListener) return;
@@ -577,6 +578,17 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
 
       const askMods = target.closest(".skill-ask-mod");
       if (askMods) { event.stopPropagation(); return; }
+
+      const clearSearch = target.closest('[data-action="clear-skill-search"], .skill-search-clear');
+      if (clearSearch) {
+        event.preventDefault();
+        event.stopPropagation();
+        const input = root.querySelector("input.skill-search");
+        if (input) { input.value = ""; input.focus({ preventScroll: true }); }
+        this._cpSkillFilter = "";
+        this._cpRefreshSkillSearchUI(root);
+        return;
+      }
     });
 
     root.addEventListener("keydown", (event) => {
@@ -604,6 +616,46 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       if (target.matches(".roll-initiative-modificator")) { await this.actor.update({ "system.initiativeMod": Number(target.value) }); return; }
       if (target.matches(".roll-stun-death-modificator")) { await this.actor.update({ "system.StunDeathMod": Number(target.value) }); return; }
     });
+
+    // Skill search: filter the rendered rows in place (upstream's DOM-filter approach) instead of
+    // re-rendering. The filter is re-applied on every render via _cpRefreshSkillSearchUI (_onRender),
+    // so it persists across re-renders.
+    root.addEventListener("input", (event) => {
+      if (!event.target?.matches?.("input.skill-search")) return;
+      this._cpSkillFilter = event.target.value || "";
+      this._cpRefreshSkillSearchUI(root);
+    });
+
+    // Keep focus in the search box when its × clear button is pressed (don't let mousedown blur it).
+    const preventClearBlur = (event) => {
+      if (!event.target?.closest?.('[data-action="clear-skill-search"], .skill-search-clear')) return;
+      event.preventDefault();
+    };
+    root.addEventListener("pointerdown", preventClearBlur);
+    root.addEventListener("mousedown", preventClearBlur);
+  }
+
+  /** Filter the rendered skill rows in place (mirrors upstream's `_cpApplySkillFilterToDOM`): show
+   *  rows whose skill name contains the case-insensitive query, hide the rest. No re-render.
+   *  (Match logic is name-substring for now — see [[feature-idea-skill-search-matching]] for the
+   *  planned multi-term "OR" upgrade.) */
+  _cpApplySkillFilterToDOM(root, filter) {
+    const normalized = String(filter ?? "").trim().toUpperCase();
+    for (const row of root.querySelectorAll(".field.skill[data-item-id]")) {
+      const skill = this.actor.items.get(row.dataset.itemId);
+      const haystack = String(skill?.name ?? "").toUpperCase();
+      row.style.display = (!normalized || haystack.includes(normalized)) ? "" : "none";
+    }
+  }
+
+  /** Re-apply the current skill filter to the DOM + toggle the clear (×) button's visibility. Called
+   *  on every render (so the filter survives re-renders) and on search input / clear. */
+  _cpRefreshSkillSearchUI(root) {
+    if (!root) return;
+    const filter = this._cpSkillFilter ?? "";
+    const clear = root.querySelector(".skill-search-clear");
+    if (clear) clear.classList.toggle("is-visible", !!filter);
+    this._cpApplySkillFilterToDOM(root, filter);
   }
 
   /**
@@ -687,7 +739,10 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     sheetData.skillsSort = this.actor.system.skillsSortedBy || "Name";
     sheetData.skillsSortChoices = Object.keys(SortOrders);
 
-    sheetData.filteredSkillIDs = this._filterSkills(sheetData);
+    // Render ALL skills (sorted); the search filter is applied to the DOM in place at runtime by
+    // _cpApplySkillFilterToDOM (Stage A2) rather than at render time. `skillFilter` is still passed
+    // to the template so the search box keeps its value across re-renders.
+    sheetData.filteredSkillIDs = this._getSortedSkillIDs(sheetData);
 
     sheetData.skillDisplayList = sheetData.filteredSkillIDs
       .map(id => this.actor.items.get(id))
@@ -748,20 +803,9 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     return sortSkills(currentSkills, SortOrders[sortOrder]).map(s => s.id);
   }
 
-  // Handle searching skills. The filter is intentionally sheet-local:
-  // it must not be written into actor.system or submitted with the form.
-  _filterSkills(sheetData) {
-    const upperSearch = String(this._cpSkillFilter ?? "").toUpperCase();
-    const listToFilter = this._getSortedSkillIDs(sheetData);
-
-    if (upperSearch === "") return listToFilter;
-
-    return listToFilter.filter(id => {
-      const skill = this.actor.items.get(id);
-      if (!skill) return false;
-      return String(skill.name).toUpperCase().includes(upperSearch);
-    });
-  }
+  // NOTE: skill filtering moved out of _prepareContext to a runtime DOM filter in Stage A2
+  // (_cpApplySkillFilterToDOM); _prepareSkills now renders all sorted skills. (The old _filterSkills
+  // render-time filter was removed.)
 
   _addWoundTrack(sheetData) {
     // Add localized wound states, excluding uninjured. All non-mortal, plus mortal
@@ -1250,54 +1294,9 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     // NOTE: skill-level (select/Enter/change → _cpSaveSkillLevelFromInput) and skill-sort moved to
     // _cpActivateActorFormControls (native dispatch, called from _onRender) in Stage A2.
 
-    // Skill search: auto-filter + clear button
-    const $skillSearch = html.find('input.skill-search');
-    const $skillClear = html.find('.skill-search-clear');
-
-    const toggleClear = () => $skillClear.toggleClass('is-visible', !!$skillSearch.val());
-
-    // Restore caret position after re-render (so typing continues without jumping)
-    if (this._restoreSkillCaret != null) {
-      const el = $skillSearch[0];
-      if (el) {
-        el.focus();
-        const pos = Math.min(this._restoreSkillCaret, el.value.length);
-        try { el.setSelectionRange(pos, pos); } catch(_) {}
-      }
-      this._restoreSkillCaret = null;
-    }
-
-    toggleClear();
-
-    // Auto-search while typing
-    let searchTypingTimer;
-    $skillSearch.on('input', (ev) => {
-      const val = ev.currentTarget.value || "";
-      toggleClear();
-
-        this._restoreSkillCaret = ev.currentTarget.selectionStart ?? val.length;
-
-      this._cpSkillFilter = val;
-
-      clearTimeout(searchTypingTimer);
-      searchTypingTimer = setTimeout(() => this.render(false), 120);
-    });
-
-    html.on('pointerdown.cpActor mousedown.cpActor', '[data-action="clear-skill-search"]', (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-    });
-
-    // Clear the field and instantly reset the filter
-    html.on('click.cpActor', '[data-action="clear-skill-search"]', (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-
-      $skillSearch.val('');
-      this._restoreSkillCaret = 0;
-      this._cpSkillFilter = "";
-      this.render(false);
-    });
+    // NOTE: skill search (input / clear / clear-button visibility) moved to
+    // _cpActivateActorFormControls + _cpApplySkillFilterToDOM (native DOM filter, no re-render) in
+    // Stage A2; the per-render re-apply is _cpRefreshSkillSearchUI in _onRender.
 
     // NOTE: .skill-ask-mod (click stopProp + change → _cpUpdateAskModsFromInput) moved to
     // _cpActivateActorFormControls in Stage A2.
