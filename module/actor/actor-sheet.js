@@ -296,24 +296,15 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     });
   }
 
-  /** Resolve the owned Item for a click/drag event carrying a data-item-id.
-   *  (Was the local getEventItem fn in activateListeners; promoted in Stage A2.) */
-  _cpGetEventItem(ev) {
-    return this.actor.items.get(ev.currentTarget.dataset.itemId);
-  }
-
-  /** Confirm-and-delete the owned Item for an event (item-delete control / right-click delete).
-   *  (Was the local deleteItemDialog fn in activateListeners; promoted in Stage A2.) */
-  _cpDeleteItemDialog(ev) {
-    ev.stopPropagation();
-    const item = this._cpGetEventItem(ev);
-    foundry.applications.api.DialogV2.confirm({
-      window: { title: localize("ItemDeleteConfirmTitle") },
-      content: `<p>${localizeParam("ItemDeleteConfirmText", { itemName: item.name })}</p>`,
-      yes: { label: localize("Yes"), callback: () => item.delete() },
-      no: { label: localize("No"), default: true },
-      rejectClose: false,
-    });
+  /** Resolve the owned Item from a clicked element: the control's own data-item-id / data-skill-id,
+   *  else the nearest [data-item-id]/[data-skill-id] ancestor. Mirrors upstream's
+   *  `_cpGetItemFromTarget`; used by the native item-control dispatch in _cpActivateBasicActorActions. */
+  _cpGetItemFromTarget(target) {
+    const itemId = target?.dataset?.itemId
+      ?? target?.dataset?.skillId
+      ?? target?.closest?.("[data-item-id]")?.dataset?.itemId
+      ?? target?.closest?.("[data-skill-id]")?.dataset?.skillId;
+    return this.actor.items.get(itemId);
   }
 
   /**
@@ -323,8 +314,11 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
    * once per window (the root persists across V2 re-renders, so binding every render would stack
    * duplicates). Native-DOM rewrite of the former per-element jQuery `.click` handlers (Stage A2);
    * covered by tests/v14/actor-basic-actions.spec.js.
-   * NOTE: only these roll/damage clicks are migrated so far — item open/delete and fire-weapon
-   * remain as jQuery handlers in activateListeners pending their own specs + native pass.
+   * Also handles the item controls (open / roll / delete + right-click delete), active-chip open,
+   * and the weapon "fire" control. Dispatch order: item controls are checked BEFORE `.fire-weapon`,
+   * because the item image (`.item-edit`) is nested inside `.fire-weapon` — clicking the image opens
+   * the item sheet, clicking elsewhere in the fire area fires. (See DEV-GUIDE.md Part 6 for the
+   * event-propagation reason this coupling exists.)
    */
   _cpActivateBasicActorActions(root) {
     if (!root?.addEventListener) return;
@@ -384,6 +378,56 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
         this.actor.update({ "system.damage": Number(damageBox.dataset.damage) });
         return;
       }
+
+      // Item controls — checked before .fire-weapon (the image is nested inside it). Delete is
+      // checked before edit so a delete button inside an edit row deletes rather than opens.
+      const itemDelete = target.closest(".item-delete");
+      if (itemDelete) {
+        event.stopPropagation();
+        this._confirmDeleteItem(this._cpGetItemFromTarget(itemDelete));
+        return;
+      }
+
+      const itemEdit = target.closest(".item-edit");
+      if (itemEdit) {
+        if (target.closest(".item-unequip")) return;
+        event.stopPropagation();
+        this._cpGetItemFromTarget(itemEdit)?.sheet?.render(true);
+        return;
+      }
+
+      const itemRoll = target.closest(".item-roll");
+      if (itemRoll) {
+        event.stopPropagation();
+        this._cpGetItemFromTarget(itemRoll)?.roll();
+        return;
+      }
+
+      const chip = target.closest(".chipware-container .chipware[data-item-id]");
+      if (chip) {
+        if (target.closest(".item-unequip, .item-delete")) return;
+        event.stopPropagation();
+        const item = this._cpGetItemFromTarget(chip);
+        if (item) item.sheet.render(true);
+        return;
+      }
+
+      // Weapon "fire" control — last, so a click on the nested item image is handled by item-edit above.
+      const fireWeapon = target.closest(".fire-weapon");
+      if (fireWeapon) {
+        event.stopPropagation();
+        this._cpOpenWeaponAttackDialog(this._cpGetItemFromTarget(fireWeapon));
+        return;
+      }
+    });
+
+    // Right-click delete on a row. (Adopts upstream's behaviour: suppress the browser context menu.)
+    root.addEventListener("contextmenu", (event) => {
+      const rowDelete = event.target?.closest?.(".rc-item-delete");
+      if (!rowDelete) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this._confirmDeleteItem(this._cpGetItemFromTarget(rowDelete));
     });
   }
 
@@ -415,6 +459,94 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       return dlg.render(true);
     }
     this.actor.rollSkill(id);
+  }
+
+  /**
+   * Open the attack (Modifiers) dialog for a weapon: build the target list + ranged/martial/melee
+   * modifier groups (with auto-rangefinding when exactly one target is selected) and fire via the
+   * dialog's onConfirm. Body ported verbatim from the former .fire-weapon jQuery handler (Stage A2);
+   * mirrors upstream's `_cpOpenWeaponAttackDialog`.
+   */
+  _cpOpenWeaponAttackDialog(item) {
+    if (!item) return;
+    let isRanged = item.isRanged();
+
+    let modifierGroups = undefined;
+    let targetTokens = Array.from(game.users.current.targets.values()).map(target => {
+      return {
+        name: target.document.name,
+        id: target.id};
+    });
+
+    if(isRanged) {
+      modifierGroups = rangedModifiers(item, targetTokens);
+
+      // ── Automated Rangefinding ──────────────────────────────────────────
+      // If enabled and exactly one target is selected, measure the token
+      // distance and pre-select the correct range category in the dialog.
+      const rangefindingEnabled = (() => {
+        try { return game.settings.get("cyberpunk2020", "autoRangefinding"); }
+        catch { return false; }
+      })();
+
+      if (rangefindingEnabled && targetTokens.length === 1) {
+        const attackerToken = canvas?.tokens?.placeables?.find(
+          t => t.actor?.id === this.actor.id
+        ) ?? null;
+        const targetTokenPlaceable = canvas?.tokens?.placeables?.find(
+          t => t.id === targetTokens[0].id
+        ) ?? null;
+
+        if (attackerToken && targetTokenPlaceable) {
+          const rangeResult = resolveAttackRange(item, attackerToken, targetTokenPlaceable);
+
+          // rangeResult.category is e.g. "pointBlank" — map to ranges key string
+          const CATEGORY_TO_RANGE_KEY = {
+            pointBlank:  "RangePointBlank",
+            close:       "RangeClose",
+            medium:      "RangeMedium",
+            long:        "RangeLong",
+            extreme:     "RangeExtreme",
+            outOfRange:  "RangeExtreme",   // still show dialog, GM can see it's extreme
+          };
+          const rangeKey = CATEGORY_TO_RANGE_KEY[rangeResult.category] ?? "RangeClose";
+
+          // modifierGroups[0] is the first row; [1] is the Range selector
+          if (modifierGroups?.[0]?.[1]?.dataPath === "range") {
+            modifierGroups[0][1].defaultValue = rangeKey;
+            // Add distance info to the label so the GM can see the measurement
+            modifierGroups[0][1]._rangefindingNote =
+              `Auto: ${rangeResult.label} (${rangeResult.distanceMeters}m, weapon max ${rangeResult.longRange}m)`;
+          }
+
+          // Notify in chat log so GM can see the auto-selected range
+          if (rangeResult.category === "outOfRange") {
+            ui.notifications.warn(
+              `${item.name}: target is beyond extreme range (${rangeResult.distanceMeters}m > ${rangeResult.longRange * 2}m)`
+            );
+          } else {
+            ui.notifications.info(
+              `Rangefinding: ${rangeResult.label} — ${rangeResult.distanceMeters}m (weapon long range ${rangeResult.longRange}m)`
+            );
+          }
+        }
+      }
+      // ───────────────────────────────────────────────────────────────────
+    }
+    else if ((item._getWeaponSystem?.().attackType) === meleeAttackTypes.martial) {
+      modifierGroups = martialOptions(this.actor);
+    }
+    else {
+      modifierGroups = meleeBonkOptions();
+    }
+
+    let dialog = new ModifiersDialog(this.actor, {
+      weapon: item,
+      targetTokens: targetTokens,
+      modifierGroups: modifierGroups,
+      onConfirm: (fireOptions) => item.__weaponRoll(fireOptions, targetTokens)
+    });
+    dialog.render(true);
   }
 
   _prepareSkills(sheetData) {
@@ -971,8 +1103,8 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     // NOTE: drop-target dragover + gear drag-sort + owned-item drag sources moved to
     // _cpActivateActorDragDrop (called from _onRender) in Stage A2.
 
-    // NOTE: getEventItem + deleteItemDialog promoted to instance methods _cpGetEventItem /
-    // _cpDeleteItemDialog in Stage A2 (so extracted helpers can share them).
+    // NOTE: the former local getEventItem/deleteItemDialog are gone; the native item-control dispatch
+    // in _cpActivateBasicActorActions uses _cpGetItemFromTarget + _confirmDeleteItem (Stage A2).
 
     // If not editable, do nothing further
     if (!this.isEditable) return;
@@ -1197,119 +1329,13 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     // NOTE: .stun-death-save click + .damage box click moved to _cpActivateBasicActorActions
     // (native dispatch, called from _onRender) in Stage A2.
 
-    // Generic item roll (calls item.roll())
-    html.find('.item-roll').click(ev => {
-      // Roll is often within child events, don't bubble please
-      ev.stopPropagation();
-      let item = this._cpGetEventItem(ev);
-      item.roll();
-    });
+    // NOTE: item controls (.item-roll / .item-edit / .item-delete / .rc-item-delete) and the active
+    // chip-open click moved to _cpActivateBasicActorActions (native dispatch, called from _onRender)
+    // in Stage A2.
 
-    // Edit item
-    html.find('.item-edit').on('click', (ev) => {
-      if (ev.target.closest('.item-unequip')) return;
-      ev.stopPropagation();
-      const item = this._cpGetEventItem(ev);
-      item.sheet.render(true);
-    });
-
-    // Active chips: open chip sheet on click
-    html.find('.chipware-container .chipware[data-item-id]').on('click', (ev) => {
-      if (ev.target.closest('.item-unequip') || ev.target.closest('.item-delete')) return;
-
-      ev.stopPropagation();
-      const item = this._cpGetEventItem(ev);
-      if (!item) return;
-      item.sheet.render(true);
-    });
-
-    // Delete item
-    html.find('.item-delete').click(ev => this._cpDeleteItemDialog(ev));
-    html.find('.rc-item-delete').bind("contextmenu", ev => this._cpDeleteItemDialog(ev));
-
-    // "Fire" button for weapons
-    html.find('.fire-weapon').click(ev => {
-      ev.stopPropagation();
-      let item = this._cpGetEventItem(ev);
-      let isRanged = item.isRanged();
-
-      let modifierGroups = undefined;
-      let targetTokens = Array.from(game.users.current.targets.values()).map(target => {
-        return {
-          name: target.document.name, 
-          id: target.id};
-      });
-
-      if(isRanged) {
-        modifierGroups = rangedModifiers(item, targetTokens);
-
-        // ── Automated Rangefinding ──────────────────────────────────────────
-        // If enabled and exactly one target is selected, measure the token
-        // distance and pre-select the correct range category in the dialog.
-        const rangefindingEnabled = (() => {
-          try { return game.settings.get("cyberpunk2020", "autoRangefinding"); }
-          catch { return false; }
-        })();
-
-        if (rangefindingEnabled && targetTokens.length === 1) {
-          const attackerToken = canvas?.tokens?.placeables?.find(
-            t => t.actor?.id === this.actor.id
-          ) ?? null;
-          const targetTokenPlaceable = canvas?.tokens?.placeables?.find(
-            t => t.id === targetTokens[0].id
-          ) ?? null;
-
-          if (attackerToken && targetTokenPlaceable) {
-            const rangeResult = resolveAttackRange(item, attackerToken, targetTokenPlaceable);
-
-            // rangeResult.category is e.g. "pointBlank" — map to ranges key string
-            const CATEGORY_TO_RANGE_KEY = {
-              pointBlank:  "RangePointBlank",
-              close:       "RangeClose",
-              medium:      "RangeMedium",
-              long:        "RangeLong",
-              extreme:     "RangeExtreme",
-              outOfRange:  "RangeExtreme",   // still show dialog, GM can see it's extreme
-            };
-            const rangeKey = CATEGORY_TO_RANGE_KEY[rangeResult.category] ?? "RangeClose";
-
-            // modifierGroups[0] is the first row; [1] is the Range selector
-            if (modifierGroups?.[0]?.[1]?.dataPath === "range") {
-              modifierGroups[0][1].defaultValue = rangeKey;
-              // Add distance info to the label so the GM can see the measurement
-              modifierGroups[0][1]._rangefindingNote =
-                `Auto: ${rangeResult.label} (${rangeResult.distanceMeters}m, weapon max ${rangeResult.longRange}m)`;
-            }
-
-            // Notify in chat log so GM can see the auto-selected range
-            if (rangeResult.category === "outOfRange") {
-              ui.notifications.warn(
-                `${item.name}: target is beyond extreme range (${rangeResult.distanceMeters}m > ${rangeResult.longRange * 2}m)`
-              );
-            } else {
-              ui.notifications.info(
-                `Rangefinding: ${rangeResult.label} — ${rangeResult.distanceMeters}m (weapon long range ${rangeResult.longRange}m)`
-              );
-            }
-          }
-        }
-        // ───────────────────────────────────────────────────────────────────
-      }
-      else if ((item._getWeaponSystem?.().attackType) === meleeAttackTypes.martial) {
-        modifierGroups = martialOptions(this.actor);
-      }
-      else {
-        modifierGroups = meleeBonkOptions();
-      }
-
-      let dialog = new ModifiersDialog(this.actor, {
-        weapon: item,
-        targetTokens: targetTokens,
-        modifierGroups: modifierGroups,
-        onConfirm: (fireOptions) => item.__weaponRoll(fireOptions, targetTokens)
-      });
-      dialog.render(true);
-    });
+    // NOTE: the "fire" weapon control moved to _cpActivateBasicActorActions (native dispatch) +
+    // _cpOpenWeaponAttackDialog (called from _onRender) in Stage A2. Migrated together with the item
+    // controls because the item image is nested inside .fire-weapon (see DEV-GUIDE.md Part 6).
 
     // Martial-arts action buttons (combat tab): the action is chosen by the button, so the dialog
     // only collects martial-art style + cyberlimb, and we inject the action into the fire options.
