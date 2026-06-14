@@ -175,6 +175,8 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     this._cpRefreshSkillSearchUI(root);
     // Cyberware controls (anatomy-select / chip-toggle / equip-unequip / chip tooltips) — Stage A2.
     this._cpActivateCyberwareControls(root);
+    // Netrunning controls (interface roll / program edit/trash / deactivate) — Stage A2.
+    this._cpActivateNetrunningControls(root);
     // Life-tab (system.notes) ProseMirror autosave — extracted to an upstream-aligned helper (Stage A2).
     this._cpActivateNotesEditor(root);
     // Drag-drop (drop-target dragover, gear sort, owned-item drag sources) — upstream-aligned helper (Stage A2).
@@ -898,6 +900,87 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     }
   }
 
+  /**
+   * Netrunning controls. Mirrors upstream's `_cpActivateNetrunningControls`: native bind-once click
+   * (interface-skill roll, program edit/trash) + contextmenu (right-click an active program to
+   * deactivate it and recompute RAM). Native-DOM rewrite of the former jQuery handlers (Stage A2);
+   * covered by tests/v14/actor-netrunning-controls.spec.js.
+   * NOTE: program drag (the `.netrun-program` dragstart/is-dragging) stays with the drag system
+   * (makeDraggable in _cpActivateActorDragDrop), and the netrun-icon FilePicker is still a jQuery
+   * handler in activateListeners — both deferred.
+   */
+  _cpActivateNetrunningControls(root) {
+    if (!root?.addEventListener) return;
+    if (root.dataset.cpNetrunningControlsBound === "1") return;
+    root.dataset.cpNetrunningControlsBound = "1";
+
+    const editable = this.isEditable ?? this.options?.editable ?? false;
+    if (!editable) return;
+
+    root.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!target?.closest) return;
+
+      const interfaceSkill = target.closest(".interface-skill-roll");
+      if (interfaceSkill) {
+        event.preventDefault();
+        event.stopPropagation();
+        const skillId = interfaceSkill.dataset.skillId;
+        if (!skillId) { ui.notifications.warn(localize("InterfaceSkillNotFound")); return; }
+        this.actor.rollSkill(skillId);
+        return;
+      }
+
+      const programEdit = target.closest(".netrun-program .fa-edit");
+      if (programEdit) {
+        event.preventDefault();
+        event.stopPropagation();
+        const item = this._cpGetItemFromTarget(programEdit.closest(".netrun-program"));
+        if (item) item.sheet.render(true);
+        return;
+      }
+
+      const programDelete = target.closest(".netrun-program .fa-trash");
+      if (programDelete) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation?.();
+        const item = this._cpGetItemFromTarget(programDelete.closest(".netrun-program"));
+        if (item) this._confirmDeleteItem(item);
+        return;
+      }
+    });
+
+    root.addEventListener("contextmenu", async (event) => {
+      const activeIcon = event.target?.closest?.(".netrun-active-icon");
+      if (!activeIcon) return;
+      event.preventDefault();
+      event.stopPropagation();
+
+      const itemId = activeIcon.dataset.itemId;
+      if (!itemId) return;
+
+      const currentActive = [...(this.actor.system.activePrograms || [])];
+      const idx = currentActive.indexOf(itemId);
+      if (idx < 0) return;
+      currentActive.splice(idx, 1);
+
+      let sumMU = 0;
+      for (const progId of currentActive) {
+        const progItem = this.actor.items.get(progId);
+        if (!progItem) continue;
+        sumMU += Number(progItem.system.mu) || 0;
+      }
+
+      await this.actor.update({
+        "system.activePrograms": currentActive,
+        "system.ramUsed": sumMU
+      });
+
+      ui.notifications.info(localize("ProgramDeactivated"));
+    });
+  }
+
   _prepareSkills(sheetData) {
     sheetData.skillsSort = this.actor.system.skillsSortedBy || "Name";
     sheetData.skillsSortChoices = Object.keys(SortOrders);
@@ -1563,27 +1646,9 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     // Cyberware-tab body-type picker: store the choice; the sheet re-renders with the new image.
     // NOTE: .anatomy-select change moved to _cpActivateCyberwareControls (native dispatch) in Stage A2.
 
-    function getNetrunProgramItem(sheet, ev) {
-      ev.stopPropagation();
-      const itemId = ev.currentTarget.closest(".netrun-program").dataset.itemId;
-      return sheet.actor.items.get(itemId);
-    }
-    html.find('.netrun-program .fa-edit').click(ev => {
-      const item = getNetrunProgramItem(this, ev);
-      if (!item) return;
-      item.sheet.render(true);
-    });
-    html.find('.netrun-program .fa-trash').click(ev => {
-      const item = getNetrunProgramItem(this, ev);
-      if (!item) return;
-      foundry.applications.api.DialogV2.confirm({
-        window: { title: localize("ItemDeleteConfirmTitle") },
-        content: `<p>${localizeParam("ItemDeleteConfirmText", {itemName: item.name})}</p>`,
-        yes: { label: localize("Yes"), callback: () => item.delete() },
-        no: { label: localize("No"), default: true },
-        rejectClose: false,
-      });
-    });
+    // NOTE: .netrun-program .fa-edit / .fa-trash + the interface-skill roll + active-program
+    // right-click moved to _cpActivateNetrunningControls (native dispatch, called from _onRender)
+    // in Stage A2.
 
     html.find('.netrun-program').each((_, programElem) => {
       programElem.setAttribute("draggable", true);
@@ -1622,44 +1687,8 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     });
 
     // (Armor layer manual-override handlers removed — panel is now read-only compliance display)
-
-    const interfaceSkillElems = html.find('.interface-skill-roll');
-
-    interfaceSkillElems.on('click', ev => {
-      ev.preventDefault();
-      const skillId = ev.currentTarget.dataset.skillId;
-      if (!skillId) {
-        ui.notifications.warn(localize("InterfaceSkillNotFound"));
-        return;
-      }
-      this.actor.rollSkill(skillId);
-    });
-
-    html.find('.netrun-active-icon').on('contextmenu', async ev => {
-      ev.preventDefault();
-      const div = ev.currentTarget;
-      const itemId = div.dataset.itemId;
-      if (!itemId) return;
-      const currentActive = [...(this.actor.system.activePrograms || [])];
-      const idx = currentActive.indexOf(itemId);
-      if (idx < 0) return;
-
-      currentActive.splice(idx, 1);
-
-      let sumMU = 0;
-      for (let progId of currentActive) {
-        let progItem = this.actor.items.get(progId);
-        if (!progItem) continue;
-        sumMU += Number(progItem.system.mu) || 0;
-      }
-
-      await this.actor.update({
-        "system.activePrograms": currentActive,
-        "system.ramUsed": sumMU
-      });
-
-      ui.notifications.info(localize("ProgramDeactivated"));
-    });
+    // NOTE: interface-skill roll + active-program right-click moved to _cpActivateNetrunningControls
+    // (native dispatch) in Stage A2.
 
     html.find('.filepicker').on('click', async (ev) => {
       ev.preventDefault();
