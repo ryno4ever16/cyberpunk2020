@@ -53,18 +53,17 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
 
   /** @override */
   async _prepareContext(options) {
-    // V2: build the base context explicitly (no V1 super.getData). Downstream code sets
-    // system/owner/editable plus the many derived fields the template consumes.
-    const sheetData = {
-      actor: this.actor,
-      document: this.document,
-      cssClass: this.isEditable ? "editable" : "locked",
-      editable: this.isEditable,
-      owner: this.actor.isOwner,
-      limited: this.actor.limited,
-      options: this.options,
-      title: this.title,
-    };
+    // V2 convention (Foundry core AND upstream both do this): start from the base context the
+    // framework builds — document, fields, source, editable, etc. — then augment, instead of
+    // hand-constructing the object. Keeps the sheet aligned with the base-class contract as
+    // Foundry evolves (the prior hand-built literal was a frozen snapshot that never received
+    // `fields`/`source`). Downstream code still sets system/owner/editable + the derived fields.
+    const sheetData = await super._prepareContext(options);
+    sheetData.actor = this.actor;
+    sheetData.cssClass = this.isEditable ? "editable" : "locked";
+    sheetData.limited = this.actor.limited;
+    sheetData.options = this.options;
+    sheetData.title = this.title;
 
     const actor = this.actor;
     const system = actor.system;
