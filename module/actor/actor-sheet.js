@@ -167,6 +167,8 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     this._cpActivateTabs(root);
     // FilePicker (avatar/image) wiring — extracted to an upstream-aligned helper (Stage A2).
     this._cpActivateActorFilePickers(root);
+    // Basic actor click actions (rolls + damage box) — upstream-aligned native helper (Stage A2).
+    this._cpActivateBasicActorActions(root);
     // Life-tab (system.notes) ProseMirror autosave — extracted to an upstream-aligned helper (Stage A2).
     this._cpActivateNotesEditor(root);
     // Drag-drop (drop-target dragover, gear sort, owned-item drag sources) — upstream-aligned helper (Stage A2).
@@ -312,6 +314,107 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       no: { label: localize("No"), default: true },
       rejectClose: false,
     });
+  }
+
+  /**
+   * Basic actor click actions — stat / Facedown / Recognition / skill / initiative / stun-death
+   * rolls and the wound-track damage box. Mirrors upstream's `_cpActivateBasicActorActions`: one
+   * delegated click listener on the persistent root, dispatched via `target.closest(...)`, bound
+   * once per window (the root persists across V2 re-renders, so binding every render would stack
+   * duplicates). Native-DOM rewrite of the former per-element jQuery `.click` handlers (Stage A2);
+   * covered by tests/v14/actor-basic-actions.spec.js.
+   * NOTE: only these roll/damage clicks are migrated so far — item open/delete and fire-weapon
+   * remain as jQuery handlers in activateListeners pending their own specs + native pass.
+   */
+  _cpActivateBasicActorActions(root) {
+    if (!root?.addEventListener) return;
+    // Editable-only (these were after the activateListeners editable guard). Check editable BEFORE
+    // setting the bound flag, so a non-editable first render doesn't consume the one-time binding.
+    const editable = this.isEditable ?? this.options?.editable ?? false;
+    if (!editable) return;
+    if (root.dataset.cpBasicActorActionsBound === "1") return;
+    root.dataset.cpBasicActorActionsBound = "1";
+
+    root.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!target?.closest) return;
+
+      const statRoll = target.closest(".stat-roll");
+      if (statRoll) {
+        this.actor.rollStat(statRoll.dataset.statName);
+        return;
+      }
+
+      const facedown = target.closest(".facedown-roll");
+      if (facedown) {
+        event.preventDefault();
+        this.actor.rollFacedown();
+        return;
+      }
+
+      const recognition = target.closest(".recognition-roll");
+      if (recognition) {
+        event.preventDefault();
+        this.actor.rollRecognition();
+        return;
+      }
+
+      const skillRoll = target.closest(".skill-roll");
+      if (skillRoll) {
+        this._cpRollSkillFromElement(skillRoll);
+        return;
+      }
+
+      const initiative = target.closest(".roll-initiative");
+      if (initiative) {
+        const input = root.querySelector(".roll-initiative-modificator");
+        this.actor.addToCombatAndRollInitiative(input?.value);
+        return;
+      }
+
+      const stunDeath = target.closest(".stun-death-save");
+      if (stunDeath) {
+        const input = root.querySelector(".roll-stun-death-modificator");
+        this.actor.rollStunDeath(input?.value);
+        return;
+      }
+
+      const damageBox = target.closest(".damage");
+      if (damageBox) {
+        this.actor.update({ "system.damage": Number(damageBox.dataset.damage) });
+        return;
+      }
+    });
+  }
+
+  /**
+   * Roll a skill from its `.skill-roll` element. If the skill has askMods set, open a ModifiersDialog
+   * (extra-mod + adv/dis) first, otherwise roll directly. (Was the inline .skill-roll handler.)
+   */
+  _cpRollSkillFromElement(el) {
+    const id = el?.dataset?.skillId;
+    const skill = this.actor.items.get(id);
+    if (!skill) return;
+
+    if (skill.system?.askMods) {
+      const dlg = new ModifiersDialog(this.actor, {
+        title: localize("ModifiersSkillTitle"),
+        showAdvDis: true,
+        modifierGroups: [[
+          { localKey: "ExtraModifiers", dataPath: "extraMod", defaultValue: 0 }
+        ]],
+        onConfirm: ({ extraMod = 0, advantage = false, disadvantage = false, hiddenAdvantage = false }) =>
+          this.actor.rollSkill(
+            id,
+            Number(extraMod) || 0,
+            !!advantage,
+            !!disadvantage,
+            !!hiddenAdvantage
+          )
+      });
+      return dlg.render(true);
+    }
+    this.actor.rollSkill(id);
   }
 
   _prepareSkills(sheetData) {
@@ -886,14 +989,8 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       });
     });
 
-    // Stat roll
-    html.find('.stat-roll').click(ev => {
-      let statName = ev.currentTarget.dataset.statName;
-      this.actor.rollStat(statName);
-    });
-    // Reputation: Facedown (contested if a foe is targeted) + Recognition
-    html.find('.facedown-roll').click(ev => { ev.preventDefault(); this.actor.rollFacedown(); });
-    html.find('.recognition-roll').click(ev => { ev.preventDefault(); this.actor.rollRecognition(); });
+    // NOTE: .stat-roll / .facedown-roll / .recognition-roll clicks moved to
+    // _cpActivateBasicActorActions (native dispatch, called from _onRender) in Stage A2.
     // Skill level changes
     const saveSkillLevel = async (event) => {
       const skill = this.actor.items.get(event.currentTarget.dataset.skillId);
@@ -1035,38 +1132,10 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
         }
       });
 
-    // Skill roll
-    html.find(".skill-roll").click(ev => {
-      const id = ev.currentTarget.dataset.skillId;
-      const skill = this.actor.items.get(id);
-      if (!skill) return;
+    // NOTE: .skill-roll click moved to _cpActivateBasicActorActions / _cpRollSkillFromElement
+    // (native dispatch, called from _onRender) in Stage A2.
 
-      if (skill.system?.askMods) {
-        const dlg = new ModifiersDialog(this.actor, {
-          title: localize("ModifiersSkillTitle"),
-          showAdvDis: true,
-          modifierGroups: [[
-            { localKey: "ExtraModifiers", dataPath: "extraMod", defaultValue: 0 }
-          ]],
-          onConfirm: ({ extraMod=0, advantage=false, disadvantage=false, hiddenAdvantage=false }) =>
-            this.actor.rollSkill(
-              id,
-              Number(extraMod) || 0,
-              !!advantage,
-              !!disadvantage,
-              !!hiddenAdvantage
-            )
-        });
-        return dlg.render(true);
-      }
-      this.actor.rollSkill(id);
-    });
-
-    // Initiative
-    html.find(".roll-initiative").click(ev => {
-      const rollInitiativeModificatorInput = html.find(".roll-initiative-modificator")[0];
-      this.actor.addToCombatAndRollInitiative(rollInitiativeModificatorInput.value);
-    });
+    // NOTE: .roll-initiative click moved to _cpActivateBasicActorActions in Stage A2.
     html.find(".roll-initiative-modificator").change(ev => {
       const value = ev.target.value;
       this.actor.update({"system.initiativeMod": Number(value)});
@@ -1125,18 +1194,8 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       const value = ev.target.value;
       this.actor.update({"system.StunDeathMod": Number(value)});
     });
-    html.find(".stun-death-save").click(ev => {
-      const rollModificatorInput = html.find(".roll-stun-death-modificator")[0]
-      this.actor.rollStunDeath(rollModificatorInput.value);
-    });
-
-    // Damage
-    html.find(".damage").click(ev => {
-      let damage = Number(ev.currentTarget.dataset.damage);
-      this.actor.update({
-        "system.damage": damage
-      });
-    });
+    // NOTE: .stun-death-save click + .damage box click moved to _cpActivateBasicActorActions
+    // (native dispatch, called from _onRender) in Stage A2.
 
     // Generic item roll (calls item.roll())
     html.find('.item-roll').click(ev => {
