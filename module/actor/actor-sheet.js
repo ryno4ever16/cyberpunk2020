@@ -167,6 +167,8 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     this._cpActivateTabs(root);
     // FilePicker (avatar/image) wiring — extracted to an upstream-aligned helper (Stage A2).
     this._cpActivateActorFilePickers(root);
+    // Life-tab (system.notes) ProseMirror autosave — extracted to an upstream-aligned helper (Stage A2).
+    this._cpActivateNotesEditor(root);
     // Re-use the existing jQuery listener wiring verbatim (the V1 activateListeners body).
     try { this.activateListeners($(root)); }
     catch (e) { console.error("cyberpunk2020 | actor-sheet activateListeners failed", e); }
@@ -789,8 +791,7 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     // NOTE: no `super.activateListeners` — ActorSheetV2 has none. Core wiring it used to provide
     // is replaced by V2: form input auto-submit (form.submitOnChange), drag-drop (DEFAULT_OPTIONS
     // dragDrop), and tab binding (done in _onRender). This method is invoked from _onRender.
-    // Life tab (system.notes) autosave
-    this._cpSetupNotesAutosave(root);
+    // NOTE: Life-tab notes autosave moved to _cpActivateNotesEditor (called from _onRender) in Stage A2.
     html.find('[data-drop-target]').on('dragover', (ev) => ev.preventDefault());
     // NOTE: tab binding + tear-off + detached-tab refresh moved to _cpActivateTabs (called from
     // _onRender) in Stage A2.
@@ -1967,7 +1968,12 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     }
   }
 
-  _cpSetupNotesAutosave(root) {
+  /**
+   * Life-tab notes ProseMirror autosave. Mirrors upstream's `_cpActivateNotesEditor`. Self-gates on
+   * editable and removes the prior `save` listener before re-adding, so it stays single-bound across
+   * re-renders. (Renamed from _cpSetupNotesAutosave in Stage A2.)
+   */
+  _cpActivateNotesEditor(root) {
     if (!root) return;
     const editable = this.isEditable ?? this.options?.editable ?? false;
     if (!editable) return;
