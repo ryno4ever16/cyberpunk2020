@@ -102,7 +102,7 @@ test("catalog view renders: no skills, category filters, GM source panel", async
     const buyer = await Actor.create({ name: "__PW__catbuyer", type: "character", flags, system: { eurobucks: 500 } });
     const mod = await import("/systems/cyberpunk2020/module/shop/catalog.js");
     const app = new mod.CatalogBrowser(buyer, { view: "catalog" });
-    const data = await app.getData();
+    const data = await app._prepareContext({});
     const out = { rowCount: data.rowCount, noSkillType: !data.rows.some(r => r.type === "skill"), hasWeaponsCat: data.cats.some(c => c.key === "Weapons" && c.subs.length > 0), hasSourcePanel: !!data.booksPanel };
     app.render(true);
     const dl = Date.now() + 9000;
@@ -110,7 +110,8 @@ test("catalog view renders: no skills, category filters, GM source panel", async
     while (Date.now() < dl) { el = document.querySelector(".cp-catalog-window"); if (el?.querySelector(".cp-catalog-row, .cp-cat-chip")) break; await new Promise(r => setTimeout(r, 200)); }
     out.domHasChips = !!el?.querySelector(".cp-cat-chip");
     out.domHasSources = !!el?.querySelector(".cp-catalog-sources");
-    for (const a of Object.values(ui.windows)) { if (a?.options?.classes?.includes?.("cp-catalog")) a.close(); }
+    try { await app.close(); } catch (_) {}
+    for (const a of (foundry.applications.instances?.values?.() ?? [])) { if (a?.options?.classes?.includes?.("cp-catalog")) { try { await a.close(); } catch (_) {} } }
     return out;
   });
 
