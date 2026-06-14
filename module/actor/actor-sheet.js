@@ -173,6 +173,8 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     this._cpActivateActorFormControls(root);
     // Re-apply the skill-search DOM filter (+ clear-button state) every render so it persists.
     this._cpRefreshSkillSearchUI(root);
+    // Cyberware controls (anatomy-select / chip-toggle / equip-unequip / chip tooltips) — Stage A2.
+    this._cpActivateCyberwareControls(root);
     // Life-tab (system.notes) ProseMirror autosave — extracted to an upstream-aligned helper (Stage A2).
     this._cpActivateNotesEditor(root);
     // Drag-drop (drop-target dragover, gear sort, owned-item drag sources) — upstream-aligned helper (Stage A2).
@@ -656,6 +658,167 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     const clear = root.querySelector(".skill-search-clear");
     if (clear) clear.classList.toggle("is-visible", !!filter);
     this._cpApplySkillFilterToDOM(root, filter);
+  }
+
+  /**
+   * Cyberware-tab controls. Mirrors upstream's `_cpActivateCyberwareControls`: native bind-once
+   * mousedown/click (equip-unequip via _onActiveUnequip) and change (anatomy body-type select +
+   * chip-toggle). Chip hover-tooltips are re-attached every render via _cpActivateChipTooltips
+   * (our feature; upstream's same-named helper is an empty stub). Native-DOM rewrite of the former
+   * jQuery handlers (Stage A2); covered by tests/v14/actor-cyberware-controls.spec.js.
+   */
+  _cpActivateCyberwareControls(root) {
+    if (!root?.addEventListener) return;
+
+    // Chip hover-tooltips re-attach to the (re-rendered) .chipware elements every render.
+    this._cpActivateChipTooltips(root);
+
+    if (root.dataset.cpCyberwareControlsBound === "1") return;
+    root.dataset.cpCyberwareControlsBound = "1";
+
+    const editable = this.isEditable ?? this.options?.editable ?? false;
+    if (!editable) return;
+
+    // item-unequip: swallow the mousedown (so the X can't start a drag), then unequip on click.
+    root.addEventListener("mousedown", (event) => {
+      if (!event.target?.closest?.(".item-unequip")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+    });
+    root.addEventListener("click", async (event) => {
+      if (!event.target?.closest?.(".item-unequip")) return;
+      await this._onActiveUnequip(event);
+    });
+
+    root.addEventListener("change", async (event) => {
+      const target = event.target;
+      if (!target?.matches) return;
+
+      if (target.matches(".anatomy-select")) {
+        const key = target.value;
+        const valid = Object.prototype.hasOwnProperty.call(ANATOMY_IMAGES, key) ? key : DEFAULT_ANATOMY_KEY;
+        await this.actor.setFlag("cyberpunk2020", "anatomyImage", valid);
+        return;
+      }
+      if (target.matches(".chip-toggle input[data-skill-id]")) {
+        await this._cpSetSkillChipActiveFromInput(target);
+        return;
+      }
+    });
+  }
+
+  /**
+   * Activate/deactivate a skill's chip from its `.chip-toggle` checkbox: if linked chip cyberware
+   * exists, flip its ChipActive flag and re-sync chip↔skill levels/flags; otherwise set the skill's
+   * own isChipped flag. (Body ported verbatim from the former jQuery chip-toggle handler; Stage A2.)
+   */
+  async _cpSetSkillChipActiveFromInput(input) {
+    const checked = !!input.checked;
+    const skillId = input.dataset.skillId;
+    const skill = this.actor.items.get(skillId);
+    if (!skill || skill.type !== "skill") return;
+
+    const skillName = skill.name;
+
+    const chips = this.actor.items.filter(i => {
+      if (i.type !== "cyberware") return false;
+      if (!cwHasType(i, "Chip")) return false;
+      if (i.system?.equipped === false) return false;
+      const map = i.system?.CyberWorkType?.ChipSkills;
+      if (!map) return false;
+
+      return (skillId && Object.prototype.hasOwnProperty.call(map, skillId)) ||
+            Object.prototype.hasOwnProperty.call(map, skillName);
+    });
+
+    if (chips.length) {
+      const updates = chips.map(ch => ({
+        _id: ch.id,
+        "system.CyberWorkType.ChipActive": checked
+      }));
+      await this.actor.updateEmbeddedDocuments("Item", updates, { render: false });
+
+      await this._cp_syncChipLevelsToSkills();
+      await this._cp_syncActiveFlagsToSkills();
+    } else {
+      await skill.update({
+        "system.isChipped": checked,
+        ...deleteFieldUpdate("system.chipped")
+      }, { render: false });
+    }
+
+    if (this.rendered) this.render(true);
+    for (const ch of chips) if (ch.sheet?.rendered) ch.sheet.render(true);
+    if (skill.sheet?.rendered) skill.sheet.render(true);
+  }
+
+  /**
+   * Hover tooltips for the active-chip tiles (shows the chip's full name). Re-created every render
+   * (the singleton tooltip div is cleaned up via _cpChipTooltipCleanup) and re-attached to the new
+   * .chipware elements. PopOut!-aware: the tooltip + hide-listeners follow the chip's document.
+   * (Our feature — upstream's same-named helper is an empty stub.)
+   */
+  _cpActivateChipTooltips(root) {
+    if (this._cpChipTooltipCleanup) {
+      try { this._cpChipTooltipCleanup(); } catch (_) {}
+      this._cpChipTooltipCleanup = null;
+    }
+
+    const tooltip = document.createElement("div");
+    tooltip.className = "chip-tooltip";
+    document.body.appendChild(tooltip);
+
+    const HIDE_EVENTS = ["drop", "dragend", "click", "mousedown", "mouseup"];
+    let listenerDoc = null;  // PopOut!: which document the hide-listeners are bound to (moves on popout)
+
+    function hideTooltip() {
+      tooltip.style.display = "none";
+    }
+
+    // PopOut!: keep the hide-on-interaction listeners on whichever document the tooltip currently lives in.
+    function bindHideListeners(doc) {
+      if (listenerDoc === doc) return;
+      if (listenerDoc) for (const e of HIDE_EVENTS) listenerDoc.removeEventListener(e, hideTooltip);
+      for (const e of HIDE_EVENTS) doc.addEventListener(e, hideTooltip);
+      listenerDoc = doc;
+    }
+
+    function showTooltip(chip) {
+      const fullName = chip.dataset.full;
+      if (!fullName) return;
+
+      const doc = chip.ownerDocument;
+      if (tooltip.ownerDocument !== doc) { doc.adoptNode(tooltip); doc.body.appendChild(tooltip); }
+      bindHideListeners(doc);
+
+      tooltip.textContent = fullName;
+      tooltip.style.display = "block";
+
+      const rect = chip.getBoundingClientRect();
+      const tooltipRect = tooltip.getBoundingClientRect();
+
+      tooltip.style.top = `${rect.top - tooltipRect.height - 6}px`;
+      tooltip.style.left = `${rect.left + rect.width / 2}px`;
+      tooltip.style.transform = "translateX(-50%)";
+    }
+
+    function attachChipwareTooltips(r) {
+      r.querySelectorAll(".chipware").forEach(chip => {
+        chip.addEventListener("mouseenter", () => showTooltip(chip));
+        chip.addEventListener("mouseleave", hideTooltip);
+      });
+    }
+
+    attachChipwareTooltips(root ?? document);
+    bindHideListeners(document);  // initial: main window; re-binds to the popout on first hover there
+
+    this._cpChipTooltipCleanup = () => {
+      hideTooltip();
+      tooltip.remove();
+      if (listenerDoc) for (const e of HIDE_EVENTS) listenerDoc.removeEventListener(e, hideTooltip);
+      listenerDoc = null;
+    };
   }
 
   /**
@@ -1263,14 +1426,10 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     // NOTE: avatar/image FilePicker wiring moved to _cpActivateActorFilePickers (called from
     // _onRender) in Stage A2.
 
-    // V2 keeps this.element across re-renders (application.mjs creates this.#element once and only
-    // swaps the inner content via _replaceHTML). The delegated jQuery handlers below are bound to
-    // that persistent root, so without this they'd stack one duplicate copy every render (e.g. a
-    // single skill-level edit would fire N updates after N renders). Clear our namespace before
-    // (re)binding — every delegated root handler is tagged `.cpActor`. We re-bind each render
-    // (rather than bind-once like SuperCoon's `_cpActivate*` dataset guards) because some of these
-    // handlers close over per-render locals; fresh closures preserve behaviour exactly.
-    $(html).off('.cpActor');
+    // NOTE: there are no longer any delegated-on-root jQuery handlers here — they were all migrated
+    // to native bind-once `_cpActivate*` helpers (Stage A2), so the old `$(html).off('.cpActor')`
+    // guard was removed. The handlers remaining below are bound to per-render child elements
+    // (replaced each render), so they don't accumulate.
 
     // NOTE: no `super.activateListeners` — ActorSheetV2 has none. Core wiring it used to provide
     // is replaced by V2: form input auto-submit (form.submitOnChange), drag-drop (DEFAULT_OPTIONS
@@ -1402,11 +1561,7 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     });
 
     // Cyberware-tab body-type picker: store the choice; the sheet re-renders with the new image.
-    html.find('.anatomy-select').on('change', async (ev) => {
-      const key = ev.currentTarget.value;
-      const valid = Object.prototype.hasOwnProperty.call(ANATOMY_IMAGES, key) ? key : DEFAULT_ANATOMY_KEY;
-      await this.actor.setFlag("cyberpunk2020", "anatomyImage", valid);
-    });
+    // NOTE: .anatomy-select change moved to _cpActivateCyberwareControls (native dispatch) in Stage A2.
 
     function getNetrunProgramItem(sheet, ev) {
       ev.stopPropagation();
@@ -1525,118 +1680,10 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       fp.render(true);
     });
 
-    if (this._cpChipTooltipCleanup) {
-      try { this._cpChipTooltipCleanup(); } catch (_) {}
-      this._cpChipTooltipCleanup = null;
-    }
-
-    const tooltip = document.createElement("div");
-    tooltip.className = "chip-tooltip";
-    document.body.appendChild(tooltip);
-
-    const HIDE_EVENTS = ["drop", "dragend", "click", "mousedown", "mouseup"];
-    let listenerDoc = null;  // PopOut!: which document the hide-listeners are bound to (moves on popout)
-
-    function hideTooltip() {
-      tooltip.style.display = "none";
-    }
-
-    // PopOut!: keep the hide-on-interaction listeners on whichever document the tooltip currently lives in.
-    function bindHideListeners(doc) {
-      if (listenerDoc === doc) return;
-      if (listenerDoc) for (const e of HIDE_EVENTS) listenerDoc.removeEventListener(e, hideTooltip);
-      for (const e of HIDE_EVENTS) doc.addEventListener(e, hideTooltip);
-      listenerDoc = doc;
-    }
-
-    function showTooltip(chip) {
-      const fullName = chip.dataset.full;
-      if (!fullName) return;
-
-      // PopOut!: the singleton tooltip was created in the MAIN document, but the chip may now live in a
-      // popped-out window. Move it there (adoptNode — a bare cross-document appendChild throws) and keep
-      // the hide-listeners on that document, before measuring/positioning.
-      const doc = chip.ownerDocument;
-      if (tooltip.ownerDocument !== doc) { doc.adoptNode(tooltip); doc.body.appendChild(tooltip); }
-      bindHideListeners(doc);
-
-      tooltip.textContent = fullName;
-      tooltip.style.display = "block";
-
-      const rect = chip.getBoundingClientRect();
-      const tooltipRect = tooltip.getBoundingClientRect();
-
-      tooltip.style.top = `${rect.top - tooltipRect.height - 6}px`;
-      tooltip.style.left = `${rect.left + rect.width / 2}px`;
-      tooltip.style.transform = "translateX(-50%)";
-    }
-
-    function attachChipwareTooltips(root) {
-      root.querySelectorAll(".chipware").forEach(chip => {
-        chip.addEventListener("mouseenter", () => showTooltip(chip));
-        chip.addEventListener("mouseleave", hideTooltip);
-      });
-    }
-
-    attachChipwareTooltips(getHtmlElement(html) ?? document);
-    bindHideListeners(document);  // initial: main window; re-binds to the popout on first hover there
-
-    this._cpChipTooltipCleanup = () => {
-      hideTooltip();
-      tooltip.remove();
-      if (listenerDoc) for (const e of HIDE_EVENTS) listenerDoc.removeEventListener(e, hideTooltip);
-      listenerDoc = null;
-    };
-    
-    html.on("change.cpActor", ".chip-toggle input[data-skill-id]", async (ev) => {
-      const checked = !!ev.currentTarget.checked;
-      const skillId = ev.currentTarget.dataset.skillId;
-      const skill = this.actor.items.get(skillId);
-      if (!skill || skill.type !== "skill") return;
-
-      const skillName = skill.name;
-
-      const chips = this.actor.items.filter(i => {
-        if (i.type !== "cyberware") return false;
-        if (!cwHasType(i, "Chip")) return false;
-        if (i.system?.equipped === false) return false;
-        const map = i.system?.CyberWorkType?.ChipSkills;
-        if (!map) return false;
-
-        return (skillId && Object.prototype.hasOwnProperty.call(map, skillId)) ||
-              Object.prototype.hasOwnProperty.call(map, skillName);
-      });
-
-      if (chips.length) {
-        const updates = chips.map(ch => ({
-          _id: ch.id,
-          "system.CyberWorkType.ChipActive": checked
-        }));
-        await this.actor.updateEmbeddedDocuments("Item", updates, { render: false });
-
-        await this._cp_syncChipLevelsToSkills();
-        await this._cp_syncActiveFlagsToSkills();
-      } else {
-        await skill.update({
-          "system.isChipped": checked,
-          ...deleteFieldUpdate("system.chipped")
-        }, { render: false });
-      }
-
-      if (this.rendered) this.render(true);
-      for (const ch of chips) if (ch.sheet?.rendered) ch.sheet.render(true);
-      if (skill.sheet?.rendered) skill.sheet.render(true);
-    });
-
-
-    html.on('mousedown.cpActor', '.item-unequip', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation?.();
-    });
-    html.on('click.cpActor', '.item-unequip', (e) => this._onActiveUnequip(e));
-    // NOTE: owned-item drag sources (makeDraggable) moved to _cpActivateActorDragDrop (called from
-    // _onRender) in Stage A2.
+    // NOTE: chip hover-tooltips, the chip-toggle change, and item-unequip (mousedown/click) moved to
+    // _cpActivateCyberwareControls / _cpActivateChipTooltips / _cpSetSkillChipActiveFromInput
+    // (native dispatch, called from _onRender) in Stage A2.
+    // (owned-item drag sources / makeDraggable already moved to _cpActivateActorDragDrop.)
   }
 
   /**
@@ -1788,9 +1835,11 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     event.stopPropagation();
     if (event.stopImmediatePropagation) event.stopImmediatePropagation();
 
-    const target = event.currentTarget;
+    // Native dispatch (Stage A2): the listener is on the sheet root, so resolve the unequip control
+    // from event.target rather than currentTarget.
+    const target = event.target?.closest?.('.item-unequip') ?? event.currentTarget;
     const id = target?.dataset?.itemId
-            || target.closest('[data-item-id]')?.dataset?.itemId;
+            || target?.closest?.('[data-item-id]')?.dataset?.itemId;
 
     if (!id) return;
     const item = this.actor.items.get(id);

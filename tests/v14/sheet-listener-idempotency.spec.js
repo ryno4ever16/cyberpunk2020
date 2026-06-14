@@ -20,7 +20,11 @@ import { joinAsGM } from "./rig-helpers.js";
  *
  * Needs the rig world + FVTT_RIG_PASSWORD. DO NOT run automatically.
  */
-test("actor-sheet V2: delegated listeners do not accumulate across re-renders", async ({ page }) => {
+test("actor-sheet V2: native listeners are bound once (no accumulation across re-renders)", async ({ page }) => {
+  // The actor sheet's listeners are now native bind-once `_cpActivate*` helpers (Stage A2) — no more
+  // jQuery delegated-on-root handlers. This verifies the bind-once guards prevent accumulation:
+  // after many re-renders, one click fires the action exactly once (a double-bound listener would
+  // fire N times). Also asserts zero `.cpActor` jQuery delegated handlers remain.
   const consoleErrors = [];
   page.on("console", (m) => { if (m.type() === "error") consoleErrors.push(m.text()); });
   page.on("pageerror", (e) => consoleErrors.push(String(e?.message ?? e)));
@@ -30,7 +34,6 @@ test("actor-sheet V2: delegated listeners do not accumulate across re-renders", 
   const result = await page.evaluate(async () => {
     const out = { errors: [] };
     const $ = window.jQuery ?? window.$;
-    // Count handlers in a given jQuery namespace bound to a specific element.
     const countNs = (el, ns) => {
       if (!el || !$?._data) return -1;
       const ev = $._data(el, "events") || {};
@@ -43,22 +46,29 @@ test("actor-sheet V2: delegated listeners do not accumulate across re-renders", 
 
     let actor;
     try {
-      actor = await Actor.create({ name: "ZZ DoubleBind Probe", type: "character" });
+      actor = await Actor.create({ name: "ZZ Idempotency Probe", type: "character" });
       const sheet = actor.sheet;
       await sheet.render({ force: true });
       await new Promise((r) => setTimeout(r, 600));
 
       const el0 = sheet.element;
-      out.tag = el0?.tagName?.toLowerCase() ?? null;        // "form" (tag:"form")
-      out.jqueryAvailable = !!$?._data;
-      out.afterFirstRender = countNs(el0, "cpActor");
+      out.tag = el0?.tagName?.toLowerCase() ?? null;
 
-      // Force several re-renders — the bug would multiply the handler count here.
+      // Force several re-renders — a double-bound listener would fire N times on one click below.
       for (let i = 0; i < 5; i++) { await sheet.render(false); await new Promise((r) => setTimeout(r, 120)); }
       await new Promise((r) => setTimeout(r, 300));
 
-      out.elementPersisted = sheet.element === el0;          // confirms the premise (root persists)
-      out.afterSixRenders = countNs(sheet.element, "cpActor");
+      out.elementPersisted = sheet.element === el0;                       // premise: root persists
+      out.boundFlag = el0.dataset?.cpBasicActorActionsBound ?? null;      // bind-once guard set
+      out.cpActorHandlers = countNs(el0, "cpActor");                      // expect 0 — fully native
+
+      // Behavioural idempotency: one click fires the action exactly once.
+      let fired = 0;
+      const orig = actor.rollStat;
+      actor.rollStat = function () { fired++; };
+      el0.querySelector(".stat-roll")?.click();
+      actor.rollStat = orig;
+      out.statRollFires = fired;
 
       await sheet.close();
     } catch (e) {
@@ -69,15 +79,15 @@ test("actor-sheet V2: delegated listeners do not accumulate across re-renders", 
     return out;
   });
 
-  console.log("listener idempotency:", JSON.stringify(result, null, 2));
+  console.log("native idempotency:", JSON.stringify(result, null, 2));
   console.log("console errors:", JSON.stringify(consoleErrors, null, 2));
 
   expect(result.errors, "no thrown errors").toEqual([]);
-  expect(result.jqueryAvailable, "jQuery internal event store reachable").toBe(true);
   expect(result.tag, "root is the V2 <form>").toBe("form");
   expect(result.elementPersisted, "this.element persists across re-renders (the premise)").toBe(true);
-  expect(result.afterFirstRender, "some .cpActor delegated handlers bound").toBeGreaterThan(0);
-  expect(result.afterSixRenders, "no accumulation after 6 renders").toBe(result.afterFirstRender);
+  expect(result.boundFlag, "basic-actions listener bound once (guard flag set)").toBe("1");
+  expect(result.cpActorHandlers, "no jQuery delegated (.cpActor) handlers remain — fully native").toBe(0);
+  expect(result.statRollFires, "one .stat-roll click fires rollStat exactly once after 6 renders").toBe(1);
 });
 
 test("item-sheet V2: delegated listeners do not accumulate across re-renders", async ({ page }) => {
