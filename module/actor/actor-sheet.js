@@ -163,21 +163,8 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
   async _onRender(context, options) {
     await super._onRender?.(context, options);
     const root = this.element;
-    // Tabs: bind Foundry's Tabs UX class with the same selectors the V1 sheet used; preserve the
-    // active tab across re-renders. (V2 has no auto-tab handling from a `tabs` option.)
-    try {
-      const TabsCls = foundry.applications?.ux?.Tabs?.implementation
-        ?? foundry.applications?.ux?.Tabs
-        ?? globalThis.Tabs;
-      if (TabsCls) {
-        this._cpTabs = new TabsCls({
-          ...CyberpunkActorSheet.TAB_CONFIG,
-          initial: this._cpActiveTab ?? CyberpunkActorSheet.TAB_CONFIG.initial,
-          callback: (_ev, _tabs, active) => { this._cpActiveTab = active; },
-        });
-        this._cpTabs.bind(root);
-      }
-    } catch (e) { console.warn("cyberpunk2020 | actor-sheet tab bind failed", e); }
+    // Tabs + tear-off wiring — extracted to an upstream-aligned helper (Stage A2).
+    this._cpActivateTabs(root);
     // FilePicker (avatar/image) wiring — extracted to an upstream-aligned helper (Stage A2).
     this._cpActivateActorFilePickers(root);
     // Re-use the existing jQuery listener wiring verbatim (the V1 activateListeners body).
@@ -226,6 +213,32 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     root.addEventListener("pointerdown", cpAvatarCapture, { capture: true });
     root.addEventListener("click", cpAvatarCapture, { capture: true });
     this._cpAvatarCapture = cpAvatarCapture;
+  }
+
+  /**
+   * Tab wiring. Mirrors upstream's `_cpActivateTabs`: binds Foundry's Tabs UX class with the V1
+   * selectors (V2 dropped the auto-`tabs` option), preserving the active tab across re-renders,
+   * then wires the press-and-hold tear-off gesture and refreshes which tabs are popped out.
+   * Consolidated from the inline _onRender binding + activateListeners in Stage A2.
+   */
+  _cpActivateTabs(root) {
+    try {
+      const TabsCls = foundry.applications?.ux?.Tabs?.implementation
+        ?? foundry.applications?.ux?.Tabs
+        ?? globalThis.Tabs;
+      if (TabsCls) {
+        this._cpTabs = new TabsCls({
+          ...CyberpunkActorSheet.TAB_CONFIG,
+          initial: this._cpActiveTab ?? CyberpunkActorSheet.TAB_CONFIG.initial,
+          callback: (_ev, _tabs, active) => { this._cpActiveTab = active; },
+        });
+        this._cpTabs.bind(root);
+      }
+    } catch (e) { console.warn("cyberpunk2020 | actor-sheet tab bind failed", e); }
+
+    // Tear-off tabs: press-and-hold a tab, then drag it out to pop it into its own window.
+    this._activateTabTearOff(root);
+    this._refreshDetachedTabs();
   }
 
   _prepareSkills(sheetData) {
@@ -779,9 +792,8 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     // Life tab (system.notes) autosave
     this._cpSetupNotesAutosave(root);
     html.find('[data-drop-target]').on('dragover', (ev) => ev.preventDefault());
-    // Tear-off tabs: press-and-hold a tab, then drag it out to pop it into its own window.
-    this._activateTabTearOff(root);
-    this._refreshDetachedTabs();
+    // NOTE: tab binding + tear-off + detached-tab refresh moved to _cpActivateTabs (called from
+    // _onRender) in Stage A2.
     // Gear tab: drag a row to reorder, or drag it off the window to delete.
     this._activateGearDragSort(root);
 
