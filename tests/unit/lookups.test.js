@@ -43,6 +43,9 @@ import {
   DEFAULT_ANATOMY_KEY,
   W4RST4R_AREA_LOOKUP,
   defaultAreaLookup,
+  rangedModifiers,
+  martialOptions,
+  meleeBonkOptions,
 } from "../../module/lookups.js";
 
 // ─── btmFromBT ────────────────────────────────────────────────────────────────
@@ -561,6 +564,85 @@ describe("getMartialActionBonus (CORE table by default)", () => {
     // FNFF2 ArasakaTe is now live (Choke 2), and Karate gains a Punch bonus it lacks under core.
     expect(getMartialActionBonus("Martial Arts: ArasakaTe", "Choke")).toBe(2);
     expect(getMartialActionBonus("Martial Arts: Karate", "Punch")).toBe(2);
+  });
+});
+
+// ─── saved attack options (pre-fill defaults) ─────────────────────────────────
+// rangedModifiers/martialOptions/meleeBonkOptions accept an optional savedOptions arg so the
+// attack dialog re-opens with the weapon's last-used choices. They take a weapon/actor only for
+// fire-mode / trained-martial lists, which we stub. These tests pin both the restore behaviour and
+// the backward-compatible default (no savedOptions → first/Brawling/NoCyberlimb), since the
+// existing fire/martial call sites still invoke them without the arg.
+
+const fakeRangedWeapon = (fireModes) => ({
+  system: { range: 50 },
+  __getFireModes: () => fireModes,
+});
+// martialOptions builds its style list from actor.trainedMartials() → { value, label }.
+const fakeMartialActor = (trained = []) => ({ trainedMartials: () => trained });
+// Pluck a field group entry by its localKey from the [[ ...fields ]] modifier-group shape.
+const fieldByKey = (groups, localKey) => groups[0].find((f) => f.localKey === localKey);
+
+describe("rangedModifiers — saved fire mode", () => {
+  const modes = ["SemiAuto", "Auto", "ThreeRoundBurst"];
+
+  it("defaults to the first fire mode when no saved options are given (backward compatible)", () => {
+    const fm = fieldByKey(rangedModifiers(fakeRangedWeapon(modes), []), "FireMode");
+    expect(fm.defaultValue).toBe("SemiAuto");
+  });
+
+  it("restores a saved fire mode that is still a valid choice", () => {
+    const fm = fieldByKey(rangedModifiers(fakeRangedWeapon(modes), [], { fireMode: "Auto" }), "FireMode");
+    expect(fm.defaultValue).toBe("Auto");
+  });
+
+  it("ignores a saved fire mode the weapon no longer offers (falls back to first)", () => {
+    const fm = fieldByKey(rangedModifiers(fakeRangedWeapon(modes), [], { fireMode: "Suppressive" }), "FireMode");
+    expect(fm.defaultValue).toBe("SemiAuto");
+  });
+});
+
+describe("martialOptions — saved martial art + cyberlimb terminus", () => {
+  const trained = [{ value: "Martial Arts: Karate", label: "Karate" }];
+
+  it("defaults to Brawling / NoCyberlimb with no saved options (backward compatible)", () => {
+    const groups = martialOptions(fakeMartialActor(trained));
+    expect(fieldByKey(groups, "MartialArt").defaultValue).toBe("Brawling");
+    expect(fieldByKey(groups, "CyberTerminus").defaultValue).toBe("NoCyberlimb");
+  });
+
+  it("restores a saved martial art that the actor is still trained in", () => {
+    const groups = martialOptions(fakeMartialActor(trained), { martialArt: "Martial Arts: Karate" });
+    expect(fieldByKey(groups, "MartialArt").defaultValue).toBe("Martial Arts: Karate");
+  });
+
+  it("ignores a saved martial art the actor no longer has (falls back to Brawling)", () => {
+    const groups = martialOptions(fakeMartialActor(trained), { martialArt: "Martial Arts: Judo" });
+    expect(fieldByKey(groups, "MartialArt").defaultValue).toBe("Brawling");
+  });
+
+  it("restores a saved cyberlimb terminus", () => {
+    const groups = martialOptions(fakeMartialActor(trained), { cyberTerminus: "CyberTerminusX2" });
+    expect(fieldByKey(groups, "CyberTerminus").defaultValue).toBe("CyberTerminusX2");
+  });
+
+  it("ignores an invalid saved cyberlimb terminus (falls back to NoCyberlimb)", () => {
+    const groups = martialOptions(fakeMartialActor(trained), { cyberTerminus: "bogus" });
+    expect(fieldByKey(groups, "CyberTerminus").defaultValue).toBe("NoCyberlimb");
+  });
+});
+
+describe("meleeBonkOptions — saved cyberlimb terminus", () => {
+  it("defaults to NoCyberlimb with no saved options (backward compatible)", () => {
+    expect(fieldByKey(meleeBonkOptions(), "CyberTerminus").defaultValue).toBe("NoCyberlimb");
+  });
+
+  it("restores a saved cyberlimb terminus", () => {
+    expect(fieldByKey(meleeBonkOptions({ cyberTerminus: "CyberTerminusX3" }), "CyberTerminus").defaultValue).toBe("CyberTerminusX3");
+  });
+
+  it("ignores an invalid saved cyberlimb terminus", () => {
+    expect(fieldByKey(meleeBonkOptions({ cyberTerminus: "nope" }), "CyberTerminus").defaultValue).toBe("NoCyberlimb");
   });
 });
 

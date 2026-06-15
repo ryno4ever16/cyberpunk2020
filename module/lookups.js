@@ -572,15 +572,18 @@ export let W4RST4R_AREA_LOOKUP = {
   10: "Groin"
 };
 
-export function rangedModifiers(weapon, targetTokens=[]) {
+export function rangedModifiers(weapon, targetTokens=[], savedOptions={}) {
     let range = weapon.system.range || 50;
     let fireModes = weapon.__getFireModes() || [];
+    // Saved attack options: pre-fill the weapon's last-used fire mode, if still a valid choice.
+    const savedFireMode = savedOptions?.fireMode;
+    const fireModeDefault = fireModes.includes(savedFireMode) ? savedFireMode : fireModes[0];
     return [
         [{
             localKey: "FireMode",
             dataPath: "fireMode",
             choices: fireModes,
-            defaultValue: fireModes[0]
+            defaultValue: fireModeDefault
         },
         {
             localKey: "Range", 
@@ -656,36 +659,54 @@ export function martialActionGroups() {
  * from the combat-tab button the player pressed (see martialActionGroups + the .martial-action
  * handler), and is injected into the fire options. The dialog only collects the style and cyberlimb.
  */
-export function martialOptions(actor) {
+export function martialOptions(actor, savedOptions={}) {
+    const martialChoices = [
+      { value: "Brawling", localKey: "SkillBrawling" },
+
+      // trainedMartials() returns { value, label } — value is the built-in key or a
+      // custom skill name; label is the skill's display name (rendered literally via `text`).
+      ...(actor.trainedMartials().map(m => {
+        return { value: m.value, text: m.label };
+      }))
+    ];
+    // Saved attack options: pre-fill the weapon's last-used martial art, if still a valid choice.
+    const savedMartialArt = savedOptions?.martialArt;
+    const martialArtDefault = martialChoices.map(c => c.value).includes(savedMartialArt) ? savedMartialArt : "Brawling";
+
+    const cyberTerminusChoices = [
+        { value: "NoCyberlimb", localKey: "NoCyberlimb" },
+        { value: "CyberTerminusX2", localKey: "CyberTerminusX2" },
+        { value: "CyberTerminusX3", localKey: "CyberTerminusX3" }
+    ];
+    const savedCyberTerminus = savedOptions?.cyberTerminus;
+    const cyberTerminusDefault = cyberTerminusChoices.map(c => c.value).includes(savedCyberTerminus) ? savedCyberTerminus : "NoCyberlimb";
+
     return [
         [{
             localKey: "MartialArt",
             dataPath: "martialArt",
-            choices: [
-            { value: "Brawling", localKey: "SkillBrawling" },
-
-              // trainedMartials() returns { value, label } — value is the built-in key or a
-              // custom skill name; label is the skill's display name (rendered literally via `text`).
-              ...(actor.trainedMartials().map(m => {
-                return { value: m.value, text: m.label };
-              }))
-            ]
+            defaultValue: martialArtDefault,
+            choices: martialChoices
         },
         {
             localKey: "CyberTerminus",
             dataPath: "cyberTerminus",
-            defaultValue: "NoCyberlimb",
-            choices: [
-                { value: "NoCyberlimb", localKey: "NoCyberlimb" },
-                { value: "CyberTerminusX2", localKey: "CyberTerminusX2" },
-                { value: "CyberTerminusX3", localKey: "CyberTerminusX3" }
-            ]
+            defaultValue: cyberTerminusDefault,
+            choices: cyberTerminusChoices
         }
     ]]
 }
 
 // Needs to be a function, or every time the modifiers dialog is launched, it'll add "extra mods" on
-export function meleeBonkOptions() {
+export function meleeBonkOptions(savedOptions={}) {
+    const cyberTerminusChoices = [
+        { value: "NoCyberlimb", localKey: "NoCyberlimb" },
+        { value: "CyberTerminusX2", localKey: "CyberTerminusX2" },
+        { value: "CyberTerminusX3", localKey: "CyberTerminusX3" }
+    ];
+    const savedCyberTerminus = savedOptions?.cyberTerminus;
+    const cyberTerminusDefault = cyberTerminusChoices.map(c => c.value).includes(savedCyberTerminus) ? savedCyberTerminus : "NoCyberlimb";
+
     return [[
         {
             localKey: "TargetArea",
@@ -697,12 +718,8 @@ export function meleeBonkOptions() {
         {
             localKey: "CyberTerminus",
             dataPath: "cyberTerminus",
-            defaultValue: "NoCyberlimb",
-            choices: [
-                { value: "NoCyberlimb", localKey: "NoCyberlimb" },
-                { value: "CyberTerminusX2", localKey: "CyberTerminusX2" },
-                { value: "CyberTerminusX3", localKey: "CyberTerminusX3" }
-            ]
+            defaultValue: cyberTerminusDefault,
+            choices: cyberTerminusChoices
         }
     ]]
 }

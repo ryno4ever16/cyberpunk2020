@@ -508,6 +508,14 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     if (!item) return;
     let isRanged = item.isRanged();
 
+    // Saved attack options: pre-fill the dialog with this weapon's last-used choices. Ranged
+    // restores the fire mode; melee restores martial art + cyberlimb terminus. (Our martial flow
+    // picks the ACTION via the combat-tab button panel, not the dialog, so upstream's saved
+    // `action` is intentionally not ported — see the re-seat earmark.)
+    const savedAttackOptions = isRanged
+      ? this._cpGetSavedRangedAttackOptions(item)
+      : this._cpGetSavedMeleeAttackOptions(item);
+
     let modifierGroups = undefined;
     let targetTokens = Array.from(game.users.current.targets.values()).map(target => {
       return {
@@ -516,7 +524,7 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     });
 
     if(isRanged) {
-      modifierGroups = rangedModifiers(item, targetTokens);
+      modifierGroups = rangedModifiers(item, targetTokens, savedAttackOptions);
 
       // ── Automated Rangefinding ──────────────────────────────────────────
       // If enabled and exactly one target is selected, measure the token
@@ -571,19 +579,85 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       // ───────────────────────────────────────────────────────────────────
     }
     else if ((item._getWeaponSystem?.().attackType) === meleeAttackTypes.martial) {
-      modifierGroups = martialOptions(this.actor);
+      modifierGroups = martialOptions(this.actor, savedAttackOptions);
     }
     else {
-      modifierGroups = meleeBonkOptions();
+      modifierGroups = meleeBonkOptions(savedAttackOptions);
     }
 
     let dialog = new ModifiersDialog(this.actor, {
       weapon: item,
       targetTokens: targetTokens,
       modifierGroups: modifierGroups,
-      onConfirm: (fireOptions) => item.__weaponRoll(fireOptions, targetTokens)
+      onConfirm: async (fireOptions) => {
+        // Persist the chosen options so the next attack with this weapon pre-fills them.
+        if (isRanged) await this._cpSaveRangedAttackOptions(item, fireOptions);
+        else await this._cpSaveMeleeAttackOptions(item, fireOptions);
+        return item.__weaponRoll(fireOptions, targetTokens);
+      }
     });
     dialog.render(true);
+    return dialog;
+  }
+
+  /**
+   * Read a weapon's last-used RANGED attack options ({ fireMode }) from its flags. Returns a plain
+   * mutable copy (empty object if none saved). Mirrors upstream's `_cpGetSavedRangedAttackOptions`.
+   */
+  _cpGetSavedRangedAttackOptions(item) {
+    return foundry.utils.duplicate(item?.getFlag?.("cyberpunk2020", "lastRangedAttackOptions") ?? {});
+  }
+
+  /**
+   * Persist a weapon's RANGED attack options after a roll (only the fire mode, and only when it
+   * changed — avoids a needless document update / re-render). Mirrors upstream's
+   * `_cpSaveRangedAttackOptions`.
+   */
+  async _cpSaveRangedAttackOptions(item, fireOptions) {
+    if (!item?.update) return;
+    const saved = this._cpGetSavedRangedAttackOptions(item);
+    const fireMode = fireOptions?.fireMode;
+    if (fireMode === undefined || fireMode === saved.fireMode) return;
+    await item.update(
+      { "flags.cyberpunk2020.lastRangedAttackOptions": { ...saved, fireMode } },
+      { render: false }
+    );
+  }
+
+  /**
+   * Read a weapon's last-used MELEE attack options ({ martialArt, cyberTerminus }) from its flags.
+   * Returns a plain mutable copy (empty object if none saved). Mirrors upstream's
+   * `_cpGetSavedMeleeAttackOptions`.
+   */
+  _cpGetSavedMeleeAttackOptions(item) {
+    return foundry.utils.duplicate(item?.getFlag?.("cyberpunk2020", "lastMeleeAttackOptions") ?? {});
+  }
+
+  /**
+   * Persist a weapon's MELEE attack options after a roll. We save the martial art + cyberlimb
+   * terminus (whichever the dialog supplied) and only when they changed. Upstream also saves a
+   * martial `action`, but our martial flow chooses the action via the combat-tab button panel, so
+   * that field is intentionally skipped (re-seat earmark). Mirrors upstream's
+   * `_cpSaveMeleeAttackOptions` otherwise.
+   */
+  async _cpSaveMeleeAttackOptions(item, fireOptions) {
+    if (!item?.update) return;
+    const saved = this._cpGetSavedMeleeAttackOptions(item);
+    const next = { ...saved };
+    let changed = false;
+    if (fireOptions?.martialArt !== undefined && fireOptions.martialArt !== saved.martialArt) {
+      next.martialArt = fireOptions.martialArt;
+      changed = true;
+    }
+    if (fireOptions?.cyberTerminus !== undefined && fireOptions.cyberTerminus !== saved.cyberTerminus) {
+      next.cyberTerminus = fireOptions.cyberTerminus;
+      changed = true;
+    }
+    if (!changed) return;
+    await item.update(
+      { "flags.cyberpunk2020.lastMeleeAttackOptions": next },
+      { render: false }
+    );
   }
 
   /**
