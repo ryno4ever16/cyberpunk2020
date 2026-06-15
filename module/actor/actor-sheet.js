@@ -15,13 +15,13 @@ const { HandlebarsApplicationMixin } = foundry.applications.api;
 /**
  * Character / NPC actor sheet — ApplicationV2 port.
  *
- * ⚠ BLIND PORT (2026-06-11): converted to ActorSheetV2 WITHOUT live rig validation (rig login
- * was down). Strategy = "shell swap": the V1 data prep (getData), the ~760-line jQuery
- * activateListeners, and every handler/drag helper are preserved verbatim; only the framework
- * plumbing changed — base class, DEFAULT_OPTIONS/PARTS, getData→_prepareContext, and a new
- * _onRender that re-invokes the jQuery activateListeners and binds tabs manually (V2 drops the
- * V1 auto-tab `tabs` option). Recover via tag `pre-blind-sheets-rewrite` if wrong. See PROGRESS.md
- * for the residual-risk checklist (tabs, item drag-start, editors, _prepareContext base shape).
+ * Native ApplicationV2 sheet. `_prepareContext` builds on `super._prepareContext`, and all listener
+ * wiring is split into small native `_cpActivate*` helpers called from `_onRender` — matching the
+ * upstream CyberpunkActorSheet structure: Tabs, ActorFilePickers, BasicActorActions, ActorFormControls,
+ * CyberwareControls, NetrunningControls, ActorCustomControls (CP2020-specific), NotesEditor, and
+ * ActorDragDrop. Each is a bind-once delegated listener on the persistent root (Stage A2 replaced the
+ * former ~760-line jQuery `activateListeners` entirely). Behaviour is covered by the
+ * tests/v14/actor-*.spec.js rig suite (both v13.350 and v14.364).
  *
  * @extends {foundry.applications.sheets.ActorSheetV2}
  */
@@ -156,8 +156,9 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
   }
 
   /**
-   * V2 render hook. Re-creates the interactivity the V1 framework used to wire automatically:
-   * manual tab binding (V2 dropped the `tabs` option) and the existing jQuery activateListeners.
+   * V2 render hook — the single place all sheet interactivity is wired, as a table of contents of
+   * native `_cpActivate*` helpers (tabs, file pickers, actions, form controls, cyberware, netrunning,
+   * custom controls, notes, drag-drop). Each helper binds once on the persistent root.
    * @override
    */
   async _onRender(context, options) {
@@ -183,9 +184,8 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     this._cpActivateNotesEditor(root);
     // Drag-drop (drop-target dragover, gear sort, owned-item drag sources) — upstream-aligned helper (Stage A2).
     this._cpActivateActorDragDrop(root);
-    // Re-use the existing jQuery listener wiring verbatim (the V1 activateListeners body).
-    try { this.activateListeners($(root)); }
-    catch (e) { console.error("cyberpunk2020 | actor-sheet activateListeners failed", e); }
+    // NOTE: the old jQuery activateListeners is gone — every handler is now a native _cpActivate*
+    // helper above (Stage A2 complete for the actor sheet).
   }
 
   /**
@@ -229,6 +229,31 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     root.addEventListener("pointerdown", cpAvatarCapture, { capture: true });
     root.addEventListener("click", cpAvatarCapture, { capture: true });
     this._cpAvatarCapture = cpAvatarCapture;
+
+    // Netrunner persona icon picker (the .filepicker frame). Bound once (bubble phase); resolves
+    // the control from event.target. (Moved from activateListeners in Stage A2.)
+    if (root.dataset.cpFilePickerBound !== "1") {
+      root.dataset.cpFilePickerBound = "1";
+      root.addEventListener("click", (event) => {
+        if (!event.target?.closest?.(".filepicker")) return;
+        event.preventDefault();
+        const currentPath = this.actor.system.icon || "";
+        const fp = new (foundry.applications?.apps?.FilePicker?.implementation ?? foundry.applications?.apps?.FilePicker ?? FilePicker)({
+          type: "image",
+          current: currentPath,
+          callback: (path) => {
+            this.actor.update({ "system.icon": path });
+            const img = root.querySelector(".netrun-icon-frame img");
+            if (img) img.setAttribute("src", path);
+            const input = root.querySelector('input[name="system.icon"]');
+            if (input) input.value = path;
+          },
+          top: (this.position?.top ?? 0) + 40,
+          left: (this.position?.left ?? 0) + 10
+        });
+        fp.render(true);
+      });
+    }
   }
 
   /**
@@ -302,7 +327,9 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
         const it = this.actor.items.get(id);
         if (!it) return;
         this._cpWriteOwnedItemDragData(ev, it);
+        node.classList.add('is-dragging');   // visual feedback (CSS styles .netrun-program.is-dragging)
       });
+      node.addEventListener('dragend', () => node.classList.remove('is-dragging'));
     });
   }
 
@@ -621,6 +648,18 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       if (target.matches(".skill-ask-mod")) { await this._cpUpdateAskModsFromInput(target); return; }
       if (target.matches(".roll-initiative-modificator")) { await this.actor.update({ "system.initiativeMod": Number(target.value) }); return; }
       if (target.matches(".roll-stun-death-modificator")) { await this.actor.update({ "system.StunDeathMod": Number(target.value) }); return; }
+
+      // Generic data-edit fields (custom inputs that store via data-edit / data-dtype, not `name`).
+      if (target.matches("input[data-edit], select[data-edit], textarea[data-edit]")) {
+        event.preventDefault();
+        const path = target.dataset.edit;
+        const dtype = target.dataset.dtype;
+        let value = target.value;
+        if (dtype === "Number") { value = Number(value || 0); if (target.type === "checkbox") value = target.checked ? 1 : 0; }
+        else if (dtype === "Boolean") { value = target.checked; }
+        this.actor.update({ [path]: value });
+        return;
+      }
     });
 
     // Skill search: filter the rendered rows in place (upstream's DOM-filter approach) instead of
@@ -677,11 +716,12 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     // Chip hover-tooltips re-attach to the (re-rendered) .chipware elements every render.
     this._cpActivateChipTooltips(root);
 
-    if (root.dataset.cpCyberwareControlsBound === "1") return;
-    root.dataset.cpCyberwareControlsBound = "1";
-
+    // Check editable BEFORE setting the bound flag, so a non-editable first render doesn't consume
+    // the one-time binding (otherwise the listeners would never bind once the sheet becomes editable).
     const editable = this.isEditable ?? this.options?.editable ?? false;
     if (!editable) return;
+    if (root.dataset.cpCyberwareControlsBound === "1") return;
+    root.dataset.cpCyberwareControlsBound = "1";
 
     // item-unequip: swallow the mousedown (so the X can't start a drag), then unequip on click.
     root.addEventListener("mousedown", (event) => {
@@ -913,11 +953,11 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
    */
   _cpActivateNetrunningControls(root) {
     if (!root?.addEventListener) return;
-    if (root.dataset.cpNetrunningControlsBound === "1") return;
-    root.dataset.cpNetrunningControlsBound = "1";
-
+    // Editable check before the bound flag (so a non-editable first render can't consume the binding).
     const editable = this.isEditable ?? this.options?.editable ?? false;
     if (!editable) return;
+    if (root.dataset.cpNetrunningControlsBound === "1") return;
+    root.dataset.cpNetrunningControlsBound = "1";
 
     root.addEventListener("click", (event) => {
       const target = event.target;
@@ -991,11 +1031,11 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
    */
   _cpActivateActorCustomControls(root) {
     if (!root?.addEventListener) return;
-    if (root.dataset.cpActorCustomControlsBound === "1") return;
-    root.dataset.cpActorCustomControlsBound = "1";
-
+    // Editable check before the bound flag (so a non-editable first render can't consume the binding).
     const editable = this.isEditable ?? this.options?.editable ?? false;
     if (!editable) return;
+    if (root.dataset.cpActorCustomControlsBound === "1") return;
+    root.dataset.cpActorCustomControlsBound = "1";
 
     // Ammo-tracking / Free Fire toggle (per-actor flag).
     root.addEventListener("change", async (event) => {
@@ -1624,145 +1664,6 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       const updates = ids.map((id, i) => ({ _id: id, sort: (i + 1) * 100000 }));
       await this.actor.updateEmbeddedDocuments("Item", updates);
     });
-  }
-
-  /** @override */
-  activateListeners(html) {
-    const root = getHtmlElement(html);
-
-    // NOTE: avatar/image FilePicker wiring moved to _cpActivateActorFilePickers (called from
-    // _onRender) in Stage A2.
-
-    // NOTE: there are no longer any delegated-on-root jQuery handlers here — they were all migrated
-    // to native bind-once `_cpActivate*` helpers (Stage A2), so the old `$(html).off('.cpActor')`
-    // guard was removed. The handlers remaining below are bound to per-render child elements
-    // (replaced each render), so they don't accumulate.
-
-    // NOTE: no `super.activateListeners` — ActorSheetV2 has none. Core wiring it used to provide
-    // is replaced by V2: form input auto-submit (form.submitOnChange), drag-drop (DEFAULT_OPTIONS
-    // dragDrop), and tab binding (done in _onRender). This method is invoked from _onRender.
-    // NOTE: Life-tab notes autosave moved to _cpActivateNotesEditor (called from _onRender) in Stage A2.
-    // NOTE: tab binding + tear-off + detached-tab refresh moved to _cpActivateTabs (called from
-    // _onRender) in Stage A2.
-    // NOTE: drop-target dragover + gear drag-sort + owned-item drag sources moved to
-    // _cpActivateActorDragDrop (called from _onRender) in Stage A2.
-
-    // NOTE: the former local getEventItem/deleteItemDialog are gone; the native item-control dispatch
-    // in _cpActivateBasicActorActions uses _cpGetItemFromTarget + _confirmDeleteItem (Stage A2).
-
-    // If not editable, do nothing further
-    if (!this.isEditable) return;
-
-    // NOTE: SDP current-value change moved to _cpActivateActorFormControls (native dispatch) in Stage A2.
-
-    // NOTE: .stat-roll / .facedown-roll / .recognition-roll clicks moved to
-    // _cpActivateBasicActorActions (native dispatch, called from _onRender) in Stage A2.
-    // NOTE: skill-level (select/Enter/change → _cpSaveSkillLevelFromInput) and skill-sort moved to
-    // _cpActivateActorFormControls (native dispatch, called from _onRender) in Stage A2.
-
-    // NOTE: skill search (input / clear / clear-button visibility) moved to
-    // _cpActivateActorFormControls + _cpApplySkillFilterToDOM (native DOM filter, no re-render) in
-    // Stage A2; the per-render re-apply is _cpRefreshSkillSearchUI in _onRender.
-
-    // NOTE: .skill-ask-mod (click stopProp + change → _cpUpdateAskModsFromInput) moved to
-    // _cpActivateActorFormControls in Stage A2.
-
-    // NOTE: .skill-roll click moved to _cpActivateBasicActorActions / _cpRollSkillFromElement
-    // (native dispatch, called from _onRender) in Stage A2.
-
-    // NOTE: .roll-initiative click + .roll-initiative-modificator change moved to
-    // _cpActivateBasicActorActions / _cpActivateActorFormControls in Stage A2.
-
-    // NOTE: ammo-tracking toggle, the Shop button, the Services tab (add/pay/edit/delete), and the
-    // IP tracker (level-up / lock-toggle) moved to _cpActivateActorCustomControls (native dispatch,
-    // called from _onRender) in Stage A2.
-
-    // Stun/Death save
-    // NOTE: .roll-stun-death-modificator change moved to _cpActivateActorFormControls in Stage A2.
-    // NOTE: .stun-death-save click + .damage box click moved to _cpActivateBasicActorActions
-    // (native dispatch, called from _onRender) in Stage A2.
-
-    // NOTE: item controls (.item-roll / .item-edit / .item-delete / .rc-item-delete) and the active
-    // chip-open click moved to _cpActivateBasicActorActions (native dispatch, called from _onRender)
-    // in Stage A2.
-
-    // NOTE: the "fire" weapon control moved to _cpActivateBasicActorActions (native dispatch) +
-    // _cpOpenWeaponAttackDialog (called from _onRender) in Stage A2. Migrated together with the item
-    // controls because the item image is nested inside .fire-weapon (see DEV-GUIDE.md Part 6).
-
-    // NOTE: the .martial-action buttons moved to _cpActivateActorCustomControls +
-    // _cpOpenMartialActionDialog (native dispatch, called from _onRender) in Stage A2.
-
-    // Cyberware-tab body-type picker: store the choice; the sheet re-renders with the new image.
-    // NOTE: .anatomy-select change moved to _cpActivateCyberwareControls (native dispatch) in Stage A2.
-
-    // NOTE: .netrun-program .fa-edit / .fa-trash + the interface-skill roll + active-program
-    // right-click moved to _cpActivateNetrunningControls (native dispatch, called from _onRender)
-    // in Stage A2.
-
-    html.find('.netrun-program').each((_, programElem) => {
-      programElem.setAttribute("draggable", true);
-
-      programElem.addEventListener("dragstart", ev => {
-        const itemId = programElem.dataset.itemId;
-        const item = this.actor.items.get(itemId);
-        if ( !item ) return;
-
-        this._cpWriteOwnedItemDragData(ev, item);
-
-        programElem.classList.add("is-dragging");
-      });
-
-      programElem.addEventListener("dragend", ev => {
-        programElem.classList.remove("is-dragging");
-      });
-    });
-
-    html.find('input[data-edit], select[data-edit], textarea[data-edit]').on('change', ev => {
-      ev.preventDefault();
-      const input = ev.currentTarget;
-      const path = input.dataset.edit;
-      const dtype = input.dataset.dtype;
-      let value = input.value;
-
-      if (dtype === "Number") {
-        value = Number(value || 0);
-        if (input.type === "checkbox") value = input.checked ? 1 : 0;
-      }
-      else if (dtype === "Boolean") {
-        value = input.checked;
-      }
-
-      this.actor.update({ [path]: value });
-    });
-
-    // (Armor layer manual-override handlers removed — panel is now read-only compliance display)
-    // NOTE: interface-skill roll + active-program right-click moved to _cpActivateNetrunningControls
-    // (native dispatch) in Stage A2.
-
-    html.find('.filepicker').on('click', async (ev) => {
-      ev.preventDefault();
-      const currentPath = this.actor.system.icon || "";
-      
-      const fp = new (foundry.applications?.apps?.FilePicker?.implementation ?? foundry.applications?.apps?.FilePicker ?? FilePicker)({
-        type: "image",
-        current: currentPath,
-        callback: (path) => {
-          this.actor.update({"system.icon": path});
-          html.find(".netrun-icon-frame img").attr("src", path);
-          html.find('input[name="system.icon"]').val(path);
-        },
-        top: this.position.top + 40,
-        left: this.position.left + 10
-      });
-
-      fp.render(true);
-    });
-
-    // NOTE: chip hover-tooltips, the chip-toggle change, and item-unequip (mousedown/click) moved to
-    // _cpActivateCyberwareControls / _cpActivateChipTooltips / _cpSetSkillChipActiveFromInput
-    // (native dispatch, called from _onRender) in Stage A2.
-    // (owned-item drag sources / makeDraggable already moved to _cpActivateActorDragDrop.)
   }
 
   /**
