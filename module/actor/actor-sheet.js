@@ -71,6 +71,9 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     sheetData.system = system;
     sheetData.owner = this.actor.isOwner;
     sheetData.editable = this.isEditable ?? this.options?.editable ?? false;
+    // Life-tab notes: false = read-only view (+ Edit button), true = ProseMirror editor.
+    // Sheet-only UI state (not persisted on the actor); see _cpSetupNotesActions / _cpExitNotesEditing.
+    sheetData.notesEditing = !!this._cpNotesEditing;
 
     if (actor.type === 'character' || actor.type === 'npc') {
       // Sheet-only UI state; do not store search text in actor.system.
@@ -271,7 +274,14 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
         this._cpTabs = new TabsCls({
           ...CyberpunkActorSheet.TAB_CONFIG,
           initial: this._cpActiveTab ?? CyberpunkActorSheet.TAB_CONFIG.initial,
-          callback: (_ev, _tabs, active) => { this._cpActiveTab = active; },
+          callback: (_ev, _tabs, active) => {
+            this._cpActiveTab = active;
+            // Navigating away from the life tab while editing notes: persist + drop back to the
+            // read-only view (mirrors upstream's tab-switch guard, adapted to our Tabs-class flow).
+            if (this._cpNotesEditing && active !== "life") {
+              this._cpExitNotesEditing(getHtmlElement(this.element) ?? root, { render: true });
+            }
+          },
         });
         this._cpTabs.bind(root);
       }
@@ -2211,12 +2221,76 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
   }
 
   /**
-   * Life-tab notes ProseMirror autosave. Mirrors upstream's `_cpActivateNotesEditor`. Self-gates on
-   * editable and removes the prior `save` listener before re-adding, so it stays single-bound across
-   * re-renders. (Renamed from _cpSetupNotesAutosave in Stage A2.)
+   * Life-tab notes editor wiring. Mirrors upstream's `_cpActivateNotesEditor`: sets up the
+   * view↔edit toggle (the Edit button) and the debounced ProseMirror autosave. Both inner helpers
+   * are idempotent across re-renders (each removes its prior listener before re-binding).
    */
   _cpActivateNotesEditor(root) {
-    if (!root) return;
+    this._cpSetupNotesActions(root);
+    this._cpSetupNotesAutosave(root);
+  }
+
+  /**
+   * Leave notes edit mode: flush any pending content (force-serialized so an open-but-uncommitted
+   * editor is captured), drop back to the read-only view, and optionally re-render so the template
+   * swaps the ProseMirror editor for the rendered notes. Mirrors upstream's `_cpExitNotesEditing`.
+   */
+  async _cpExitNotesEditing(root, { render = false } = {}) {
+    if (!this._cpNotesEditing) return;
+
+    await this._cpFlushNotesAutosave(root, { force: true, serialize: true });
+    this._cpNotesEditing = false;
+
+    if (render && this.rendered) {
+      await this.render({ force: true });
+    }
+  }
+
+  /**
+   * Bind the "Edit life notes" button (data-action="notes-edit"): clicking it enters edit mode and
+   * re-renders so the ProseMirror editor replaces the read-only view. One delegated capture-phase
+   * click listener on the root, removed + re-added each render so it stays single-bound. Mirrors
+   * upstream's `_cpSetupNotesActions`.
+   */
+  _cpSetupNotesActions(root) {
+    if (!root?.addEventListener) return;
+
+    if (this._cpNotesActionsRoot && this._cpNotesActionsHandler) {
+      try {
+        this._cpNotesActionsRoot.removeEventListener("click", this._cpNotesActionsHandler, true);
+      } catch (_) {}
+    }
+
+    const handler = async (event) => {
+      const target = event.target;
+      if (!target?.closest) return;
+
+      const editButton = target.closest('[data-action="notes-edit"]');
+      if (!editButton) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+
+      this._cpNotesEditing = true;
+      await this.render({ force: true });
+    };
+
+    root.addEventListener("click", handler, true);
+
+    this._cpNotesActionsRoot = root;
+    this._cpNotesActionsHandler = handler;
+  }
+
+  /**
+   * Debounced ProseMirror autosave for the life-tab notes. Capture-phase listeners for
+   * save/input/change/close on the root: a `save`/`close` flushes immediately and exits edit mode
+   * (returns to the read-only view); input/change schedule a debounced flush. Self-gates on editable
+   * and stays single-bound across re-renders. Mirrors upstream's `_cpSetupNotesAutosave`.
+   */
+  _cpSetupNotesAutosave(root) {
+    if (!root?.addEventListener) return;
+
     const editable = this.isEditable ?? this.options?.editable ?? false;
     if (!editable) return;
 
@@ -2224,48 +2298,98 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       this._cpNotesAutosaveState = {
         saving: false,
         pending: false,
+        pendingForce: false,
+        pendingSerialize: false,
+        timer: null,
         lastSaved: String(this.actor.system?.notes ?? "")
       };
     }
 
-    if (this._cpNotesAutosaveHandler) {
-      try { root.removeEventListener("save", this._cpNotesAutosaveHandler, true); } catch (_) {}
+    if (this._cpNotesAutosaveRoot && this._cpNotesAutosaveHandler) {
+      for (const eventName of ["save", "input", "change", "close"]) {
+        try {
+          this._cpNotesAutosaveRoot.removeEventListener(eventName, this._cpNotesAutosaveHandler, true);
+        } catch (_) {}
+      }
     }
 
-    const handler = (ev) => {
-      const target = ev?.target;
-      if (!target?.closest) return;
+    const isNotesEvent = (event) => {
+      const target = event?.target;
+      if (!target?.closest) return false;
 
-      const inLife = target.closest('.tab.life[data-tab="life"]') || target.closest('.tab.life');
-      if (!inLife) return;
-      if (!target.closest(".cp-notes-editor")) return;
+      const editor = target.closest(".cp-notes-editor");
+      if (!editor) return false;
 
-      setTimeout(() => this._cpFlushNotesAutosave(root, { force: true, serialize: false }), 0);
+      const lifeTab = target.closest('.tab.life[data-tab="life"]') ?? target.closest(".tab.life");
+      return !!lifeTab;
     };
 
-    root.addEventListener("save", handler, true);
+    const scheduleFlush = ({ force = false, serialize = false, delay = 250 } = {}) => {
+      const state = this._cpNotesAutosaveState;
+      if (!state) return;
+
+      if (state.timer) {
+        clearTimeout(state.timer);
+        state.timer = null;
+      }
+
+      state.timer = setTimeout(() => {
+        state.timer = null;
+        this._cpFlushNotesAutosave(root, { force, serialize });
+      }, delay);
+    };
+
+    const handler = (event) => {
+      if (!isNotesEvent(event)) return;
+
+      if (event.type === "save" || event.type === "close") {
+        window.setTimeout(async () => {
+          await this._cpFlushNotesAutosave(root, { force: true, serialize: false });
+
+          if (this._cpNotesEditing) {
+            this._cpNotesEditing = false;
+            await this.render({ force: true });
+          }
+        }, 0);
+
+        return;
+      }
+
+      scheduleFlush({ force: false, serialize: false, delay: 350 });
+    };
+
+    for (const eventName of ["save", "input", "change", "close"]) {
+      root.addEventListener(eventName, handler, true);
+    }
+
+    this._cpNotesAutosaveRoot = root;
     this._cpNotesAutosaveHandler = handler;
   }
 
   _cpReadNotesHTML(root, { serialize = false } = {}) {
-    const selectors = [
-      '.tab.life[data-tab="life"] .editor-content',
-      '.tab.life .editor-content',
-      '.tab.life[data-tab="life"] [contenteditable="true"]',
-      '.tab.life [contenteditable="true"]'
-    ];
+    if (!root) return null;
 
-    return serialize
-      ? saveRichEditorHTML(this, root, "system.notes", selectors)
-      : getRichEditorHTML(this, root, "system.notes", selectors);
+    const reader = serialize ? saveRichEditorHTML : getRichEditorHTML;
+    const html = reader(this, root, "system.notes", [".cp-notes-view"]);
+
+    if (html != null) return html;
+
+    return String(this.actor.system?.notes ?? "");
   }
 
   async _cpFlushNotesAutosave(root, { force = false, serialize = false } = {}) {
     const st = this._cpNotesAutosaveState;
     if (!st) return;
 
+    if (st.timer) {
+      clearTimeout(st.timer);
+      st.timer = null;
+    }
+
     if (st.saving) {
       st.pending = true;
+      st.pendingForce = st.pendingForce || force;
+      st.pendingSerialize = st.pendingSerialize || serialize;
       return;
     }
 
@@ -2281,18 +2405,38 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       console.warn("CP2020: notes save failed", err);
     } finally {
       st.saving = false;
+
       if (st.pending) {
+        const pendingForce = st.pendingForce;
+        const pendingSerialize = st.pendingSerialize;
+
         st.pending = false;
-        await this._cpFlushNotesAutosave(root, { force: true, serialize: false });
+        st.pendingForce = false;
+        st.pendingSerialize = false;
+
+        await this._cpFlushNotesAutosave(root, { force: pendingForce, serialize: pendingSerialize });
       }
     }
   }
 
-  /** @override */
-  async close(options = {}) {
+  /**
+   * Flush notes + tear down the notes listeners before the sheet closes. Replaces our former
+   * `close()` override with upstream's `_preClose` hook (data-safety: nothing typed is lost on
+   * close) and mirrors his cleanup. We force-serialize the flush (serialize:true) so an open,
+   * uncommitted editor is still captured. Our own chip-tooltip cleanup is preserved.
+   * @override
+   */
+  async _preClose(options) {
     try {
       const root = getHtmlElement(this.element);
+
+      if (this._cpNotesAutosaveState?.timer) {
+        clearTimeout(this._cpNotesAutosaveState.timer);
+        this._cpNotesAutosaveState.timer = null;
+      }
+
       await this._cpFlushNotesAutosave(root, { force: true, serialize: true });
+      this._cpNotesEditing = false;
     } catch (_) {}
 
     try {
@@ -2300,7 +2444,27 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       this._cpChipTooltipCleanup = null;
     } catch (_) {}
 
-    return super.close(options);
+    try {
+      if (this._cpNotesAutosaveRoot && this._cpNotesAutosaveHandler) {
+        for (const eventName of ["save", "input", "change", "close"]) {
+          this._cpNotesAutosaveRoot.removeEventListener(eventName, this._cpNotesAutosaveHandler, true);
+        }
+      }
+
+      this._cpNotesAutosaveRoot = null;
+      this._cpNotesAutosaveHandler = null;
+    } catch (_) {}
+
+    try {
+      if (this._cpNotesActionsRoot && this._cpNotesActionsHandler) {
+        this._cpNotesActionsRoot.removeEventListener("click", this._cpNotesActionsHandler, true);
+      }
+
+      this._cpNotesActionsRoot = null;
+      this._cpNotesActionsHandler = null;
+    } catch (_) {}
+
+    return super._preClose(options);
   }
 
 }
