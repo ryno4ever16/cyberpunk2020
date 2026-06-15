@@ -88,6 +88,52 @@
   height: 100%;
 }
 
+/* ── Actor-sheet SURFACE (Phase 1b) ─────────────────────────────────────────────
+ * Reproduce the opaque light Foundry window surface so the sheet's hardcoded-black text
+ * stays readable regardless of the AppV2 color scheme. LIGHT path = verbatim upstream
+ * (parchment). The .theme-dark block is OUR additive override giving a dark-readable
+ * surface + warm light text, so dark-mode users aren't forced to beige. See
+ * [project-ui-corrections] "additive: his light path + our dark block". */
+.application.cyberpunk.sheet.actor,
+.cyberpunk.sheet.actor { color: black; }
+
+.application.cyberpunk.sheet.actor .window-content,
+.cyberpunk.sheet.actor .window-content {
+  color: black;
+  background-color: #f1eee8;
+  background-image: url("../../../ui/parchment.jpg");
+  background-repeat: repeat;
+  container-type: inline-size;
+}
+
+/* Stop AppV2 theme colors leaking into header/body text. */
+.application.cyberpunk.sheet.actor h1.title,
+.application.cyberpunk.sheet.actor h1.title > input,
+.application.cyberpunk.sheet.actor .cyberpunk-actor-sheet-content h2,
+.application.cyberpunk.sheet.actor .cyberpunk-actor-sheet-content h3,
+.application.cyberpunk.sheet.actor .cyberpunk-actor-sheet-content p,
+.application.cyberpunk.sheet.actor .cyberpunk-actor-sheet-content .summary {
+  color: black;
+  background: transparent;
+  text-shadow: unset;
+}
+
+/* Dark color scheme: additive override — dark-readable surface + warm light text. */
+.theme-dark .application.cyberpunk.sheet.actor .window-content {
+  background-color: #14110d;
+  background-image: none;
+  color: #e7d1b1;
+}
+.theme-dark .application.cyberpunk.sheet.actor,
+.theme-dark .application.cyberpunk.sheet.actor h1.title,
+.theme-dark .application.cyberpunk.sheet.actor h1.title > input,
+.theme-dark .application.cyberpunk.sheet.actor .cyberpunk-actor-sheet-content h2,
+.theme-dark .application.cyberpunk.sheet.actor .cyberpunk-actor-sheet-content h3,
+.theme-dark .application.cyberpunk.sheet.actor .cyberpunk-actor-sheet-content p,
+.theme-dark .application.cyberpunk.sheet.actor .cyberpunk-actor-sheet-content .summary {
+  color: #e7d1b1;
+}
+
 /* Overall sheet structure */
 .sheet header.cyberheader {
   display: flex;
