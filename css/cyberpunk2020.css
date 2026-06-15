@@ -56,6 +56,38 @@
   background-color: darkorange;
 }
 
+/* Actor-sheet flex height chain — mirrors upstream's `.cyberpunk-actor-sheet-content` wrapper
+ * (our single-root part div now carries that class). Establishes the column height chain
+ * window-content → form → wrapper → sheet-body → active life tab, so the Life-tab ProseMirror
+ * notes editor fills its tab instead of collapsing. Fixes the half-rendered notes canvas
+ * regression introduced with the notes view/edit toggle. Dual-selector = verbatim upstream. */
+.application.cyberpunk.sheet.actor .window-content,
+.cyberpunk.sheet.actor .window-content { min-height: 0; }
+.application.cyberpunk.sheet.actor form,
+.cyberpunk.sheet.actor form { min-height: 0; }
+.application.cyberpunk.sheet.actor .cyberpunk-actor-sheet-content,
+.cyberpunk.sheet.actor .cyberpunk-actor-sheet-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+.application.cyberpunk.sheet.actor .sheet-body,
+.cyberpunk.sheet.actor .cyberpunk-actor-sheet-content .sheet-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.application.cyberpunk.sheet.actor .sheet-body > .tab.life.active,
+.cyberpunk.sheet.actor .cyberpunk-actor-sheet-content .sheet-body > .tab.life.active {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+}
+
 /* Overall sheet structure */
 .sheet header.cyberheader {
   display: flex;
