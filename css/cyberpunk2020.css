@@ -134,6 +134,113 @@
   color: #e7d1b1;
 }
 
+/* Dark scheme — per-field readability (Phase 1 item #1; additive over 1b).
+ * The .field family + structural borders were authored for the light surface:
+ *  • value INPUTS (stat base/temp/total, BTM/carry/lift/leap/run, humanity, total EB,
+ *    humanity loss, cyberpsychosis, eurobucks, services total, reputation, …) use a
+ *    transparent background with hardcoded black text → invisible on the dark surface;
+ *  • .field / tab-nav / editor / meter borders are black → invisible on dark.
+ * Recolor those inputs + nested-field text to the warm light tone and lift the borders.
+ * The .field > * value BOXES stay black-bg/whitesmoke (already readable) untouched, and
+ * cyberpsychosis's inline red/orange states keep their inline color (higher specificity). */
+.theme-dark .application.cyberpunk.sheet.actor .field,
+.theme-dark .application.cyberpunk.sheet.actor .window-content .editor-content,
+.theme-dark .application.cyberpunk.sheet.actor .window-content nav.tabs,
+.theme-dark .application.cyberpunk.sheet.actor .window-content .meter-gauge {
+  border-color: #6b5d48;
+}
+.theme-dark .application.cyberpunk.sheet.actor .field > input,
+.theme-dark .application.cyberpunk.sheet.actor .field > * .field,
+.theme-dark .application.cyberpunk.sheet.actor .field > *.field-list {
+  color: #e7d1b1;
+}
+
+/* ── Item-sheet SURFACE + readability (Phase 1 item #2) ──────────────────────────
+ * Mirror the actor-sheet treatment for the item sheet (.sheet.item): an opaque light
+ * (parchment) surface so the hardcoded-black .field text stays readable, an additive
+ * .theme-dark override (dark surface + warm light text + visible borders/inputs), and a
+ * height chain so the Notes-tab {{editor}} fills its tab instead of collapsing to a 0px
+ * content area (the half-rendered gray-box bug). Light path mirrors upstream's per-sheet
+ * repaint for a clean merge; the dark + height rules are our additions. */
+.application.cyberpunk.sheet.item,
+.cyberpunk.sheet.item { color: black; }
+
+.application.cyberpunk.sheet.item .window-content,
+.cyberpunk.sheet.item .window-content {
+  color: black;
+  background-color: #f1eee8;
+  background-image: url("../../../ui/parchment.jpg");
+  background-repeat: repeat;
+  container-type: inline-size;
+}
+.application.cyberpunk.sheet.item h1.title,
+.application.cyberpunk.sheet.item h1.title > input,
+.application.cyberpunk.sheet.item .summary,
+.application.cyberpunk.sheet.item textarea.flavor {
+  color: black;
+  background: transparent;
+  text-shadow: unset;
+}
+
+.theme-dark .application.cyberpunk.sheet.item .window-content {
+  background-color: #14110d;
+  background-image: none;
+  color: #e7d1b1;
+}
+.theme-dark .application.cyberpunk.sheet.item,
+.theme-dark .application.cyberpunk.sheet.item h1.title,
+.theme-dark .application.cyberpunk.sheet.item h1.title > input,
+.theme-dark .application.cyberpunk.sheet.item .summary,
+.theme-dark .application.cyberpunk.sheet.item textarea.flavor {
+  color: #e7d1b1;
+}
+.theme-dark .application.cyberpunk.sheet.item .field,
+.theme-dark .application.cyberpunk.sheet.item .window-content .editor-content,
+.theme-dark .application.cyberpunk.sheet.item .window-content nav.tabs {
+  border-color: #6b5d48;
+}
+.theme-dark .application.cyberpunk.sheet.item .field > input,
+.theme-dark .application.cyberpunk.sheet.item .field > * .field,
+.theme-dark .application.cyberpunk.sheet.item .field > *.field-list {
+  color: #e7d1b1;
+}
+
+/* Notes-tab height chain (only the ACTIVE tab, so inactive tabs stay display:none). */
+.application.cyberpunk.sheet.item .sheet-body > .tab[data-tab="notes"].active {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.application.cyberpunk.sheet.item .tab[data-tab="notes"] .cp-notes-editor,
+.application.cyberpunk.sheet.item .tab[data-tab="notes"] .cp-notes-editor .editor {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.application.cyberpunk.sheet.item .tab[data-tab="notes"] .cp-notes-editor .editor-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* ── Dialog field readability (Phase 1 item #3) ─────────────────────────────────
+ * Our dialog CONTENT roots carry `.cyberpunk` (weapon-modifiers, damage-dialog, …) and render
+ * `.cyberpunk .field` markup on the default translucent-dark dialog surface, where the
+ * hardcoded-black field text/borders go invisible on dark. The sheets get this via their own
+ * scoped blocks above; this mirrors the same treatment for the dialog windows. Additive
+ * (.theme-dark only) — light mode is unchanged. */
+.theme-dark .cyberpunk.weapon-modifiers .field,
+.theme-dark .application.cyberpunk.dialog .field {
+  border-color: #6b5d48;
+}
+.theme-dark .cyberpunk.weapon-modifiers .field > input,
+.theme-dark .cyberpunk.weapon-modifiers .field > * .field,
+.theme-dark .application.cyberpunk.dialog .field > input,
+.theme-dark .application.cyberpunk.dialog .field > * .field {
+  color: #e7d1b1;
+}
+
 /* Overall sheet structure */
 .sheet header.cyberheader {
   display: flex;
