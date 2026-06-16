@@ -515,10 +515,11 @@ export class CyberpunkItem extends Item {
 
     const isRanged = this.isRanged();
 
-    // Per-actor ammo tracking (default ON). When ON, a ranged weapon can't fire with an
-    // empty magazine — the player must reload (which draws from linked ammo inventory).
-    // When OFF ("Free Fire"), ammo is ignored and the weapon always fires.
-    if (this._ammoTrackingOn() && isRanged && this._roundPool() <= 0) {
+    // A ranged weapon can't fire with an empty magazine in EITHER mode. With ammo tracking ON the
+    // player reloads from linked ammo inventory; with tracking OFF ("Free Fire") reloads are free,
+    // so they just reload to top off — but a literally-empty magazine still can't fire. This blocks
+    // the confusing 0-round "fire" (min(0, rounds) = nothing) that free-fire previously allowed.
+    if (isRanged && this._roundPool() <= 0) {
       // Energy/beam weapons are depleted, not "out of ammo" — they recharge (reload) rather than reload rounds.
       ui.notifications.warn(localize(this.isEnergyWeapon() ? "NeedsRecharge" : "NoAmmo"));
       return false;

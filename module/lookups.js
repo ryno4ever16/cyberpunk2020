@@ -621,7 +621,9 @@ export function rangedModifiers(weapon, targetTokens=[], savedOptions={}) {
         {localKey:"Running", dataPath:"running",defaultValue: false},
         {localKey:"TurnFace", dataPath:"turningToFace",defaultValue: false},
         // Full-auto only: how many rounds of the burst to fire (1..ROF). Shown for fullAuto, hidden otherwise.
-        {localKey:"AutofireRounds", dataPath:"autoRounds", dtype:"Number", defaultValue: weapon.system.rof},
+        // min/max constrain the input itself so the player can't enter more than ROF (it was only
+        // silently capped at fire time before, which was confusing).
+        {localKey:"AutofireRounds", dataPath:"autoRounds", dtype:"Number", defaultValue: weapon.system.rof, min: 1, max: weapon.system.rof},
         {localKey:"FireZoneWidth",  dataPath:"zoneWidth",  dtype:"Number", defaultValue: 2},
         {localKey:"RoundsFiredLbl", dataPath:"roundsFired", dtype:"Number", defaultValue: weapon.system.rof},
         {
