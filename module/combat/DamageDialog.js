@@ -15,6 +15,7 @@
 
 import { ARMOR_MODES, resolveAreaDamagesSync, applyBTM, computeNetDamage, assessWoundSeverity, ablateLocationOnce } from "./DamageApplicator.js";
 import { postStunSavePrompt, postDeathSavePrompt, updateTaserState, applyAcidDotState, applyDotFromPayload } from "./save-rolls.js";
+import { localizeParam } from "../utils.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -240,7 +241,7 @@ export class DamageDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     await this.target.sheet?.render(false);
-    ui.notifications.info(`Applied ${totalApplied} damage to ${this.target.name}.`);
+    ui.notifications.info(localizeParam("DamageApplied", { amount: totalApplied, name: this.target.name }));
 
     // Taser flag must be updated BEFORE the save prompt — threshold calculation reads it
     if (this.payload.stunSaveOnHit && resolvedHits.some(h => h.penetrates)) {
