@@ -444,3 +444,30 @@ export async function createCyberpunkRollCard({
 
   return createCyberpunkChatMessage(chatData, { rollMode, messageMode, useDefaultRollMode, ...createOptions });
 }
+
+/**
+ * Render a chat-card template under templates/chat/ to an HTML string (v13/v14 safe).
+ * The single place the system turns a card template + data into chat HTML — combat and
+ * vehicle code render through this instead of hand-building inline-HTML template literals.
+ *
+ * @param {string} name  template file under templates/chat/, e.g. "vehicle/fire-result.hbs"
+ * @param {object} data  context passed to the template
+ * @returns {Promise<string>}
+ */
+export function renderChatCard(name, data) {
+  const render = foundry?.applications?.handlebars?.renderTemplate ?? renderTemplate;
+  return render(`systems/cyberpunk2020/templates/chat/${name}`, data);
+}
+
+/**
+ * Render and post the generic save-prompt chat card (templates/chat/save-prompt.hbs).
+ * `title`/`body` are PRE-LOCALIZED strings (may carry light <b> emphasis); `speaker`/`flags`
+ * pass through to ChatMessage.create. Returns the create() promise.
+ */
+export async function postSavePromptCard({ title = "", body = "", speaker, flags } = {}) {
+  const content = await renderChatCard("save-prompt.hbs", { title, body });
+  const cardData = { content };
+  if (speaker) cardData.speaker = speaker;
+  if (flags) cardData.flags = flags;
+  return ChatMessage.create(cardData);
+}

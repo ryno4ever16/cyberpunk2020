@@ -1,25 +1,11 @@
 import { onGlobalClick } from "../popout-compat.js";
 import { localize, localizeParam } from "../utils.js";
+import { renderChatCard } from "../compat.js";
 
-/** Render a chat-card template under templates/chat/ to an HTML string (v13/v14 safe). */
-function _renderChatTemplate(name, data) {
-  const render = foundry?.applications?.handlebars?.renderTemplate ?? renderTemplate;
-  return render(`systems/cyberpunk2020/templates/chat/${name}`, data);
-}
-
-/**
- * Render and post the generic save-prompt chat card (templates/chat/save-prompt.hbs).
- * Replaces the module's hand-built inline-HTML cards with one template. `title`/`body`
- * are PRE-LOCALIZED strings (may carry light <b> emphasis); pass `speaker`/`flags`
- * through to ChatMessage.create. Returns the create() promise.
- */
-export async function postSavePromptCard({ title = "", body = "", speaker, flags } = {}) {
-  const content = await _renderChatTemplate("save-prompt.hbs", { title, body });
-  const data = { content };
-  if (speaker) data.speaker = speaker;
-  if (flags) data.flags = flags;
-  return ChatMessage.create(data);
-}
+// The chat-card helpers now live in compat.js so the vehicle module can reuse them without
+// importing the combat module. Re-exported here for back-compat (damage-hooks.js imports
+// postSavePromptCard from this file).
+export { postSavePromptCard } from "../compat.js";
 
 /**
  * save-rolls.js  —  module/combat/save-rolls.js
@@ -279,7 +265,7 @@ export async function postStunSavePrompt(actor, token = null) {
   const taserClause = taserPenalty > 0 ? localizeParam("StunTaserPenaltyClause", { penalty: taserPenalty }) : "";
   const taserCount  = actor.getFlag?.("cyberpunk2020", "taserState")?.count ?? 1;
 
-  const content = await _renderChatTemplate("stun-save-prompt.hbs", {
+  const content = await renderChatCard("stun-save-prompt.hbs", {
     actorName: actor.name,
     woundLabel: getWoundStateLabel(woundState),
     bt, woundClause, taserClause, taserPenalty, taserCount, threshold,
@@ -309,7 +295,7 @@ export async function postDeathSavePrompt(actor, token = null, forcedMortalLevel
   const sceneId     = token?.scene?.id ?? canvas?.scene?.id ?? "";
   const isAutoDeath = threshold < 1;              // threshold 0 = no roll possible
 
-  const content = await _renderChatTemplate("death-save-prompt.hbs", {
+  const content = await renderChatCard("death-save-prompt.hbs", {
     actorName: actor.name,
     woundText: localizeParam("Mortal", { mortality: mortalLevel }),
     bt, mortalLevel, threshold, isAutoDeath,
@@ -365,7 +351,7 @@ export async function executeStunSave({ actorId, tokenId, sceneId }) {
   const success   = result <= threshold;
   const woundLabel = getWoundStateLabel(actor.woundState?.() ?? 1);
 
-  const content = await _renderChatTemplate("stun-save-result.hbs", {
+  const content = await renderChatCard("stun-save-result.hbs", {
     actorName: actor.name, woundLabel, result, threshold, success,
   });
 
@@ -392,7 +378,7 @@ export async function executeDeathSave({ actorId, tokenId, sceneId, mortalLevel 
 
   // Threshold 0 = auto-death (roll ≤ 0 on d10 is impossible)
   if (threshold < 1) {
-    const content = await _renderChatTemplate("death-save-result.hbs", {
+    const content = await renderChatCard("death-save-result.hbs", {
       actorName: actor.name, isAutoDeath: true,
     });
     await ChatMessage.create({
@@ -408,7 +394,7 @@ export async function executeDeathSave({ actorId, tokenId, sceneId, mortalLevel 
   // RAW: "equal to or lower than" — roll ≤ threshold to survive
   const success = result <= threshold;
 
-  const content = await _renderChatTemplate("death-save-result.hbs", {
+  const content = await renderChatCard("death-save-result.hbs", {
     actorName: actor.name, isAutoDeath: false,
     mortalLevel, result, threshold, success,
     showStabilize: success,
@@ -444,7 +430,7 @@ export async function executeStabilize({ actorId }) {
   const techVal     = Number(actor.system?.stats?.tech?.total) || 0;
   const medSkill    = actor.getSkillVal?.("MedicalTech") ?? 0;
 
-  const dialogContent = await _renderChatTemplate("stabilize-dialog.hbs", {
+  const dialogContent = await renderChatCard("stabilize-dialog.hbs", {
     totalDamage, techVal, medSkill,
   });
 
@@ -474,7 +460,7 @@ export async function executeStabilize({ actorId }) {
             : `${tech}+${med}+${result} = ${total}`;
           const facilityClause = facility > 0 ? localizeParam("StabilizeFacilityClause", { facility }) : "";
 
-          const content = await _renderChatTemplate("stabilize-result.hbs", {
+          const content = await renderChatCard("stabilize-result.hbs", {
             actorName: actor.name, totalDamage, tech, med,
             facility: facilityClause, result, total, breakdown, success,
           });
