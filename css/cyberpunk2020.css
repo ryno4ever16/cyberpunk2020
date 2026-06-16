@@ -406,8 +406,12 @@ details[open] summary ~ * {
   flex-grow: 1;
   flex-shrink: 1;
 }
+/* Foundry v13+ styles checkboxes itself (appearance:none + a 20×20 ::before box). Forcing the
+   native control back on top of that drew TWO boxes for the same input (the "duplicate checkbox"
+   bug). Defer to Foundry's single styled checkbox instead of re-forcing the native one. */
 .cyberpunk .field > input[type=checkbox] {
-  -webkit-appearance: checkbox;
+  appearance: none;
+  -webkit-appearance: none;
 }
 .cyberpunk .field > input[type=number] {
   width: 2.5em;
