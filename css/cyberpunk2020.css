@@ -1016,6 +1016,10 @@ div.statderive .value.rightborder {
 .cp-stabilize-dialog .fields { display: flex; flex-direction: column; gap: 6px; }
 .cp-stabilize-dialog input[type="number"] { width: 60px; margin-left: 8px; }
 .cp-stabilize-dialog select { margin-left: 8px; }
+
+/* Vehicle / Maximum Metal chat cards (replace the inline styles from the old hand-built cards). */
+.cyberpunk .vehicle-warn { color: #c0791a; opacity: 1; }
+.cyberpunk .vehicle-incoming .save-buttons button { margin: 2px 2px 0 0; }
 .cyberpunk-card .roll-image {
   margin-right: 5px;
 }

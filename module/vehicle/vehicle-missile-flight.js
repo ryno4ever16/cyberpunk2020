@@ -12,6 +12,8 @@ import { mmEnabled } from "../settings.js";
 import { missileSpeed, turnsToImpact, resolveMissileToHit, resolvePaintHit, countermeasureModifier, interceptResult, electronicDetect, visualDetectDV } from "./vehicle-missiles.js";
 import { onGlobalClick } from "../popout-compat.js";
 import { pixelsToMeters } from "./vehicle-grid.js";
+import { localize, localizeParam } from "../utils.js";
+import { renderChatCard, postSavePromptCard } from "../compat.js";
 
 const SCOPE = "cyberpunk2020";
 const MISSILE_IMG = "systems/cyberpunk2020/img/missile.webp";
@@ -38,9 +40,9 @@ const _headingDeg = (from, to) => Math.atan2(to.y - from.y, to.x - from.x) * 180
  * @returns {Promise<TokenDocument|null>}
  */
 export async function launchMissile({ scene: sceneArg, shooterToken, targetToken, missile = {} } = {}) {
-  if (!mmEnabled()) { ui.notifications?.warn?.("Maximum Metal is disabled — enable it in the settings to fire guided missiles."); return null; }
+  if (!mmEnabled()) { ui.notifications?.warn?.(localize("Vehicle.MMDisabledMissile")); return null; }
   const scene = sceneArg ?? canvas?.scene;
-  if (!scene || !shooterToken || !targetToken) { ui.notifications?.warn?.("Missile launch needs both the firer and the target on the canvas."); return null; }
+  if (!scene || !shooterToken || !targetToken) { ui.notifications?.warn?.(localize("Vehicle.MissileNeedsTokens")); return null; }
   const sDoc = shooterToken.document ?? shooterToken;
   const tDoc = targetToken.document ?? targetToken;
   const gs = _gridSize(scene);
@@ -76,13 +78,14 @@ export async function launchMissile({ scene: sceneArg, shooterToken, targetToken
 
   // A missile only flies on combat-round changes; out of combat it needs the manual ▶ control.
   const inCombat = !!game.combat?.started;
-  const noCombatHint = inCombat ? "" :
-    `<div style="margin-top:4px;font-size:0.82em;color:#e0a020;">⚠ No active encounter — start one for automatic flight, or advance the missile manually with ▶ in the <b>Missiles in Flight</b> panel (Combat tab).</div>`;
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: shooterToken.actor ?? undefined }),
-    content: `<div class="cyberpunk save-prompt"><h3>🚀 ${flight.weaponName} launched</h3><div class="save-info">${sDoc.name ?? "Firer"} → ${tDoc.name ?? "target"}. Impact in <b>${tti}</b> turn${tti !== 1 ? "s" : ""} (${flight.guidance}).</div>${noCombatHint}</div>`,
+  const content = await renderChatCard("vehicle/missile-launched.hbs", {
+    weapon: flight.weaponName,
+    firer: sDoc.name ?? localize("Vehicle.Firer"),
+    target: tDoc.name ?? localize("Vehicle.Target"),
+    turns: tti, guidance: flight.guidance, inCombat,
   });
-  if (!inCombat) ui.notifications?.info?.("Missile launched — start an encounter for better missile controls, or advance it manually in the Combat tab's Missiles in Flight panel.");
+  await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: shooterToken.actor ?? undefined }), content });
+  if (!inCombat) ui.notifications?.info?.(localize("Vehicle.MissileLaunchedNotice"));
   await _tryDetect(tok, scene);   // can the target spot it now? (sensors auto / Notice-Awareness)
   ui.combat?.render();
   return tok;
@@ -141,7 +144,13 @@ async function _resolveMissileImpact(f, targetDoc, scene, gs) {
     : resolveMissileToHit({ guidance: f.guidance, d10, operatorBonus: f.operatorBonus, missileSkill: f.missileSkill, targetNumber: f.targetNumber, difficultyMods: dm }).hit;
 
   if (!hit || !target) {
-    await ChatMessage.create({ content: `<div class="cyberpunk save-prompt"><h3>🚀 ${f.weaponName} — MISS</h3><div class="save-info">at ${targetDoc.name ?? "target"}${dm ? ` (countermeasures +${dm})` : ""}.</div></div>` });
+    await postSavePromptCard({
+      title: localizeParam("Vehicle.MissileMissTitle", { weapon: f.weaponName }),
+      body: localizeParam("Vehicle.MissileMissBody", {
+        target: targetDoc.name ?? localize("Vehicle.Target"),
+        cm: dm ? localizeParam("Vehicle.MissileCmClause", { mod: dm }) : "",
+      }),
+    });
     return;
   }
   // An AGAMS/AEAMS that detonated the missile in its burst range halves damage & Penetration.
@@ -170,13 +179,13 @@ async function _tryDetect(mt, scene) {
   let detected = false, how = "";
   if (target.system?.sensors) {
     detected = electronicDetect((await new Roll("1d10").evaluate()).total);
-    how = detected ? "detected on sensors" : "";
+    how = detected ? localize("Vehicle.DetectedSensors") : "";
   } else {
     const aware = Number(target.getSkillVal?.("Awareness") ?? 0) || 0;
     const cs = Number(target.getSkillVal?.("Combat Sense") ?? target.getSkillVal?.("CombatSense") ?? 0) || 0;
     const roll = (await new Roll("1d10").evaluate()).total;
     detected = (roll + aware + cs) >= visualDetectDV("inFlight");
-    how = detected ? `spotted (Awareness ${aware} + CS ${cs} + 1d10 ${roll} ≥ 20)` : "";
+    how = detected ? localizeParam("Vehicle.DetectedVisual", { aware, cs, roll }) : "";
   }
   if (!detected) return false;
   await mt.update({ hidden: false, [`flags.${SCOPE}.missile.detected`]: true });
@@ -197,21 +206,18 @@ async function _postIncomingCard(mt, f, targetDoc, how = "") {
   const sceneId = targetDoc?.parent?.id ?? canvas?.scene?.id ?? "";
   const best = _bestCountermeasure(target?.system?.countermeasures ?? [], f.homingMethod);
   const hasAM = !!target?.system?.antiMissile;
-  const btn = (cls, label) => `<button class="${cls}" data-token-id="${mt.id}" data-scene-id="${sceneId}" style="margin:2px 2px 0 0;">${label}</button>`;
   const whisper = target ? game.users.filter(u => u.isGM || target.testUserPermission(u, "OWNER")).map(u => u.id) : undefined;
+  const content = await renderChatCard("vehicle/incoming-missile.hbs", {
+    target: targetDoc?.name ?? localize("Vehicle.Target"),
+    weapon: f.weaponName, guidance: f.guidance, homing: f.homingMethod, turns: f.turnsToImpact,
+    how,
+    cmLabel: best.cm ? localizeParam("Vehicle.MissileDeployCm", { cm: best.cm, mod: best.mod }) : "",
+    hasAM, tokenId: mt.id, sceneId,
+  });
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: target ?? undefined }),
     whisper,
-    content: `
-<div class="cyberpunk save-prompt">
-  <h3>🚨 Incoming Missile — ${targetDoc?.name ?? "target"}</h3>
-  <div class="save-info"><b>${f.weaponName}</b> · ${f.guidance} / ${f.homingMethod} · impact in <b>${f.turnsToImpact}</b> turn(s).${how ? ` <span style="opacity:0.75;">${how}.</span>` : ""}</div>
-  <div class="save-buttons" style="margin-top:6px;">
-    ${best.cm ? btn("cp-missile-cm", `🎆 Deploy ${best.cm} (+${best.mod})`) : `<span style="opacity:0.6;font-size:0.85em;">No countermeasure vs ${f.homingMethod}. </span>`}
-    ${btn("cp-missile-evade", "↪ Evade (+2)")}
-    ${hasAM ? btn("cp-missile-intercept", "🛡 Anti-Missile") : ""}
-  </div>
-</div>`,
+    content,
   });
 }
 
@@ -226,27 +232,36 @@ async function _applyMissileReaction(tokenId, kind, sceneArg = null) {
   if (kind === "intercept") {
     const res = interceptResult((await new Roll("1d10").evaluate()).total, 0);
     if (res.outcome === "destroyed") {
-      await ChatMessage.create({ content: `<div class="cyberpunk save-prompt"><h3>🛡 Anti-missile — ${f.weaponName} DESTROYED</h3></div>` });
+      await postSavePromptCard({ title: localizeParam("Vehicle.AntiMissileDestroyedTitle", { weapon: f.weaponName }) });
       await mt.delete().catch(() => {});
     } else if (res.outcome === "burst") {
       await mt.update({ [`flags.${SCOPE}.missile.intercepted`]: "burst" });
-      await ChatMessage.create({ content: `<div class="cyberpunk save-prompt"><h3>🛡 Anti-missile — detonated early</h3><div class="save-info">${f.weaponName} will hit at HALF damage & Penetration.</div></div>` });
+      await postSavePromptCard({
+        title: localize("Vehicle.AntiMissileBurstTitle"),
+        body: localizeParam("Vehicle.AntiMissileBurstBody", { weapon: f.weaponName }),
+      });
     } else {
-      await ChatMessage.create({ content: `<div class="cyberpunk save-prompt"><h3>🛡 Anti-missile — MISSED</h3><div class="save-info">${f.weaponName} still inbound.</div></div>` });
+      await postSavePromptCard({
+        title: localize("Vehicle.AntiMissileMissedTitle"),
+        body: localizeParam("Vehicle.AntiMissileMissedBody", { weapon: f.weaponName }),
+      });
     }
     return;
   }
 
   let add = 0, label = "";
-  if (kind === "evade") { add = 2; label = "Evasive maneuver (+2)"; }
+  if (kind === "evade") { add = 2; label = localize("Vehicle.EvasiveManeuver"); }
   else {
     const best = _bestCountermeasure(target?.system?.countermeasures ?? [], f.homingMethod);
-    if (!best.cm) { ui.notifications?.warn?.("No countermeasure defeats this missile's homing method."); return; }
-    add = best.mod; label = `${best.cm} (+${best.mod})`;
+    if (!best.cm) { ui.notifications?.warn?.(localize("Vehicle.NoCmDefeats")); return; }
+    add = best.mod; label = localizeParam("Vehicle.CmLabel", { cm: best.cm, mod: best.mod });
   }
   const cur = Number(f.difficultyMods) || 0;
   await mt.update({ [`flags.${SCOPE}.missile.difficultyMods`]: cur + add });
-  await ChatMessage.create({ content: `<div class="cyberpunk save-prompt"><h3>🎆 Countermeasure — ${label}</h3><div class="save-info">vs ${f.weaponName}: to-hit Difficulty now +${cur + add}.</div></div>` });
+  await postSavePromptCard({
+    title: localizeParam("Vehicle.CountermeasureTitle", { label }),
+    body: localizeParam("Vehicle.CountermeasureBody", { weapon: f.weaponName, mod: cur + add }),
+  });
 }
 
 /**
@@ -257,7 +272,7 @@ async function _applyMissileReaction(tokenId, kind, sceneArg = null) {
 async function _reactOrRelay(tokenId, kind) {
   if (game.user?.isGM) { await _applyMissileReaction(tokenId, kind); return; }
   game.socket.emit(`system.${SCOPE}`, { type: "missileReaction", tokenId, kind, sceneId: canvas?.scene?.id, requesterId: game.user.id });
-  ui.notifications?.info?.("Reaction sent to the GM.");
+  ui.notifications?.info?.(localize("Vehicle.ReactionSent"));
 }
 
 /** Auto-advance missiles each combat round (active GM only) + inject the Missiles-in-Flight panel. */
@@ -294,7 +309,7 @@ export function registerMissileFlightHooks() {
     else if (rv) {
       const mt = canvas?.scene?.tokens?.get(tokenId);
       const f = mt?.flags?.[SCOPE]?.missile;
-      if (mt && f) { await mt.update({ hidden: false, [`flags.${SCOPE}.missile.detected`]: true }); await _postIncomingCard(mt, f, canvas.scene.tokens.get(f.targetTokenId), "revealed by GM"); }
+      if (mt && f) { await mt.update({ hidden: false, [`flags.${SCOPE}.missile.detected`]: true }); await _postIncomingCard(mt, f, canvas.scene.tokens.get(f.targetTokenId), localize("Vehicle.MissileRevealedByGM")); }
     }
   });
 
