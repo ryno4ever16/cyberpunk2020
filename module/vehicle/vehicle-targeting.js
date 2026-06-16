@@ -13,9 +13,10 @@
  */
 
 import { applyAreaDamages, ablateLocationByAmount, personnelArmorValue, ARMOR_MODES } from "../combat/DamageApplicator.js";
-import { rollLocation } from "../utils.js";
+import { rollLocation, localize, localizeParam } from "../utils.js";
 import { onGlobalClick } from "../popout-compat.js";
 import { effectiveVehicleRuleSystem } from "../settings.js";
+import { renderChatCard } from "../compat.js";
 
 const SCOPE = "cyberpunk2020";
 
@@ -148,25 +149,12 @@ export async function postLuckSavePrompt(targetActor, payload = {}) {
   const pen = Number(payload.penetration ?? payload.pen) || 0;
   const luck = Number(targetActor.system?.stats?.luck?.total) || 0;
   const tok = payload.targetTokenId ? canvas?.tokens?.get(payload.targetTokenId) : null;
-  const weaponName = payload.weaponName || "anti-vehicle weapon";
+  const weaponName = payload.weaponName || localize("Vehicle.AntiVehicleWeapon");
 
-  const content = `
-<div class="cyberpunk save-prompt">
-  <h3>🎯 ${targetActor.name} — Anti-Vehicle Hit (${weaponName})</h3>
-  <div class="save-info">
-    <span>Struck by a Penetration <b>${pen}</b> weapon. Roll <b>LUCK + 1d10 vs 15</b> (MM p.8).</span><br>
-    <span style="opacity:0.75;font-size:0.85em;">Success = grazed (5D6, half armor). Failure = Penetration vs your Armor Value. LUCK ${luck}.</span>
-  </div>
-  <div class="save-buttons" style="margin-top:6px;">
-    <button class="cp-luck-save-roll"
-      data-actor-id="${targetActor.id}"
-      data-token-id="${tok?.id ?? payload.targetTokenId ?? ""}"
-      data-pen="${pen}"
-      data-weapon="${weaponName}">
-      🎲 Roll LUCK Save (LUCK ${luck} + 1d10 vs 15)
-    </button>
-  </div>
-</div>`;
+  const content = await renderChatCard("vehicle/luck-save-prompt.hbs", {
+    targetName: targetActor.name, weaponName, pen, luck,
+    actorId: targetActor.id, tokenId: tok?.id ?? payload.targetTokenId ?? "",
+  });
   await ChatMessage.create({ content, speaker: ChatMessage.getSpeaker({ actor: targetActor }) });
 }
 
@@ -178,7 +166,7 @@ async function _executeLuckSave({ actorId, tokenId, pen, weaponName }) {
   // Mirrors the stun/death-save owner gate (save-rolls.js _assertCanResolveSave); without it a
   // non-owner clicking the button hits a permission error trying to write an actor they don't own.
   if (!(game.user.isGM || actor.isOwner)) {
-    ui.notifications?.warn?.(`You don't own ${actor.name} — only its owner or the GM can roll this save.`);
+    ui.notifications?.warn?.(localizeParam("SaveNotOwned", { name: actor.name }));
     return;
   }
   const luck = Number(actor.system?.stats?.luck?.total) || 0;
@@ -195,31 +183,29 @@ async function _executeLuckSave({ actorId, tokenId, pen, weaponName }) {
       target: actor, areaDamages: { [loc]: [{ damage: dmg.total }] },
       armorMultSoft: res.armorMult, armorMultHard: res.armorMult
     });
-    detail = `<span style="color:#3ad13a;font-weight:bold;">GRAZED</span> — ${dmg.total} (5D6) to ${loc}, armor at half SP.`;
+    detail = localizeParam("Vehicle.LuckGrazed", { dmg: dmg.total, loc });
   } else if (res.outcome === "stopped") {
     const dmg = await new Roll(res.damageFormula).evaluate();
     await applyAreaDamages({
       target: actor, areaDamages: { [loc]: [{ damage: dmg.total }] }, armorMode: ARMOR_MODES.NONE
     });
     await ablateLocationByAmount(actor, loc, res.spStripped).catch(() => {});
-    detail = `Armor stopped it (Pen ${pen} ≤ AV ${av}) — <b>${dmg.total}</b> (2D6) impact to ${loc}; armor loses <b>${res.spStripped}</b> SP.`;
+    detail = localizeParam("Vehicle.LuckStopped", { pen, av, dmg: dmg.total, loc, spStripped: res.spStripped });
   } else {
     await applyAreaDamages({
       target: actor, areaDamages: { [loc]: [{ damage: res.damage }] }, armorMode: ARMOR_MODES.NONE
     });
     await ablateLocationByAmount(actor, loc, 999).catch(() => {});   // armor destroyed at the location
-    detail = `<span style="color:#ff3030;font-weight:bold;">PENETRATED</span> (Pen ${pen} − AV ${av} = ${res.diff}) — <b>${res.damage}</b> damage to ${loc}; armor destroyed.`;
+    detail = localizeParam("Vehicle.LuckPenetrated", { pen, av, diff: res.diff, dmg: res.damage, loc });
   }
 
+  const content = await renderChatCard("vehicle/luck-save-result.hbs", {
+    actorName: actor.name, luck, d10: roll.dice[0].total, total: roll.total, av, detail,
+  });
   await roll.toMessage({
     speaker: ChatMessage.getSpeaker({ actor }),
-    flavor: `LUCK Save vs Anti-Vehicle ${weaponName} — need ≥ 15`,
-    content: `
-<div class="cyberpunk save-result">
-  <h3>🎯 ${actor.name} — Personnel vs Anti-Vehicle (MM p.8)</h3>
-  <div>LUCK ${luck} + 1d10 ${roll.dice[0].total} = <b>${roll.total}</b> vs 15 · AV <b>${av}</b></div>
-  <div style="margin-top:4px;">${detail}</div>
-</div>`
+    flavor: localizeParam("Vehicle.LuckFlavor", { weapon: weaponName }),
+    content,
   });
 
   // An anti-vehicle hit can wound or kill — prompt the appropriate consciousness/death save, exactly
