@@ -10,7 +10,8 @@
 import { acpaMeleeDamage, acpaTickStatus } from "./vehicle-acpa.js";
 import { penetrationFactor } from "./vehicle-weapons.js";
 import { postStunSavePrompt } from "../combat/save-rolls.js";
-import { openSingletonDialog } from "../utils.js";
+import { openSingletonDialog, localize, localizeParam } from "../utils.js";
+import { renderChatCard, postSavePromptCard } from "../compat.js";
 
 const SCOPE = "cyberpunk2020";
 const _enabled = (k, d = true) => { try { return game.settings.get(SCOPE, k); } catch { return d; } };
@@ -31,42 +32,31 @@ function _meleePen(dice) {
  * vehicle-scale Penetration routes through the dispatcher. To-hit = 1d10 + pilot REF + melee skill.
  */
 export async function openAcpaMeleeDialog(actor) {
-  if (!actor || actor.type !== "vehicle" || !actor.system?.isACPA) { ui.notifications?.warn?.("ACPA melee is for powered-armor actors (tick the ACPA box)."); return null; }
-  if (!_enabled("vehicleDamageEnabled")) { ui.notifications?.warn?.("Vehicle damage automation is disabled in the settings."); return null; }
+  if (!actor || actor.type !== "vehicle" || !actor.system?.isACPA) { ui.notifications?.warn?.(localize("Vehicle.AcpaMeleeOnlyAcpa")); return null; }
+  if (!_enabled("vehicleDamageEnabled")) { ui.notifications?.warn?.(localize("Vehicle.DamageDisabled")); return null; }
 
   const targets = [...(game.user?.targets ?? [])];
   const targetTok = targets.length === 1 ? targets[0] : null;
-  if (!targetTok) { ui.notifications?.warn?.("Target the token you're striking first."); return null; }
+  if (!targetTok) { ui.notifications?.warn?.(localize("Vehicle.AcpaNeedTarget")); return null; }
   const targetActor = targetTok.actor;
   const firerTok = _firerTokenOf(actor);
   const strDmg = Number(actor.system?.strDamage) || 0;
   const effStr = Math.max(0, (Number(actor.system?.str) || 0) - strDmg);
   const effRef = Number(actor.system?.effectiveRef) || 0;   // pilot REF capped by the Reflex/Control system
 
-  const content = `
-<div class="cyberpunk vehicle-fire-dialog" style="display:flex;flex-direction:column;gap:4px;">
-  <div style="opacity:0.7;font-size:0.85em;">${actor.name} (Suit STR <b>${effStr}</b>${strDmg ? ` after −${strDmg} damage` : ""}) strikes <b>${targetActor?.name ?? targetTok.name}</b>.</div>
-  <label>Strike
-    <select id="cp-am-kind">
-      <option value="punch">Punch — round(STR/9) d10</option>
-      <option value="crush">Crush — (X+1) d10</option>
-      <option value="kick">Kick — round(1.5×X) d10</option>
-    </select>
-  </label>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;">
-    <label title="Pilot REF, capped by the suit's Reflex/Control system (derived effective REF). Override if a different pilot is driving.">Pilot REF <input type="number" id="cp-am-ref" value="${effRef}" style="width:48px;"></label>
-    <label>Melee skill <input type="number" id="cp-am-skill" value="0" style="width:48px;"></label>
-    <label>Target DV <input type="number" id="cp-am-dv" value="15" style="width:48px;"></label>
-  </div>
-</div>`;
+  const content = await renderChatCard("vehicle/acpa-melee-dialog.hbs", {
+    actorName: actor.name, effStr,
+    strDmgClause: strDmg ? localizeParam("Vehicle.AcpaStrDmgClause", { strDmg }) : "",
+    targetName: targetActor?.name ?? targetTok.name, effRef,
+  });
 
   const dialog = new foundry.applications.api.DialogV2({
-    window: { title: `🤜 ACPA Melee — ${actor.name}` },
+    window: { title: localizeParam("Vehicle.AcpaMeleeDialogTitle", { actor: actor.name }) },
     content,
     buttons: [
       {
         action: "strike",
-        label: "🤜 Strike",
+        label: localize("Vehicle.AcpaStrikeBtn"),
         default: true,
         callback: async (ev, btn, dlg) => {
           const root = dlg.element;
@@ -79,22 +69,27 @@ export async function openAcpaMeleeDialog(actor) {
           const d10 = (await new Roll("1d10").evaluate());
           const total = d10.total + ref + skill;
           const hit = total >= dv;
-          const verdict = hit ? `<span style="color:#3ad13a;font-weight:bold;">HIT</span>` : `<span style="color:#ff6060;font-weight:bold;">MISS</span>`;
-          const kindLabel = kind.charAt(0).toUpperCase() + kind.slice(1);
-          await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} — ACPA ${kind}`, rolls: [d10], content:
-            `<div class="cyberpunk vehicle-fire-result"><h3>🤜 ACPA ${kindLabel}</h3>
-               <div>To-hit: 1d10 ${d10.total} + REF ${ref} + skill ${skill} = <b>${total}</b> vs ${dv} — ${verdict}</div>
-               <div style="margin-top:2px;">Damage <b>${dmg.formula}</b> → Penetration <b>${pen}</b> (vehicle scale).</div></div>` });
+          const verdict = hit ? localize("Vehicle.AcpaHit") : localize("Vehicle.AcpaMiss");
+          const kindName = localize("Vehicle.AcpaKind_" + kind);
+          const content = await renderChatCard("vehicle/acpa-melee-result.hbs", {
+            kindName, d10: d10.total, ref, skill, total, dv, verdict,
+            formula: dmg.formula, pen,
+          });
+          await ChatMessage.create({
+            speaker: ChatMessage.getSpeaker({ actor }),
+            flavor: localizeParam("Vehicle.AcpaFlavor", { actor: actor.name, kind: kindName }),
+            rolls: [d10], content,
+          });
           if (hit && targetActor) {
             // Roll the strike's real damage so an ACPA target's SOP flow uses it, not the Pen×10 estimate.
             const dmgRoll = await new Roll(dmg.formula).evaluate();
             const { dispatchAttack, detectFacingFromTokens } = await import("./vehicle-targeting.js");
             const facing = (firerTok && targetTok) ? detectFacingFromTokens(firerTok, targetTok) : "front";
-            await dispatchAttack({ scale: "penetration", penetration: pen, rawDamage: dmgRoll.total, facing, targetTokenId: targetTok.id, weaponName: `ACPA ${kindLabel}` }, targetActor);
+            await dispatchAttack({ scale: "penetration", penetration: pen, rawDamage: dmgRoll.total, facing, targetTokenId: targetTok.id, weaponName: `ACPA ${kindName}` }, targetActor);
           }
         },
       },
-      { action: "cancel", label: "Cancel" },
+      { action: "cancel", label: localize("Cancel") },
     ],
   });
   return openSingletonDialog(`acpa-melee:${actor.id}`, () => dialog);
@@ -102,7 +97,7 @@ export async function openAcpaMeleeDialog(actor) {
 
 /** Field repair: restore an ACPA suit to full — frame SOP, SDP, power, and clear all damage/status. */
 export async function repairAcpa(actor) {
-  if (!actor || actor.type !== "vehicle" || !actor.system?.isACPA) { ui.notifications?.warn?.("Repair is for ACPA (powered armor) only."); return; }
+  if (!actor || actor.type !== "vehicle" || !actor.system?.isACPA) { ui.notifications?.warn?.(localize("Vehicle.RepairOnlyAcpa")); return; }
   const sys = actor.system;
   const sdpMax = Number(sys.sdp?.max) || 0;
   await actor.update({
@@ -117,7 +112,7 @@ export async function repairAcpa(actor) {
     .filter(i => (i.type === "acpaSystem" || i.type === "vehicleWeapon") && ((Number(i.system?.sopDamage) || 0) > 0 || i.system?.destroyed))
     .map(i => ({ _id: i.id, "system.sopDamage": 0, "system.destroyed": false }));
   if (itemRepairs.length) await actor.updateEmbeddedDocuments("Item", itemRepairs);
-  ui.notifications?.info?.(`${actor.name} fully repaired (frame SOP, systems & weapons restored).`);
+  ui.notifications?.info?.(localizeParam("Vehicle.AcpaRepaired", { actor: actor.name }));
 }
 
 /**
@@ -136,9 +131,12 @@ export async function tickAcpaCombatant(actor) {
   // Capture this BEFORE the update — actor.update() expands the dot-keys in `updates` in place.
   const heatstrokeFired = updates["system.heatstrokeLevel"] != null;
   if (Object.keys(updates).length) await actor.update(updates);
-  if (lines.length) await ChatMessage.create({
+  // NOTE: the status `lines` are produced (in English) by acpaTickStatus in vehicle-acpa.js;
+  // localizing those is a separate i18n pass on that pure-logic file.
+  if (lines.length) await postSavePromptCard({
+    title: localizeParam("Vehicle.AcpaTickTitle", { actor: actor.name }),
+    body: `${lines.join("; ")}.`,
     speaker: ChatMessage.getSpeaker({ actor }),
-    content: `<div class="cyberpunk save-prompt"><h3>⚙ ${actor.name}</h3><div class="save-info">${lines.join("; ")}.</div></div>`,
   });
   // Heatstroke: once the build-up completes, the linked pilot makes a real Stun/Shock Save each round.
   if (heatstrokeFired && actor.system?.pilotId) {
