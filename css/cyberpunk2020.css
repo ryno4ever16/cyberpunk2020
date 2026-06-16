@@ -1057,6 +1057,13 @@ div.statderive .value.rightborder {
 .cp-parry-btn.cp-active { color: #44aaff; }
 .cp-add-action-btn { cursor: pointer; color: #888; }
 .cp-action-count-badge { font-size: 0.74em; padding: 1px 4px; border-radius: 3px; background: rgba(80, 80, 80, 0.7); color: var(--color-text-light-primary, #ccc); margin-right: 2px; line-height: 1.6; pointer-events: none; }
+
+/* "Missiles in Flight" combat-tracker panel (replaces the inline h4/ul/li/span/button styles). */
+.cp-missiles-panel .cp-missiles-head { margin: 6px 0 2px; border-top: 1px solid var(--color-border-dark-tertiary); padding-top: 4px; }
+.cp-missiles-panel .cp-missiles-list { list-style: none; margin: 0; padding: 0; }
+.cp-missiles-panel .cp-missile-row { cursor: pointer; font-size: 0.82em; padding: 2px 4px; }
+.cp-missiles-panel .cp-missile-undetected { opacity: 0.6; }
+.cp-missiles-panel .cp-missile-reveal, .cp-missiles-panel .cp-missile-step { font-size: 0.72em; padding: 0 4px; }
 .cyberpunk-card .roll-image {
   margin-right: 5px;
 }

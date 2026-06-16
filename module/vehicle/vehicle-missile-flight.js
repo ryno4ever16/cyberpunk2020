@@ -319,27 +319,25 @@ export function registerMissileFlightHooks() {
     await advanceMissiles(undefined, Number(combat.round) || 0);
   });
 
-  Hooks.on("renderCombatTracker", (tracker, html) => {
+  Hooks.on("renderCombatTracker", async (tracker, html) => {
     const root = html instanceof jQuery ? html[0] : (Array.isArray(html) ? html[0] : html);
     if (!root?.querySelector) return;
     root.querySelector(".cp-missiles-panel")?.remove();
     const scene = canvas?.scene;
     const missiles = scene ? scene.tokens.filter(t => t.flags?.[SCOPE]?.missile) : [];
     if (!missiles.length) return;
-    const rows = missiles.map(mt => {
+    const isGM = !!game.user.isGM;
+    const rowData = missiles.map(mt => {
       const f = mt.flags[SCOPE].missile;
-      const tgt = scene.tokens.get(f.targetTokenId)?.name ?? "?";
-      const det = f.detected ? "" : (game.user.isGM
-        ? ` <span style="opacity:0.6;">(undetected)</span> <button class="cp-missile-reveal" data-token-id="${mt.id}" title="Reveal this missile to its target (GM)" style="font-size:0.72em;padding:0 4px;">👁</button>`
-        : ' <span style="opacity:0.6;">(undetected)</span>');
-      const adv = game.user.isGM
-        ? ` <button class="cp-missile-step" data-token-id="${mt.id}" title="Advance this missile one turn (manual)" style="font-size:0.72em;padding:0 4px;">▶</button>`
-        : "";
-      return `<li class="cp-missile-row" data-token-id="${mt.id}" style="cursor:pointer;font-size:0.82em;padding:2px 4px;">🚀 <b>${f.weaponName}</b> → ${tgt} · ${f.guidance} · <b>${f.turnsToImpact}</b>t${det}${adv}</li>`;
-    }).join("");
+      return {
+        tokenId: mt.id, weapon: f.weaponName, target: scene.tokens.get(f.targetTokenId)?.name ?? "?",
+        guidance: f.guidance, turns: f.turnsToImpact, detected: !!f.detected, isGM,
+      };
+    });
+    const render = foundry?.applications?.handlebars?.renderTemplate ?? renderTemplate;
     const panel = document.createElement("div");
     panel.className = "cp-missiles-panel";
-    panel.innerHTML = `<h4 style="margin:6px 0 2px;border-top:1px solid var(--color-border-dark-tertiary);padding-top:4px;">🚀 Missiles in Flight</h4><ul style="list-style:none;margin:0;padding:0;">${rows}</ul>`;
+    panel.innerHTML = await render("systems/cyberpunk2020/templates/combat/missiles-panel.hbs", { missiles: rowData });
     (root.querySelector("#combat-tracker") ?? root.querySelector(".combat-tracker") ?? root).appendChild(panel);
     panel.querySelectorAll(".cp-missile-row").forEach(el => el.addEventListener("click", (ev) => {
       if (ev.target.closest("button")) return;   // row buttons (reveal/advance) handle their own clicks
