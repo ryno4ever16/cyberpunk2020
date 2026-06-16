@@ -23,12 +23,12 @@
 }
 .cyberpunk section.window-content .editor-content {
   font-weight: normal;
-  border: 2px solid black;
+  border: 2px solid var(--cp-line, black);
   padding-left: 2px;
   padding-right: 2px;
 }
 .cyberpunk section.window-content nav.tabs {
-  border-bottom: 2px solid black;
+  border-bottom: 2px solid var(--cp-line, black);
   box-sizing: content-box;
   flex: 0;
   padding-top: 0px;
@@ -48,7 +48,7 @@
   text-shadow: unset;
 }
 .cyberpunk section.window-content .meter-gauge {
-  border: 2px solid black;
+  border: 2px solid var(--cp-line, black);
 }
 .cyberpunk section.window-content .meter-gauge > span {
   display: block;
@@ -89,6 +89,28 @@
   flex: 1 1 auto;
   min-height: 0;
   height: 100%;
+}
+
+/* ══ CYBERPUNK SHEET/DIALOG THEME TOKENS ═════════════════════════════════════════
+ * The dark palette lives HERE, in one place, as CSS custom properties. Every sheet/dialog
+ * rule references a token (e.g. `var(--cp-line, black)`) instead of a hardcoded colour, so
+ * dark-mode readability is centralized — to re-skin (the Phase-2 Restyler pass) you change
+ * these three values, not dozens of rules. Foundry sets `theme-dark` on <body>, so these
+ * apply only in dark mode; in light mode the tokens are undefined and each `var(…, <light>)`
+ * falls back to its light value (black borders/ink, parchment surface). That fallback also
+ * means converting a literal to a token is safe even outside the sheet (e.g. chat cards):
+ * with no token defined, it stays its light value.
+ *   --cp-ink     primary text / foreground      (light fallback: black)
+ *   --cp-line    borders / rules                 (light fallback: black)
+ *   --cp-surface sheet window-content background (light fallback: parchment)
+ * NOTE: the .field value BOXES keep their own black-bg/whitesmoke styling (readable on both
+ * schemes) and are intentionally NOT driven by these tokens. */
+.theme-dark .application.cyberpunk.sheet.actor, .theme-dark .cyberpunk.sheet.actor,
+.theme-dark .application.cyberpunk.sheet.item,  .theme-dark .cyberpunk.sheet.item,
+.theme-dark .application.cyberpunk.dialog,      .theme-dark .cyberpunk.weapon-modifiers {
+  --cp-ink: #e7d1b1;     /* warm light text (PROVISIONAL → Phase-2 Restyler) */
+  --cp-line: #6b5d48;    /* visible warm border */
+  --cp-surface: #14110d; /* dark sheet surface */
 }
 
 /* ── Actor-sheet SURFACE ─────────────────────────────────────────────────────────
@@ -135,9 +157,9 @@
 
 /* Dark color scheme: dark-readable surface + warm light text (palette PROVISIONAL → Phase-2 Restyler). */
 .theme-dark .application.cyberpunk.sheet.actor .window-content {
-  background-color: #14110d;
+  background-color: var(--cp-surface);
   background-image: none;
-  color: #e7d1b1;
+  color: var(--cp-ink);
 }
 .theme-dark .application.cyberpunk.sheet.actor,
 .theme-dark .application.cyberpunk.sheet.actor h1.title,
@@ -146,7 +168,7 @@
 .theme-dark .application.cyberpunk.sheet.actor .cyberpunk-actor-sheet-content h3,
 .theme-dark .application.cyberpunk.sheet.actor .cyberpunk-actor-sheet-content p,
 .theme-dark .application.cyberpunk.sheet.actor .cyberpunk-actor-sheet-content .summary {
-  color: #e7d1b1;
+  color: var(--cp-ink);
 }
 
 /* Dark scheme — per-field readability (Phase 1 item #1; additive over 1b).
@@ -162,12 +184,12 @@
 .theme-dark .application.cyberpunk.sheet.actor .window-content .editor-content,
 .theme-dark .application.cyberpunk.sheet.actor .window-content nav.tabs,
 .theme-dark .application.cyberpunk.sheet.actor .window-content .meter-gauge {
-  border-color: #6b5d48;
+  border-color: var(--cp-line);
 }
 .theme-dark .application.cyberpunk.sheet.actor .field > input,
 .theme-dark .application.cyberpunk.sheet.actor .field > * .field,
 .theme-dark .application.cyberpunk.sheet.actor .field > *.field-list {
-  color: #e7d1b1;
+  color: var(--cp-ink);
 }
 
 /* ── Item-sheet SURFACE + readability ────────────────────────────────────────────
@@ -205,26 +227,26 @@
 }
 
 .theme-dark .application.cyberpunk.sheet.item .window-content {
-  background-color: #14110d;
+  background-color: var(--cp-surface);
   background-image: none;
-  color: #e7d1b1;
+  color: var(--cp-ink);
 }
 .theme-dark .application.cyberpunk.sheet.item,
 .theme-dark .application.cyberpunk.sheet.item h1.title,
 .theme-dark .application.cyberpunk.sheet.item h1.title > input,
 .theme-dark .application.cyberpunk.sheet.item .summary,
 .theme-dark .application.cyberpunk.sheet.item textarea.flavor {
-  color: #e7d1b1;
+  color: var(--cp-ink);
 }
 .theme-dark .application.cyberpunk.sheet.item .field,
 .theme-dark .application.cyberpunk.sheet.item .window-content .editor-content,
 .theme-dark .application.cyberpunk.sheet.item .window-content nav.tabs {
-  border-color: #6b5d48;
+  border-color: var(--cp-line);
 }
 .theme-dark .application.cyberpunk.sheet.item .field > input,
 .theme-dark .application.cyberpunk.sheet.item .field > * .field,
 .theme-dark .application.cyberpunk.sheet.item .field > *.field-list {
-  color: #e7d1b1;
+  color: var(--cp-ink);
 }
 
 /* Notes-tab height chain (only the ACTIVE tab, so inactive tabs stay display:none). */
@@ -254,13 +276,13 @@
  * (.theme-dark only) — light mode is unchanged. */
 .theme-dark .cyberpunk.weapon-modifiers .field,
 .theme-dark .application.cyberpunk.dialog .field {
-  border-color: #6b5d48;
+  border-color: var(--cp-line);
 }
 .theme-dark .cyberpunk.weapon-modifiers .field > input,
 .theme-dark .cyberpunk.weapon-modifiers .field > * .field,
 .theme-dark .application.cyberpunk.dialog .field > input,
 .theme-dark .application.cyberpunk.dialog .field > * .field {
-  color: #e7d1b1;
+  color: var(--cp-ink);
 }
 
 /* Overall sheet structure */
@@ -498,7 +520,7 @@ details[open] summary ~ * {
   align-items: stretch;
   border-width: 2px;
   border-style: solid;
-  border-color: black;
+  border-color: var(--cp-line, black);
 }
 .cyberpunk .field > * {
   padding: 2px 3px 2px 0px;
@@ -712,7 +734,7 @@ details[open] summary ~ * {
   text-align: center;
 }
 .statsrow > div.stat .stat-total {
-  border-color: black;
+  border-color: var(--cp-line, black);
   border-style: none solid solid solid;
   border-width: 2px;
   font-size: 13pt;
@@ -722,7 +744,7 @@ details[open] summary ~ * {
   font-size: 9pt;
   color: whitesmoke;
   background: black;
-  border-color: black;
+  border-color: var(--cp-line, black);
   border-style: none solid none solid;
   border-width: 2px;
 }
@@ -737,7 +759,7 @@ details[open] summary ~ * {
   background: rgb(90, 90, 90);
   color: whitesmoke;
   border-right-style: solid;
-  border-right-color: black;
+  border-right-color: var(--cp-line, black);
   border-width: 2px;
 }
 
@@ -795,7 +817,7 @@ div.statderive .value.rightborder {
   flex-direction: column;
   margin-right: 3px;
   margin-top: 5px;
-  border: solid black;
+  border: solid var(--cp-line, black);
   border-width: 0px 2px 2px 2px;
 }
 .wound-tracker .wound-state-label {
@@ -832,7 +854,7 @@ div.statderive .value.rightborder {
   flex-grow: 1;
   border-style: solid;
   border-width: 0px 1px 0px 1px;
-  border-color: black;
+  border-color: var(--cp-line, black);
   transition: background-color 0.25s;
 }
 .wound-tracker .damage.filled:hover {
@@ -914,7 +936,7 @@ div.statderive .value.rightborder {
   font-weight: bold;
   font-style: italic;
   align-self: stretch;
-  border: 2px solid black;
+  border: 2px solid var(--cp-line, black);
   border-radius: 0px;
   min-height: 5em;
 }
@@ -962,7 +984,7 @@ div.statderive .value.rightborder {
   font-family: "Noto Sans", sans-serif;
   font-variant: small-caps;
   font-weight: bold;
-  border-bottom: 2px solid black;
+  border-bottom: 2px solid var(--cp-line, black);
 }
 .cyberpunk-card .roll-image {
   margin-right: 5px;
@@ -1145,7 +1167,7 @@ div.statderive .value.rightborder {
 }
 .cyberpunk .armor-display .armor-segment {
   width: 100%;
-  border: solid black;
+  border: solid var(--cp-line, black);
   border-width: 2px 2px 0px 2px;
   display: grid;
   grid-template-rows: auto auto 1fr;
@@ -1328,7 +1350,7 @@ div.statderive .value.rightborder {
   height: 18px;
   width: 100%;
   box-sizing: border-box;
-  border: 1px dashed rgba(0, 0, 0, 0.35);
+  border: 1px dashed var(--cp-line, rgba(0, 0, 0, 0.35));
 }
 
 .chipware.field.gear.full-width {
@@ -1435,7 +1457,7 @@ div.statderive .value.rightborder {
   margin-top: 0px;
   padding: 6px 6px 6px 6px;
   position: relative;
-  border: 3px solid black;
+  border: 3px solid var(--cp-line, black);
 }
 
 .active-cyberware .active-cyberware-segment button {
@@ -1595,7 +1617,7 @@ img#anatomy-img {
   filter: none !important;
 }
 .active-cyberware .active-cyberware-segment:hover {
-  border-color: black !important;
+  border-color: var(--cp-line, black) !important;
   box-shadow: none !important;
 }
 .chipware-container .chipware .item-unequip {
@@ -1928,7 +1950,7 @@ img#anatomy-img {
 
  .netrun-container {
 
-  border: 3px solid black;
+  border: 3px solid var(--cp-line, black);
 
   width: 100%;
 
@@ -1948,7 +1970,7 @@ img#anatomy-img {
 
   flex-direction: row;
 
-  border-bottom: 3px solid black;
+  border-bottom: 3px solid var(--cp-line, black);
 
 }
 
@@ -1964,7 +1986,7 @@ img#anatomy-img {
 
   flex: 1;
 
-  border-right: 3px solid black;
+  border-right: 3px solid var(--cp-line, black);
 
   padding: 6px;
 
@@ -1990,7 +2012,7 @@ img#anatomy-img {
 
   width: 100%;
 
-  border-bottom: 3px solid black;
+  border-bottom: 3px solid var(--cp-line, black);
 
 }
 
@@ -1998,7 +2020,7 @@ img#anatomy-img {
 
   flex: 1;
 
-  border-right: 3px solid black;
+  border-right: 3px solid var(--cp-line, black);
 
   padding: 6px;
 
@@ -2110,7 +2132,7 @@ img#anatomy-img {
 
   width: 100%;
 
-  border-bottom: 3px solid black;
+  border-bottom: 3px solid var(--cp-line, black);
 
 }
 
@@ -2118,7 +2140,7 @@ img#anatomy-img {
 
   flex: 1;
 
-  border-right: 3px solid black;
+  border-right: 3px solid var(--cp-line, black);
 
   padding: 6px;
 
@@ -2166,7 +2188,7 @@ img#anatomy-img {
 
   background-color: transparent;
 
-  color: black;
+  color: var(--cp-ink, black);
 
 }
 
@@ -2186,7 +2208,7 @@ img#anatomy-img {
 
 .netrun-active-programs-container {
 
-  border: 3px solid black;
+  border: 3px solid var(--cp-line, black);
 
   padding: 6px;
 
@@ -2224,7 +2246,7 @@ img#anatomy-img {
 
   height: 120px;
 
-  border: 2px solid black;
+  border: 2px solid var(--cp-line, black);
 
   background-color: #ccc;
 
@@ -2274,7 +2296,7 @@ img#anatomy-img {
 
   margin-top: 5px;
 
-  border: 3px solid black;
+  border: 3px solid var(--cp-line, black);
 
   padding: 6px;
 
@@ -2298,7 +2320,7 @@ img#anatomy-img {
 
   color: whitesmoke;
 
-  border: 2px solid black;
+  border: 2px solid var(--cp-line, black);
 
   padding: 4px;
 
@@ -2670,7 +2692,7 @@ img#anatomy-img {
   min-height: 0;
   height: 100%;
   box-sizing: border-box;
-  border: 2px solid black;
+  border: 2px solid var(--cp-line, black);
   background: rgba(255, 255, 255, 0.12);
 }
 
@@ -2691,7 +2713,7 @@ img#anatomy-img {
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: black;
+  color: var(--cp-ink, black);
   line-height: 1;
   cursor: pointer;
   opacity: 0.6;
@@ -2702,7 +2724,7 @@ img#anatomy-img {
 .cyberpunk.sheet.actor .cyberpunk-actor-sheet-content .cp-notes-edit i {
   margin: 0;
   padding: 0;
-  color: black;
+  color: var(--cp-ink, black);
   font-size: 13px;
   line-height: 1;
   opacity: 0.75;
@@ -2732,7 +2754,7 @@ img#anatomy-img {
   overflow: auto;
   box-sizing: border-box;
   padding: 8px 36px 8px 8px;
-  color: black !important;
+  color: var(--cp-ink, black) !important;
   background: transparent;
   font-family: "Noto Sans", sans-serif;
   font-size: 14px;
@@ -2744,7 +2766,7 @@ img#anatomy-img {
 
 .application.cyberpunk.sheet.actor .cp-notes-view *,
 .cyberpunk.sheet.actor .cyberpunk-actor-sheet-content .cp-notes-view * {
-  color: black !important;
+  color: var(--cp-ink, black) !important;
   opacity: 1 !important;
   font-weight: inherit;
   font-variant: normal;
@@ -2759,7 +2781,7 @@ img#anatomy-img {
   min-height: 0;
   height: 100%;
   box-sizing: border-box;
-  color: black;
+  color: var(--cp-ink, black);
   background: transparent;
 }
 
@@ -2773,7 +2795,7 @@ img#anatomy-img {
   min-height: 0;
   height: 100%;
   box-sizing: border-box;
-  color: black;
+  color: var(--cp-ink, black);
   background: transparent;
   font-family: "Noto Sans", sans-serif;
   font-size: 14px;
