@@ -1084,7 +1084,7 @@ div.statderive .value.rightborder {
   margin-bottom: 3px;
 }
 /* Services tab: compact per-row action buttons (Pay / ✎ / ✕) — default buttons stretched to the row. */
-.cp-services .cp-service-row { align-items: center; gap: 4px; }
+.cp-services .cp-service-row { align-items: center; gap: 4px; padding-top: 3px; padding-bottom: 3px; }
 .cyberpunk .cp-services .cp-service-row button { flex: 0 0 auto; width: auto; min-width: 0; height: 24px; line-height: 22px; padding: 0 9px; font-size: 0.85em; }
 .cyberpunk .cp-services .cp-service-edit, .cyberpunk .cp-services .cp-service-delete { width: 24px; padding: 0; text-align: center; }
 .cp-services .cp-service-cost { white-space: nowrap; margin: 0 4px; }
@@ -1096,6 +1096,16 @@ div.statderive .value.rightborder {
    and fills the width. */
 .cp-services { grid-template-columns: 1fr; }
 .cp-services .cp-service-name { text-align: left; }
+/* Fill each service row solid black: the name's indent then reads as intentional padding and every
+   service is a clean, clearly-bounded bar matching the sheet's black-box aesthetic. Outline the
+   action buttons so they stay legible against the black fill. */
+.cp-services .cp-service-row { background-color: black; }
+.cyberpunk .cp-services .cp-service-row button { border: 1px solid rgba(255, 255, 255, 0.3); }
+/* "+ Add Service" doesn't need a bordered box: drop the border and the empty spacer label (it only
+   existed to height-match the Eurobucks field) so the button just floats, right-aligned, in its cell.
+   Scoped to the services tab so the vehicle sheet's .cp-header-action is unaffected. */
+.cyberpunk .tab[data-tab="services"] .field.cp-header-action { border: none; justify-content: flex-end; align-items: center; }
+.cyberpunk .tab[data-tab="services"] .cp-header-action > label { display: none; }
 
 .cyberpunk .armor-display {
   max-height: 200px;
