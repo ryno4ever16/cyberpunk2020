@@ -91,37 +91,49 @@
   height: 100%;
 }
 
-/* ── Actor-sheet SURFACE (Phase 1b) ─────────────────────────────────────────────
- * Reproduce the opaque light Foundry window surface so the sheet's hardcoded-black text
- * stays readable regardless of the AppV2 color scheme. LIGHT path = verbatim upstream
- * (parchment). The .theme-dark block is OUR additive override giving a dark-readable
- * surface + warm light text, so dark-mode users aren't forced to beige. See
- * [project-ui-corrections] "additive: his light path + our dark block". */
-.application.cyberpunk.sheet.actor,
-.cyberpunk.sheet.actor { color: black; }
-
+/* ── Actor-sheet SURFACE ─────────────────────────────────────────────────────────
+ * Theme-aware, NOT forced. Light scheme = parchment + black text; dark scheme = our
+ * dark-readable surface + warm light text (the .theme-dark block below). The sheet
+ * honors the Foundry color scheme — we no longer mirror Tilt's UNCONDITIONAL forced
+ * beige (that was his throwaway test scaffolding; see [reference-upstream-supercoon]
+ * and the STRATEGY REVERSED note in [project-ui-corrections]). `container-type` is
+ * structural and stays UNCONDITIONAL so container queries work in both schemes. */
 .application.cyberpunk.sheet.actor .window-content,
 .cyberpunk.sheet.actor .window-content {
-  color: black;
-  background-color: #f1eee8;
-  background-image: url("../../../ui/parchment.jpg");
-  background-repeat: repeat;
   container-type: inline-size;
 }
 
-/* Stop AppV2 theme colors leaking into header/body text. */
+/* Strip AppV2 theme-color/shadow leakage from header/body text (theme-neutral). */
 .application.cyberpunk.sheet.actor h1.title,
 .application.cyberpunk.sheet.actor h1.title > input,
 .application.cyberpunk.sheet.actor .cyberpunk-actor-sheet-content h2,
 .application.cyberpunk.sheet.actor .cyberpunk-actor-sheet-content h3,
 .application.cyberpunk.sheet.actor .cyberpunk-actor-sheet-content p,
 .application.cyberpunk.sheet.actor .cyberpunk-actor-sheet-content .summary {
-  color: black;
   background: transparent;
   text-shadow: unset;
 }
 
-/* Dark color scheme: additive override — dark-readable surface + warm light text. */
+/* Light color scheme: parchment surface + black text. */
+.theme-light .application.cyberpunk.sheet.actor,
+.theme-light .cyberpunk.sheet.actor { color: black; }
+.theme-light .application.cyberpunk.sheet.actor .window-content,
+.theme-light .cyberpunk.sheet.actor .window-content {
+  color: black;
+  background-color: #f1eee8;
+  background-image: url("../../../ui/parchment.jpg");
+  background-repeat: repeat;
+}
+.theme-light .application.cyberpunk.sheet.actor h1.title,
+.theme-light .application.cyberpunk.sheet.actor h1.title > input,
+.theme-light .application.cyberpunk.sheet.actor .cyberpunk-actor-sheet-content h2,
+.theme-light .application.cyberpunk.sheet.actor .cyberpunk-actor-sheet-content h3,
+.theme-light .application.cyberpunk.sheet.actor .cyberpunk-actor-sheet-content p,
+.theme-light .application.cyberpunk.sheet.actor .cyberpunk-actor-sheet-content .summary {
+  color: black;
+}
+
+/* Dark color scheme: dark-readable surface + warm light text (palette PROVISIONAL → Phase-2 Restyler). */
 .theme-dark .application.cyberpunk.sheet.actor .window-content {
   background-color: #14110d;
   background-image: none;
@@ -158,31 +170,38 @@
   color: #e7d1b1;
 }
 
-/* ── Item-sheet SURFACE + readability (Phase 1 item #2) ──────────────────────────
- * Mirror the actor-sheet treatment for the item sheet (.sheet.item): an opaque light
- * (parchment) surface so the hardcoded-black .field text stays readable, an additive
- * .theme-dark override (dark surface + warm light text + visible borders/inputs), and a
- * height chain so the Notes-tab {{editor}} fills its tab instead of collapsing to a 0px
- * content area (the half-rendered gray-box bug). Light path mirrors upstream's per-sheet
- * repaint for a clean merge; the dark + height rules are our additions. */
-.application.cyberpunk.sheet.item,
-.cyberpunk.sheet.item { color: black; }
-
+/* ── Item-sheet SURFACE + readability ────────────────────────────────────────────
+ * Theme-aware (mirrors the actor sheet): light = parchment + black text; dark = our
+ * dark-readable surface + warm light text. Plus a Notes-tab height chain (below) so the
+ * {{editor}} fills its tab instead of collapsing to 0px (the half-rendered gray-box bug).
+ * No forced beige (see the actor-sheet note). `container-type` stays UNCONDITIONAL. */
 .application.cyberpunk.sheet.item .window-content,
 .cyberpunk.sheet.item .window-content {
-  color: black;
-  background-color: #f1eee8;
-  background-image: url("../../../ui/parchment.jpg");
-  background-repeat: repeat;
   container-type: inline-size;
 }
 .application.cyberpunk.sheet.item h1.title,
 .application.cyberpunk.sheet.item h1.title > input,
 .application.cyberpunk.sheet.item .summary,
 .application.cyberpunk.sheet.item textarea.flavor {
-  color: black;
   background: transparent;
   text-shadow: unset;
+}
+
+/* Light color scheme: parchment surface + black text. */
+.theme-light .application.cyberpunk.sheet.item,
+.theme-light .cyberpunk.sheet.item { color: black; }
+.theme-light .application.cyberpunk.sheet.item .window-content,
+.theme-light .cyberpunk.sheet.item .window-content {
+  color: black;
+  background-color: #f1eee8;
+  background-image: url("../../../ui/parchment.jpg");
+  background-repeat: repeat;
+}
+.theme-light .application.cyberpunk.sheet.item h1.title,
+.theme-light .application.cyberpunk.sheet.item h1.title > input,
+.theme-light .application.cyberpunk.sheet.item .summary,
+.theme-light .application.cyberpunk.sheet.item textarea.flavor {
+  color: black;
 }
 
 .theme-dark .application.cyberpunk.sheet.item .window-content {
