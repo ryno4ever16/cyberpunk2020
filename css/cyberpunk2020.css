@@ -986,6 +986,10 @@ div.statderive .value.rightborder {
   font-weight: bold;
   border-bottom: 2px solid var(--cp-line, black);
 }
+/* Utility: hide a row/field without an inline style= (used by the ModifiersDialog
+   suppressive/autofire field toggle). !important so it wins over a row's natural display. */
+.cp-hidden { display: none !important; }
+
 /* Save-prompt chat-card helpers (replace the inline styles from the old hand-built cards). */
 .cyberpunk .save-prompt .save-note { opacity: 0.75; font-size: 0.85em; }
 .cyberpunk .save-prompt .save-buttons { margin-top: 6px; }

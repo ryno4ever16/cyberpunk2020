@@ -79,7 +79,10 @@ export class ModifiersDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     return this.options.name;
   }
 
-  async _prepareContext(_options) {
+  async _prepareContext(options) {
+    // Augment the base V2 context rather than replacing it (Tilt's sheet pattern) — more
+    // robust if the framework starts seeding context fields in a future Foundry version.
+    const context = await super._prepareContext(options);
     const groups = JSON.parse(JSON.stringify(this._modifierGroups || []));
 
     if (this._weapon) {
@@ -119,6 +122,7 @@ export class ModifiersDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     });
 
     return {
+      ...context,
       modifierGroups: groups,
       targetTokens: this._targetTokens,
       defaultValues,
@@ -438,9 +442,9 @@ function _collectParentRows(root, selectors) {
   return rows;
 }
 
-/** Show or hide an array of elements by toggling display:none. */
+/** Show or hide an array of elements by toggling the .cp-hidden CSS class. */
 function _setVisible(els, visible) {
   for (const el of els) {
-    el.style.display = visible ? "" : "none";
+    el.classList.toggle("cp-hidden", !visible);
   }
 }
