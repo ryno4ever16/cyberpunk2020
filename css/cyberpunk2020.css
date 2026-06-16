@@ -586,6 +586,18 @@ details[open] summary ~ * {
   padding: 0 8px;
 }
 
+/* Cyberware "🔧 Install (Surgery)" action button: size to its label instead of being
+   squeezed by the .field row (the emoji + text was overflowing the button bounds). */
+.cyberpunk .field button.cyber-install {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: max-content;
+  white-space: nowrap;
+  height: auto;
+  line-height: normal;
+  padding: 2px 8px;
+}
+
 .cyberpunk .field p {
   margin: 0px 3px 0px 3px;
 }
@@ -2510,6 +2522,13 @@ img#anatomy-img {
 /* Cyberware buy/install dialog: equal, non-wrapping action buttons. */
 .cp-cyber-install-dialog .dialog-buttons { gap: 6px; }
 .cp-cyber-install-dialog .dialog-buttons button { flex: 1 1 0; white-space: nowrap; min-width: 0; }
+
+/* Apply-damage "Select Target" dialog: three buttons share the row and the long
+   "Use Canvas Target" label overflowed its third. Size each button to its content
+   (min-width:max-content keeps the label+icon from spilling) and let them wrap if
+   the dialog is narrow, rather than clipping the text. */
+.cp-apply-target-dialog .dialog-buttons { gap: 6px; flex-wrap: wrap; }
+.cp-apply-target-dialog .dialog-buttons button { flex: 1 1 auto; min-width: max-content; white-space: nowrap; }
 
 /* ── Round-7: single window — home directory + vendor tray + context menu ── */
 .cp-shop-home { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; flex: 1 1 auto; min-height: 0; overflow-y: auto; }

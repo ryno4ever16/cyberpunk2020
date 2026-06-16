@@ -750,6 +750,7 @@ function _pickTargetDialog() {
 
     new foundry.applications.api.DialogV2({
       window: { title: "Apply Damage — Select Target" },
+      classes: ["cp-apply-target-dialog"],
       content,
       buttons: [
         {
