@@ -25,15 +25,20 @@
  * bottom is a thin wrapper: it rolls the dice, calls these functions, and renders a chat card.
  */
 
-import { localize, openSingletonDialog } from "../utils.js";
+import { localize, localizeParam, openSingletonDialog } from "../utils.js";
 import { effectiveVehicleRuleSystem } from "../settings.js";
+import { renderChatCard } from "../compat.js";
 
 const SCOPE = "cyberpunk2020";
 
 /** Difficulty Values shared by both systems (Core p.112 / MM p.11). */
 export const CONTROL_DV = { simple: 15, difficult: 20, veryDifficult: 25 };
 
-/** Example maneuvers per difficulty band, for the dialog's hint text (MM p.11 / Core p.112). */
+/**
+ * Example maneuvers per difficulty band (MM p.11 / Core p.112). The dialog hint renders the
+ * localized CYBERPUNK.Vehicle.ManeuverExamples_<band> keys (mirrors of these); this const remains
+ * the canonical English source and is the fixture the unit tests assert against.
+ */
 export const MANEUVER_EXAMPLES = {
   simple:        "swerve, take off / land, hover, rotate, mild turn",
   difficult:     "tight turn, control a skid, emergency stop, pull out of a dive, reverse",
@@ -226,7 +231,22 @@ export function composeControlOutcome(params = {}, dice = {}) {
  *  UI wrapper — Control Roll dialog + chat card (thin over the math). *
  * ------------------------------------------------------------------ */
 
-const SEV_COLOR = { minor: "#caa300", major: "#e07b00", catastrophic: "#ff3030", skid: "#caa300", "lose-control": "#e07b00" };
+/** Loss-outcome severity → shared result CSS class (no inline colour). minor = muted note. */
+const SEV_CLASS = { minor: "result-note", skid: "result-warn", major: "result-warn", "lose-control": "result-warn", catastrophic: "result-fail" };
+
+/**
+ * Render-edge label→key map for the roll/DV breakdown. resolveControlRoll (PURE, unit-tested) emits
+ * stable English part labels ("1d10", "REF", the difficulty key, …); we localize them here, at the
+ * impure edge, instead of in the pure function — keeping the deterministic tests i18n-free.
+ */
+const PART_LABEL_KEY = {
+  "1d10": "Vehicle.PartD10", "REF": "Vehicle.PartRef", "Skill": "Vehicle.PartSkill",
+  "Handling": "Vehicle.PartHandling", "Cyberlink": "Vehicle.PartCyberlink", "Speed": "Vehicle.PartSpeed",
+  "Can't see": "Vehicle.PartCantSee", "Multitasking": "Vehicle.PartMultitask",
+  "Slippery": "Vehicle.PartSlippery", "Icy": "Vehicle.PartIcy", "Other": "Vehicle.Other",
+  simple: "Vehicle.DiffName_simple", difficult: "Vehicle.DiffName_difficult", veryDifficult: "Vehicle.DiffName_veryDifficult",
+};
+const _partLabel = (label) => (PART_LABEL_KEY[label] ? localize(PART_LABEL_KEY[label]) : label);
 
 function _candidateDrivers(actor) {
   // Crew currently boarded to this vehicle on the canvas, then the user's owned characters.
@@ -246,11 +266,12 @@ function _candidateDrivers(actor) {
 
 const DRIVE_SKILLS = ["Driving", "Motorcycle", "Pilot", "OperateHeavyMachinery"];
 
-function _skillOptions(selected) {
+/** Drive-skill <select> options as a {value,label,selected} data array (template renders the HTML). */
+function _skillChoices(selected) {
   return DRIVE_SKILLS.map(k => {
     const label = (() => { try { return localize("Skill" + k); } catch { return k; } })();
-    return `<option value="${k}" ${k === selected ? "selected" : ""}>${label}</option>`;
-  }).join("");
+    return { value: k, label, selected: k === selected };
+  });
 }
 
 /**
@@ -261,7 +282,7 @@ function _skillOptions(selected) {
 export async function openControlRollDialog(actor, opts = {}) {
   if (!actor || actor.type !== "vehicle") return null;
   const enabled = (() => { try { return game.settings.get(SCOPE, "vehicleControlEnabled"); } catch { return true; } })();
-  if (!enabled) { ui.notifications?.warn?.("Vehicle control rolls are disabled in the system settings."); return null; }
+  if (!enabled) { ui.notifications?.warn?.(localize("Vehicle.ControlDisabled")); return null; }
   const ruleSystem = (() => { try { return effectiveVehicleRuleSystem(); } catch { return "Core"; } })();   // Core whenever Maximum Metal is off
   const isMM = ruleSystem === "MaximumMetal";
 
@@ -275,58 +296,36 @@ export async function openControlRollDialog(actor, opts = {}) {
   const speedRef = isMM ? (Number(sys.topSpeed) || 0) : (Number(sys.safeSpeed) || 0);
 
   const driverOptions = drivers.length
-    ? drivers.map(a => `<option value="${a.id}">${a.name}</option>`).join("")
-    : `<option value="">(manual entry)</option>`;
+    ? drivers.map(a => ({ value: a.id, label: a.name }))
+    : [{ value: "", label: localize("Vehicle.ManualEntry") }];
 
-  const mmConditions = `
-    <fieldset style="border:1px solid var(--color-border-light-tertiary); padding:4px 6px;">
-      <legend style="font-size:0.8em;">Conditions (raise Difficulty)</legend>
-      <label><input type="checkbox" id="cp-ctl-cantsee"> Can't see / no sensors (+10)</label><br>
-      <label><input type="checkbox" id="cp-ctl-multitask"> Doing something else (+5)</label><br>
-      <label><input type="checkbox" id="cp-ctl-slippery"> Slippery road (+3)</label>
-      <label style="margin-left:8px;"><input type="checkbox" id="cp-ctl-icy"> Icy road (+5)</label><br>
-      <label><input type="checkbox" id="cp-ctl-cyberlink"> Cyberlinked controls (+2 to roll)</label>
-    </fieldset>`;
+  const difficultyOptions = [
+    { value: "simple", label: localize("Vehicle.DiffSimpleOpt") },
+    { value: "difficult", label: localize("Vehicle.DiffDifficultOpt") },
+    { value: "veryDifficult", label: localize("Vehicle.DiffVeryDifficultOpt") },
+  ];
 
-  const content = `
-<div class="cyberpunk vehicle-control-dialog" style="display:flex; flex-direction:column; gap:6px;">
-  <div style="opacity:0.7; font-size:0.85em;">${isMM ? "Maximum Metal — Maneuver" : "Core — Control"} roll for <b>${actor.name}</b>.</div>
-  <label>Driver
-    <select id="cp-ctl-driver" style="margin-left:6px;">${driverOptions}</select>
-  </label>
-  <div style="display:flex; gap:8px;">
-    <label>REF <input type="number" id="cp-ctl-ref" value="${ref0}" style="width:56px;"></label>
-    <label>Skill
-      <select id="cp-ctl-skillkey" style="margin:0 4px;">${_skillOptions("Driving")}</select>
-      <input type="number" id="cp-ctl-skill" value="${skill0}" style="width:56px;">
-    </label>
-  </div>
-  <label>Maneuver
-    <select id="cp-ctl-difficulty" style="margin-left:6px;">
-      <option value="simple">Simple — 15</option>
-      <option value="difficult">Difficult — 20</option>
-      <option value="veryDifficult">Very Difficult — 25</option>
-    </select>
-  </label>
-  <div id="cp-ctl-maneuver-hint" style="font-size:0.78em; opacity:0.65;">${MANEUVER_EXAMPLES.simple}</div>
-  <div style="display:flex; gap:8px; align-items:center;">
-    <label>Current speed <input type="number" id="cp-ctl-speed" value="0" style="width:64px;"></label>
-    <span style="font-size:0.78em; opacity:0.65;">${isMM ? `top ${speedRef}` : `safe ${speedRef}`} (${isMM ? "kph÷1.2 or mph×1.33 = m/turn" : "same units as safe speed"})</span>
-  </div>
-  <label>Vehicle handling mod <input type="number" id="cp-ctl-handling" value="${handling0}" style="width:56px;"></label>
-  ${isMM ? mmConditions : `<label>Other modifier to roll <input type="number" id="cp-ctl-other" value="0" style="width:56px;"></label>`}
-  ${isMM ? `<label>Other Difficulty modifier <input type="number" id="cp-ctl-otherdv" value="0" style="width:56px;"></label>` : ""}
-</div>`;
+  const speedHint = `${localizeParam(isMM ? "Vehicle.SpeedRefTop" : "Vehicle.SpeedRefSafe", { speed: speedRef })} `
+    + `(${localize(isMM ? "Vehicle.SpeedUnitsMM" : "Vehicle.SpeedUnitsCore")})`;
+
+  const content = await renderChatCard("vehicle/control-dialog.hbs", {
+    isMM, actorName: actor.name,
+    systemLabel: localize(isMM ? "Vehicle.ControlSystemMM" : "Vehicle.ControlSystemCore"),
+    driverOptions, skillOptions: _skillChoices("Driving"), difficultyOptions,
+    ref0, skill0, handling0,
+    maneuverHint: localize("Vehicle.ManeuverExamples_simple"),
+    speedHint,
+  });
 
   const driversById = Object.fromEntries(drivers.map(a => [a.id, a]));
 
   const dialog = new foundry.applications.api.DialogV2({
-    window: { title: `🎲 ${isMM ? "Maneuver" : "Control"} Roll — ${actor.name}` },
+    window: { title: localizeParam("Vehicle.ControlRollTitle", { mode: localize(isMM ? "Vehicle.ModeManeuver" : "Vehicle.ModeControl"), actor: actor.name }) },
     content,
     buttons: [
       {
         action: "roll",
-        label: "🎲 Roll",
+        label: localize("Vehicle.RollBtn"),
         default: true,
         callback: async (ev, btn, dlg) => {
           const root = dlg.element;
@@ -353,7 +352,7 @@ export async function openControlRollDialog(actor, opts = {}) {
           });
         },
       },
-      { action: "cancel", label: "Cancel" },
+      { action: "cancel", label: localize("Cancel") },
     ],
     render: (event, dlg) => {
       const root = dlg.element;
@@ -375,7 +374,7 @@ export async function openControlRollDialog(actor, opts = {}) {
       };
       driverSel?.addEventListener("change", refreshDriver);
       skillKey?.addEventListener("change", refreshSkill);
-      diffSel?.addEventListener("change", () => { if (hint) hint.textContent = MANEUVER_EXAMPLES[diffSel.value] ?? ""; });
+      diffSel?.addEventListener("change", () => { if (hint) hint.textContent = localize("Vehicle.ManeuverExamples_" + diffSel.value); });
     },
   });
   return openSingletonDialog(`vehicle-control:${actor.id}`, () => dialog);
@@ -411,44 +410,46 @@ async function _executeControlRoll(actor, p) {
   }
 
   const { result, outcome } = composeControlOutcome(params, dice);
-  let lossHtml = "";
+
+  // Roll/DV breakdowns: resolveControlRoll's part labels (English) are localized here via
+  // _partLabel; the +/− signs and "a + b" joining are display-only number formatting.
+  const rollBreakdown = result.rollParts
+    .map(part => `${_partLabel(part.label)} ${part.value >= 0 ? "+" : "−"}${Math.abs(part.value)}`)
+    .join(" ").replace(/^[+−]/, "");
+  const dvBreakdown = result.dvParts.map(part => `${_partLabel(part.label)} ${part.value}`).join(" + ");
+
+  const ctx = {
+    modeLabel: localize(p.isMM ? "Vehicle.ModeManeuver" : "Vehicle.ModeControl"),
+    actorName: actor.name,
+    driverName: p.driver?.name ?? localize("Vehicle.Driver"),
+    diffName: localize("Vehicle.DiffName_" + p.difficulty),
+    total: result.total, dv: result.dv, rollBreakdown, dvBreakdown,
+    success: result.success, missedBy: result.missedBy,
+    hasLoss: !!outcome,
+  };
   if (outcome) {
-    const rollStr = result.isMM
-      ? `1d6 ${dice.tableD6} + ${Math.floor(result.missedBy / 3)} (missed by ${result.missedBy}) = <b>${outcome.tableTotal}</b>`
-      : `1d6 = <b>${dice.tableD6}</b>`;
-    lossHtml = _lossCard(result.isMM ? "Failure Table" : "Control Loss Table", rollStr, outcome);
+    ctx.lossTable = localize(p.isMM ? "Vehicle.FailureTable" : "Vehicle.ControlLossTable");
+    ctx.lossRoll = p.isMM
+      ? localizeParam("Vehicle.LossRollMM", { d6: dice.tableD6, bonus: Math.floor(result.missedBy / 3), missedBy: result.missedBy, total: outcome.tableTotal })
+      : localizeParam("Vehicle.LossRollCore", { d6: dice.tableD6 });
+    ctx.lossBand = outcome.band;
+    ctx.lossSevClass = SEV_CLASS[outcome.severity] ?? "result-warn";
+    // outcome.text is the pure loss tables' English sentence (rolled numbers baked in). Its exact
+    // substrings are asserted by the deterministic RAW-outcome tests, so it is left in English here;
+    // localizing the pure tables is a separate i18n pass (see control-result.hbs).
+    ctx.lossText = outcome.text;
   }
 
-  const rollPartsStr = result.rollParts.map(p2 => `${p2.label} ${p2.value >= 0 ? "+" : "−"}${Math.abs(p2.value)}`).join(" ").replace(/^[+−]/, "");
-  const dvPartsStr = result.dvParts.map(p2 => `${p2.label} ${p2.value}`).join(" + ");
-  const driverName = p.driver?.name ?? "Driver";
-  const verdict = result.success
-    ? `<span style="color:#3ad13a;font-weight:bold;">✅ SUCCESS</span> — ${actor.name} holds the line.`
-    : `<span style="color:#ff3030;font-weight:bold;">❌ FAILED</span> — control lost (rolled below DV by ${result.missedBy}).`;
-
-  const content = `
-<div class="cyberpunk vehicle-control-result">
-  <h3>🎲 ${p.isMM ? "Maneuver" : "Control"} Roll — ${actor.name}</h3>
-  <div style="font-size:0.9em;">${driverName} · <b>${p.difficulty}</b> maneuver</div>
-  <div style="margin-top:2px;">Roll: <b>${result.total}</b> (${rollPartsStr}) vs DV <b>${result.dv}</b> (${dvPartsStr})</div>
-  <div style="margin-top:4px;">${verdict}</div>
-  ${lossHtml}
-</div>`;
+  const content = await renderChatCard("vehicle/control-result.hbs", ctx);
 
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
-    flavor: `${p.isMM ? "Maximum Metal" : "Core"} ${p.difficulty} maneuver — need ≥ ${result.dv}`,
+    flavor: localizeParam("Vehicle.ControlFlavor", {
+      system: localize(p.isMM ? "Vehicle.SystemMM" : "Vehicle.SystemCore"),
+      difficulty: ctx.diffName, dv: result.dv,
+    }),
     content,
     rolls,
   });
   return result;
-}
-
-function _lossCard(tableName, rollStr, outcome) {
-  const color = SEV_COLOR[outcome.severity] ?? "#e07b00";
-  return `
-  <div style="margin-top:6px; border-top:1px solid var(--color-border-dark-tertiary); padding-top:4px;">
-    <div style="font-size:0.85em; opacity:0.8;">${tableName}: ${rollStr} → <b>${outcome.band}</b></div>
-    <div style="margin-top:2px; color:${color};">${outcome.text}</div>
-  </div>`;
 }
