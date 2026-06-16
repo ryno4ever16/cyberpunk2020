@@ -460,6 +460,7 @@
     "CYBERPUNK.ProgramDeactivated": "The program has been taken off the active ones.",
     "CYBERPUNK.NotAProgram": "It's not a program: {name}",
     "CYBERPUNK.ProgramAlreadyExists": "The program ‘{name}’ is already in the list.",
+    "CYBERPUNK.DuplicateSkillAdded": "This character already has a skill named ‘{name}’. Added another — some skills (e.g. Play Instrument, Teaching) are taken multiple times; rename it to keep them distinct.",
     "CYBERPUNK.OnlyProgramsCanBeActivated": "Only programs can be activated. This is not a program: {name}",
     "CYBERPUNK.NotEnoughRAM": "Not enough free RAM to load “{name}” — {used}/{max} MU already in use.",
     "CYBERPUNK.NoCombatantForActor": "No combatant found for this actor.",

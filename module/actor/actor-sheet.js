@@ -1873,6 +1873,25 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
   }
 
   /**
+   * Warn (but do NOT block) when dropping a skill the actor already has, matched by normalized name.
+   * Several CP2020 skills are legitimately taken multiple times for different foci (Play Instrument,
+   * Teaching, Perform, Composition, …) and our compendium ships them under one generic name, so a hard
+   * block would break those — this just flags accidental sheet→sheet / compendium duplicates. The drop
+   * still proceeds. Side-effect-free (resolve + notify only).
+   * @param {object} data  the drop payload
+   * @private
+   */
+  async _cpWarnDuplicateSkillDrop(data) {
+    try {
+      const { itemData } = await this._cpResolveDroppedItem(data);
+      if (itemData?.type !== "skill") return;
+      const norm = (s) => String(s ?? "").trim().toLowerCase();
+      const has = this.actor.items.some(i => i.type === "skill" && norm(i.name) === norm(itemData.name));
+      if (has) ui.notifications?.warn(localize("DuplicateSkillAdded", { name: itemData.name }));
+    } catch (_) { /* resolution failed → leave it to the normal drop flow */ }
+  }
+
+  /**
    * Return an owned Item for a drop target, creating one only for external drops.
    *
    * @param {object} data
@@ -1944,6 +1963,7 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
 
     if (!dropTarget) {
       if (sameActorDrop) return false;
+      await this._cpWarnDuplicateSkillDrop(data);
       return super._onDropItem(event, data);
     }
 
@@ -2104,6 +2124,7 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     }
 
     if (sameActorDrop) return false;
+    await this._cpWarnDuplicateSkillDrop(data);
     return super._onDropItem(event, data);
   }
   async _cp_syncChipLevelsToSkills() {
