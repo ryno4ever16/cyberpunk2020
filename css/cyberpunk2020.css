@@ -989,6 +989,29 @@ div.statderive .value.rightborder {
 /* Save-prompt chat-card helpers (replace the inline styles from the old hand-built cards). */
 .cyberpunk .save-prompt .save-note { opacity: 0.75; font-size: 0.85em; }
 .cyberpunk .save-prompt .save-buttons { margin-top: 6px; }
+
+/* Stun/Death/Stabilize save cards (replace the inline styles from the old hand-built cards). */
+.cyberpunk .result-success { color: #1f9d2f; font-weight: bold; }
+.cyberpunk .result-fail { color: #d1502f; font-weight: bold; }
+.cyberpunk .result-line { margin-top: 4px; }
+.cyberpunk .result-note { margin-top: 4px; font-size: 0.85em; opacity: 0.75; }
+.cyberpunk .result-note.danger { color: #d1502f; opacity: 1; }
+.cyberpunk .taser-warning { color: #c25e00; font-weight: bold; }
+.cyberpunk .stabilize-block {
+  margin-top: 6px;
+  border-top: 1px solid var(--cp-line, #ccc);
+  padding-top: 4px;
+  font-size: 0.85em;
+}
+.cyberpunk .stabilize-block .stabilize-hint { opacity: 0.8; }
+.cyberpunk .stabilize-block button { margin-top: 4px; }
+
+/* Stabilization input dialog (DialogV2 content — no .cyberpunk wrapper). */
+.cp-stabilize-dialog { padding: 4px; }
+.cp-stabilize-dialog .intro { margin: 0 0 8px; }
+.cp-stabilize-dialog .fields { display: flex; flex-direction: column; gap: 6px; }
+.cp-stabilize-dialog input[type="number"] { width: 60px; margin-left: 8px; }
+.cp-stabilize-dialog select { margin-left: 8px; }
 .cyberpunk-card .roll-image {
   margin-right: 5px;
 }

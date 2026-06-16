@@ -1,6 +1,12 @@
 import { onGlobalClick } from "../popout-compat.js";
 import { localize, localizeParam } from "../utils.js";
 
+/** Render a chat-card template under templates/chat/ to an HTML string (v13/v14 safe). */
+function _renderChatTemplate(name, data) {
+  const render = foundry?.applications?.handlebars?.renderTemplate ?? renderTemplate;
+  return render(`systems/cyberpunk2020/templates/chat/${name}`, data);
+}
+
 /**
  * Render and post the generic save-prompt chat card (templates/chat/save-prompt.hbs).
  * Replaces the module's hand-built inline-HTML cards with one template. `title`/`body`
@@ -8,8 +14,7 @@ import { localize, localizeParam } from "../utils.js";
  * through to ChatMessage.create. Returns the create() promise.
  */
 export async function postSavePromptCard({ title = "", body = "", speaker, flags } = {}) {
-  const render = foundry?.applications?.handlebars?.renderTemplate ?? renderTemplate;
-  const content = await render("systems/cyberpunk2020/templates/chat/save-prompt.hbs", { title, body });
+  const content = await _renderChatTemplate("save-prompt.hbs", { title, body });
   const data = { content };
   if (speaker) data.speaker = speaker;
   if (flags) data.flags = flags;
@@ -247,12 +252,12 @@ export function getDeathThreshold(actor) {
 }
 
 function getWoundStateLabel(woundState) {
-  const labels = [
-    "Uninjured", "Light", "Serious", "Critical",
-    "Mortal 0", "Mortal 1", "Mortal 2", "Mortal 3",
-    "Mortal 4", "Mortal 5", "Mortal 6",
-  ];
-  return labels[Math.min(woundState, 10)] ?? `Mortal ${woundState - 4}`;
+  if (woundState <= 0) return localize("Uninjured");
+  if (woundState === 1) return localize("Light");
+  if (woundState === 2) return localize("Serious");
+  if (woundState === 3) return localize("Critical");
+  // Mortal 0..6 (the stun table defines no further — cap at Mortal 6).
+  return localizeParam("Mortal", { mortality: Math.min(woundState, 10) - 4 });
 }
 
 function getTokenId(actor) {
@@ -268,27 +273,18 @@ export async function postStunSavePrompt(actor, token = null) {
   const tokenId      = token?.id ?? getTokenId(actor);
   const sceneId      = token?.scene?.id ?? canvas?.scene?.id ?? "";
 
-  const taserLine = taserPenalty > 0
-    ? `<br><span style="color:#ff8800;"><b>⚡ Taser ×${actor.getFlag?.("cyberpunk2020", "taserState")?.count ?? 1} (−${taserPenalty} cumulative)</b></span>`
-    : "";
+  // Conditional deduction clauses assembled in JS (the GasCloudPenaltyClause pattern);
+  // threshold is already floored to ≥ 1 by getStunThreshold, so no floored note is shown.
+  const woundClause = penalty > 0      ? localizeParam("StunWoundPenaltyClause", { penalty }) : "";
+  const taserClause = taserPenalty > 0 ? localizeParam("StunTaserPenaltyClause", { penalty: taserPenalty }) : "";
+  const taserCount  = actor.getFlag?.("cyberpunk2020", "taserState")?.count ?? 1;
 
-  const content = `
-<div class="cyberpunk save-prompt stun-save-prompt">
-  <h3>⚡ Stun / Shock Save — ${actor.name}</h3>
-  <div class="save-info">
-    <span><b>Wound State:</b> ${getWoundStateLabel(woundState)}</span><br>
-    <span><b>BT ${bt}${penalty > 0 ? ` − ${penalty} (wound penalty)` : ""}${taserPenalty > 0 ? ` − ${taserPenalty} (taser)` : ""} = ${threshold}</b>${threshold < 1 ? " → floored to 1" : ""}</span>${taserLine}<br>
-    <span>Must roll <b>≤ ${threshold}</b> on 1d10 to stay conscious</span>
-  </div>
-  <div class="save-buttons" style="margin-top:6px;">
-    <button class="cp-stun-save-roll"
-      data-actor-id="${actor.id}"
-      data-token-id="${tokenId}"
-      data-scene-id="${sceneId}">
-      🎲 Roll Stun Save (≤ ${threshold})
-    </button>
-  </div>
-</div>`;
+  const content = await _renderChatTemplate("stun-save-prompt.hbs", {
+    actorName: actor.name,
+    woundLabel: getWoundStateLabel(woundState),
+    bt, woundClause, taserClause, taserPenalty, taserCount, threshold,
+    actorId: actor.id, tokenId, sceneId,
+  });
 
   await ChatMessage.create({
     content,
@@ -313,30 +309,13 @@ export async function postDeathSavePrompt(actor, token = null, forcedMortalLevel
   const sceneId     = token?.scene?.id ?? canvas?.scene?.id ?? "";
   const isAutoDeath = threshold < 1;              // threshold 0 = no roll possible
 
-  const content = `
-<div class="cyberpunk save-prompt death-save-prompt">
-  <h3>☠ Death Save — ${actor.name}</h3>
-  <div class="save-info">
-    <span><b>Wound State:</b> Mortal ${mortalLevel}</span><br>
-    <span><b>BT ${bt} − Mortal ${mortalLevel} = ${threshold}</b>${isAutoDeath ? " → automatic death" : ""}</span><br>
-    ${isAutoDeath
-      ? `<span style="color:red;"><b>⚠ Automatic death</b> — threshold is 0, no roll can succeed.</span>`
-      : `<span>Must roll <b>≤ ${threshold}</b> on 1d10 to survive this turn</span>`
-    }
-  </div>
-  <div class="save-buttons" style="margin-top:6px;">
-    ${isAutoDeath
-      ? `<div style="margin-top:4px; font-size:0.85em; color:red;">Call Trauma Team immediately.</div>`
-      : `<button class="cp-death-save-roll"
-          data-actor-id="${actor.id}"
-          data-token-id="${tokenId}"
-          data-scene-id="${sceneId}"
-          data-mortal-level="${mortalLevel}">
-          🎲 Roll Death Save (≤ ${threshold})
-        </button>`
-    }
-  </div>
-</div>`;
+  const content = await _renderChatTemplate("death-save-prompt.hbs", {
+    actorName: actor.name,
+    woundText: localizeParam("Mortal", { mortality: mortalLevel }),
+    bt, mortalLevel, threshold, isAutoDeath,
+    autoDeathClause: isAutoDeath ? localize("DeathSaveAutoSuffix") : "",
+    actorId: actor.id, tokenId, sceneId,
+  });
 
   await ChatMessage.create({
     content,
@@ -386,20 +365,14 @@ export async function executeStunSave({ actorId, tokenId, sceneId }) {
   const success   = result <= threshold;
   const woundLabel = getWoundStateLabel(actor.woundState?.() ?? 1);
 
-  const resultHtml = success
-    ? `<span style="color:green;font-weight:bold;">✅ SUCCESS (rolled ${result} ≤ ${threshold})</span> — ${actor.name} stays in the fight.`
-    : `<span style="color:red;font-weight:bold;">❌ FAILED (rolled ${result} > ${threshold})</span> — ${actor.name} is <b>stunned/unconscious</b>.`;
+  const content = await _renderChatTemplate("stun-save-result.hbs", {
+    actorName: actor.name, woundLabel, result, threshold, success,
+  });
 
   await roll.toMessage({
     speaker: ChatMessage.getSpeaker({ actor }),
-    flavor:  `Stun Save — ${woundLabel} — need ≤ ${threshold}`,
-    content: `
-<div class="cyberpunk save-result stun-save-result">
-  <h3>⚡ Stun Save — ${actor.name}</h3>
-  <div>${woundLabel} | Roll: <b>${result}</b> vs threshold <b>${threshold}</b></div>
-  <div style="margin-top:4px;">${resultHtml}</div>
-  ${!success ? `<div style="margin-top:4px; font-size:0.85em; color:var(--color-text-dark-inactive);">Can recover by rolling a successful Stun Save on a subsequent turn.</div>` : ""}
-</div>`,
+    flavor:  localizeParam("StunSaveFlavor", { wound: woundLabel, threshold }),
+    content,
   });
 
   if (!success) {
@@ -419,11 +392,11 @@ export async function executeDeathSave({ actorId, tokenId, sceneId, mortalLevel 
 
   // Threshold 0 = auto-death (roll ≤ 0 on d10 is impossible)
   if (threshold < 1) {
+    const content = await _renderChatTemplate("death-save-result.hbs", {
+      actorName: actor.name, isAutoDeath: true,
+    });
     await ChatMessage.create({
-      content: `<div class="cyberpunk save-result death-save-result">
-        <h3>☠ Death Save — ${actor.name}</h3>
-        <div><span style="color:red;font-weight:bold;">☠ AUTOMATIC DEATH</span> — Death Save threshold is 0 (roll ≤ 0 on 1d10 is impossible). ${actor.name} dies.</div>
-      </div>`,
+      content,
       speaker: ChatMessage.getSpeaker({ actor }),
     });
     await _applyStatusEffect(actorId, tokenId, sceneId, "dead", false);
@@ -435,31 +408,18 @@ export async function executeDeathSave({ actorId, tokenId, sceneId, mortalLevel 
   // RAW: "equal to or lower than" — roll ≤ threshold to survive
   const success = result <= threshold;
 
-  const resultHtml = success
-    ? `<span style="color:green;font-weight:bold;">✅ SURVIVED (rolled ${result} ≤ ${threshold})</span> — ${actor.name} clings to life. Another save required next turn.`
-    : `<span style="color:red;font-weight:bold;">☠ DIED (rolled ${result} > ${threshold})</span> — ${actor.name} dies at end of this turn. Call Trauma Team.`;
-
-  const stabilizeHtml = success ? `
-    <div style="margin-top:6px; border-top:1px solid var(--color-border-dark-tertiary); padding-top:4px; font-size:0.85em;">
-      <span style="opacity:0.8;">Stabilize: TECH + Medical + 1d10 ≥ total damage (${Number(actor.system?.damage) || 0} pts)</span>
-      <button class="cp-stabilize-roll" style="margin-top:4px;"
-        data-actor-id="${actorId}"
-        data-token-id="${tokenId}"
-        data-scene-id="${sceneId}">
-        💉 Attempt Stabilization
-      </button>
-    </div>` : "";
+  const content = await _renderChatTemplate("death-save-result.hbs", {
+    actorName: actor.name, isAutoDeath: false,
+    mortalLevel, result, threshold, success,
+    showStabilize: success,
+    totalDamage: Number(actor.system?.damage) || 0,
+    actorId, tokenId, sceneId,
+  });
 
   await roll.toMessage({
     speaker: ChatMessage.getSpeaker({ actor }),
-    flavor:  `Death Save — Mortal ${mortalLevel} — need ≤ ${threshold}`,
-    content: `
-<div class="cyberpunk save-result death-save-result">
-  <h3>☠ Death Save — ${actor.name}</h3>
-  <div>Mortal ${mortalLevel} | Roll: <b>${result}</b> vs threshold <b>${threshold}</b></div>
-  <div style="margin-top:4px;">${resultHtml}</div>
-  ${stabilizeHtml}
-</div>`,
+    flavor:  localizeParam("DeathSaveFlavor", { mortal: mortalLevel, threshold }),
+    content,
   });
 
   if (!success) {
@@ -484,29 +444,12 @@ export async function executeStabilize({ actorId }) {
   const techVal     = Number(actor.system?.stats?.tech?.total) || 0;
   const medSkill    = actor.getSkillVal?.("MedicalTech") ?? 0;
 
-  const dialogContent = `
-<div style="padding:4px;">
-  <p style="margin:0 0 8px;">TECH + Medical Skill + 1d10 must equal or exceed <b>${totalDamage}</b> total damage.</p>
-  <div style="display:flex; flex-direction:column; gap:6px;">
-    <label>TECH stat
-      <input type="number" id="cp-stab-tech" value="${techVal}" style="width:60px; margin-left:8px;">
-    </label>
-    <label>Medical Skill (Medical Tech or First Aid)
-      <input type="number" id="cp-stab-med" value="${medSkill}" style="width:60px; margin-left:8px;">
-    </label>
-    <label>Facility Bonus
-      <select id="cp-stab-facility" style="margin-left:8px;">
-        <option value="0">None</option>
-        <option value="3">Trauma Team (+3)</option>
-        <option value="5">Full Hospital &amp; Surgery (+5)</option>
-        <option value="3" id="life-tank">Life Suspension Tank (+3)</option>
-      </select>
-    </label>
-  </div>
-</div>`;
+  const dialogContent = await _renderChatTemplate("stabilize-dialog.hbs", {
+    totalDamage, techVal, medSkill,
+  });
 
   new foundry.applications.api.DialogV2({
-    window: { title: `Stabilize — ${actor.name}` },
+    window: { title: localizeParam("StabilizeDialogTitle", { name: actor.name }) },
     content: dialogContent,
     buttons: [
       {
@@ -524,20 +467,22 @@ export async function executeStabilize({ actorId }) {
           const total  = tech + med + facility + result;
           const success = total >= totalDamage;
 
-          const resultMsg = success
-            ? `<span style="color:green;font-weight:bold;">✅ STABILIZED</span> — Roll total: <b>${tech}+${med}${facility > 0 ? `+${facility}` : ""}+${result} = ${total}</b> ≥ ${totalDamage}. No further Death Saves required.`
-            : `<span style="color:red;font-weight:bold;">❌ FAILED</span> — Roll total: <b>${tech}+${med}${facility > 0 ? `+${facility}` : ""}+${result} = ${total}</b> < ${totalDamage}. Death Saves continue next turn.`;
+          // Arithmetic-only total string + the conditional facility clause (the
+          // GasCloudPenaltyClause pattern) are assembled in JS for the template.
+          const breakdown = facility > 0
+            ? `${tech}+${med}+${facility}+${result} = ${total}`
+            : `${tech}+${med}+${result} = ${total}`;
+          const facilityClause = facility > 0 ? localizeParam("StabilizeFacilityClause", { facility }) : "";
+
+          const content = await _renderChatTemplate("stabilize-result.hbs", {
+            actorName: actor.name, totalDamage, tech, med,
+            facility: facilityClause, result, total, breakdown, success,
+          });
 
           await roll.toMessage({
             speaker: ChatMessage.getSpeaker({ actor }),
-            flavor:  `Stabilization — ${actor.name}`,
-            content: `
-<div class="cyberpunk save-result">
-  <h3>💉 Stabilization — ${actor.name}</h3>
-  <div>Target: ≥ ${totalDamage} | TECH ${tech} + Medical ${med}${facility > 0 ? ` + Facility ${facility}` : ""} + Roll ${result} = <b>${total}</b></div>
-  <div style="margin-top:4px;">${resultMsg}</div>
-  ${success ? `<div style="margin-top:4px; font-size:0.85em; opacity:0.7;">If new damage is taken, stabilization is lost and Death Saves restart.</div>` : ""}
-</div>`,
+            flavor:  localizeParam("StabilizeFlavor", { name: actor.name }),
+            content,
           });
 
           if (success) {
