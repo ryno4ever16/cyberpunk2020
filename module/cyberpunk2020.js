@@ -28,6 +28,7 @@ import * as migrations from "./migrate.js";
 import { registerSystemSettings } from "./settings.js"
 import { getHtmlElement } from "./compat.js";
 import { registerDamageHooks } from "./combat/damage-hooks.js";
+import { registerMovementGate } from "./combat/movement-gate.js";
 import { registerSaveRollHandlers, postSavePrompts } from "./combat/save-rolls.js";
 import { registerVehicleCanvasHooks, deployVehicleToScene, boardVehicle, disembark } from "./vehicle/vehicle-canvas.js";
 import { openControlRollDialog } from "./vehicle/vehicle-control.js";
@@ -207,6 +208,9 @@ Hooks.once("ready", async function () {
 
   // Register damage automation hooks (all users)
   registerDamageHooks();
+
+  // Register the optional once-per-turn movement gate (all users; gated by its setting)
+  registerMovementGate();
 
   // Register stun/death save chat button handlers (all users)
   registerSaveRollHandlers();

@@ -1761,7 +1761,13 @@ function _hookMultiActionPenalty() {
   });
 
   Hooks.on("cyberpunk2020.weaponFired", (payload) => {
-    if (!_isMultiActionEnabled() || !_isMultiActionAutoTrack()) return;
+    // Stamp the shared per-round action counter on weapon fire. This is the single increment site
+    // (a second listener would double-count). It fires when multi-action auto-tracking is on, OR
+    // when the once-per-turn movement gate is on — the gate reads the same counter to lock movement
+    // after a tracked action, so it needs weapon fire to register even when the penalty is off.
+    const trackForMultiAction = _isMultiActionEnabled() && _isMultiActionAutoTrack();
+    const trackForMovementGate = (() => { try { return game.settings.get("cyberpunk2020", "restrictMovementOncePerTurn") === true; } catch { return false; } })();
+    if (!trackForMultiAction && !trackForMovementGate) return;
     const actorId = payload.attackerId ?? payload.actorId;
     const actor = actorId ? game.actors.get(actorId) : null;
     if (!actor) return;

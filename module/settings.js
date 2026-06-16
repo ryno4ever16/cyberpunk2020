@@ -645,6 +645,16 @@ export function registerSystemSettings() {
     default: false,
   });
 
+  // --- Combat: optional movement restriction (CP2020 p.99) ---
+  game.settings.register("cyberpunk2020", "restrictMovementOncePerTurn", {
+    name: "SETTINGS.RestrictMovementOncePerTurn",
+    hint: "SETTINGS.RestrictMovementOncePerTurnHint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false,
+  });
+
   // --- Optional rules: Armor Layers ---
   game.settings.register("cyberpunk2020", "damageLayersEnabled", {
     name: "Armor: Show Layer Compliance Panel",
