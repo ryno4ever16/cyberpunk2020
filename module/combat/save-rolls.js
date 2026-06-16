@@ -2,6 +2,21 @@ import { onGlobalClick } from "../popout-compat.js";
 import { localize, localizeParam } from "../utils.js";
 
 /**
+ * Render and post the generic save-prompt chat card (templates/chat/save-prompt.hbs).
+ * Replaces the module's hand-built inline-HTML cards with one template. `title`/`body`
+ * are PRE-LOCALIZED strings (may carry light <b> emphasis); pass `speaker`/`flags`
+ * through to ChatMessage.create. Returns the create() promise.
+ */
+export async function postSavePromptCard({ title = "", body = "", speaker, flags } = {}) {
+  const render = foundry?.applications?.handlebars?.renderTemplate ?? renderTemplate;
+  const content = await render("systems/cyberpunk2020/templates/chat/save-prompt.hbs", { title, body });
+  const data = { content };
+  if (speaker) data.speaker = speaker;
+  if (flags) data.flags = flags;
+  return ChatMessage.create(data);
+}
+
+/**
  * save-rolls.js  —  module/combat/save-rolls.js
  *
  * STUN/SHOCK SAVE (CP2020 p.99):

@@ -22,7 +22,7 @@ import { DamageDialog }                                       from "./DamageDial
 import { AutomationNotice }                                   from "../dialog/automation-notice.js";
 import { onGlobalClick } from "../popout-compat.js";
 import { applyAreaDamages, ablateLocationOnce, ablateLocationByAmount, assessWoundSeverity, ARMOR_MODES } from "./DamageApplicator.js";
-import { postStunSavePrompt, postDeathSavePrompt, updateTaserState, applyAcidDotState, applyDotFromPayload } from "./save-rolls.js";
+import { postStunSavePrompt, postDeathSavePrompt, updateTaserState, applyAcidDotState, applyDotFromPayload, postSavePromptCard } from "./save-rolls.js";
 import { rollLocation, localize, localizeParam }              from "../utils.js";
 import { dispatchAttack }                                     from "../vehicle/vehicle-targeting.js";
 import { createArea, tokensInArea, areasByFlag, deleteArea, areaById, usesRegions, moveArea } from "./area-shapes.js";
@@ -185,8 +185,9 @@ export function registerDamageHooks() {
       await combatant.setFlag("cyberpunk2020", "waitingAfterId", targetId);
       await combat.nextTurn();
 
-      await ChatMessage.create({
-        content: `<div class="cyberpunk save-prompt"><h3>⏸ ${combatant.name} is WAITING</h3><div class="save-info">Acting after <b>${targetName}</b>. A prompt will appear when their turn ends.</div></div>`,
+      await postSavePromptCard({
+        title: localizeParam("WaitingTitle", { name: combatant.name }),
+        body: localizeParam("WaitingBody", { target: targetName }),
         speaker: ChatMessage.getSpeaker({ actor: combatant.actor ?? undefined }),
       });
     }
@@ -202,8 +203,9 @@ export function registerDamageHooks() {
       } else {
         await actor.setFlag("cyberpunk2020", "dodging", true);
         if (_isMultiActionEnabled() && _isMultiActionAutoTrack()) await _incrementActionCount(actor);
-        await ChatMessage.create({
-          content: `<div class="cyberpunk save-prompt"><h3>🛡 ${actor.name} declares DODGE</h3><div class="save-info">All incoming melee attacks this round are at <b>−2</b> to the attacker's roll. Dodge clears at the start of ${actor.name}'s next turn. (CP2020 p.102)</div></div>`,
+        await postSavePromptCard({
+          title: localizeParam("DodgeDeclareTitle", { name: actor.name }),
+          body: localizeParam("DodgeDeclareBody", { name: actor.name }),
           speaker: ChatMessage.getSpeaker({ actor }),
         });
       }
@@ -221,8 +223,9 @@ export function registerDamageHooks() {
       } else {
         await actor.setFlag("cyberpunk2020", "parrying", true);
         if (_isMultiActionEnabled() && _isMultiActionAutoTrack()) await _incrementActionCount(actor);
-        await ChatMessage.create({
-          content: `<div class="cyberpunk save-prompt"><h3>⛨ ${actor.name} declares PARRY</h3><div class="save-info">The next incoming melee attack is <b>automatically blocked</b>. Parry is consumed on first use. The parrying character takes −3 to all other actions this turn. (CP2020 p.102)</div></div>`,
+        await postSavePromptCard({
+          title: localizeParam("ParryDeclareTitle", { name: actor.name }),
+          body: localize("ParryDeclareBody"),
           speaker: ChatMessage.getSpeaker({ actor }),
         });
       }
@@ -237,8 +240,9 @@ export function registerDamageHooks() {
       if (!combatant) return;
       await combatant.unsetFlag("cyberpunk2020", "waitingForTurn");
       await combatant.unsetFlag("cyberpunk2020", "waitingAfterId").catch(() => {});
-      await ChatMessage.create({
-        content: `<div class="cyberpunk save-prompt"><h3>⚡ ${combatant.name} takes their delayed action</h3><div class="save-info">Use the character sheet to fire weapons or take actions.</div></div>`,
+      await postSavePromptCard({
+        title: localizeParam("ActNowTitle", { name: combatant.name }),
+        body: localize("ActNowBody"),
         speaker: ChatMessage.getSpeaker({ actor: combatant.actor ?? undefined }),
       });
       ui.combat?.render();
@@ -933,8 +937,9 @@ function _hookWaitForTurn() {
       if (!combatant.getFlag("cyberpunk2020", "waitingForTurn")) continue;
       if (combatant.getFlag("cyberpunk2020", "waitingAfterId") !== justActed.id) continue;
 
-      await ChatMessage.create({
-        content: `<div class="cyberpunk save-prompt"><h3>⏸→⚡ ${combatant.name} — YOUR MOMENT!</h3><div class="save-info"><b>${justActed.name}</b> just acted. Click ⚡ in the tracker to announce your delayed action, then fire from your character sheet.</div></div>`,
+      await postSavePromptCard({
+        title: localizeParam("YourMomentTitle", { name: combatant.name }),
+        body: localizeParam("YourMomentBody", { name: justActed.name }),
         speaker: ChatMessage.getSpeaker({ actor: combatant.actor ?? undefined }),
       });
     }
@@ -1070,8 +1075,8 @@ function _hookDotEffects() {
           }
           const newTurnsLeft = turnsLeft - 1;
           if (newTurnsLeft <= 0) {
-            await ChatMessage.create({
-              content: `<div class="cyberpunk save-prompt">⚗ <b>${actor.name}</b> — Acid effect at <b>${location}</b> expired. Armor SP degradation complete.</div>`,
+            await postSavePromptCard({
+              body: localizeParam("AcidExpiredBody", { name: actor.name, location }),
               speaker: ChatMessage.getSpeaker({ actor }),
             });
           } else {
@@ -1130,8 +1135,8 @@ function _hookDotEffects() {
 
           const newTurnsLeft = turnsLeft - 1;
           if (newTurnsLeft <= 0) {
-            await ChatMessage.create({
-              content: `<div class="cyberpunk save-prompt">🔥 <b>${actor.name}</b> — the fire at <b>${location}</b> burns out.</div>`,
+            await postSavePromptCard({
+              body: localizeParam("FireExpiredBody", { name: actor.name, location }),
               speaker: ChatMessage.getSpeaker({ actor }),
             });
           } else {
@@ -1182,14 +1187,14 @@ function _hookDotEffects() {
         const grappledBy  = actor.getFlag?.("cyberpunk2020", "grappledBy");
         if (heldBy) {
           const holder = game.actors.get(heldBy);
-          await ChatMessage.create({
-            content: `<div class="cyberpunk save-prompt">🤜 <b>${actor.name}</b> is still held by <b>${holder?.name ?? "attacker"}</b>. Can only attempt Escape this turn.</div>`,
+          await postSavePromptCard({
+            body: localizeParam("StillHeldBody", { name: actor.name, holder: holder?.name ?? localize("Attacker") }),
             speaker: ChatMessage.getSpeaker({ actor }),
           });
         } else if (grappledBy) {
           const grappler = game.actors.get(grappledBy);
-          await ChatMessage.create({
-            content: `<div class="cyberpunk save-prompt">🤜 <b>${actor.name}</b> is grappled by <b>${grappler?.name ?? "attacker"}</b>. Must escape or the grappler may Hold/Choke/Throw freely.</div>`,
+          await postSavePromptCard({
+            body: localizeParam("GrappledReminderBody", { name: actor.name, grappler: grappler?.name ?? localize("Attacker") }),
             speaker: ChatMessage.getSpeaker({ actor }),
           });
         }
@@ -1324,8 +1329,8 @@ function _hookGasCloud() {
 
       if (turnsLeft - 1 <= 0) {
         await deleteArea(cloud);
-        await ChatMessage.create({
-          content: `<div class="cyberpunk save-prompt">💨 <b>${weaponName}</b> — Gas cloud dispersed.</div>`,
+        await postSavePromptCard({
+          body: localizeParam("GasDispersedBody", { name: weaponName }),
         });
       }
     }
@@ -1389,15 +1394,15 @@ async function _applyConcussionToToken(tok, falloffDmg, { weaponName = "Explosio
   await actor.update({ "system.damage": current + permanent }, { render: false, fromCyberpunkDamageSystem: true });
   if (actor.getFlag?.("cyberpunk2020", "stabilized")) {
     await actor.unsetFlag("cyberpunk2020", "stabilized");
-    await ChatMessage.create({
-      content: `<div class="cyberpunk save-prompt">⚠ <b>${actor.name}</b> was stabilized but has taken new damage — Death Saves are required again.</div>`,
+    await postSavePromptCard({
+      body: localizeParam("StabilizedLostBody", { name: actor.name }),
       speaker: ChatMessage.getSpeaker({ actor }),
     });
   }
   await ablateLocationByAmount(actor, "Torso", 2).catch(() => {}); // concussion wears soft armor −2 SP
   await assessWoundSeverity(actor, "Torso", permanent, { token: tok });
-  await ChatMessage.create({
-    content: `<div class="cyberpunk save-prompt">💥 <b>${actor.name}</b> — concussion (${weaponName}): <b>${permanent}</b> permanent HP (half of ${gotThrough} after BTM); the other half is stun. Soft armor −2 SP. Stun Save required.</div>`,
+  await postSavePromptCard({
+    body: localizeParam("ConcussionBody", { name: actor.name, weapon: weaponName, permanent, gotThrough }),
     speaker: ChatMessage.getSpeaker({ actor }),
   });
   const ws = actor.woundState?.() ?? 0;  // half is stun/blunt → always a consciousness check
@@ -1583,8 +1588,8 @@ async function _scatterExplosion(templateId) {
     await handle.doc.setFlag("cyberpunk2020", "originY", newOriginY);
   } catch { /* non-fatal */ }
 
-  await ChatMessage.create({
-    content: `<div class="cyberpunk save-prompt">🎲 <b>Scatter</b> — ${DIRNAME[dirRoll.total]}${(vx || vy) ? ` ${distM}m` : " (no drift)"}. Reposition if needed, then Confirm Blast.</div>`,
+  await postSavePromptCard({
+    body: localizeParam("ScatterBody", { dir: DIRNAME[dirRoll.total], drift: (vx || vy) ? localizeParam("ScatterDrift", { dist: distM }) : localize("ScatterNoDrift") }),
   });
 }
 
@@ -1928,8 +1933,8 @@ function _hookSocketRelay() {
             // New damage clears stabilization — death saves restart (CP2020 p.105)
             if (target.getFlag?.("cyberpunk2020", "stabilized")) {
               await target.unsetFlag("cyberpunk2020", "stabilized");
-              await ChatMessage.create({
-                content: `<div class="cyberpunk save-prompt">⚠ <b>${target.name}</b> was stabilized but has taken new damage — Death Saves are required again.</div>`,
+              await postSavePromptCard({
+                body: localizeParam("StabilizedLostBody", { name: target.name }),
                 speaker: ChatMessage.getSpeaker({ actor: target }),
               });
             }
