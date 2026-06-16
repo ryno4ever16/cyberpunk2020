@@ -826,9 +826,9 @@ function _hookAimTracking() {
     btn.classList.add("cp-take-aim-btn", "combatant-control");
     btn.dataset.actorId = actor.id;
     btn.title = aimCount > 0
-      ? `Aiming (${aimCount}/3 rounds). Click to increment. Click at 3 to reset.`
-      : "Take Aim (+1 to hit per consecutive round, max +3)";
-    btn.style.cssText = `cursor:pointer; color:${aimCount > 0 ? "#ffcc00" : "#888"};`;
+      ? localizeParam("TakeAimTitleActive", { n: aimCount })
+      : localize("TakeAimTitle");
+    if (aimCount > 0) btn.classList.add("cp-active");
     btn.innerHTML = `🎯${aimCount > 0 ? aimCount : ""}`;
     controls.prepend(btn);
   });
@@ -893,16 +893,14 @@ function _hookWaitForTurn() {
         const actBtn = document.createElement("a");
         actBtn.classList.add("cp-wait-act-btn", "combatant-control");
         actBtn.dataset.combatantId = combatant.id;
-        actBtn.title = "Take delayed action — announce you are acting now";
-        actBtn.style.cssText = "cursor:pointer; color:#ffcc44;";
+        actBtn.title = localize("WaitActTitle");
         actBtn.innerHTML = "⚡";
         controls.prepend(actBtn);
       } else if (isActive) {
         const waitBtn = document.createElement("a");
         waitBtn.classList.add("cp-wait-for-turn-btn", "combatant-control");
         waitBtn.dataset.combatantId = combatant.id;
-        waitBtn.title = "Wait for Turn — skip this slot and act after a chosen combatant";
-        waitBtn.style.cssText = "cursor:pointer; color:#888;";
+        waitBtn.title = localize("WaitForTurnBtnTitle");
         waitBtn.innerHTML = "⏸";
         controls.prepend(waitBtn);
       }
@@ -988,10 +986,8 @@ function _hookDodgeParry() {
         const dodgeBtn = document.createElement("a");
         dodgeBtn.classList.add("cp-dodge-btn", "combatant-control");
         dodgeBtn.dataset.actorId = actor.id;
-        dodgeBtn.title = isDodging
-          ? "Dodging (−2 to attacker's melee roll this round) — click to cancel"
-          : "Declare Dodge (−2 to attacker's melee roll, costs your action)";
-        dodgeBtn.style.cssText = `cursor:pointer; color:${isDodging ? "#44cc88" : "#888"};`;
+        dodgeBtn.title = isDodging ? localize("DodgeTitleActive") : localize("DodgeTitle");
+        if (isDodging) dodgeBtn.classList.add("cp-active");
         dodgeBtn.innerHTML = isDodging ? "🛡✓" : "🛡";
         controls.prepend(dodgeBtn);
       }
@@ -999,10 +995,8 @@ function _hookDodgeParry() {
       const parryBtn = document.createElement("a");
       parryBtn.classList.add("cp-parry-btn", "combatant-control");
       parryBtn.dataset.actorId = actor.id;
-      parryBtn.title = isParrying
-        ? "Parrying (next melee attack blocked) — click to cancel"
-        : "Declare Parry (block next melee attack, −3 to own other actions)";
-      parryBtn.style.cssText = `cursor:pointer; color:${isParrying ? "#44aaff" : "#888"};`;
+      parryBtn.title = isParrying ? localize("ParryTitleActive") : localize("ParryTitle");
+      if (isParrying) parryBtn.classList.add("cp-active");
       parryBtn.innerHTML = isParrying ? "⛨✓" : "⛨";
       controls.prepend(parryBtn);
     }
@@ -1726,8 +1720,7 @@ function _hookMultiActionPenalty() {
       if (count > 0) {
         const badge = document.createElement("span");
         badge.classList.add("cp-action-count-badge");
-        badge.style.cssText = "font-size:0.74em; padding:1px 4px; border-radius:3px; background:rgba(80,80,80,0.7); color:var(--color-text-light-primary,#ccc); margin-right:2px; line-height:1.6; pointer-events:none;";
-        badge.title = `${count} action${count !== 1 ? "s" : ""} this round. Multi-action penalty: ${penalty || "none"}.`;
+        badge.title = localizeParam("MultiActionBadgeTitle", { count, penalty: penalty || localize("MultiActionPenaltyNone") });
         badge.textContent = penalty < 0 ? `×${count} (${penalty})` : `×${count}`;
         controls.prepend(badge);
       }
@@ -1736,8 +1729,7 @@ function _hookMultiActionPenalty() {
         const addBtn = document.createElement("a");
         addBtn.classList.add("cp-add-action-btn", "combatant-control");
         addBtn.dataset.actorId = actor.id;
-        addBtn.title = "Manual Action — mark an action not tracked automatically (e.g., reload, mount/dismount)";
-        addBtn.style.cssText = "cursor:pointer; color:#888;";
+        addBtn.title = localize("AddActionTitle");
         addBtn.innerHTML = "➕";
         controls.prepend(addBtn);
       }
