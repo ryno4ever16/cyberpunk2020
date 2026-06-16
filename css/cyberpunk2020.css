@@ -1037,6 +1037,16 @@ div.statderive .value.rightborder {
 .cyberpunk .vehicle-loss-card { margin-top: 6px; border-top: 1px solid var(--color-border-dark-tertiary); padding-top: 4px; }
 .cyberpunk .vehicle-loss-card .loss-head { font-size: 0.85em; opacity: 0.8; }
 .cyberpunk .vehicle-loss-card .loss-text { margin-top: 2px; }
+
+/* Vehicle fire dialog — mount-arc out-of-arc warning (replaces the inline colour/size). */
+.vehicle-fire-dialog .arc-warn { font-size: 0.82em; margin-top: 2px; }
+.vehicle-fire-dialog .arc-warn.strict { color: #ff5555; }
+.vehicle-fire-dialog .arc-warn.soft { color: #e0a020; }
+
+/* Vehicle fire result — "apply to target" sub-block (replaces the inline border/spacing). */
+.cyberpunk .vehicle-apply-block { margin-top: 6px; border-top: 1px solid var(--color-border-dark-tertiary); padding-top: 4px; }
+.cyberpunk .vehicle-apply-block .apply-hint { font-size: 0.85em; opacity: 0.8; }
+.cyberpunk .vehicle-apply-block button { margin-top: 4px; }
 .cyberpunk-card .roll-image {
   margin-right: 5px;
 }

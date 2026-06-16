@@ -16,10 +16,11 @@
  * The actual damage application reuses the Phase 4 resolver (applyVehicleDamageMM / ...Core).
  */
 
-import { openSingletonDialog } from "../utils.js";
+import { openSingletonDialog, localize, localizeParam } from "../utils.js";
 import { effectiveVehicleRuleSystem, vehicleArcEnforcement } from "../settings.js";
 import { onGlobalClick } from "../popout-compat.js";
 import { gridDistanceBetween } from "../combat/rangefinding.js";
+import { renderChatCard } from "../compat.js";
 
 /** Average of a CP2020 damage formula ("2d6+1", "5d6", "1d10", "3d6+2"). PURE. */
 export function averageDamageFromFormula(formula) {
@@ -220,7 +221,7 @@ function _candidateGunners(actor) {
 export async function openVehicleFireDialog(actor, mount = {}) {
   if (!actor || actor.type !== "vehicle") return null;
   const enabled = (() => { try { return game.settings.get(SCOPE, "vehicleDamageEnabled"); } catch { return true; } })();
-  if (!enabled) { ui.notifications?.warn?.("Vehicle damage automation is disabled in the system settings."); return null; }
+  if (!enabled) { ui.notifications?.warn?.(localize("Vehicle.DamageDisabled")); return null; }
 
   // Resolve the full vehicleWeapon Item (the sheet passes {itemId,...}); fall back to mount values.
   const item = mount.itemId ? actor.items.get(mount.itemId) : null;
@@ -248,12 +249,17 @@ export async function openVehicleFireDialog(actor, mount = {}) {
   // Shell selection (MM p.17): a cannon/launcher with shellVariants fires a chosen round per shot —
   // the base (solid / standard) round or a Hi-Ex / HEAT variant, each with its own Penetration, burst
   // and range-immunity. The pick is PERSISTED in system.activeShell (survives + shows on the sheet).
-  const baseShell = { name: "", label: `${wName} — base (Pen ${basePen})`, pen: basePen, burst, ap, heat, hiEx };
-  const variantShells = (Array.isArray(w.shellVariants) ? w.shellVariants : []).map(v => ({
-    name: v.name || "shell",
-    label: `${v.name || "shell"} (Pen ${Number(v.pen) || 0}${v.burst ? `, ${v.burst}m burst` : ""}${v.heat ? ", HEAT" : (v.hiEx ? ", Hi-Ex" : "")})`,
-    pen: Number(v.pen) || 0, burst: Number(v.burst) || 0, ap: !!v.ap, heat: !!v.heat, hiEx: !!v.hiEx,
-  }));
+  const baseShell = { name: "", label: localizeParam("Vehicle.FireShellBase", { weapon: wName, pen: basePen }), pen: basePen, burst, ap, heat, hiEx };
+  const variantShells = (Array.isArray(w.shellVariants) ? w.shellVariants : []).map(v => {
+    const vname = v.name || "shell";
+    const burstClause = v.burst ? localizeParam("Vehicle.FireShellBurst", { burst: v.burst }) : "";
+    const warheadClause = v.heat ? localize("Vehicle.FireShellHeat") : (v.hiEx ? localize("Vehicle.FireShellHiEx") : "");
+    return {
+      name: vname,
+      label: localizeParam("Vehicle.FireShellVariant", { name: vname, pen: Number(v.pen) || 0, burst: burstClause, warhead: warheadClause }),
+      pen: Number(v.pen) || 0, burst: Number(v.burst) || 0, ap: !!v.ap, heat: !!v.heat, hiEx: !!v.hiEx,
+    };
+  });
   const shells = [baseShell, ...variantShells];
   let shellIdx = shells.findIndex(s => s.name === String(w.activeShell || ""));
   if (shellIdx < 0) shellIdx = 0;
@@ -273,16 +279,17 @@ export async function openVehicleFireDialog(actor, mount = {}) {
   const controlledFirer = (canvas?.tokens?.controlled ?? []).find(t => t.actor?.id === actor.id && t !== targetTok);
   const firerTok = controlledFirer ?? firerCandidates[0] ?? null;
   if (firerCandidates.length > 1 && !controlledFirer) {
-    ui.notifications?.info?.(`${actor.name} has multiple tokens on this scene — select the one you're firing from so facing and arc use the right token.`);
+    ui.notifications?.info?.(localizeParam("Vehicle.FireMultiToken", { actor: actor.name }));
   }
   const strictArc = vehicleArcEnforcement() === "strict";
   // Builds the arc message for a given bearing/bears result. Shared by the initial render and the
-  // live recheck (below) so spinning the firing vehicle updates the warning in real time.
+  // live recheck (below) so spinning the firing vehicle updates the warning in real time. Returns a
+  // localized, CSS-class-based fragment (re-injected into #cp-vf-arcwarn via innerHTML on token move).
   const arcWarnHtml = (bearing, bears) => {
     if (bears) return "";
-    return strictArc
-      ? `<div style="color:#ff5555;font-size:0.82em;margin-top:2px;">⛔ Target is to the <b>${bearing}</b> of the firer — outside the <b>${arc}</b> mount's arc. <b>Strict arc</b> blocks this shot: rotate the firing vehicle to face the target (Ctrl+scroll), or use a turret mount.</div>`
-      : `<div style="color:#e0a020;font-size:0.82em;margin-top:2px;">⚠ Target is to the <b>${bearing}</b> of the firer — outside the <b>${arc}</b> mount's arc. You can still fire (override).</div>`;
+    const key = strictArc ? "Vehicle.ArcWarnStrict" : "Vehicle.ArcWarnSoft";
+    const cls = strictArc ? "arc-warn strict" : "arc-warn soft";
+    return `<div class="${cls}">${localizeParam(key, { bearing, arc })}</div>`;
   };
   let detFacing = "front", detRange = "normal", arcWarn = "";
   if (firerTok && targetTok) {
@@ -294,8 +301,6 @@ export async function openVehicleFireDialog(actor, mount = {}) {
   }
 
   const isTurret = String(arc).toLowerCase().includes("turret");
-  const facingOpts = FACINGS.map(f => `<option value="${f}" ${f === detFacing ? "selected" : ""}>${f}</option>`).join("");
-  const rangeOpts = ["normal", "long", "extreme"].map(r => `<option value="${r}" ${r === detRange ? "selected" : ""}>${r.charAt(0).toUpperCase() + r.slice(1)}</option>`).join("");
 
   // Gunner picker — prefills REF + weapon skill from a boarded crew member (optional).
   const gunners = _candidateGunners(actor);
@@ -306,47 +311,34 @@ export async function openVehicleFireDialog(actor, mount = {}) {
   // An ACPA fires with the pilot's capped effective REF when no separate gunner is boarded.
   const ref0 = Number(firstGunner?.system?.stats?.ref?.total) || (isAcpaFirer ? (Number(actor.system?.effectiveRef) || 0) : 0);
   const skill0 = firstGunner ? (firstGunner.getSkillVal?.(GUNNER_SKILL) ?? 0) : 0;
-  const gunnerOpts = gunners.length
-    ? gunners.map(a => `<option value="${a.id}">${a.name}</option>`).join("")
-    : `<option value="">(no occupant — manual)</option>`;
 
-  const content = `
-<div class="cyberpunk vehicle-fire-dialog" style="display:flex;flex-direction:column;gap:4px;">
-  <div style="opacity:0.7;font-size:0.85em;">${actor.name} fires <b>${wName}</b>${targetActor ? ` at <b>${targetActor.name}</b>` : " (no target — apply from the chat card afterward)"}.${wa ? ` <span style="opacity:0.8;">WA ${wa >= 0 ? "+" : ""}${wa} auto-applied.</span>` : ""}</div>
-  <div id="cp-vf-arcwarn">${arcWarn}</div>
-  <label>Gunner <select id="cp-vf-gunner" style="margin-left:6px;">${gunnerOpts}</select></label>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;">
-    <label>Gunner REF <input type="number" id="cp-vf-ref" value="${ref0}" style="width:48px;"></label>
-    <label>Weapon skill <input type="number" id="cp-vf-skill" value="${skill0}" style="width:48px;"></label>
-    <label>Target # (DV) <input type="number" id="cp-vf-tn" value="15" style="width:48px;"></label>
-  </div>
-  ${variantShells.length ? `<label title="Choose the loaded round; the choice is saved on the weapon. Hi-Ex/HEAT shells set their own Penetration, burst and range-immunity.">Shell <select id="cp-vf-shell" style="margin-left:6px;">${shells.map((s, i) => `<option value="${i}" ${i === shellIdx ? "selected" : ""}>${s.label}</option>`).join("")}</select></label>` : ""}
-  <div style="display:flex;gap:8px;flex-wrap:wrap;">
-    <label>Base penetration <input type="number" id="cp-vf-pen" value="${shells[shellIdx].pen}" style="width:48px;"></label>
-    <label>ROF <input type="number" id="cp-vf-rof" value="${rof0}" style="width:48px;"></label>
-    <label>Facing <select id="cp-vf-facing">${facingOpts}</select></label>
-    <label>Range <select id="cp-vf-range">${rangeOpts}</select></label>
-  </div>
-  <fieldset style="border:1px solid var(--color-border-light-tertiary);padding:4px 6px;">
-    <legend style="font-size:0.8em;">To-hit modifiers</legend>
-    <label><input type="checkbox" id="cp-vf-stationary"> Target stationary (+4)</label>
-    <label style="margin-left:8px;">Target speed (mph) <input type="number" id="cp-vf-tspeed" value="0" style="width:48px;"></label><br>
-    <label><input type="checkbox" id="cp-vf-turret" ${isTurret ? "checked" : ""}> Turret mount (+2)</label>
-    <label style="margin-left:8px;"><input type="checkbox" id="cp-vf-link" ${actor.system?.vehicleLink ? "checked" : ""}> Vehicle link (+2)</label><br>
-    <label><input type="checkbox" id="cp-vf-moving"> Firer moving, unstabilized (−3)</label><br>
-    <label><input type="checkbox" id="cp-vf-dark"> Dark / obscured (−3)</label>
-    <label style="margin-left:8px;" title="The vehicle's fire-control / targeting-computer bonus (system.fireControl), auto-applied. Edit to add an ad-hoc bonus on top.">Fire control <input type="number" id="cp-vf-other" value="${Number(actor.system?.fireControl) || 0}" style="width:44px;"></label>
-    ${isAcpaFirer ? `<label style="margin-left:8px;" title="ACPA Direct-Fire Bonus from the suit's Reality Interface (system.dfb), auto-applied when the suit fires its own weapons (replaces a smartgun bonus).">DFB (interface) <input type="number" id="cp-vf-dfb" value="${acpaDfb}" style="width:44px;"></label>` : ""}
-  </fieldset>
-</div>`;
+  // Intro sentence assembled from localized clauses (target present/absent, WA auto-applied).
+  const targetClause = targetActor ? localizeParam("Vehicle.FireTargetClause", { target: targetActor.name }) : localize("Vehicle.FireNoTargetClause");
+  const waClause = wa ? localizeParam("Vehicle.FireWaClause", { wa: `${wa >= 0 ? "+" : ""}${wa}` }) : "";
+  const intro = localizeParam("Vehicle.FireIntro", { actor: actor.name, weapon: wName, targetClause, waClause });
+  const cap = (r) => r.charAt(0).toUpperCase() + r.slice(1);
+
+  const content = await renderChatCard("vehicle/fire-dialog.hbs", {
+    intro, arcWarn,
+    gunnerOptions: gunners.length ? gunners.map(a => ({ value: a.id, label: a.name })) : [{ value: "", label: localize("Vehicle.GunnerNoOccupant") }],
+    ref0, skill0,
+    hasShells: variantShells.length > 0,
+    shellOptions: shells.map((s, i) => ({ value: i, label: s.label, selected: i === shellIdx })),
+    pen0: shells[shellIdx].pen, rof0,
+    facingOptions: FACINGS.map(f => ({ value: f, label: localize("Vehicle.Facing_" + f), selected: f === detFacing })),
+    rangeOptions: ["normal", "long", "extreme"].map(r => ({ value: r, label: localize("Vehicle.Range" + cap(r)), selected: r === detRange })),
+    isTurret, vehicleLink: !!actor.system?.vehicleLink,
+    fireControl: Number(actor.system?.fireControl) || 0,
+    isAcpaFirer, acpaDfb,
+  });
 
   const dialog = new foundry.applications.api.DialogV2({
-    window: { title: `🎯 Fire — ${actor.name}` },
+    window: { title: localizeParam("Vehicle.FireDialogTitle", { actor: actor.name }) },
     content,
     buttons: [
       {
         action: "fire",
-        label: "🎯 Fire",
+        label: localize("Vehicle.FireBtn"),
         default: true,
         callback: async (ev, btn, dlg) => {
           const root = dlg.element;
@@ -356,7 +348,7 @@ export async function openVehicleFireDialog(actor, mount = {}) {
           if (strictArc && firerTok && targetTok) {
             const bearing = VT.bearingFromFirer(firerTok, targetTok);
             if (!VT.mountArcBears(bearing, arc)) {
-              ui.notifications?.warn?.(`Strict arc — target is to the ${bearing} of the firer, outside the ${arc} mount's arc. Rotate to bear or use a turret.`);
+              ui.notifications?.warn?.(localizeParam("Vehicle.ArcStrictBlock", { bearing, arc }));
               return;
             }
           }
@@ -388,7 +380,7 @@ export async function openVehicleFireDialog(actor, mount = {}) {
           });
         },
       },
-      { action: "cancel", label: "Cancel" },
+      { action: "cancel", label: localize("Cancel") },
     ],
     render: (event, dlg) => {
       const root = dlg.element;
@@ -458,35 +450,34 @@ async function _executeVehicleFire(actor, targetActor, p) {
       } });
       return { launched: true };
     }
-    ui.notifications?.warn?.("Missiles need the firer and target on the canvas — resolving as a direct shot.");
+    ui.notifications?.warn?.(localize("Vehicle.MissileNeedTokensDirect"));
   }
   const d10 = (await new Roll("1d10").evaluate());
   const res = resolveVehicleToHit({ d10: d10.total, ref: p.ref, skill: p.skill, mods: p.mods, targetNumber: p.targetNumber });
   const extraRounds = roundsPerHit(p.rof) - 1;
 
+  const goodShot = res.goodShotSteps ? localizeParam("Vehicle.GoodShotClause", { steps: res.goodShotSteps }) : "";
   const verdict = res.hit
-    ? `<span style="color:#3ad13a;font-weight:bold;">HIT</span> (${res.total} vs ${p.targetNumber})${res.goodShotSteps ? ` — Good Shot ×${res.goodShotSteps}` : ""}`
-    : `<span style="color:#ff6060;font-weight:bold;">MISS</span> (${res.total} vs ${p.targetNumber})`;
+    ? localizeParam("Vehicle.FireHit", { total: res.total, tn: p.targetNumber, goodShot })
+    : localizeParam("Vehicle.FireMiss", { total: res.total, tn: p.targetNumber });
 
-  // On a hit with no pre-selected target, offer an Apply button so the GM can target a vehicle and
-  // apply the same shot afterward (mirrors the personnel Apply-Damage flow).
-  let applyBtn = "";
-  if (res.hit && !targetActor) {
-    applyBtn = `<div style="margin-top:6px;border-top:1px solid var(--color-border-dark-tertiary);padding-top:4px;">
-      <span style="font-size:0.85em;opacity:0.8;">No target selected. Target the enemy token (vehicle or person), then:</span><br>
-      <button class="cp-vfire-apply" style="margin-top:4px;"
-        data-pen="${p.penetration}" data-facing="${p.facing}" data-range="${p.range}"
-        data-gs="${res.goodShotSteps}" data-rounds="${extraRounds}"
-        data-ap="${p.ap ? 1 : 0}" data-hef="${p.hefPenetrator ? 1 : 0}" data-heat="${p.heat ? 1 : 0}" data-hda="${p.highDensityAP ? 1 : 0}" data-weapon="${p.mountName}" data-dmg="${p.damageFormula ?? ""}">💥 Apply to Target</button>
-    </div>`;
-  }
+  // On a hit with no pre-selected target, the card's apply block (the cp-vfire-apply button + its
+  // data-* payload, read by registerVehicleFireHandlers) lets the GM target a token and apply the
+  // same shot afterward — mirrors the personnel Apply-Damage flow.
+  const content = await renderChatCard("vehicle/fire-result.hbs", {
+    mountName: p.mountName,
+    d10: d10.total, ref: p.ref, skill: p.skill, modsSigned: `${p.mods >= 0 ? "+" : ""}${p.mods}`, total: res.total,
+    verdict,
+    showApply: res.hit && !targetActor,
+    pen: p.penetration, facing: p.facing, range: p.range, gs: res.goodShotSteps, rounds: extraRounds,
+    ap: p.ap ? 1 : 0, hef: p.hefPenetrator ? 1 : 0, heat: p.heat ? 1 : 0, hda: p.highDensityAP ? 1 : 0,
+    weapon: p.mountName, dmg: p.damageFormula ?? "",
+  });
 
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
-    flavor: `${actor.name} — ${p.mountName}`,
-    content: `<div class="cyberpunk vehicle-fire-result"><h3>🎯 ${p.mountName}</h3>
-      <div>To-hit: 1d10 ${d10.total} + REF ${p.ref} + skill ${p.skill} + mods ${p.mods >= 0 ? "+" : ""}${p.mods} = <b>${res.total}</b></div>
-      <div style="margin-top:2px;">${verdict}</div>${applyBtn}</div>`,
+    flavor: localizeParam("Vehicle.FireFlavor", { actor: actor.name, weapon: p.mountName }),
+    content,
     rolls: [d10],
   });
 
@@ -550,7 +541,7 @@ export function registerVehicleFireHandlers() {
     if (!btn || btn.disabled) return;
     ev.preventDefault();
     const targets = [...(game.user?.targets ?? [])];
-    if (targets.length !== 1) { ui.notifications?.warn?.("Target exactly one token (vehicle or person), then click Apply."); return; }
+    if (targets.length !== 1) { ui.notifications?.warn?.(localize("Vehicle.ApplyTargetOne")); return; }
     await _applyVehicleShot(targets[0].actor, {
       penetration: Number(btn.dataset.pen) || 0, facing: btn.dataset.facing || "front",
       range: btn.dataset.range || "normal", goodShotSteps: Number(btn.dataset.gs) || 0,
