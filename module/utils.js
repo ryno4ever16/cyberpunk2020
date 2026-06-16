@@ -541,6 +541,13 @@ export function reliabilityLabel(reliabilityKey) {
   return raw;
 }
 
+/** Render the fumble card body: each pre-localized line wrapped in a <p> by templates/chat/fumble-card.hbs
+ *  (the template owns the structure; the i18n line values stay structure-free). */
+function _renderFumbleCard(lines) {
+  const render = foundry?.applications?.handlebars?.renderTemplate ?? globalThis.renderTemplate;
+  return render("systems/cyberpunk2020/templates/chat/fumble-card.hbs", { lines });
+}
+
 async function _buildControlLossSkillFumbleData({ skill, roll }) {
   const isRu = game.i18n?.lang === "ru";
   const isAircraft = _isAircraftControlSkillById(skill);
@@ -553,16 +560,16 @@ async function _buildControlLossSkillFumbleData({ skill, roll }) {
   ? (row.keyAircraft ?? row.key)
   : (row.keyGround ?? row.key);
 
-  let html = "";
+  const lines = [];
   const mainDie = getInitialD10Result(roll) ?? 1;
 
-  html += localizeParam("Fumble.MainRollLine", { die: _dieSpan(10, mainDie, roll) });
-  html += localizeParam("Fumble.TableRollLine", {
+  lines.push(localizeParam("Fumble.MainRollLine", { die: _dieSpan(10, mainDie, roll) }));
+  lines.push(localizeParam("Fumble.TableRollLine", {
     table: localize("Fumble.ControlLoss.Title"),
     die: _dieSpan(6, fRoll.total, fRoll)
-  });
+  }));
 
-  html += `<p>${localize(rowKey)}</p>`;
+  lines.push(localize(rowKey));
 
   // Extra rolls for distance / altitude
   // Ground: slide 1d10 * (10ft or 3m)
@@ -571,10 +578,7 @@ async function _buildControlLossSkillFumbleData({ skill, roll }) {
     const mult = isRu ? row.slideMultiplierMeters : row.slideMultiplierFeet;
     const dist = r.total * mult;
 
-    html += `<p>${localizeParam("Fumble.ControlLoss.SlideLine", {
-      die: _dieSpan(10, r.total, r),
-      dist
-    })}</p>`;
+    lines.push(localizeParam("Fumble.ControlLoss.SlideLine", { die: _dieSpan(10, r.total, r), dist }));
   }
 
   // Aircraft: altitude loss 1d10 * (50/100ft or 15/30m)
@@ -583,20 +587,16 @@ async function _buildControlLossSkillFumbleData({ skill, roll }) {
     const mult = isRu ? row.altitudeMultiplierMeters : row.altitudeMultiplierFeet;
     const dist = r.total * mult;
 
-    html += `<p>${localizeParam("Fumble.ControlLoss.AltitudeLine", {
-      die: _dieSpan(10, r.total, r),
-      dist
-    })}</p>`;
+    lines.push(localizeParam("Fumble.ControlLoss.AltitudeLine", { die: _dieSpan(10, r.total, r), dist }));
   }
 
   // 5-6 Ground: 5d6 vehicle damage
   if (!isAircraft && row.needsVehicleDamage) {
     const dmg = await new Roll("5d6").evaluate();
-    html += `<p>${localizeParam("Fumble.ControlLoss.VehicleDamageLine", {
-      die: _inlineRollResult(dmg.total, dmg)
-    })}</p>`;
+    lines.push(localizeParam("Fumble.ControlLoss.VehicleDamageLine", { die: _inlineRollResult(dmg.total, dmg) }));
   }
 
+  const html = await _renderFumbleCard(lines);
   return { title: localize("Fumble.TableTitle"), html };
 }
 
@@ -613,20 +613,18 @@ export async function buildSkillFumbleData({ skill, roll }) {
   const fRoll = await new Roll("1d10").evaluate();
   const row = _pickTableRow(table, fRoll.total);
 
-  let html = "";
+  const lines = [];
   const mainDie = getInitialD10Result(roll) ?? 1;
-  html += localizeParam("Fumble.MainRollLine", { die: _dieSpan(10, mainDie, roll) });
-  html += localizeParam("Fumble.TableRollLine", {
+  lines.push(localizeParam("Fumble.MainRollLine", { die: _dieSpan(10, mainDie, roll) }));
+  lines.push(localizeParam("Fumble.TableRollLine", {
     table: localize(titleKey),
     die: _dieSpan(10, fRoll.total, fRoll)
-  });
-  html += `<p>${localize(row.key)}</p>`;
-  
+  }));
+  lines.push(localize(row.key));
+
   if (row.extraAthleticsDamage) {
     const dmgRoll = await new Roll("1d6").evaluate();
-    html += localizeParam("Fumble.AthleticsDamageLine", {
-      die: _dieSpan(6, dmgRoll.total, dmgRoll)
-    });
+    lines.push(localizeParam("Fumble.AthleticsDamageLine", { die: _dieSpan(6, dmgRoll.total, dmgRoll) }));
   }
 
   if (row.extraEmpathyCheck) {
@@ -635,12 +633,13 @@ export async function buildSkillFumbleData({ skill, roll }) {
       ? "Fumble.EmpExtra.1_4"
       : "Fumble.EmpExtra.5_10";
 
-    html += localizeParam("Fumble.EmpExtraLine", {
+    lines.push(localizeParam("Fumble.EmpExtraLine", {
       die: _dieSpan(10, extra.total, extra),
       outcome: localize(outcomeKey)
-    });
+    }));
   }
 
+  const html = await _renderFumbleCard(lines);
   return {
     title: localize("Fumble.TableTitle"),
     html
@@ -660,30 +659,31 @@ export async function buildRangedCombatFumbleData({
 
   const outcome = { discharge: false, jam: false, jamRounds: 0 };
 
-  let html = "";
+  const lines = [];
   const mainDie = getInitialD10Result(attackRoll) ?? 1;
-  html += localizeParam("Fumble.MainRollLine", { die: _dieSpan(10, mainDie, attackRoll) });
+  lines.push(localizeParam("Fumble.MainRollLine", { die: _dieSpan(10, mainDie, attackRoll) }));
 
   // Auto-only-jam mode: skip combat table
   if (isAutoWeapon && autoOnlyJam) {
     const rel = await new Roll("1d10").evaluate();
     const jam = rel.total <= thr;
 
-    html += `<p>${localize("Fumble.AutoWeaponOnlyJam")}</p>`;
-    html += `<p>${localizeParam("Fumble.ReliabilityLine", {
+    lines.push(localize("Fumble.AutoWeaponOnlyJam"));
+    lines.push(localizeParam("Fumble.ReliabilityLine", {
       rel: relName,
       thr,
       die: _dieSpan(10, rel.total, rel),
       result: localize(jam ? "Fumble.ReliabilityResult.Jam" : "Fumble.ReliabilityResult.NoJam")
-    })}</p>`;
+    }));
 
     if (jam) {
       const r = await new Roll("1d6").evaluate();
       outcome.jam = true;
       outcome.jamRounds = r.total;
-      html += `<p>${localizeParam("Fumble.ClearJamLine", { die: _dieSpan(6, r.total, r) })}</p>`;
+      lines.push(localizeParam("Fumble.ClearJamLine", { die: _dieSpan(6, r.total, r) }));
     }
 
+    const html = await _renderFumbleCard(lines);
     return { title: localize("Fumble.TableTitle"), html, outcome };
   }
 
@@ -691,29 +691,29 @@ export async function buildRangedCombatFumbleData({
   const fRoll = await new Roll("1d10").evaluate();
   const row = _pickTableRow(_TABLE_REF_COMBAT, fRoll.total);
 
-  html += localizeParam("Fumble.TableRollLine", {
+  lines.push(localizeParam("Fumble.TableRollLine", {
     table: localize("Fumble.ReflexCombat.Title"),
     die: _dieSpan(10, fRoll.total, fRoll)
-  });
-  html += `<p>${localize(row.key)}</p>`;
+  }));
+  lines.push(localize(row.key));
 
   // Location roll
   if (row.needsLocation) {
     const loc = await rollLocation(undefined, undefined);
-    html += `<p>${localizeParam("Fumble.LocationLine", {
+    lines.push(localizeParam("Fumble.LocationLine", {
       die: _dieSpan(10, loc.roll.total, loc.roll),
       location: localize(loc.areaHit)
-    })}</p>`;
+    }));
 
     const dmgFormula = sys?.damage || "1d6";
     const rollData = item?.actor?.getRollData?.() ?? {};
     const dmgRoll = await new Roll(dmgFormula, rollData).evaluate();
     const dmg = _floorDamageTotal(dmgRoll.total);
 
-    html += `<p>${localizeParam("Fumble.DamageLine", {
+    lines.push(localizeParam("Fumble.DamageLine", {
       formula: dmgFormula,
       die: _inlineRollResult(dmg, dmgRoll)
-    })}</p>`;
+    }));
   }
 
   // Reliability checks:
@@ -730,20 +730,19 @@ export async function buildRangedCombatFumbleData({
         ? (fails ? "Fumble.ReliabilityResult.Jam" : "Fumble.ReliabilityResult.NoJam")
         : (fails ? "Fumble.ReliabilityResult.Fail" : "Fumble.ReliabilityResult.Pass");
 
-    const relLine = localizeParam("Fumble.ReliabilityLine", {
+    lines.push(localizeParam("Fumble.ReliabilityLine", {
       rel: relName,
       thr,
       die: _dieSpan(10, relRoll.total, relRoll),
       result: localize(resultKey)
-    });
-    html += `<p>${relLine}</p>`;
+    }));
 
     if (needsReliability === "discharge") {
       if (fails) {
         outcome.discharge = true;
-        html += `<p>${localize("Fumble.DischargeApplied")}</p>`;
+        lines.push(localize("Fumble.DischargeApplied"));
       } else {
-        html += `<p>${localize("Fumble.DischargeNotApplied")}</p>`;
+        lines.push(localize("Fumble.DischargeNotApplied"));
       }
     }
 
@@ -752,10 +751,11 @@ export async function buildRangedCombatFumbleData({
         const r = await new Roll("1d6").evaluate();
         outcome.jam = true;
         outcome.jamRounds = r.total;
-        html += `<p>${localizeParam("Fumble.ClearJamLine", { die: _dieSpan(6, r.total, r) })}</p>`;
+        lines.push(localizeParam("Fumble.ClearJamLine", { die: _dieSpan(6, r.total, r) }));
       }
     }
   }
 
+  const html = await _renderFumbleCard(lines);
   return { title: localize("Fumble.TableTitle"), html, outcome };
 }

@@ -1328,8 +1328,8 @@
 
     "CYBERPUNK.Fumble.TableTitle": "Fumble Table",
 
-    "CYBERPUNK.Fumble.MainRollLine": "<p><b>Fumble</b>: main roll was {die}.</p>",
-    "CYBERPUNK.Fumble.TableRollLine": "<p><b>{table}</b>: additional roll {die}.</p>",
+    "CYBERPUNK.Fumble.MainRollLine": "<b>Fumble</b>: main roll was {die}.",
+    "CYBERPUNK.Fumble.TableRollLine": "<b>{table}</b>: additional roll {die}.",
 
     "CYBERPUNK.Fumble.ReflexCombat.Title": "Reflex (Combat)",
     "CYBERPUNK.Fumble.ReflexCombat.1_4": "1–4. No fumble. You just screw up.",
@@ -1343,7 +1343,7 @@
     "CYBERPUNK.Fumble.ReflexAthletics.1_4": "1–4. No fumble. You just mess up and make an idiot of yourself.",
     "CYBERPUNK.Fumble.ReflexAthletics.5_7": "5–7. You fail miserably. Take 1 point in minor damage (sprain, fall, stumble), plus make a Save vs. Stun.",
     "CYBERPUNK.Fumble.ReflexAthletics.8_10": "8–10. You fail abysmally. If a physical action, take 1D6 in damage from falling or strained muscles. Also make a roll vs Stun at -1.",
-    "CYBERPUNK.Fumble.AthleticsDamageLine": "<p>Damage: {die}.</p>",
+    "CYBERPUNK.Fumble.AthleticsDamageLine": "Damage: {die}.",
 
     "CYBERPUNK.Fumble.ControlLoss.Title": "Control Loss Table",
     "CYBERPUNK.Fumble.ControlLoss.1_2": "1–2. Skid or slew; no other result.",
@@ -1365,7 +1365,7 @@
     "CYBERPUNK.Fumble.Emp.5_6": "5–6. So much for your people skills. You not only don't convince them; you leave them totally cold (-4 to your next EMP die roll) to any other suggestion you might have.",
     "CYBERPUNK.Fumble.Emp.7_10": "7–10. Yow! You blew it royally. You not only didn't convince them, but now they're actually violently opposed to anything you want to do. Roll 1D10. On a 1–4, they actually attempt to do you physical harm.",
 
-    "CYBERPUNK.Fumble.EmpExtraLine": "<p>Extra roll {die}: {outcome}</p>",
+    "CYBERPUNK.Fumble.EmpExtraLine": "Extra roll {die}: {outcome}",
     "CYBERPUNK.Fumble.EmpExtra.1_4": "they actually attempt to do you physical harm.",
     "CYBERPUNK.Fumble.EmpExtra.5_10": "they are violently opposed and resist you.",
 
