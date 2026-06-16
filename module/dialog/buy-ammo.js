@@ -74,24 +74,8 @@ export async function openBuyAmmoDialog(actor) {
   if (!gate.ok) { ui.notifications.warn(gate.reason); return; }
 
   const { caliberOpts, modifierOpts } = _ammoOptions();
-  const esc = foundry.utils.escapeHTML ?? ((s) => String(s));
-
-  const content = `
-<form class="cyberpunk buy-ammo">
-  <div class="form-group">
-    <label>${localize("AmmoCaliber")}</label>
-    <select name="caliber">${caliberOpts.map(o => `<option value="${esc(o.id)}">${esc(o.label)}</option>`).join("")}</select>
-  </div>
-  <div class="form-group">
-    <label>${localize("AmmoModifier")}</label>
-    <select name="modifier">${modifierOpts.map(o => `<option value="${esc(o.id)}">${esc(o.label)}</option>`).join("")}</select>
-  </div>
-  <div class="form-group">
-    <label>${localize("AmmoBuyBoxes")}</label>
-    <input type="number" name="boxes" value="1" min="1" step="1"/>
-  </div>
-  <p class="cp-buy-ammo-preview" style="margin-top:6px; font-weight:bold;"></p>
-</form>`;
+  const render = foundry?.applications?.handlebars?.renderTemplate ?? globalThis.renderTemplate;
+  const content = await render("systems/cyberpunk2020/templates/dialog/buy-ammo.hbs", { caliberOpts, modifierOpts });
 
   return new Promise((resolve) => {
     new foundry.applications.api.DialogV2({

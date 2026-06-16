@@ -1026,6 +1026,12 @@ div.statderive .value.rightborder {
 /* Maximum Metal section header injected into the system Settings menu (replaces an inline cssText). */
 .cp-mm-header { margin-top: 14px; border-top: 2px solid var(--color-border-light-primary); padding-top: 8px; }
 
+/* Buy-Ammo dialog live cost preview line (DialogV2 content). */
+.cp-buy-ammo-preview { margin-top: 6px; font-weight: bold; }
+
+/* Cyberware install dialog option rows (DialogV2 content — checkbox + label). */
+.cp-cyber-install label { display: flex; gap: 6px; align-items: center; }
+
 /* Wait-for-turn + apply-damage target picker (DialogV2 content — no .cyberpunk wrapper). */
 .cp-select-dialog { padding: 4px; }
 .cp-select-dialog p { margin: 0 0 6px; }

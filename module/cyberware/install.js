@@ -83,24 +83,19 @@ async function rollSurgicalDamage(actor, formula) {
  * Confirm dialog for an install. Returns { proceed, rollHumanity, applyDamage } or null if cancelled.
  * @param {object} o  { title, item, surgery, partPrice, surgeryCost, showPart }
  */
-function _confirmInstall(o) {
-  const esc = foundry.utils.escapeHTML ?? (s => String(s));
+async function _confirmInstall(o) {
   const hc = o.item.system?.humanityCost ?? "—";
   const total = (o.showPart ? (Number(o.partPrice) || 0) : 0) + (Number(o.surgeryCost) || 0);
-  const costRows = `${o.showPart ? `<div>${localize("CyberPartCost")}: <b>${Number(o.partPrice) || 0}</b>eb</div>` : ""}
-    <div>${localize("CyberSurgeryCost")} (${esc(o.surgery.label)}): <b>${Number(o.surgeryCost) || 0}</b>eb</div>
-    <div>${localize("CyberTotalCost")}: <b>${total}</b>eb</div>`;
-  const content = `
-<form class="cyberpunk cp-cyber-install">
-  ${costRows}
-  <hr/>
-  <label style="display:flex;gap:6px;align-items:center;">
-    <input type="checkbox" name="rollHumanity" checked/> ${localize("CyberRollHumanity")} (${esc(String(hc))})
-  </label>
-  <label style="display:flex;gap:6px;align-items:center;">
-    <input type="checkbox" name="applyDamage" checked/> ${localize("CyberApplyDamage")} (${esc(o.surgery.damage)})
-  </label>
-</form>`;
+  const render = foundry?.applications?.handlebars?.renderTemplate ?? globalThis.renderTemplate;
+  const content = await render("systems/cyberpunk2020/templates/dialog/cyber-install.hbs", {
+    showPart: o.showPart,
+    partPrice: Number(o.partPrice) || 0,
+    surgeryLabel: o.surgery.label,
+    surgeryCost: Number(o.surgeryCost) || 0,
+    total,
+    hc: String(hc),
+    surgeryDamage: o.surgery.damage,
+  });
   return new Promise((resolve) => {
     // Buttons are built INSIDE the executor so their callbacks close over `resolve`.
     const buttons = [
