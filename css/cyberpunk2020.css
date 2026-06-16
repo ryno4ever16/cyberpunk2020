@@ -391,6 +391,14 @@ html.cp-tab-dragging, html.cp-tab-dragging * { cursor: grabbing !important; }
   flex-shrink: 1;
 }
 
+/* Armor-layers panel: the location-header spacer is a layout-only flex filler, so it must NOT
+ * inherit the opaque black `.cyberpunk .field > *` value-box background — that rendered as a
+ * confusing thin black strip floating in the header gap (worse on dark theme). Keep it transparent. */
+.armor-layers-panel .field .flex-pad {
+  background-color: transparent;
+  padding: 0;
+}
+
 .field-list {
   width: 100%;
   display: grid;
@@ -948,8 +956,9 @@ div.statderive .value.rightborder {
 }
 /* Reputation + Facedown panel */
 .combat-tab .reputation-section { grid-area: rep; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 2px; border-top: 1px solid rgba(255,255,255,0.12); }
-.combat-tab .reputation-field { display: flex; align-items: center; gap: 6px; }
-.combat-tab .reputation-field input[type="number"] { flex: 0 0 3em; width: 3em; min-width: 3em; text-align: center; }
+.combat-tab .reputation-field { display: flex; align-items: center; gap: 6px; flex: 1 1 auto; }
+.combat-tab .reputation-field input[type="number"] { flex: 0 0 4.5em; width: 4.5em; min-width: 4.5em; text-align: center; }
+.combat-tab .reputation-field .flex-pad { background-color: transparent; padding: 0; }
 .combat-tab .reputation-actions { display: flex; gap: 6px; margin-left: auto; }
 .cyberpunk .combat-tab .reputation-actions button { width: auto; flex: 0 0 auto; padding: 1px 8px; }
 /* Facedown / Recognition chat card */
