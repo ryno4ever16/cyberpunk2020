@@ -1020,6 +1020,17 @@ div.statderive .value.rightborder {
 /* Vehicle / Maximum Metal chat cards (replace the inline styles from the old hand-built cards). */
 .cyberpunk .vehicle-warn { color: #c0791a; opacity: 1; }
 .cyberpunk .vehicle-incoming .save-buttons button { margin: 2px 2px 0 0; }
+.cyberpunk .result-warn { color: #c0791a; font-weight: bold; }
+
+/* Shared vehicle fire/damage dialog layout (DialogV2 content). */
+.vehicle-fire-dialog { display: flex; flex-direction: column; gap: 4px; }
+.vehicle-fire-dialog .dialog-intro { opacity: 0.7; font-size: 0.85em; }
+.vehicle-fire-dialog .field-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.vehicle-fire-dialog input[type="number"] { width: 48px; }
+.vehicle-fire-dialog input.num-wide { width: 64px; }
+.vehicle-fire-dialog .ml8 { margin-left: 8px; }
+.vehicle-fire-dialog fieldset { border: 1px solid var(--color-border-light-tertiary); padding: 4px 6px; }
+.vehicle-fire-dialog fieldset legend { font-size: 0.8em; }
 .cyberpunk-card .roll-image {
   margin-right: 5px;
 }

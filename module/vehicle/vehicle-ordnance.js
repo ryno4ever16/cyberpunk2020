@@ -13,9 +13,10 @@
 import { warheadProfile, shellTravelTurns, indirectToHitNumber, indirectToHitBonus, indirectLanding,
          bombDirectPen, diveBombAimBonus, bombFallTurns, bombLanding } from "./vehicle-indirect.js";
 import { resolveAreaShot } from "./vehicle-area.js";
-import { openSingletonDialog } from "../utils.js";
+import { openSingletonDialog, localize, localizeParam } from "../utils.js";
 import { pxPerMeter, metersToUnits, metersPerUnit } from "./vehicle-grid.js";
 import { gridDistanceBetween } from "../combat/rangefinding.js";
+import { renderChatCard, postSavePromptCard } from "../compat.js";
 
 const SCOPE = "cyberpunk2020";
 
@@ -79,14 +80,20 @@ export async function resolveWarheadBurst({ firerToken = null, origin, warhead =
   if (profile.dot) {
     const res = await resolveAreaShot({ firerToken, origin, shape, payload, skipDispatch: true, scene });
     for (const tok of res.inside ?? []) await _ignite(tok.actor, profile.dot);
-    await ChatMessage.create({ content: `<div class="cyberpunk save-prompt"><h3>🔥 White Phosphorus burst</h3><div class="save-info">${(res.inside ?? []).length} target(s) set alight (${profile.dot.formula}/turn).</div></div>` });
+    await postSavePromptCard({
+      title: localize("Vehicle.WhitePhosphorusTitle"),
+      body: localizeParam("Vehicle.WhitePhosphorusBody", { count: (res.inside ?? []).length, formula: profile.dot.formula }),
+    });
     return { struck: (res.inside ?? []).map(t => t.actor), tokens: (res.inside ?? []).length, profile };
   }
 
   // Chemical / smoke: drop a lingering cloud at the landing point.
   if (profile.gas) {
     await _placeGasCloud(scene, origin, profile.burstM, payload.weaponName);
-    await ChatMessage.create({ content: `<div class="cyberpunk save-prompt"><h3>☠ Chemical burst</h3><div class="save-info">A ${profile.burstM}m cloud settles over the impact.</div></div>` });
+    await postSavePromptCard({
+      title: localize("Vehicle.ChemicalBurstTitle"),
+      body: localizeParam("Vehicle.ChemicalBurstBody", { radius: profile.burstM }),
+    });
     return { struck: [], tokens: 0, profile };
   }
 
@@ -118,7 +125,15 @@ function _shellOptions(w, wName) {
   return [base, ...variants];
 }
 
-const _shellSelect = (shells, id) => `<select id="${id}">${shells.map((s, i) => `<option value="${i}">${s.name} · Pen ${s.pen}${s.burst ? ` · ${s.burst}m burst` : ""}${s.warhead ? ` · ${s.warhead}` : ""}</option>`).join("")}</select>`;
+/** Shell <select> options as a {value,label} list (label localized; the template builds the <option>s). */
+const _shellChoices = (shells) => shells.map((s, i) => ({
+  value: i,
+  label: localizeParam("Vehicle.ShellOption", {
+    name: s.name, pen: s.pen,
+    burst: s.burst ? localizeParam("Vehicle.ShellBurstClause", { burst: s.burst }) : "",
+    warhead: s.warhead ? localizeParam("Vehicle.ShellWarheadClause", { warhead: s.warhead }) : "",
+  }),
+}));
 
 /**
  * Indirect / artillery fire (MM p.8). A guided helper: roll the spotter-corrected To-Hit (25, or 10
@@ -127,7 +142,7 @@ const _shellSelect = (shells, id) => `<select id="${id}">${shells.map((s, i) => 
  */
 export async function openIndirectFireDialog(actor, mount = {}) {
   if (!actor || actor.type !== "vehicle") return null;
-  if (!_enabled("vehicleDamageEnabled")) { ui.notifications?.warn?.("Vehicle damage automation is disabled in the settings."); return null; }
+  if (!_enabled("vehicleDamageEnabled")) { ui.notifications?.warn?.(localize("Vehicle.DamageDisabled")); return null; }
   const item = mount.itemId ? actor.items.get(mount.itemId) : null;
   const w = item?.system ?? {};
   const wName = item?.name ?? mount.name ?? "artillery";
@@ -136,43 +151,25 @@ export async function openIndirectFireDialog(actor, mount = {}) {
 
   const targets = [...(game.user?.targets ?? [])];
   const targetTok = targets.length === 1 ? targets[0] : null;
-  if (!targetTok) { ui.notifications?.warn?.("Target the impact point (a token at the target's location) before firing indirect."); return null; }
+  if (!targetTok) { ui.notifications?.warn?.(localize("Vehicle.IndirectNeedsTarget")); return null; }
   const firerTok = _firerTokenOf(actor);
   const scene = targetTok.document?.parent ?? canvas?.scene;
   const rangeAuto = (firerTok && targetTok)
     ? (() => { try { return Math.round(gridDistanceBetween(firerTok.center, targetTok.center) * metersPerUnit(scene)); } catch { return Number(w.range) || 0; } })()
     : (Number(w.range) || 0);
 
-  const content = `
-<div class="cyberpunk vehicle-fire-dialog" style="display:flex;flex-direction:column;gap:4px;">
-  <div style="opacity:0.7;font-size:0.85em;">${actor.name} fires <b>${wName}</b> indirect at <b>${targetTok.name}</b>. A spotter corrects fire; on a miss the shell scatters from the aim point.</div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;">
-    <label>Spotter HW <input type="number" id="cp-if-shw" value="0" style="width:44px;"></label>
-    <label>Spotter INT <input type="number" id="cp-if-sint" value="0" style="width:44px;"></label>
-    <label>Firer HW <input type="number" id="cp-if-fhw" value="0" style="width:44px;"></label>
-  </div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-    <label>Range (m) <input type="number" id="cp-if-range" value="${rangeAuto}" style="width:64px;"></label>
-    <label><input type="checkbox" id="cp-if-ranged"> Already ranged in (To-Hit 10)</label>
-  </div>
-  <label>Shell ${_shellSelect(shells, "cp-if-shell")}</label>
-  <fieldset style="border:1px solid var(--color-border-light-tertiary);padding:4px 6px;">
-    <legend style="font-size:0.8em;">Spotter modifiers (MM p.8)</legend>
-    <label><input type="checkbox" id="cp-if-distract"> Spotter distracted (−10)</label>
-    <label style="margin-left:8px;"><input type="checkbox" id="cp-if-optics"> Computer optics (+10)</label><br>
-    <label><input type="checkbox" id="cp-if-link"> Cyberlinked (+5)</label>
-    <label style="margin-left:8px;"><input type="checkbox" id="cp-if-dark"> Darkness (−3)</label>
-    <label style="margin-left:8px;">Other <input type="number" id="cp-if-other" value="0" style="width:44px;"></label>
-  </fieldset>
-</div>`;
+  const content = await renderChatCard("vehicle/indirect-dialog.hbs", {
+    actorName: actor.name, weaponName: wName, targetName: targetTok.name,
+    rangeAuto, shells: _shellChoices(shells),
+  });
 
   const dialog = new foundry.applications.api.DialogV2({
-    window: { title: `💥 Indirect Fire — ${actor.name}` },
+    window: { title: localizeParam("Vehicle.IndirectDialogTitle", { actor: actor.name }) },
     content,
     buttons: [
       {
         action: "fire",
-        label: "💥 Fire for Effect",
+        label: localize("Vehicle.FireForEffect"),
         default: true,
         callback: async (ev, btn, dlg) => {
           const root = dlg.element;
@@ -188,14 +185,19 @@ export async function openIndirectFireDialog(actor, mount = {}) {
           const land = indirectLanding({ aim: _center(targetTok), rangeM, toHitTotal: total, toHitNumber: tn, d10dir: dir, ppm: _ppm(scene) });
           await resolveWarheadBurst({ firerToken: firerTok, origin: land.point, warhead: shell.warhead, pen: shell.pen, burstM: shell.burst, payload: { weaponName: shell.name, ap: shell.ap, range: "normal" }, scene });
           const travel = shellTravelTurns(rangeM, kind);
-          const verdict = land.hit
-            ? `<span style="color:#3ad13a;font-weight:bold;">ON TARGET</span> (1d10 ${d10} + ${bonus} = ${total} vs ${tn})`
-            : `<span style="color:#e0a020;font-weight:bold;">SCATTER</span> ${Math.round(land.deviationM)}m (missed by ${land.missedBy}; 1d10 ${d10} + ${bonus} = ${total} vs ${tn})`;
-          await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} — ${shell.name} (indirect)`, content:
-            `<div class="cyberpunk vehicle-fire-result"><h3>💥 ${shell.name}</h3><div>${verdict}</div><div style="opacity:0.8;font-size:0.85em;margin-top:2px;">Shell travel ≈ <b>${travel}</b> turn${travel !== 1 ? "s" : ""} (${kind === "artillery" ? "600" : "400"} m/turn).</div></div>` });
+          const content = await renderChatCard("vehicle/indirect-result.hbs", {
+            shellName: shell.name, hit: land.hit, d10, bonus, total, tn,
+            dev: Math.round(land.deviationM), missedBy: land.missedBy,
+            travel, mps: kind === "artillery" ? "600" : "400",
+          });
+          await ChatMessage.create({
+            speaker: ChatMessage.getSpeaker({ actor }),
+            flavor: localizeParam("Vehicle.IndirectFlavor", { actor: actor.name, shell: shell.name }),
+            content,
+          });
         },
       },
-      { action: "cancel", label: "Cancel" },
+      { action: "cancel", label: localize("Cancel") },
     ],
   });
   return openSingletonDialog(`vehicle-indirect:${actor.id}`, () => dialog);
@@ -208,7 +210,7 @@ export async function openIndirectFireDialog(actor, mount = {}) {
  */
 export async function openBombDialog(actor, mount = {}) {
   if (!actor || actor.type !== "vehicle") return null;
-  if (!_enabled("vehicleDamageEnabled")) { ui.notifications?.warn?.("Vehicle damage automation is disabled in the settings."); return null; }
+  if (!_enabled("vehicleDamageEnabled")) { ui.notifications?.warn?.(localize("Vehicle.DamageDisabled")); return null; }
   const item = mount.itemId ? actor.items.get(mount.itemId) : null;
   const w = item?.system ?? {};
   const wName = item?.name ?? mount.name ?? "bomb";
@@ -216,29 +218,22 @@ export async function openBombDialog(actor, mount = {}) {
 
   const targets = [...(game.user?.targets ?? [])];
   const targetTok = targets.length === 1 ? targets[0] : null;
-  if (!targetTok) { ui.notifications?.warn?.("Target the aiming point (a token at the target's location) before bombing."); return null; }
+  if (!targetTok) { ui.notifications?.warn?.(localize("Vehicle.BombNeedsTarget")); return null; }
   const firerTok = _firerTokenOf(actor);
   const scene = targetTok.document?.parent ?? canvas?.scene;
 
-  const content = `
-<div class="cyberpunk vehicle-fire-dialog" style="display:flex;flex-direction:column;gap:4px;">
-  <div style="opacity:0.7;font-size:0.85em;">${actor.name} drops <b>${wName}</b> on <b>${targetTok.name}</b>. A direct hit multiplies Penetration ×5; a miss scatters with altitude.</div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-    <label>Drop height (m) <input type="number" id="cp-bm-height" value="500" style="width:64px;"></label>
-    <label>Dive turns <input type="number" id="cp-bm-dive" value="0" style="width:44px;" title="Turns spent diving at the target; each beyond the first adds +1 to-hit (max +3) and speeds the fall."></label>
-    <label>Aircraft speed (m/turn) <input type="number" id="cp-bm-speed" value="0" style="width:64px;" title="Power-dive speed; the bomb inherits it (halving each turn to the 175 m/turn floor)."></label>
-  </div>
-  <label>Bomb ${_shellSelect(shells, "cp-bm-shell")}</label>
-  <label>Other to-hit mods <input type="number" id="cp-bm-other" value="0" style="width:44px;"></label>
-</div>`;
+  const content = await renderChatCard("vehicle/bomb-dialog.hbs", {
+    actorName: actor.name, weaponName: wName, targetName: targetTok.name,
+    shells: _shellChoices(shells),
+  });
 
   const dialog = new foundry.applications.api.DialogV2({
-    window: { title: `🛩 Bombing — ${actor.name}` },
+    window: { title: localizeParam("Vehicle.BombDialogTitle", { actor: actor.name }) },
     content,
     buttons: [
       {
         action: "drop",
-        label: "🛩 Drop",
+        label: localize("Vehicle.Drop"),
         default: true,
         callback: async (ev, btn, dlg) => {
           const root = dlg.element;
@@ -257,14 +252,21 @@ export async function openBombDialog(actor, mount = {}) {
           const pen = land.hit ? bombDirectPen(shell.pen) : shell.pen;
           await resolveWarheadBurst({ firerToken: firerTok, origin: land.point, warhead: shell.warhead, pen, burstM: shell.burst, payload: { weaponName: shell.name, ap: shell.ap, range: "normal" }, scene });
           const fall = bombFallTurns(heightM, { diveSpeed: diveTurns > 0 ? diveSpeed : 0 });
-          const verdict = land.hit
-            ? `<span style="color:#ff3030;font-weight:bold;">DIRECT HIT ×5</span> (1d10 ${d10} + ${mods} = ${total} vs ${tn}) — Pen ${pen}`
-            : `<span style="color:#e0a020;font-weight:bold;">MISS</span>, scatters ${Math.round(land.deviationM)}m (missed by ${land.missedBy})`;
-          await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} — ${shell.name} (bomb)`, content:
-            `<div class="cyberpunk vehicle-fire-result"><h3>🛩 ${shell.name}</h3><div>${verdict}</div><div style="opacity:0.8;font-size:0.85em;margin-top:2px;">Falls ≈ <b>${fall}</b> turn${fall !== 1 ? "s" : ""}${diveTurns > 0 && diveSpeed > 175 ? " (dive)" : ""}${aim ? ` · dive aim +${aim}` : ""}.</div></div>` });
+          const fallExtra = (diveTurns > 0 && diveSpeed > 175 ? localize("Vehicle.BombFallDive") : "")
+                          + (aim ? localizeParam("Vehicle.BombFallAim", { aim }) : "");
+          const content = await renderChatCard("vehicle/bomb-result.hbs", {
+            shellName: shell.name, hit: land.hit, d10, mods, total, tn, pen,
+            dev: Math.round(land.deviationM), missedBy: land.missedBy,
+            fall, fallExtra,
+          });
+          await ChatMessage.create({
+            speaker: ChatMessage.getSpeaker({ actor }),
+            flavor: localizeParam("Vehicle.BombFlavor", { actor: actor.name, shell: shell.name }),
+            content,
+          });
         },
       },
-      { action: "cancel", label: "Cancel" },
+      { action: "cancel", label: localize("Cancel") },
     ],
   });
   return openSingletonDialog(`vehicle-bomb:${actor.id}`, () => dialog);
