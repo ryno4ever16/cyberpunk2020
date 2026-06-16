@@ -136,6 +136,12 @@ export class ModifiersDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     const root = this.element;
     if (!root) return;
 
+    // Select a field's contents on focus so the player can immediately type to overwrite it
+    // (e.g. the Extra Modifiers value) instead of the caret landing mid-value.
+    for (const inp of root.querySelectorAll('input[type="number"], input[type="text"]')) {
+      inp.addEventListener("focus", () => { try { inp.select(); } catch (_) {} });
+    }
+
     // ── RELOAD ──────────────────────────────────────────────────────────────
     root.querySelector(".reload")?.addEventListener("click", async (ev) => {
       ev.preventDefault();
