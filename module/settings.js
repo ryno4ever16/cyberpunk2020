@@ -874,7 +874,7 @@ export function registerSystemSettings() {
     for (const g of groups.slice(1)) { if (anchor.nextElementSibling !== g) anchor.parentNode.insertBefore(g, anchor.nextElementSibling); anchor = g; }
     // Grey out / disable the MM sub-settings when the master is off; live-update when it's toggled.
     const subGroups = groups.slice(1);
-    const setEnabled = (on) => { for (const g of subGroups) { g.style.opacity = on ? "" : "0.5"; g.querySelectorAll("input,select,button,textarea").forEach(el => { el.disabled = !on; }); } };
+    const setEnabled = (on) => { for (const g of subGroups) { g.classList.toggle("cp-mm-disabled", !on); g.querySelectorAll("input,select,button,textarea").forEach(el => { el.disabled = !on; }); } };
     setEnabled(mmEnabled());
     const masterInput = first.querySelector(`[name="${SCOPE}.mmEnabled"]`);
     masterInput?.addEventListener("change", () => setEnabled(!!masterInput.checked));
@@ -885,7 +885,7 @@ export function registerSystemSettings() {
     const root = html instanceof jQuery ? html[0] : (Array.isArray(html) ? html[0] : html);
     if (!root?.querySelector || mmEnabled()) return;          // MM on → show it normally
     const li = root.querySelector(`[data-pack="${SCOPE}.vehicle-weapons"]`);
-    if (li) li.style.display = "none";
+    if (li) li.classList.add("cp-hidden");
   });
 
 }

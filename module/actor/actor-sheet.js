@@ -773,7 +773,8 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     for (const row of root.querySelectorAll(".field.skill[data-item-id]")) {
       const skill = this.actor.items.get(row.dataset.itemId);
       const haystack = String(skill?.name ?? "").toUpperCase();
-      row.style.display = (!normalized || haystack.includes(normalized)) ? "" : "none";
+      const match = !normalized || haystack.includes(normalized);
+      row.classList.toggle("cp-hidden", !match);
     }
   }
 
@@ -900,6 +901,9 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     const HIDE_EVENTS = ["drop", "dragend", "click", "mousedown", "mouseup"];
     let listenerDoc = null;  // PopOut!: which document the hide-listeners are bound to (moves on popout)
 
+    // Inline display (not a CSS class) is deliberate: the tooltip is a free-floating element that
+    // gets adoptNode'd between documents for PopOut!, so it must hide/show without depending on a
+    // stylesheet class being present in whichever document it currently lives in.
     function hideTooltip() {
       tooltip.style.display = "none";
     }

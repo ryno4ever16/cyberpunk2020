@@ -1026,6 +1026,9 @@ div.statderive .value.rightborder {
 /* Maximum Metal section header injected into the system Settings menu (replaces an inline cssText). */
 .cp-mm-header { margin-top: 14px; border-top: 2px solid var(--color-border-light-primary); padding-top: 8px; }
 
+/* Greyed-out state for MM sub-settings when the master toggle is off (replaces an inline opacity). */
+.cp-mm-disabled { opacity: 0.5; }
+
 /* Buy-Ammo dialog live cost preview line (DialogV2 content). */
 .cp-buy-ammo-preview { margin-top: 6px; font-weight: bold; }
 
