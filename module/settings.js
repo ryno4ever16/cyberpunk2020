@@ -1,3 +1,5 @@
+import { localize } from "./utils.js";
+
 const SCOPE = "cyberpunk2020";
 
 /** Master Maximum Metal toggle. When OFF (default), every MM-overlay feature falls back to Core CP2020. */
@@ -864,8 +866,7 @@ export function registerSystemSettings() {
     if (!first.previousElementSibling?.classList?.contains("cp-mm-header")) {
       const header = document.createElement("h3");
       header.className = "cp-mm-header";
-      header.textContent = "Maximum Metal";
-      header.style.cssText = "margin-top:14px;border-top:2px solid var(--color-border-light-primary);padding-top:8px;";
+      header.textContent = localize("Vehicle.SystemMM");
       first.parentNode.insertBefore(header, first);
     }
     // Keep the MM groups consecutive under the header.

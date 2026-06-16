@@ -310,7 +310,6 @@ Hooks.on("renderActorDirectory", (app, html) => {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "cp-ip-tracker-btn";
-    btn.style.cssText = "flex:0 0 auto; margin:4px;";
     btn.innerHTML = `<i class="fas fa-graduation-cap"></i> ${game.i18n.localize("CYBERPUNK.IpTrackerTitle")}`;
     btn.addEventListener("click", () => openIpTracker());
     const header = root.querySelector(".directory-header") ?? root.querySelector(".header-actions") ?? root.firstElementChild ?? root;

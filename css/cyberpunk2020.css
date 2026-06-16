@@ -1020,6 +1020,12 @@ div.statderive .value.rightborder {
 /* PATH-B "Apply Damage" chat button (injected into the damage card by the render hook). */
 .cp2020-apply-damage-btn { margin-top: 4px; width: 100%; }
 
+/* IP-tracker button injected into the Actor Directory header (replaces an inline cssText). */
+.cp-ip-tracker-btn { flex: 0 0 auto; margin: 4px; }
+
+/* Maximum Metal section header injected into the system Settings menu (replaces an inline cssText). */
+.cp-mm-header { margin-top: 14px; border-top: 2px solid var(--color-border-light-primary); padding-top: 8px; }
+
 /* Wait-for-turn + apply-damage target picker (DialogV2 content — no .cyberpunk wrapper). */
 .cp-select-dialog { padding: 4px; }
 .cp-select-dialog p { margin: 0 0 6px; }
