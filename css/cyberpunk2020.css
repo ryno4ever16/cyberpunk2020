@@ -33,6 +33,9 @@
   flex: 0;
   padding-top: 0px;
   padding-bottom: 0px;
+  /* Breathing room between the tab bar's bottom border and the first content boxes, which
+     otherwise sit flush against the line. ~matches the project's block-separation spacing. */
+  margin-bottom: 6px;
 }
 .cyberpunk section.window-content nav.tabs > .item {
   padding-top: 4px;
