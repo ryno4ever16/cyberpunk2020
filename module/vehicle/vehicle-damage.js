@@ -20,8 +20,9 @@
  * bottom rolls the dice, calls these, applies the result to the actor, and posts a chat card.
  */
 
-import { openSingletonDialog } from "../utils.js";
+import { openSingletonDialog, localize, localizeParam } from "../utils.js";
 import { effectiveVehicleRuleSystem } from "../settings.js";
+import { renderChatCard } from "../compat.js";
 import { acpaBodyArea, externalSystemHit, acpaSystemHit, acpaRollAgain, acpaCriticalEffect, acpaCriticalUpdate, acpaAreaSOP, systemIntegrity } from "./vehicle-acpa.js";
 import { acpaHitSystem, acpaSystemSop } from "./vehicle-acpa-systems.js";
 
@@ -211,50 +212,31 @@ function _facingKey(facing) {
 export async function openVehicleDamageDialog(actor) {
   if (!actor || actor.type !== "vehicle") return null;
   const enabled = (() => { try { return game.settings.get(SCOPE, "vehicleDamageEnabled"); } catch { return true; } })();
-  if (!enabled) { ui.notifications?.warn?.("Vehicle damage automation is disabled in the system settings."); return null; }
+  if (!enabled) { ui.notifications?.warn?.(localize("Vehicle.DamageDisabled")); return null; }
   const ruleSystem = effectiveVehicleRuleSystem();
   const isMM = ruleSystem === "MaximumMetal";
   const sys = actor.system ?? {};
 
-  const facingOpts = FACINGS.map(f => `<option value="${f}">${f}</option>`).join("");
+  const facingOptions = FACINGS.map(f => ({ value: f, label: localize("Vehicle.Facing_" + f) }));
+  const rangeOptions = [
+    { value: "normal", label: localize("Vehicle.RangeNormal") },
+    { value: "long", label: localize("Vehicle.RangeLong") },
+    { value: "extreme", label: localize("Vehicle.RangeExtreme") },
+  ];
 
-  const coreBody = `
-    <label>Incoming damage <input type="number" id="cp-vd-raw" value="0" style="width:64px;"></label>
-    <label style="margin-left:8px;"><input type="checkbox" id="cp-vd-ap"> Armor-piercing (½ SP)</label>
-    <label style="display:block;margin-top:4px;">Facing (which SP)
-      <select id="cp-vd-facing" style="margin-left:6px;">${facingOpts}</select>
-    </label>`;
-
-  const mmBody = `
-    <label>Base penetration <input type="number" id="cp-vd-pen" value="0" style="width:56px;"></label>
-    <label style="margin-left:8px;">Facing
-      <select id="cp-vd-facing" style="margin-left:4px;">${facingOpts}</select>
-    </label>
-    <div style="display:flex; gap:8px; margin-top:4px; flex-wrap:wrap;">
-      <label>To-hit cleared target by <input type="number" id="cp-vd-overby" value="0" style="width:48px;"> <span style="opacity:0.6;font-size:0.8em;">(Good Shot: +½ pen / 10)</span></label>
-    </div>
-    <div style="display:flex; gap:8px; margin-top:4px; flex-wrap:wrap;">
-      <label>Extra rounds same area <input type="number" id="cp-vd-rounds" value="0" style="width:48px;"></label>
-      <label>Range
-        <select id="cp-vd-range" style="margin-left:4px;">
-          <option value="normal">Normal</option><option value="long">Long (−25%)</option><option value="extreme">Extreme (−50%)</option>
-        </select>
-      </label>
-    </div>`;
-
-  const content = `
-<div class="cyberpunk vehicle-damage-dialog" style="display:flex;flex-direction:column;gap:4px;">
-  <div style="opacity:0.7;font-size:0.85em;">${isMM ? "Maximum Metal" : "Core"} damage to <b>${actor.name}</b>.</div>
-  ${isMM ? mmBody : coreBody}
-</div>`;
+  const content = await renderChatCard("vehicle/damage-dialog.hbs", {
+    isMM, actorName: actor.name,
+    systemLabel: localize(isMM ? "Vehicle.SystemMM" : "Vehicle.SystemCore"),
+    facingOptions, rangeOptions,
+  });
 
   const dialog = new foundry.applications.api.DialogV2({
-    window: { title: `💥 Damage — ${actor.name}` },
+    window: { title: localizeParam("Vehicle.DamageDialogTitle", { actor: actor.name }) },
     content,
     buttons: [
       {
         action: "apply",
-        label: "💥 Resolve",
+        label: localize("Vehicle.ResolveBtn"),
         default: true,
         callback: async (ev, btn, dlg) => {
           const root = dlg.element;
@@ -272,7 +254,7 @@ export async function openVehicleDamageDialog(actor) {
           }
         },
       },
-      { action: "cancel", label: "Cancel" },
+      { action: "cancel", label: localize("Cancel") },
     ],
   });
   return openSingletonDialog(`vehicle-damage:${actor.id}`, () => dialog);
@@ -290,13 +272,16 @@ export async function applyVehicleDamageCore(actor, { rawDamage = 0, ap = false,
   // sdp.max (and thus Body Value). Preserve max.
   await actor.update({ "system.sdp": { value: res.newSDP, max: Number(sys.sdp?.max) || 0 } });
 
-  const content = `
-<div class="cyberpunk vehicle-damage-result">
-  <h3>💥 ${actor.name} — Core Damage</h3>
-  <div>${rawDamage} damage − SP ${res.spUsed}${ap ? " (AP ½)" : ""} (${spKey}) = <b>${res.through}</b> to SDP</div>
-  <div style="margin-top:2px;">SDP ${currentSDP} → <b>${res.newSDP}</b> / ${Number(sys.sdp?.max) || 0}</div>
-  ${res.destroyed ? `<div style="margin-top:4px;color:#ff3030;font-weight:bold;">⚠ DESTROYED / inoperable (0 SDP).</div>` : ""}
-</div>`;
+  const body = localizeParam("Vehicle.CoreDmgBody", {
+    raw: rawDamage, sp: res.spUsed, apClause: ap ? localize("Vehicle.CoreDmgApClause") : "",
+    facing: localize("Vehicle.Facing_" + spKey), through: res.through,
+  });
+  let lines = localizeParam("Vehicle.CoreDmgSDP", { before: currentSDP, after: res.newSDP, max: Number(sys.sdp?.max) || 0 });
+  if (res.destroyed) lines += `<br>${localize("Vehicle.CoreDmgDestroyed")}`;
+
+  const content = await renderChatCard("vehicle/damage-result.hbs", {
+    actorName: actor.name, systemLabel: localize("Vehicle.DamageSystemCore"), body, lines,
+  });
   await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), content });
   return res;
 }
@@ -364,7 +349,7 @@ async function _resolveAcpaSopDamage(actor, sys, { pen, rawDamage, str }, rolls)
     const pct = Math.round(chk.inopChance * 100);
     if ((await d100()) > pct) return "";
     r.iu["system.destroyed"] = true;
-    return ` <span style="color:#e07b00;">Integrity check failed (${pct}%) — system knocked <b>INOPERABLE</b>.</span>`;
+    return ` <span class="result-warn">Integrity check failed (${pct}%) — system knocked <b>INOPERABLE</b>.</span>`;
   };
 
   // 50% (5-in-10): the hit struck an EXTERNAL (unarmored) system instead of the suit proper (MM p.55).
@@ -376,7 +361,7 @@ async function _resolveAcpaSopDamage(actor, sys, { pen, rawDamage, str }, rolls)
       lines += `<br>An <b>external system</b> (<b>${r.name}</b>) on the ${areaName} absorbed <b>${sop}</b> SOP (now ${r.struck.sopDamage}/${r.total}). Suit proper spared.${inopNote}`;
       return { body, lines, updates, itemUpdates };
     }
-    lines += `<br>An <b>external system</b> (<b>${r.name}</b>) on the ${areaName} was <span style="color:#e07b00;font-weight:bold;">DESTROYED</span>.`;
+    lines += `<br>An <b>external system</b> (<b>${r.name}</b>) on the ${areaName} was <span class="result-warn">DESTROYED</span>.`;
     if (r.overflow <= 0) return { body, lines, updates, itemUpdates };
     frameDamage = r.overflow;
     lines += ` ${r.overflow} SOP overflows into the suit frame.`;
@@ -390,14 +375,14 @@ async function _resolveAcpaSopDamage(actor, sys, { pen, rawDamage, str }, rolls)
       const amt = eff.formula ? (await roll(eff.formula)).total : 0;
       const { updates: cu, note } = acpaCriticalUpdate(sys, eff, amt);
       Object.assign(updates, cu);
-      lines += `<br><span style="color:#ff3030;font-weight:bold;">CRITICAL</span> — ${eff.label}: ${note}.`;
+      lines += `<br><span class="result-fail">CRITICAL</span> — ${eff.label}: ${note}.`;
       if (eff.type === "mechShock") pilotStun = true;   // mechanical shock stuns the pilot
     } else if (cat === "enclosed") {
       // Per-system SOP (D-4d): the SOP damages a specific mounted, enclosed system in the struck area.
       const r = hitMountedSystem(i => i.type === "acpaSystem" && i.system?.mount !== "external");
       if (r) {
         if (r.destroyed) {
-          lines += `<br>System Hit: <b>${r.name}</b> (${areaName}) — <span style="color:#e07b00;font-weight:bold;">DESTROYED</span>.`;
+          lines += `<br>System Hit: <b>${r.name}</b> (${areaName}) — <span class="result-warn">DESTROYED</span>.`;
           frameDamage = r.overflow;
           if (r.overflow > 0) lines += ` ${r.overflow} SOP overflows to the frame.`;
         } else {
@@ -414,7 +399,7 @@ async function _resolveAcpaSopDamage(actor, sys, { pen, rawDamage, str }, rolls)
       const r = hitMountedSystem(i => i.type === "vehicleWeapon" && (Number(i.system?.sop) || 0) > 0);
       if (r) {
         if (r.destroyed) {
-          lines += `<br>System Hit: <b>${r.name}</b> (weapon, ${areaName}) — <span style="color:#e07b00;font-weight:bold;">DESTROYED</span>.`;
+          lines += `<br>System Hit: <b>${r.name}</b> (weapon, ${areaName}) — <span class="result-warn">DESTROYED</span>.`;
           frameDamage = r.overflow;
           if (r.overflow > 0) lines += ` ${r.overflow} SOP overflows to the frame.`;
           const dn = `${r.name} (destroyed)`;
@@ -447,12 +432,12 @@ async function _resolveAcpaSopDamage(actor, sys, { pen, rawDamage, str }, rolls)
     else lines += `<br>${areaName} frame SOP ${before} → ${cur[areaKey]}.`;
 
     if (cur[areaKey] === 0) {
-      lines += `<br><span style="color:#e07b00;">${areaName} frame destroyed — its systems are inoperable.</span>`;
+      lines += `<br><span class="result-warn">${areaName} frame destroyed — its systems are inoperable.</span>`;
       if (areaKey === "torso") {
         updates["system.destroyed"] = true;
         updates["system.immobilized"] = true;
         updates["system.sdp"] = { value: 0, max: Number(sys.sdp?.max) || 0 };
-        lines += ` <span style="color:#ff3030;font-weight:bold;">TORSO DESTROYED — the suit SHUTS DOWN.</span>`;
+        lines += ` <span class="result-fail">TORSO DESTROYED — the suit SHUTS DOWN.</span>`;
       } else if (areaKey === "rLeg" || areaKey === "lLeg") {
         updates["system.immobilized"] = true;
       }
@@ -557,20 +542,20 @@ export async function applyVehicleDamageMM(actor, { basePen = 0, facing = "front
 
       lines = `Roll ${sev.score} → <b>${sev.severity.toUpperCase()}</b> · location: <b>${locLine}</b>`;
       if (ignored) {
-        lines += `<br><span style="color:#3ad13a;">Damage Control absorbed the hit (rolled 6-10) — system stays functional.</span>`;
+        lines += `<br><span class="result-success">Damage Control absorbed the hit (rolled 6-10) — system stays functional.</span>`;
       } else {
         if (loc === "Motive Gear") updates["system.immobilized"] = true;
         if (loc === "Fuel") {
           const fire = (await new Roll("1d100").evaluate());
           rolls.push(fire);
-          if (fire.total <= crit.fuelFirePct) { updates["system.onFire"] = true; lines += `<br><span style="color:#e07b00;">Fuel ignites (rolled ${fire.total} ≤ ${crit.fuelFirePct}%) — on fire: 3d6/crew/turn, 25%/turn to explode.</span>`; }
+          if (fire.total <= crit.fuelFirePct) { updates["system.onFire"] = true; lines += `<br><span class="result-warn">Fuel ignites (rolled ${fire.total} ≤ ${crit.fuelFirePct}%) — on fire: 3d6/crew/turn, 25%/turn to explode.</span>`; }
           else lines += `<br>Fuel hit but did not ignite (rolled ${fire.total} > ${crit.fuelFirePct}%).`;
         }
         const zeroSDP = { value: 0, max: Number(sys.sdp?.max) || 0 };
         const isExplosive = (subLoc === "Engine" || subLoc === "Cargo/Ammo");
         if (isExplosive && crit.enginePct > 0) {
           const ex = await new Roll("1d100").evaluate(); rolls.push(ex);
-          if (ex.total <= crit.enginePct) { updates["system.destroyed"] = true; updates["system.sdp"] = zeroSDP; lines += `<br><span style="color:#ff3030;font-weight:bold;">Engine/ammo cooks off (rolled ${ex.total} ≤ ${crit.enginePct}%) — vehicle DEMOLISHED.</span>`; }
+          if (ex.total <= crit.enginePct) { updates["system.destroyed"] = true; updates["system.sdp"] = zeroSDP; lines += `<br><span class="result-fail">Engine/ammo cooks off (rolled ${ex.total} ≤ ${crit.enginePct}%) — vehicle DEMOLISHED.</span>`; }
           else lines += `<br>Engine/ammo hit but held (rolled ${ex.total} > ${crit.enginePct}%).`;
         }
         if (sev.severity === "catastrophic") { updates["system.destroyed"] = true; updates["system.sdp"] = zeroSDP; }
@@ -585,7 +570,7 @@ export async function applyVehicleDamageMM(actor, { basePen = 0, facing = "front
       if (moraleOn) {
         const m = await d10();
         const need = Math.max(0, 15 - m);
-        lines += `<br><span style="color:#7aa7ff;">Crew morale (Leadership + 1d10 vs 15): rolled <b>${m}</b> → crew holds if Leadership ≥ <b>${need}</b>, else they bail / disengage (GM adjudicates).</span>`;
+        lines += `<br><span class="result-note">Crew morale (Leadership + 1d10 vs 15): rolled <b>${m}</b> → crew holds if Leadership ≥ <b>${need}</b>, else they bail / disengage (GM adjudicates).</span>`;
       }
     }
 
@@ -603,19 +588,22 @@ export async function applyVehicleDamageMM(actor, { basePen = 0, facing = "front
         const newSP = { ...(sys.sp ?? {}) };
         newSP[avKey] = curSP - stripped;
         updates["system.sp"] = newSP;
-        lines += `<br><span style="color:#caa54a;">Armor erosion (errata) — <b>−${stripped} SP</b> at ${facing} (now ${newSP[avKey]} SP / AV ${Math.round(newSP[avKey] / 20)}).</span>`;
+        lines += `<br><span class="result-warn">Armor erosion (errata) — <b>−${stripped} SP</b> at ${facing} (now ${newSP[avKey]} SP / AV ${Math.round(newSP[avKey] / 20)}).</span>`;
       }
     }
   }
 
   if (Object.keys(updates).length) await actor.update(updates);
 
-  const content = `
-<div class="cyberpunk vehicle-damage-result">
-  <h3>💥 ${actor.name} — ${isACPA ? "Powered-Armor" : "Maximum Metal"} Damage</h3>
-  <div>${body}</div>
-  <div style="margin-top:4px;">${lines}</div>
-</div>`;
+  // `body`/`lines` are the MM/ACPA resolution narrative built above. Colour emphasis uses the shared
+  // .result-* classes (no inline CSS); the prose itself is English (the rolled numbers baked in).
+  // This sprawling, branch-heavy text (esp. the ACPA SOP flow) is left for a focused i18n pass —
+  // the same deferral as control's loss text and acpaTickStatus's lines. Triple-stash in the template.
+  const content = await renderChatCard("vehicle/damage-result.hbs", {
+    actorName: actor.name,
+    systemLabel: localize(isACPA ? "Vehicle.DamageSystemACPA" : "Vehicle.DamageSystemMM"),
+    body, lines,
+  });
   await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), content, rolls });
   return { pen, effAV, isACPA, severity: sev?.severity, score: sev?.score, updates };
 }
