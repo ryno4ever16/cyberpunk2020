@@ -133,7 +133,10 @@ export class CatalogBrowser extends HandlebarsApplicationMixin(ApplicationV2) {
     this._search = "";
     this._cats = new Set();
     this._books = new Set();
-    if (render) this.render({ force: true });
+    // Plain render (NOT force): in-window navigation (Catalog, a custom shop, Back, …) just swaps the
+    // view — it must not "reopen" the window, which would trip the global shimmer-on-reopen wrap. The
+    // genuine external reopen (openShopWindow) keeps its own explicit shimmer.
+    if (render) this.render();
   }
 
   // ── Shared row helpers ─────────────────────────────────────────────────────
