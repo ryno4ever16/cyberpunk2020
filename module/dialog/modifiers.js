@@ -216,7 +216,7 @@ export class ModifiersDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       }
 
       if (isEnergyAttackType(sys.attackType)) {
-        if (!Number.isFinite(capacity) || capacity <= 0) { ui.notifications.warn("This weapon cannot be recharged."); return; }
+        if (!Number.isFinite(capacity) || capacity <= 0) { ui.notifications.warn(localize("WeaponCannotRecharge")); return; }
         await updateWeaponShotsLeft(capacity);
         ui.notifications.info(localize("Recharged"));
         await gmReloadAudit(capacity);
@@ -254,7 +254,7 @@ export class ModifiersDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       const ammoQty = Number(ammoItem.system?.quantity ?? 0);
 
       if (!Number.isFinite(capacity) || capacity <= 0) {
-        ui.notifications.warn("This weapon cannot be reloaded.");
+        ui.notifications.warn(localize("WeaponCannotReload"));
         return;
       }
 

@@ -23,7 +23,7 @@ import { AutomationNotice }                                   from "../dialog/au
 import { onGlobalClick } from "../popout-compat.js";
 import { applyAreaDamages, ablateLocationOnce, ablateLocationByAmount, assessWoundSeverity, ARMOR_MODES } from "./DamageApplicator.js";
 import { postStunSavePrompt, postDeathSavePrompt, updateTaserState, applyAcidDotState, applyDotFromPayload } from "./save-rolls.js";
-import { rollLocation }                                       from "../utils.js";
+import { rollLocation, localize, localizeParam }              from "../utils.js";
 import { dispatchAttack }                                     from "../vehicle/vehicle-targeting.js";
 import { createArea, tokensInArea, areasByFlag, deleteArea, areaById, usesRegions, moveArea } from "./area-shapes.js";
 
@@ -161,18 +161,18 @@ export function registerDamageHooks() {
 
       // Guard: if already last in order, there is no one to follow — don't advance the round
       if (remaining.length === 0) {
-        ui.notifications.info(`${combatant.name} is already the last active combatant this round — there is no one to wait after.`);
+        ui.notifications.info(localizeParam("WaitNoOneAfter", { name: combatant.name }));
         return;
       }
 
       const options = remaining.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
       const targetId = await new Promise(resolve => {
         new foundry.applications.api.DialogV2({
-          window: { title: "Wait for Turn" },
+          window: { title: localize("WaitForTurnTitle") },
           content: `<div style="padding:4px;"><p style="margin:0 0 6px;">Act after which combatant's turn?</p><select id="cp-wait-target" style="width:100%;">${options}</select></div>`,
           buttons: [
-            { action: "confirm", label: "Wait",   default: true,  callback: (ev, btn, dlg) => resolve(dlg.element.querySelector("#cp-wait-target")?.value ?? null) },
-            { action: "cancel",  label: "Cancel",                  callback: () => resolve(null) },
+            { action: "confirm", label: localize("Wait"),   default: true,  callback: (ev, btn, dlg) => resolve(dlg.element.querySelector("#cp-wait-target")?.value ?? null) },
+            { action: "cancel",  label: localize("Cancel"),                  callback: () => resolve(null) },
           ],
           rejectClose: false,
           close: () => resolve(null),
@@ -198,7 +198,7 @@ export function registerDamageHooks() {
       const alreadyDodging = actor.getFlag("cyberpunk2020", "dodging") ?? false;
       if (alreadyDodging) {
         await actor.unsetFlag("cyberpunk2020", "dodging");
-        ui.notifications.info(`${actor.name} cancelled Dodge declaration.`);
+        ui.notifications.info(localizeParam("DodgeCancelled", { name: actor.name }));
       } else {
         await actor.setFlag("cyberpunk2020", "dodging", true);
         if (_isMultiActionEnabled() && _isMultiActionAutoTrack()) await _incrementActionCount(actor);
@@ -217,7 +217,7 @@ export function registerDamageHooks() {
       const alreadyParrying = actor.getFlag("cyberpunk2020", "parrying") ?? false;
       if (alreadyParrying) {
         await actor.unsetFlag("cyberpunk2020", "parrying");
-        ui.notifications.info(`${actor.name} cancelled Parry declaration.`);
+        ui.notifications.info(localizeParam("ParryCancelled", { name: actor.name }));
       } else {
         await actor.setFlag("cyberpunk2020", "parrying", true);
         if (_isMultiActionEnabled() && _isMultiActionAutoTrack()) await _incrementActionCount(actor);
@@ -252,7 +252,7 @@ export function registerDamageHooks() {
       await _incrementActionCount(actor);
       const count   = _getActionCount(actor);
       const penalty = count <= 1 ? 0 : -(count - 1) * 3;
-      ui.notifications.info(`${actor.name}: action ${count} recorded.${penalty < 0 ? ` Penalty: ${penalty} to all rolls this round.` : ""}`);
+      ui.notifications.info(localizeParam("ActionRecorded", { name: actor.name, count }) + (penalty < 0 ? localizeParam("ActionPenaltyClause", { penalty }) : ""));
       ui.combat?.render();
     }
   });
@@ -429,7 +429,7 @@ async function _placeSuppressiveZone(payload) {
   const attackerTok = attackerTokenId ? canvas?.tokens?.placeables?.find(t => t.id === attackerTokenId) : null;
 
   if (!attackerTok || !scene) {
-    ui.notifications.warn("Suppressive fire: the attacker's token isn't on the active scene, so the fire zone can't be placed. Drop the attacker's token on the canvas (or target tokens manually and use the evasion prompts).");
+    ui.notifications.warn(localize("SuppFireNoToken"));
     return;
   }
 
@@ -466,7 +466,7 @@ async function _placeSuppressiveZone(payload) {
       },
     });
     if (!handle?.doc) {
-      ui.notifications.warn("Could not place the suppressive fire zone.");
+      ui.notifications.warn(localize("SuppFireZoneFail"));
       return;
     }
     const created = handle.doc;
@@ -508,7 +508,7 @@ async function _confirmFireZone({ templateId, saveDC, dmgFormula, attackerId, we
 
   const handle = areaById(scene, templateId);
   if (!handle) {
-    ui.notifications.warn("Fire zone not found — it may have been removed.");
+    ui.notifications.warn(localize("FireZoneNotFound"));
     return;
   }
 
@@ -518,7 +518,7 @@ async function _confirmFireZone({ templateId, saveDC, dmgFormula, attackerId, we
   const tokensInZone = tokensInArea(handle, candidates);
 
   if (!tokensInZone.length) {
-    ui.notifications.info("No tokens in fire zone.");
+    ui.notifications.info(localize("NoTokensInFireZone"));
     return;
   }
 
@@ -717,7 +717,7 @@ function _pickTargetDialog() {
     const validTokens = tokens.filter(t => t.actor);
 
     if (!validTokens.length) {
-      ui.notifications.warn("No tokens on the current scene.");
+      ui.notifications.warn(localize("NoTokensOnScene"));
       return resolve(null);
     }
 
@@ -749,20 +749,20 @@ function _pickTargetDialog() {
 </div>`;
 
     new foundry.applications.api.DialogV2({
-      window: { title: "Apply Damage — Select Target" },
+      window: { title: localize("ApplyDamageSelectTarget") },
       classes: ["cp-apply-target-dialog"],
       content,
       buttons: [
         {
           action: "useCanvas",
           icon: '<i class="fas fa-crosshairs"></i>',
-          label: "Use Canvas Target",
+          label: localize("UseCanvasTarget"),
           default: !!openTimeTarget,
           callback: () => {
             // Re-read targets at click time — GM may have targeted while dialog was open
             const tok = game.user.targets?.first() ?? null;
             if (!tok?.actor) {
-              ui.notifications.warn("No token is targeted. Right-click a token → Target (or hover + T), then click Apply Damage again.");
+              ui.notifications.warn(localize("NoTokenTargeted"));
               resolve(null);
             } else {
               resolve(tok.actor);
@@ -772,7 +772,7 @@ function _pickTargetDialog() {
         {
           action: "useList",
           icon: '<i class="fas fa-list"></i>',
-          label: "Use List",
+          label: localize("UseList"),
           default: !openTimeTarget,
           callback: (ev, btn, dlg) => {
             const idx = Number(dlg.element.querySelector("#cp-target-pick")?.value) || 0;
@@ -781,7 +781,7 @@ function _pickTargetDialog() {
         },
         {
           action: "cancel",
-          label: "Cancel",
+          label: localize("Cancel"),
           callback: () => resolve(null),
         },
       ],
@@ -1488,7 +1488,7 @@ async function _confirmExplosion(templateId) {
 
   // Shim lookup: works on both v13 (MeasuredTemplate) and v14 (Region).
   const handle = areaById(scene, templateId);
-  if (!handle) { ui.notifications.warn("Explosion template not found — it may have been removed."); return; }
+  if (!handle) { ui.notifications.warn(localize("ExplosionTemplateNotFound")); return; }
   const f = handle.doc.flags?.cyberpunk2020;
   if (!f?.isExplosion) return;
 
@@ -1514,7 +1514,7 @@ async function _confirmExplosion(templateId) {
     const tok = canvas?.tokens?.placeables?.find(t => (t.document?.id ?? t.id) === (td.id ?? td.document?.id)) ?? td;
     return !_isOccluded(originX, originY, tok);   // cover between center and target exempts it
   });
-  if (!tokens.length) { ui.notifications.info("No tokens in the blast (or all behind cover)."); return; }
+  if (!tokens.length) { ui.notifications.info(localize("NoTokensInBlast")); return; }
 
   for (const td of tokens) {
     // Get pixel position from either a TokenDocument or a placeable.
@@ -1554,7 +1554,7 @@ async function _scatterExplosion(templateId) {
 
   // Shim lookup: works on both v13 (MeasuredTemplate) and v14 (Region).
   const handle = areaById(scene, templateId);
-  if (!handle?.doc?.flags?.cyberpunk2020?.isExplosion) { ui.notifications.warn("Blast template not found."); return; }
+  if (!handle?.doc?.flags?.cyberpunk2020?.isExplosion) { ui.notifications.warn(localize("BlastTemplateNotFound")); return; }
 
   const gridSize = scene.grid?.size ?? canvas?.grid?.size ?? 100;
   const gridDist = scene.grid?.distance ?? 1;
@@ -1610,7 +1610,7 @@ function _hookSpread() {
     const attackerId = payload.attackerId ?? payload.attackerActorId ?? payload.actorId ?? null;
     const atk = attackerId ? canvas?.tokens?.placeables?.find(t => t.actor?.id === attackerId) : null;
     if (!atk) {
-      ui.notifications.warn("Spread fire: the attacker's token isn't on the active scene, so the pattern can't be placed.");
+      ui.notifications.warn(localize("SpreadFireNoToken"));
       return;
     }
     const ox = atk.center?.x ?? atk.x, oy = atk.center?.y ?? atk.y;
@@ -1671,7 +1671,7 @@ async function _confirmSpreadZone(templateId) {
 
   // Shim lookup: works on both v13 (MeasuredTemplate) and v14 (Region).
   const handle = areaById(scene, templateId);
-  if (!handle) { ui.notifications.warn("Spread template not found — it may have been removed."); return; }
+  if (!handle) { ui.notifications.warn(localize("SpreadTemplateNotFound")); return; }
   const f = handle.doc.flags?.cyberpunk2020;
   if (!f?.isSpreadZone) return;
 
@@ -1688,7 +1688,7 @@ async function _confirmSpreadZone(templateId) {
     const tok = canvas?.tokens?.placeables?.find(t => (t.document?.id ?? t.id) === (td.id ?? td.document?.id)) ?? td;
     return !_isOccluded(originX, originY, tok);    // intervening cover exempts spaces behind it
   });
-  if (!tokens.length) { ui.notifications.info("No tokens in the spread pattern (or all behind cover)."); return; }
+  if (!tokens.length) { ui.notifications.info(localize("NoTokensInSpread")); return; }
 
   for (const td of tokens) {
     const tok = canvas?.tokens?.placeables?.find(t => (t.document?.id ?? t.id) === (td.id ?? td.document?.id)) ?? td;
@@ -1853,9 +1853,9 @@ function _hookSocketRelay() {
   game.socket.on("system.cyberpunk2020", async (data) => {
     if (!game.user.isGM) {
       if (data.type === "damageApplied" && data.requesterId === game.user.id) {
-        ui.notifications.info(`Applied ${data.totalApplied} damage to ${data.targetName}.`);
+        ui.notifications.info(localizeParam("DamageApplied", { amount: data.totalApplied, target: data.targetName }));
       } else if (data.type === "damageError" && data.requesterId === game.user.id) {
-        ui.notifications.error(`Damage application failed: ${data.message ?? "Unknown error"}`);
+        ui.notifications.error(localizeParam("DamageApplyFailed", { message: data.message ?? localize("UnknownError") }));
       }
       return;
     }
@@ -2008,7 +2008,7 @@ async function _autoApply(payload, target) {
       dotType:          String(payload.dotType         || "acid"),
       weaponName:       String(payload.weaponName      || ""),
     });
-    ui.notifications.info("Damage sent — waiting for GM to apply.");
+    ui.notifications.info(localize("DamageSentWaiting"));
     return;
   }
 
@@ -2029,7 +2029,7 @@ async function _autoApply(payload, target) {
   });
 
   const total = hits.reduce((s, h) => s + h.netDamage, 0);
-  ui.notifications.info(`Applied ${total} damage to ${target.name}.`);
+  ui.notifications.info(localizeParam("DamageApplied", { amount: total, target: target.name }));
 
   // Taser flag must be set BEFORE the save prompt — threshold reads it
   if (payload.stunSaveOnHit && hits.some(h => h.penetrates)) {

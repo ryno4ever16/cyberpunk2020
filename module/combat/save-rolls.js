@@ -1,4 +1,5 @@
 import { onGlobalClick } from "../popout-compat.js";
+import { localize, localizeParam } from "../utils.js";
 
 /**
  * save-rolls.js  —  module/combat/save-rolls.js
@@ -45,7 +46,7 @@ import { onGlobalClick } from "../popout-compat.js";
  */
 function _assertCanResolveSave(actor) {
   if (game.user.isGM || (actor?.isOwner ?? false)) return true;
-  ui.notifications.warn(`You don't own ${actor?.name ?? "this character"} — only its owner or the GM can make this save.`);
+  ui.notifications.warn(localizeParam("SaveNotOwned", { name: actor?.name ?? localize("ThisCharacter") }));
   return false;
 }
 
@@ -61,11 +62,11 @@ function _canModifyActor(actor) {
  */
 function _relayStabilizedFlag(actorId) {
   if (!game.users.activeGM) {
-    ui.notifications.warn("Stabilization succeeded, but no GM is connected to record it.");
+    ui.notifications.warn(localize("StabilizeNoGM"));
     return;
   }
   game.socket.emit("system.cyberpunk2020", { type: "stabilizeFlag", actorId, requesterId: game.user.id });
-  ui.notifications.info("Stabilization recorded — the GM will confirm it.");
+  ui.notifications.info(localize("StabilizeRelayed"));
 }
 
 /**
@@ -495,7 +496,7 @@ export async function executeStabilize({ actorId }) {
     buttons: [
       {
         action: "roll",
-        label: "💉 Roll Stabilization",
+        label: localize("RollStabilization"),
         default: true,
         callback: async (event, button, dialog) => {
           const root = dialog.element;
@@ -535,7 +536,7 @@ export async function executeStabilize({ actorId }) {
           }
         },
       },
-      { action: "cancel", label: "Cancel" },
+      { action: "cancel", label: localize("Cancel") },
     ],
   }).render({ force: true });
 }
