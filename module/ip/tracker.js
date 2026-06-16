@@ -114,14 +114,11 @@ export class IpTracker extends HandlebarsApplicationMixin(ApplicationV2) {
     const actors = game.actors.filter(a => a.type === "character" || a.type === "npc");
     if (!actors.length) return;
     const simple = ipSystem() === "simple";
-    const esc = foundry.utils.escapeHTML ?? (s => String(s));
-    const actorOpts = actors.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join("");
-    const content = `
-<form class="cyberpunk">
-  <div class="form-group"><label>${localize("IpManualActor")}</label><select name="actor">${actorOpts}</select></div>
-  ${simple ? "" : `<div class="form-group"><label>${localize("IpManualSkill")}</label><select name="skill"></select></div>`}
-  <div class="form-group"><label>${localize("IpManualAmount")}</label><input type="number" name="amount" value="1" min="1"/></div>
-</form>`;
+    const renderTemplate = foundry?.applications?.handlebars?.renderTemplate ?? globalThis.renderTemplate;
+    const content = await renderTemplate("systems/cyberpunk2020/templates/ip/manual-add.hbs", {
+      simple,
+      actorOptions: actors.map(a => ({ value: a.id, label: a.name })),
+    });
     const dlg = new foundry.applications.api.DialogV2({
       window: { title: localize("IpManualTitle") },
       content,
@@ -153,7 +150,14 @@ export class IpTracker extends HandlebarsApplicationMixin(ApplicationV2) {
           if (!skillSel) return;
           const a = game.actors.get(actorSel.value);
           const skills = (a?.items.filter(i => i.type === "skill") ?? []).sort((x, y) => x.name.localeCompare(y.name));
-          skillSel.innerHTML = skills.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join("");
+          // Build <option> elements via the DOM (textContent auto-escapes) rather than an
+          // innerHTML HTML-string — keep option markup out of the JS.
+          skillSel.replaceChildren(...skills.map(s => {
+            const opt = document.createElement("option");
+            opt.value = s.id;
+            opt.textContent = s.name;
+            return opt;
+          }));
         };
         actorSel?.addEventListener("change", fillSkills);
         fillSkills();

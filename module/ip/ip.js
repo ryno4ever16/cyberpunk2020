@@ -1,4 +1,5 @@
 import { localize } from "../utils.js";
+import { postSavePromptCard } from "../compat.js";
 import {
   ipEnabled, ipSystem, ipAwardModel, ipAutoBaselineAmount, ipThrottle, ipSkillLockMode
 } from "../settings.js";
@@ -259,9 +260,9 @@ export async function levelUpSkill(actor, skill, { confirm = true } = {}) {
     const banked = Number(skill.system?.ip) || 0;
     await skill.update({ "system.level": newLevel, "system.ip": banked - cost, "system.IP": banked - cost });
   }
-  ChatMessage.create({
+  await postSavePromptCard({
+    body: localize("IpLeveledUp", { actor: actor.name, skill: skill.name, level: newLevel, cost }),
     speaker: ChatMessage.getSpeaker({ actor }),
-    content: localize("IpLeveledUp", { actor: actor.name, skill: skill.name, level: newLevel, cost })
   });
   return true;
 }
