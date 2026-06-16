@@ -1258,12 +1258,9 @@ function _hookGasCloud() {
     });
     if (!handle?.doc) { console.warn("CP2020 | Gas cloud creation failed"); return; }
 
-    await ChatMessage.create({
-      content: `<div class="cyberpunk save-prompt">
-        <h3>☠ Gas Cloud — ${payload.weaponName ?? "Gas Grenade"}</h3>
-        <div>Gas cloud placed on canvas (radius ${radius}m). All tokens within the cloud must make Stun Saves each turn (penalty ${stunSaveMod}).</div>
-        <div style="opacity:0.75; font-size:0.85em;">Cloud persists for ${duration} turns, then disperses automatically. GM may reposition the template to represent wind drift.</div>
-      </div>`,
+    await postSavePromptCard({
+      title: localizeParam("GasCloudTitle", { weapon: payload.weaponName ?? localize("GasGrenade") }),
+      body: localizeParam("GasCloudPlacedBody", { radius, mod: stunSaveMod, duration }),
       speaker: ChatMessage.getSpeaker({ actor: attackerId ? game.actors.get(attackerId) : undefined }),
     });
   });
@@ -1296,9 +1293,11 @@ function _hookGasCloud() {
       const tokensInCloud = tokensInArea(cloud, scene.tokens?.contents ?? []);
 
       if (tokensInCloud.length > 0) {
-        await ChatMessage.create({
-          content: `<div class="cyberpunk save-prompt"><h3>☠ Gas Cloud — ${weaponName} (${turnsLeft} turn${turnsLeft !== 1 ? "s" : ""} left)</h3>
-            <div>${tokensInCloud.map(t => `<b>${t.name}</b>`).join(", ")} ${tokensInCloud.length === 1 ? "is" : "are"} in the gas cloud. Each must make a Stun Save${stunSaveMod < 0 ? ` (${stunSaveMod} penalty)` : ""}.</div></div>`,
+        const gasNames = tokensInCloud.map(t => `<b>${t.name}</b>`).join(", ");
+        const gasPenalty = stunSaveMod < 0 ? localizeParam("GasCloudPenaltyClause", { mod: stunSaveMod }) : "";
+        await postSavePromptCard({
+          title: localizeParam("GasCloudTurnTitle", { weapon: weaponName, turnsLeft }),
+          body: localizeParam("GasCloudTurnBody", { names: gasNames, penalty: gasPenalty }),
         });
         for (const tokDoc of tokensInCloud) {
           if (!tokDoc.actor) continue;
@@ -1471,16 +1470,12 @@ function _hookExplosion() {
     });
     if (!handle?.doc) { console.warn("CP2020 | Explosion area creation failed"); return; }
 
+    const explosionCard = await (foundry?.applications?.handlebars?.renderTemplate ?? renderTemplate)(
+      "systems/cyberpunk2020/templates/chat/explosion-confirm.hbs",
+      { weaponName, radius, baseDamage, fullWithin, templateId: handle.doc.id }
+    );
     await ChatMessage.create({
-      content: `<div class="cyberpunk save-prompt">
-  <h3>💥 Explosion — ${weaponName}</h3>
-  <div class="save-info"><span>Blast radius <b>${radius}m</b>, base damage <b>${baseDamage}</b>, full damage within <b>${fullWithin}m</b>.</span><br>
-  <span style="opacity:0.75; font-size:0.85em;">If the throw missed, click Scatter to roll where it really lands; otherwise reposition for cover and click Confirm. Damage falls off by distance.</span></div>
-  <div class="save-buttons" style="margin-top:6px;">
-    <button class="cp-confirm-explosion-scatter" data-template-id="${handle.doc.id}">🎲 Scatter (miss)</button>
-    <button class="cp-confirm-explosion" data-template-id="${handle.doc.id}">💥 Confirm Blast</button>
-  </div>
-</div>`,
+      content: explosionCard,
       speaker: ChatMessage.getSpeaker({ actor: attackerId ? (game.actors.get(attackerId) ?? undefined) : undefined }),
     });
   });
@@ -1655,15 +1650,12 @@ function _hookSpread() {
     });
     if (!handle?.doc) { console.warn("CP2020 | Spread area creation failed"); return; }
 
+    const spreadCard = await (foundry?.applications?.handlebars?.renderTemplate ?? renderTemplate)(
+      "systems/cyberpunk2020/templates/chat/spread-confirm.hbs",
+      { weaponName, band, widthM, dmgFormula, templateId: handle.doc.id }
+    );
     await ChatMessage.create({
-      content: `<div class="cyberpunk save-prompt">
-  <h3>🔫 Spread Pattern — ${weaponName}</h3>
-  <div class="save-info"><span>Range band <b>${band}</b>: width <b>${widthM}m</b>, damage <b>${dmgFormula}</b>.</span><br>
-  <span style="opacity:0.75; font-size:0.85em;">Aim the pattern, then click Confirm. Everyone in the straight path is hit (CP2020 p.108).</span></div>
-  <div class="save-buttons" style="margin-top:6px;">
-    <button class="cp-confirm-spread-zone" data-template-id="${handle.doc.id}">🔫 Confirm Spread Pattern</button>
-  </div>
-</div>`,
+      content: spreadCard,
       speaker: ChatMessage.getSpeaker({ actor: attackerId ? (game.actors.get(attackerId) ?? undefined) : undefined }),
     });
   });

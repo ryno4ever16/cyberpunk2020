@@ -986,6 +986,9 @@ div.statderive .value.rightborder {
   font-weight: bold;
   border-bottom: 2px solid var(--cp-line, black);
 }
+/* Save-prompt chat-card helpers (replace the inline styles from the old hand-built cards). */
+.cyberpunk .save-prompt .save-note { opacity: 0.75; font-size: 0.85em; }
+.cyberpunk .save-prompt .save-buttons { margin-top: 6px; }
 .cyberpunk-card .roll-image {
   margin-right: 5px;
 }
