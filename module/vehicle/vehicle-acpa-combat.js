@@ -131,11 +131,11 @@ export async function tickAcpaCombatant(actor) {
   // Capture this BEFORE the update — actor.update() expands the dot-keys in `updates` in place.
   const heatstrokeFired = updates["system.heatstrokeLevel"] != null;
   if (Object.keys(updates).length) await actor.update(updates);
-  // NOTE: the status `lines` are produced (in English) by acpaTickStatus in vehicle-acpa.js;
-  // localizing those is a separate i18n pass on that pure-logic file.
+  // acpaTickStatus emits the status lines as i18n descriptors ({key, params}); localize them here
+  // at the render edge so the pure logic stays game.i18n-free.
   if (lines.length) await postSavePromptCard({
     title: localizeParam("Vehicle.AcpaTickTitle", { actor: actor.name }),
-    body: `${lines.join("; ")}.`,
+    body: `${lines.map(l => localizeParam(l.key, l.params ?? {})).join("; ")}.`,
     speaker: ChatMessage.getSpeaker({ actor }),
   });
   // Heatstroke: once the build-up completes, the linked pilot makes a real Stun/Shock Save each round.

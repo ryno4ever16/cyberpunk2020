@@ -139,7 +139,9 @@ export const HEATSTROKE_LEVELS = ["", "Serious", "Critical", "Mortal", "unconsci
  * restores mobility. Cooling reconciles the minutes-vs-rounds scales: the 2d10-minute heat build-up
  * ticks down in real round-time (3s/round), and once it expires the pilot makes an escalating
  * Stun/Shock Save each round (Serious → Critical → Mortal → out), tracked in heatstrokeLevel.
- * @returns {{updates:object, lines:string[]}}
+ * The narration `lines` are i18n DESCRIPTORS ({key, params?}) — not English — so this pure,
+ * unit-tested function stays free of game.i18n; tickAcpaCombatant localizes them at the render edge.
+ * @returns {{updates:object, lines:{key:string, params?:object}[]}}
  */
 export function acpaTickStatus(sys) {
   const seize = Number(sys?.seizeUp) || 0;
@@ -151,13 +153,13 @@ export function acpaTickStatus(sys) {
   if (seize > 0) {
     const next = seize - 1;
     updates["system.seizeUp"] = next;
-    if (next <= 0) { updates["system.immobilized"] = false; lines.push("seize-up ends — mobility restored"); }
-    else lines.push(`seized up (${next} round${next !== 1 ? "s" : ""} left)`);
+    if (next <= 0) { updates["system.immobilized"] = false; lines.push({ key: "Vehicle.AcpaSeizeEnds" }); }
+    else lines.push({ key: "Vehicle.AcpaSeizedUp", params: { rounds: next } });
   }
   if (iface > 0) {
     const next = iface - 1;
     updates["system.interfaceOut"] = next;
-    lines.push(next <= 0 ? "interface/electronics restored" : `interface out (${next} round${next !== 1 ? "s" : ""} left)`);
+    lines.push(next <= 0 ? { key: "Vehicle.AcpaInterfaceRestored" } : { key: "Vehicle.AcpaInterfaceOut", params: { rounds: next } });
   }
   // Cooling failure → heat build-up (minutes) → escalating heatstroke Stun/Shock Saves (per round).
   if (cool > 0) {
@@ -165,14 +167,14 @@ export function acpaTickStatus(sys) {
     updates["system.coolingTimer"] = next;
     if (next <= 0) {
       updates["system.heatstrokeLevel"] = 1;
-      lines.push("heat build-up complete — heatstroke begins: pilot Stun/Shock Save at Serious");
+      lines.push({ key: "Vehicle.AcpaHeatstrokeBegins" });
     } else {
-      lines.push(`overheating (${next} min to heatstroke)`);
+      lines.push({ key: "Vehicle.AcpaOverheating", params: { min: next } });
     }
   } else if (heat > 0) {
     const lvl = Math.min(heat + 1, HEATSTROKE_LEVELS.length - 1);
     updates["system.heatstrokeLevel"] = lvl;
-    lines.push(`heatstroke worsens — pilot Stun/Shock Save at ${HEATSTROKE_LEVELS[lvl]}`);
+    lines.push({ key: "Vehicle.AcpaHeatstrokeWorsens", params: { level: HEATSTROKE_LEVELS[lvl] } });
   }
   return { updates, lines };
 }

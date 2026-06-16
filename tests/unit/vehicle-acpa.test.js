@@ -463,46 +463,48 @@ describe("acpaTickStatus", () => {
   it("seize-up > 1: decrements by 1", () => {
     const r = acpaTickStatus({ seizeUp: 3 });
     expect(r.updates["system.seizeUp"]).toBe(2);
-    expect(r.lines[0]).toMatch(/seized up/);
+    expect(r.lines[0].key).toBe("Vehicle.AcpaSeizedUp");
+    expect(r.lines[0].params.rounds).toBe(2);
   });
 
   it("seize-up = 1: decrements to 0 and restores mobility", () => {
     const r = acpaTickStatus({ seizeUp: 1 });
     expect(r.updates["system.seizeUp"]).toBe(0);
     expect(r.updates["system.immobilized"]).toBe(false);
-    expect(r.lines[0]).toMatch(/seize-up ends/);
+    expect(r.lines[0].key).toBe("Vehicle.AcpaSeizeEnds");
   });
 
   it("interfaceOut > 1: decrements by 1", () => {
     const r = acpaTickStatus({ interfaceOut: 2 });
     expect(r.updates["system.interfaceOut"]).toBe(1);
-    expect(r.lines[0]).toMatch(/interface out/);
+    expect(r.lines[0].key).toBe("Vehicle.AcpaInterfaceOut");
   });
 
   it("interfaceOut = 1: decrements to 0 and notes restored", () => {
     const r = acpaTickStatus({ interfaceOut: 1 });
     expect(r.updates["system.interfaceOut"]).toBe(0);
-    expect(r.lines[0]).toMatch(/restored/);
+    expect(r.lines[0].key).toBe("Vehicle.AcpaInterfaceRestored");
   });
 
   it("cooling > ROUND_MINUTES: ticks down by ROUND_MINUTES", () => {
     const r = acpaTickStatus({ coolingTimer: 1.0 });
     const expected = Math.round((1.0 - ACPA_ROUND_MINUTES) * 100) / 100;
     expect(r.updates["system.coolingTimer"]).toBeCloseTo(expected, 5);
-    expect(r.lines[0]).toMatch(/overheating/);
+    expect(r.lines[0].key).toBe("Vehicle.AcpaOverheating");
   });
 
   it("cooling ≤ ROUND_MINUTES: timer reaches 0, heatstroke begins at level 1", () => {
     const r = acpaTickStatus({ coolingTimer: 0.05 });
     expect(r.updates["system.coolingTimer"]).toBe(0);
     expect(r.updates["system.heatstrokeLevel"]).toBe(1);
-    expect(r.lines[0]).toMatch(/heatstroke begins/);
+    expect(r.lines[0].key).toBe("Vehicle.AcpaHeatstrokeBegins");
   });
 
   it("heatstrokeLevel active (not cooling): escalates +1 level", () => {
     const r = acpaTickStatus({ heatstrokeLevel: 1 });
     expect(r.updates["system.heatstrokeLevel"]).toBe(2);
-    expect(r.lines[0]).toMatch(/heatstroke worsens/);
+    expect(r.lines[0].key).toBe("Vehicle.AcpaHeatstrokeWorsens");
+    expect(r.lines[0].params.level).toBe(HEATSTROKE_LEVELS[2]);
   });
 
   it("heatstrokeLevel clamped at max index", () => {
