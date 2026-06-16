@@ -5,7 +5,7 @@ import { btmFromBT, MARTIAL_ART_KEY_BY_ID, MARTIAL_ART_ID_BY_KEY, FNFF2_ONLY_MAR
 import { properCase, localize, getDefaultSkills, cwHasType, cwIsEnabled } from "../utils.js"
 import { acpaInitiativeRollData } from "../vehicle/vehicle-acpa.js";
 import { reputationEnabled } from "../settings.js";
-import { createCyberpunkRollCard } from "../compat.js";
+import { createCyberpunkRollCard, renderChatCard } from "../compat.js";
 
 /**
  * Extend the base Actor document by defining a custom roll data structure which is ideal for the Simple system.
@@ -974,13 +974,12 @@ export class CyberpunkActor extends Actor {
 
   // ── Reputation + Facedown (CP2020 p.54) ──────────────────────────────────────
 
-  /** One chat-card line: "<name>: 🎲 <die> + COOL <c> + Rep <r> = <total>" for a Facedown roll. */
-  _facedownLine(actor, roll) {
+  /** One Facedown roll breakdown as template data ({name, die, cool, rep, total}). */
+  _facedownLineData(actor, roll) {
     const cool = Number(actor.system?.stats?.cool?.total) || 0;
     const rep = Number(actor.system?.reputation) || 0;
     const die = roll.total - cool - rep;   // the 1d10 (incl. any 10-explosion) portion
-    return `<div class="cp-facedown-line"><b>${foundry.utils.escapeHTML(actor.name)}</b>: `
-      + `🎲 ${die} + ${localize("CoolFull")} ${cool} + ${localize("Reputation")} ${rep} = <b>${roll.total}</b></div>`;
+    return { name: actor.name, die, cool, rep, total: roll.total };
   }
 
   /**
@@ -998,21 +997,19 @@ export class CyberpunkActor extends Actor {
 
     let content, rolls;
     if (!foe) {
-      content = `<div class="cyberpunk cp-facedown-card"><h3>⚔ ${localize("Facedown")}</h3>`
-        + this._facedownLine(this, myRoll)
-        + `<div class="cp-facedown-note">${localize("FacedownSoloHint")}</div></div>`;
+      content = await renderChatCard("facedown.hbs", {
+        lines: [this._facedownLineData(this, myRoll)], solo: true,
+      });
       rolls = [myRoll];
     } else {
       const foeRoll = await mkRoll(foe);
       const tie = myRoll.total === foeRoll.total;
       const winner = myRoll.total >= foeRoll.total ? this : foe;
       const loser  = winner === this ? foe : this;
-      const outcome = tie
-        ? `<div class="cp-facedown-result cp-facedown-tie">${localize("FacedownTie")}</div>`
-        : `<div class="cp-facedown-result"><b>${localize("FacedownWinner", { winner: winner.name })}</b>`
-          + `<div class="cp-facedown-note">${localize("FacedownPenalty", { loser: loser.name, winner: winner.name })}</div></div>`;
-      content = `<div class="cyberpunk cp-facedown-card"><h3>⚔ ${localize("Facedown")}</h3>`
-        + this._facedownLine(this, myRoll) + this._facedownLine(foe, foeRoll) + outcome + `</div>`;
+      content = await renderChatCard("facedown.hbs", {
+        lines: [this._facedownLineData(this, myRoll), this._facedownLineData(foe, foeRoll)],
+        solo: false, tie, winnerName: winner.name, loserName: loser.name,
+      });
       rolls = [myRoll, foeRoll];
     }
     await createCyberpunkRollCard({ rolls, speaker: ChatMessage.getSpeaker({ actor: this }), content });
@@ -1027,10 +1024,9 @@ export class CyberpunkActor extends Actor {
     const rep = Number(this.system?.reputation) || 0;
     const roll = await new Roll("1d10").evaluate();
     const recognized = roll.total <= rep;
-    const content = `<div class="cyberpunk cp-facedown-card"><h3>👁 ${localize("Recognition")}</h3>`
-      + `<div class="cp-facedown-result${recognized ? "" : " cp-facedown-tie"}">`
-      + localize(recognized ? "RecognizedYes" : "RecognizedNo", { name: this.name, roll: roll.total, rep })
-      + `</div></div>`;
+    const content = await renderChatCard("recognition.hbs", {
+      recognized, name: this.name, roll: roll.total, rep,
+    });
     await createCyberpunkRollCard({ rolls: [roll], speaker: ChatMessage.getSpeaker({ actor: this }), content });
   }
 
