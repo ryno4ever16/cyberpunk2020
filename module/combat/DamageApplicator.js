@@ -15,6 +15,8 @@
 
 import { getArmorContributors, getArmorHardness } from "./armor-layers.js";
 import { postDeathSavePrompt } from "./save-rolls.js";
+import { renderChatCard, postSavePromptCard } from "../compat.js";
+import { localize, localizeParam } from "../utils.js";
 
 export const ARMOR_MODES = {
   FULL:   "full",
@@ -89,7 +91,6 @@ export function applyBTM(damageAfterSP, btm, penetrated) {
 }
 
 export const LIMB_LOCATIONS = new Set(["rArm", "lArm", "rLeg", "lLeg"]);
-const LIMB_NAMES = { rArm: "Right Arm", lArm: "Left Arm", rLeg: "Right Leg", lLeg: "Left Leg" };
 
 /**
  * W4RST4R's hit-location table can roll "Groin", which has no stored armor / hit-location entry.
@@ -159,13 +160,11 @@ export async function assessWoundSeverity(target, location, netDamage, { token =
   // Head wound > 8 net = automatic death (Listen Up does not change the head; always Core here).
   if (location === "Head") {
     if (netDamage > 8) {
+      const content = await renderChatCard("head-wound-death.hbs", {
+        actorName: liveTarget.name, netDamage,
+      });
       await ChatMessage.create({
-        content: `
-<div class="cyberpunk save-result death-save-result">
-  <h3>☠ Head Wound — ${liveTarget.name}</h3>
-  <div>${netDamage} net damage to the head.</div>
-  <div style="margin-top:4px;"><span style="color:red;font-weight:bold;">☠ AUTOMATIC DEATH</span> — A head wound of more than 8 points kills automatically (CP2020 p.103). ${liveTarget.name} dies. Call Trauma Team.</div>
-</div>`,
+        content,
         speaker: ChatMessage.getSpeaker({ actor: liveTarget }),
       });
       // v13+: TokenDocument#toggleActiveEffect was removed — toggle the status on the Actor.
@@ -179,7 +178,8 @@ export async function assessWoundSeverity(target, location, netDamage, { token =
 
   // Groin (W4RST4R table) is not a limb and has no head rule — it just takes damage. No-op here.
   if (!LIMB_LOCATIONS.has(location)) return;
-  const limbName = LIMB_NAMES[location] ?? location;
+  // Location codes (rArm/lArm/rLeg/lLeg) are themselves the i18n keys for the limb names.
+  const limbName = localize(location);
 
   if (model === "ListenUp") {
     // Listen Up crippling bands (measured on the doubled netDamage). No death save.
@@ -189,13 +189,12 @@ export async function assessWoundSeverity(target, location, netDamage, { token =
       const cur = foundry.utils.duplicate(liveTarget.getFlag("cyberpunk2020", "limbStatus") ?? {});
       cur[location] = status;
       await liveTarget.setFlag("cyberpunk2020", "limbStatus", cur).catch(() => {});
+      const content = await renderChatCard("limb-wound.hbs", {
+        title:  localizeParam(destroyed ? "LimbWoundDestroyedTitle" : "LimbWoundCrippledTitle", { name: liveTarget.name }),
+        detail: localizeParam(destroyed ? "LimbWoundLuDestroyedDetail" : "LimbWoundLuCrippledDetail", { net: netDamage, limb: limbName }),
+      });
       await ChatMessage.create({
-        content: `<div class="cyberpunk save-prompt">
-          <h3>⚠ ${destroyed ? "Limb Destroyed" : "Limb Crippled"} — ${liveTarget.name}</h3>
-          <div><b>${netDamage} net damage to ${limbName}</b> — ${destroyed
-            ? "useless, blown off or shredded; needs replacement"
-            : "crippled and cannot be used until repaired/healed"} (Listen Up, Crippling Injuries).</div>
-        </div>`,
+        content,
         speaker: ChatMessage.getSpeaker({ actor: liveTarget }),
       });
     }
@@ -211,15 +210,14 @@ export async function assessWoundSeverity(target, location, netDamage, { token =
       const cur = foundry.utils.duplicate(liveTarget.getFlag("cyberpunk2020", "limbStatus") ?? {});
       cur[location] = status;
       await liveTarget.setFlag("cyberpunk2020", "limbStatus", cur).catch(() => {});
+      const content = await renderChatCard("limb-wound.hbs", {
+        title:           localizeParam(severed ? "LimbWoundSeveredTitle" : "LimbWoundDisabledTitle", { name: liveTarget.name }),
+        locationLine:    localizeParam("LimbWoundLocationLine", { limb: limbName }),
+        detail:          localizeParam(severed ? "LimbWoundW4SeveredDetail" : "LimbWoundW4DisabledDetail", { net: netDamage }),
+        deathSaveClause: localize("LimbWoundDeathSaveClause"),
+      });
       await ChatMessage.create({
-        content: `<div class="cyberpunk save-prompt">
-          <h3>⚠ ${severed ? "Limb Severed" : "Limb Disabled"} — ${liveTarget.name}</h3>
-          <div>Location: <b>${limbName}</b></div>
-          <div><b>${netDamage} net damage</b> — ${severed
-            ? "severed or crushed beyond recognition (more than 12)"
-            : "disabled (more than 8)"} (W4RST4R's Limb Rules).</div>
-          <div style="margin-top:4px;">Immediate Death Save required at Mortal 0.</div>
-        </div>`,
+        content,
         speaker: ChatMessage.getSpeaker({ actor: liveTarget }),
       });
       await postDeathSavePrompt(liveTarget, liveToken, 0);
@@ -229,13 +227,14 @@ export async function assessWoundSeverity(target, location, netDamage, { token =
 
   // Core: a single hit of > 8 net to a limb severs/crushes it → immediate Death Save at Mortal 0.
   if (netDamage > 8) {
+    const content = await renderChatCard("limb-wound.hbs", {
+      title:           localizeParam("LimbWoundLossTitle", { name: liveTarget.name }),
+      locationLine:    localizeParam("LimbWoundLocationLine", { limb: limbName }),
+      detail:          localizeParam("LimbWoundCoreDetail", { net: netDamage }),
+      deathSaveClause: localize("LimbWoundDeathSaveClause"),
+    });
     await ChatMessage.create({
-      content: `<div class="cyberpunk save-prompt">
-        <h3>⚠ Limb Loss — ${liveTarget.name}</h3>
-        <div>Location: <b>${limbName}</b></div>
-        <div><b>${netDamage} net damage</b> — severed or crushed beyond recognition (CP2020 p.103).</div>
-        <div style="margin-top:4px;">Immediate Death Save required at Mortal 0.</div>
-      </div>`,
+      content,
       speaker: ChatMessage.getSpeaker({ actor: liveTarget }),
     });
     await postDeathSavePrompt(liveTarget, liveToken, 0);
@@ -325,8 +324,8 @@ export async function applyAreaDamages({ target, areaDamages, ap, edged = false,
         // New damage clears stabilization — death saves restart (CP2020 p.105)
         if (target.getFlag?.("cyberpunk2020", "stabilized")) {
           await target.unsetFlag("cyberpunk2020", "stabilized");
-          await ChatMessage.create({
-            content: `<div class="cyberpunk save-prompt">⚠ <b>${target.name}</b> was stabilized but has taken new damage — Death Saves are required again.</div>`,
+          await postSavePromptCard({
+            body: localizeParam("StabilizedLostBody", { name: target.name }),
             speaker: ChatMessage.getSpeaker({ actor: target }),
           });
         }
