@@ -541,7 +541,7 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       // distance and pre-select the correct range category in the dialog.
       const rangefindingEnabled = (() => {
         try { return game.settings.get("cyberpunk2020", "autoRangefinding"); }
-        catch { return false; }
+        catch { return true; }  // default ON (matches the setting default)
       })();
 
       if (rangefindingEnabled && targetTokens.length === 1) {

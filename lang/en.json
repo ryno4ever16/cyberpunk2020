@@ -856,6 +856,7 @@
     "CYBERPUNK.AutoNotice.CombatItem8": "Gas grenade cloud effects",
     "CYBERPUNK.AutoNotice.CombatItem9": "Stabilization system",
     "CYBERPUNK.AutoNotice.CombatItem10": "Canvas or list target selection",
+    "CYBERPUNK.AutoNotice.CombatItem11": "Automated rangefinding: range category set from token distance — ON by default (toggle in Game Settings → System)",
     "CYBERPUNK.AutoNotice.BeyondHeading": "✦ Beyond combat — new in 1.2.0",
     "CYBERPUNK.AutoNotice.BeyondItem1": "Vehicles & ACPA: drive/pilot, vehicle combat, weapon mounts (+ optional Maximum Metal rules)",
     "CYBERPUNK.AutoNotice.BeyondItem2": "Shopping: searchable catalog, GM custom shops, drag an item onto a sheet to buy",

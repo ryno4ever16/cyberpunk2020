@@ -423,7 +423,7 @@ export function registerSystemSettings() {
     scope:   "world",
     config:  true,
     type:    Boolean,
-    default: false,
+    default: true,
   });
 
   // --- Reputation + Facedown (CP2020 p.54) ---
