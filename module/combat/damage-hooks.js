@@ -24,6 +24,7 @@ import { onGlobalClick } from "../popout-compat.js";
 import { applyAreaDamages, ablateLocationOnce, ablateLocationByAmount, assessWoundSeverity, ARMOR_MODES } from "./DamageApplicator.js";
 import { postStunSavePrompt, postDeathSavePrompt, updateTaserState, applyAcidDotState, applyDotFromPayload, postSavePromptCard } from "./save-rolls.js";
 import { rollLocation, localize, localizeParam }              from "../utils.js";
+import { renderChatCard }                                     from "../compat.js";
 import { dispatchAttack }                                     from "../vehicle/vehicle-targeting.js";
 import { createArea, tokensInArea, areasByFlag, deleteArea, areaById, usesRegions, moveArea } from "./area-shapes.js";
 
@@ -165,11 +166,13 @@ export function registerDamageHooks() {
         return;
       }
 
-      const options = remaining.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+      const content = await renderChatCard("wait-target-dialog.hbs", {
+        options: remaining.map(c => ({ value: c.id, label: c.name })),
+      });
       const targetId = await new Promise(resolve => {
         new foundry.applications.api.DialogV2({
           window: { title: localize("WaitForTurnTitle") },
-          content: `<div style="padding:4px;"><p style="margin:0 0 6px;">Act after which combatant's turn?</p><select id="cp-wait-target" style="width:100%;">${options}</select></div>`,
+          content,
           buttons: [
             { action: "confirm", label: localize("Wait"),   default: true,  callback: (ev, btn, dlg) => resolve(dlg.element.querySelector("#cp-wait-target")?.value ?? null) },
             { action: "cancel",  label: localize("Cancel"),                  callback: () => resolve(null) },
@@ -179,7 +182,7 @@ export function registerDamageHooks() {
         }).render({ force: true });
       });
       if (!targetId) return; // cancelled
-      const targetName = remaining.find(c => c.id === targetId)?.name ?? "chosen combatant";
+      const targetName = remaining.find(c => c.id === targetId)?.name ?? localize("ChosenCombatant");
 
       await combatant.setFlag("cyberpunk2020", "waitingForTurn", true);
       await combatant.setFlag("cyberpunk2020", "waitingAfterId", targetId);
@@ -357,8 +360,7 @@ function _hookRenderChatMessage() {
 
     const btn = document.createElement("button");
     btn.classList.add("cp2020-apply-damage-btn");
-    btn.textContent = "Apply Damage";
-    btn.style.cssText = "margin-top:4px; width:100%;";
+    btn.textContent = localize("ApplyDamageBtn");
 
     btn.addEventListener("click", async () => {
       // Prefer a currently-targeted token; fall back to payload IDs
@@ -475,25 +477,9 @@ async function _placeSuppressiveZone(payload) {
     }
     const created = handle.doc;
 
-    const content = `
-<div class="cyberpunk save-prompt">
-  <h3>🔥 Suppressive Fire — ${weaponName}</h3>
-  <div class="save-info">
-    <span><b>Fire Zone DC:</b> ${saveDC}</span><br>
-    <span>The fire zone template has been placed on the canvas.</span><br>
-    <span style="opacity:0.75; font-size:0.85em;">Rotate the template to aim, then click <b>Confirm Fire Zone</b> to issue evasion prompts to tokens in the zone. The zone persists until the next round.</span>
-  </div>
-  <div class="save-buttons" style="margin-top:6px;">
-    <button class="cp-confirm-fire-zone"
-      data-template-id="${created.id}"
-      data-save-dc="${saveDC}"
-      data-dmg-formula="${dmgFormula}"
-      data-attacker-id="${actorId}"
-      data-weapon-name="${weaponName}">
-      ✅ Confirm Fire Zone
-    </button>
-  </div>
-</div>`;
+    const content = await renderChatCard("suppressive-placement.hbs", {
+      weaponName, saveDC, templateId: created.id, dmgFormula, attackerId: actorId,
+    });
 
     await ChatMessage.create({
       content,
@@ -538,26 +524,10 @@ async function _postEvasionPrompts(tokens, { saveDC, dmgFormula, weaponName, att
     const ref       = Number(actor.system?.stats?.ref?.total) || 0;
     const athletics = Number(actor.getSkillVal?.("Athletics") ?? 0);
 
-    const content = `
-<div class="cyberpunk save-prompt">
-  <h3>🔥 Suppressive Fire Evasion — ${actor.name}</h3>
-  <div class="save-info">
-    <span><b>Fire Zone DC:</b> ${saveDC} (${weaponName})</span><br>
-    <span>Roll <b>Athletics + REF + 1d10</b> to evade the fire zone.</span><br>
-    <span style="opacity:0.75; font-size:0.85em;">REF ${ref}, Athletics ${athletics} — must beat DC ${saveDC} or take hits.</span>
-  </div>
-  <div class="save-buttons" style="margin-top:6px;">
-    <button class="cp-suppression-evasion-roll"
-      data-actor-id="${actor.id}"
-      data-token-id="${tok.id}"
-      data-scene-id="${sceneId}"
-      data-save-dc="${saveDC}"
-      data-dmg-formula="${dmgFormula}"
-      data-attacker-id="${attackerId}">
-      🎲 Roll Evasion (Athletics ${athletics} + REF ${ref} + 1d10 vs DC ${saveDC})
-    </button>
-  </div>
-</div>`;
+    const content = await renderChatCard("suppression-evasion-prompt.hbs", {
+      actorName: actor.name, saveDC, weaponName, ref, athletics,
+      actorId: actor.id, tokenId: tok.id, sceneId, dmgFormula, attackerId,
+    });
 
     await ChatMessage.create({ content, speaker: ChatMessage.getSpeaker({ actor }) });
   }
@@ -655,22 +625,14 @@ async function _executeSuppressionEvasion({ actorId, tokenId, sceneId, saveDC, d
   const dc     = Number(saveDC) || 0;
   const evaded = total > dc;
 
-  let resultHtml;
-  if (evaded) {
-    resultHtml = `<span style="color:green;font-weight:bold;">✅ EVADED (${total} > ${dc})</span> — ${actor.name} clears the fire zone.`;
-  } else {
-    resultHtml = `<span style="color:red;font-weight:bold;">❌ CAUGHT (${total} ≤ ${dc})</span> — ${actor.name} takes hits! Rolling damage...`;
-  }
+  const content = await renderChatCard("suppression-evasion-result.hbs", {
+    actorName: actor.name, athletics, ref, die: roll.dice[0].total, total, dc, evaded,
+  });
 
   await roll.toMessage({
     speaker: ChatMessage.getSpeaker({ actor }),
-    flavor:  `Suppressive Fire Evasion — need > ${dc}`,
-    content: `
-<div class="cyberpunk save-result">
-  <h3>🔥 Suppressive Fire Evasion — ${actor.name}</h3>
-  <div>Athletics ${athletics} + REF ${ref} + Roll ${roll.dice[0].total} = <b>${total}</b> vs DC <b>${dc}</b></div>
-  <div style="margin-top:4px;">${resultHtml}</div>
-</div>`,
+    flavor:  localizeParam("SuppEvasionFlavor", { dc }),
+    content,
   });
 
   if (!evaded) {
@@ -715,43 +677,27 @@ function _resolveTarget(payload) {
  * Show a token-picker dialog when no target is pre-selected.
  * Lists all tokens on the current canvas scene. Returns the chosen Actor or null.
  */
-function _pickTargetDialog() {
+async function _pickTargetDialog() {
+  const tokens = canvas?.tokens?.placeables ?? [];
+  const validTokens = tokens.filter(t => t.actor);
+
+  if (!validTokens.length) {
+    ui.notifications.warn(localize("NoTokensOnScene"));
+    return null;
+  }
+
+  // Read targeting state at dialog-open time (informs the default button and status hint).
+  // "Use Canvas Target" re-reads game.user.targets at click time, so the GM can target
+  // a token while the dialog is open and still use that button.
+  const openTimeTarget = game.user.targets?.first() ?? null;
+  const targetedName   = openTimeTarget?.name ?? null;
+
+  const content = await renderChatCard("target-pick-dialog.hbs", {
+    targetedName,
+    options: validTokens.map((t, i) => ({ value: i, label: t.name })),
+  });
+
   return new Promise((resolve) => {
-    const tokens = canvas?.tokens?.placeables ?? [];
-    const validTokens = tokens.filter(t => t.actor);
-
-    if (!validTokens.length) {
-      ui.notifications.warn(localize("NoTokensOnScene"));
-      return resolve(null);
-    }
-
-    // Read targeting state at dialog-open time (informs the default button and status hint).
-    // "Use Canvas Target" re-reads game.user.targets at click time, so the GM can target
-    // a token while the dialog is open and still use that button.
-    const openTimeTarget = game.user.targets?.first() ?? null;
-    const targetedName   = openTimeTarget?.name ?? null;
-
-    const targetHint = targetedName
-      ? `<div style="margin:4px 0 0; padding:4px 6px; background:rgba(0,80,0,0.2); border-radius:3px; font-size:0.85em;">
-           ✔ Currently targeted: <strong>${targetedName}</strong>
-         </div>`
-      : `<div style="margin:4px 0 0; padding:4px 6px; background:rgba(50,50,50,0.3); border-radius:3px; font-size:0.85em; color:#aaa;">
-           No token targeted yet. Right-click a token → <strong>Target</strong>, or hover and press <strong>T</strong>, then click <em>Use Canvas Target</em>.
-         </div>`;
-
-    const listOptions = validTokens
-      .map((t, i) => `<option value="${i}">${t.name}</option>`)
-      .join("");
-
-    const content = `
-<div style="padding:2px 0 4px;">
-  <p style="margin:0 0 6px; font-weight:bold;">🎯 Target a token on the canvas:</p>
-  ${targetHint}
-  <hr style="margin:10px 0; border-color:#555;">
-  <p style="margin:0 0 4px; font-size:0.85em;">Or pick from the list:</p>
-  <select id="cp-target-pick" style="width:100%;">${listOptions}</select>
-</div>`;
-
     new foundry.applications.api.DialogV2({
       window: { title: localize("ApplyDamageSelectTarget") },
       classes: ["cp-apply-target-dialog"],

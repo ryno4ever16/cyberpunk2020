@@ -1017,6 +1017,20 @@ div.statderive .value.rightborder {
 .cp-stabilize-dialog input[type="number"] { width: 60px; margin-left: 8px; }
 .cp-stabilize-dialog select { margin-left: 8px; }
 
+/* PATH-B "Apply Damage" chat button (injected into the damage card by the render hook). */
+.cp2020-apply-damage-btn { margin-top: 4px; width: 100%; }
+
+/* Wait-for-turn + apply-damage target picker (DialogV2 content — no .cyberpunk wrapper). */
+.cp-select-dialog { padding: 4px; }
+.cp-select-dialog p { margin: 0 0 6px; }
+.cp-select-dialog select { width: 100%; }
+.cp-target-dialog .cp-dlg-title { font-weight: bold; }
+.cp-target-dialog .cp-dlg-sub { margin: 0 0 4px; font-size: 0.85em; }
+.cp-target-dialog hr { margin: 10px 0; border-color: #555; }
+.cp-target-hint { margin: 4px 0 0; padding: 4px 6px; border-radius: 3px; font-size: 0.85em; }
+.cp-target-hint.targeted { background: rgba(0, 80, 0, 0.2); }
+.cp-target-hint.none { background: rgba(50, 50, 50, 0.3); color: #aaa; }
+
 /* Vehicle / Maximum Metal chat cards (replace the inline styles from the old hand-built cards). */
 .cyberpunk .vehicle-warn { color: #c0791a; opacity: 1; }
 .cyberpunk .vehicle-incoming .save-buttons button { margin: 2px 2px 0 0; }
