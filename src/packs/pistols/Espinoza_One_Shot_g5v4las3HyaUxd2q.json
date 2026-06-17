@@ -36,7 +36,7 @@
     "equipped": true,
     "source": "Solo of Fortune",
     "weaponType": "Pistol",
-    "accuracy": "-1",
+    "accuracy": "1",
     "concealability": "ConcealJacket",
     "availability": "Excellent",
     "ammoType": ".50S",

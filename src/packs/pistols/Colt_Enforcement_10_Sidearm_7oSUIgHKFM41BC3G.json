@@ -31,10 +31,10 @@
   "system": {
     "flavor": "Medium semi-auto pistol made in USA",
     "notes": "",
-    "cost": "550",
+    "cost": "600",
     "weight": "1",
     "equipped": true,
-    "source": "Corporate Report 3",
+    "source": "Corporate Report 3 p.30",
     "weaponType": "Pistol",
     "accuracy": "1",
     "concealability": "ConcealJacket",

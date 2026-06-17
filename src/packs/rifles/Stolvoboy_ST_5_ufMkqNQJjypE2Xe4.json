@@ -1,6 +1,6 @@
 {
   "_id": "ufMkqNQJjypE2Xe4",
-  "name": "Stolvoboy ST-5",
+  "name": "Stolbovoy ST-5",
   "type": "weapon",
   "img": "systems/cyberpunk2020/img/weapon-icon.svg",
   "effects": [],
@@ -34,11 +34,11 @@
     "cost": "900",
     "weight": "4",
     "equipped": true,
-    "source": "Corporate Report 3",
+    "source": "Corporate Report 3 p.71",
     "weaponType": "Rifle",
     "accuracy": "-1",
-    "concealability": "",
-    "availability": "undefined",
+    "concealability": "ConcealNoHide",
+    "availability": "Rare",
     "ammoType": "5.45SV",
     "damage": "5D6",
     "rangeDamages": {

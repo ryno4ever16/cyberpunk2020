@@ -25,7 +25,7 @@
     "equipped": true,
     "source": "Interface 1.3 p.2",
     "surgCode": "N",
-    "humanityCost": "2",
+    "humanityCost": "1d6",
     "cyberwareType": "CYBERVOCAL",
     "cyberwareSubtype": "OPTION",
     "abbrev": "VOL",

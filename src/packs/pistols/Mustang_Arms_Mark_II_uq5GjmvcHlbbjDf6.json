@@ -34,11 +34,11 @@
     "cost": "425",
     "weight": "2",
     "equipped": true,
-    "source": "Solo of Fortune 2",
+    "source": "Solo of Fortune 2 p.33",
     "weaponType": "Pistol",
     "accuracy": "1",
-    "concealability": "",
-    "availability": "undefined",
+    "concealability": "ConcealJacket",
+    "availability": "Common",
     "ammoType": "11 mm",
     "damage": "3D6",
     "rangeDamages": {
@@ -53,7 +53,7 @@
     "shotsLeft": "12",
     "shots": "12",
     "rof": "3",
-    "reliability": "Unreliable",
+    "reliability": "VeryReliable",
     "range": "50",
     "attackType": "Auto",
     "attackSkill": "Handgun"

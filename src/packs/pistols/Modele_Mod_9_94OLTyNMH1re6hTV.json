@@ -36,7 +36,7 @@
     "equipped": true,
     "source": "Solo of Fortune",
     "weaponType": "Pistol",
-    "accuracy": "-1",
+    "accuracy": "1",
     "concealability": "",
     "availability": "undefined",
     "ammoType": "9 mm",
