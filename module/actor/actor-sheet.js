@@ -1661,7 +1661,9 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
   /** Grey out the nav tabs whose content is currently popped out into its own window (and un-grey the
    *  rest). Driven on render and whenever a tab window opens/closes. */
   _refreshDetachedTabs() {
-    const root = this.element?.[0];
+    // this.element is the native element on ApplicationV2; the old `?.[0]` indexed it like a V1
+    // jQuery wrapper and always yielded undefined, so this whole method silently no-op'd.
+    const root = getHtmlElement(this.element);
     if (!root) return;
     const open = new Set(
       Object.values(this.actor?.apps ?? {})

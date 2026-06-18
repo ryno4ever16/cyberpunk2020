@@ -80,7 +80,9 @@ function _isActiveGM() { return game.user.isGM && game.users.activeGM?.id === ga
 
 /** Re-render an open IP tracker (if any) after queue/pending changes. */
 function _rerenderTracker() {
-  for (const app of Object.values(ui.windows)) {
+  // The tracker is an ApplicationV2 — V2 apps live in foundry.applications.instances, NOT the
+  // V1 ui.windows registry (scanning ui.windows silently found nothing, so it never refreshed).
+  for (const app of foundry.applications.instances.values()) {
     if (app?.options?.classes?.includes?.("cp-ip-tracker")) app.render(false);
   }
 }
