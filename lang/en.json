@@ -1797,6 +1797,7 @@
     "CYBERPUNK.ShopNew": "New shop…",
     "CYBERPUNK.ShopNewTitle": "New Shop",
     "CYBERPUNK.ShopNewDefault": "New Shop",
+    "CYBERPUNK.ShopCopySuffix": "{name} (Copy)",
     "CYBERPUNK.ShopCreate": "Create",
     "CYBERPUNK.ShopPriceHint": "Per-item price (blank = catalog cost).",
     "CYBERPUNK.ShopFeatured": "Featured",
