@@ -7,7 +7,7 @@
     </div>
     <div class="field cp-header-action">
         <label>&nbsp;</label>
-        <button type="button" class="cp-service-add" title="Add a recurring service to track.">＋ {{CPLocal "ServiceAdd"}}</button>
+        <button type="button" class="cp-service-add" title="{{CPLocal "ServiceAddTip"}}">＋ {{CPLocal "ServiceAdd"}}</button>
     </div>
 </div>
 
@@ -19,9 +19,9 @@
         <label class="cp-service-name">{{name}}</label>
         <span class="flex-pad"></span>
         <span class="cp-service-cost"><b>{{cost}}</b>eb / {{period}}</span>
-        <button type="button" class="cp-service-pay" data-item-id="{{id}}" title="Pay one {{period}}'s cost now.">{{CPLocal "ServicePay"}}</button>
-        <button type="button" class="cp-service-edit" data-item-id="{{id}}" title="Edit this service.">✎</button>
-        <button type="button" class="cp-service-delete" data-item-id="{{id}}" title="Cancel / remove this service.">✕</button>
+        <button type="button" class="cp-service-pay" data-item-id="{{id}}" title="{{CPLocal "ServicePayTip" period=period}}">{{CPLocal "ServicePay"}}</button>
+        <button type="button" class="cp-service-edit" data-item-id="{{id}}" title="{{CPLocal "ServiceEditTip"}}">✎</button>
+        <button type="button" class="cp-service-delete" data-item-id="{{id}}" title="{{CPLocal "ServiceDeleteTip"}}">✕</button>
     </div>
     {{/each}}
 </div>
