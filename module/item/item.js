@@ -1020,7 +1020,7 @@ export class CyberpunkItem extends Item {
 
     // Standard defense skills
     const CANDIDATES = ["Melee", "Fencing", "Brawling", "Dodge", "Athletics"];
-    let best = { name: "No Skill", val: 0 };
+    let best = { name: localize("NoSkill"), val: 0 };
     for (const sk of CANDIDATES) {
       const val = Number(targetActor.getSkillVal?.(sk) ?? 0);
       if (val > best.val) best = { name: sk, val };
@@ -1091,9 +1091,9 @@ export class CyberpunkItem extends Item {
         const _meleeDodgeBonus = (_meleeTargetActor.getFlag("cyberpunk2020", "dodging") ? 2 : 0);
         const _meleeIsParrying = !!_meleeTargetActor.getFlag("cyberpunk2020", "parrying");
         const defLabel = `${defInfo.skillName} ${defInfo.skillVal} (REF ${defInfo.ref})`
-          + (_meleeDodgeBonus > 0 ? ` +${_meleeDodgeBonus} Dodge` : "")
-          + (_meleeIsParrying ? " [PARRY — blocked]" : "");
-        bigRoll.addRoll(defInfo.roll, { name: `${_meleeTargetActor.name} Defends`, flavor: defLabel });
+          + (_meleeDodgeBonus > 0 ? localizeParam("DefenseDodgeBonus", { bonus: _meleeDodgeBonus }) : "")
+          + (_meleeIsParrying ? localize("DefenseParryBlocked") : "");
+        bigRoll.addRoll(defInfo.roll, { name: localizeParam("Defends", { name: _meleeTargetActor.name }), flavor: defLabel });
         const attackHits = !_meleeIsParrying && (attackRoll.total > defInfo.total + _meleeDodgeBonus);
         if (_meleeIsParrying) _meleeTargetActor.unsetFlag("cyberpunk2020", "parrying").catch(() => {});
         if (attackHits) {
@@ -1251,9 +1251,9 @@ export class CyberpunkItem extends Item {
         const _maDodgeBonus = (_maTargetActor.getFlag("cyberpunk2020", "dodging") ? 2 : 0);
         const _maIsParrying = !!_maTargetActor.getFlag("cyberpunk2020", "parrying");
         const defLabel = `${defInfo.skillName} ${defInfo.skillVal} (REF ${defInfo.ref})`
-          + (_maDodgeBonus > 0 ? ` +${_maDodgeBonus} Dodge` : "")
-          + (_maIsParrying ? " [PARRY — blocked]" : "");
-        results.addRoll(defInfo.roll, { name: `${_maTargetActor.name} Defends`, flavor: defLabel });
+          + (_maDodgeBonus > 0 ? localizeParam("DefenseDodgeBonus", { bonus: _maDodgeBonus }) : "")
+          + (_maIsParrying ? localize("DefenseParryBlocked") : "");
+        results.addRoll(defInfo.roll, { name: localizeParam("Defends", { name: _maTargetActor.name }), flavor: defLabel });
         const attackHits = !_maIsParrying && (attackRoll.total > defInfo.total + _maDodgeBonus);
         if (_maIsParrying) _maTargetActor.unsetFlag("cyberpunk2020", "parrying").catch(() => {});
         if (attackHits) {
@@ -1287,7 +1287,7 @@ export class CyberpunkItem extends Item {
       const _t4bTargetActor = _t4bTarget?.actor ?? null;
       if (_t4bTargetActor) {
         const _t4bDef = await CyberpunkItem._rollMeleeDefense(_t4bTargetActor);
-        results.addRoll(_t4bDef.roll, { name: `${_t4bTargetActor.name} Defends`, flavor: `${_t4bDef.skillName} ${_t4bDef.skillVal} (REF ${_t4bDef.ref})` });
+        results.addRoll(_t4bDef.roll, { name: localizeParam("Defends", { name: _t4bTargetActor.name }), flavor: `${_t4bDef.skillName} ${_t4bDef.skillVal} (REF ${_t4bDef.ref})` });
         const _t4bHits = attackRoll.total > _t4bDef.total;
         if (_t4bHits) {
           await CyberpunkItem._applyMartialHitEffects(action, _t4bTargetActor, this.actor);
