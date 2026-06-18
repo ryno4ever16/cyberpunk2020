@@ -1,7 +1,7 @@
 import { weaponTypes, rangedAttackTypes, meleeAttackTypes, fireModes, ranges, rangeDCs, rangeResolve, strengthDamageBonus, getMartialActionBonus, martialActions, isFnff2Enabled, getFnff2DamageBonusSymbol, FNFF2_ONLY_MARTIAL_ART_IDS, MARTIAL_ART_ID_BY_KEY, martialArtDisplayName, isEnergyAttackType } from "../lookups.js"
 import { Multiroll, makeD10Roll } from "../dice.js"
 import { localize, localizeParam, rollLocation, cwHasType, cwIsEnabled, isFumbleRoll, buildRangedCombatFumbleData, buildSkillFumbleData, clamp } from "../utils.js";
-import { createCyberpunkChatMessage } from "../compat.js";
+import { createCyberpunkChatMessage, postSavePromptCard } from "../compat.js";
 
 /** @extends {Item} */
 export class CyberpunkItem extends Item {
@@ -974,57 +974,39 @@ export class CyberpunkItem extends Item {
    */
   static async _applyMartialHitEffects(action, targetActor, attackerActor) {
     const enabled = (() => { try { return game.settings.get("cyberpunk2020", "specialMeleeEffectsEnabled"); } catch { return true; } })();
-    if (!enabled) return;
-    const tName = targetActor?.name ?? "Target";
-    const aName = attackerActor?.name ?? "Attacker";
+    if (!enabled || !targetActor) return;
+    const names = { target: targetActor.name, attacker: attackerActor?.name ?? "" };
 
+    // Map the action to its reminder-card keys (CP2020 p.100–102). Status flags stay under the
+    // system scope ("cyberpunk2020") — the held/grappled/choke status reads elsewhere key on it.
+    let titleKey = null, bodyKey = null;
     if (action === martialActions.throw) {
-      await ChatMessage.create({
-        content: `<div class="cyberpunk save-prompt"><h3>⬇ Knockdown — ${tName}</h3><div><b>${tName}</b> is knocked prone by Throw. Must spend one action to stand up before acting normally. (CP2020 p.100)</div></div>`,
-        speaker: ChatMessage.getSpeaker({ actor: targetActor }),
-      });
-    }
-
-    if (action === martialActions.sweepTrip) {
-      await ChatMessage.create({
-        content: `<div class="cyberpunk save-prompt"><h3>⬇ Knockdown — ${tName}</h3><div><b>${tName}</b> is knocked prone by Sweep/Trip. Must spend one action to stand up before acting normally. (CP2020 p.100)</div></div>`,
-        speaker: ChatMessage.getSpeaker({ actor: targetActor }),
-      });
-    }
-
-    if (action === martialActions.hold) {
+      titleKey = "MartialFxKnockdownTitle"; bodyKey = "MartialFxThrowBody";
+    } else if (action === martialActions.sweepTrip) {
+      titleKey = "MartialFxKnockdownTitle"; bodyKey = "MartialFxSweepBody";
+    } else if (action === martialActions.hold) {
       await targetActor.setFlag("cyberpunk2020", "heldBy", attackerActor?.id ?? "").catch(() => {});
-      await ChatMessage.create({
-        content: `<div class="cyberpunk save-prompt"><h3>🤜 Held — ${tName}</h3><div><b>${tName}</b> is held by <b>${aName}</b>. Target can only attempt Escape (contested roll). (CP2020 p.100)</div></div>`,
-        speaker: ChatMessage.getSpeaker({ actor: targetActor }),
-      });
-    }
-
-    if (action === martialActions.grapple) {
+      titleKey = "MartialFxHeldTitle"; bodyKey = "MartialFxHeldBody";
+    } else if (action === martialActions.grapple) {
       await targetActor.setFlag("cyberpunk2020", "grappledBy", attackerActor?.id ?? "").catch(() => {});
-      await ChatMessage.create({
-        content: `<div class="cyberpunk save-prompt"><h3>🤜 Grappled — ${tName}</h3><div><b>${tName}</b> is grappled by <b>${aName}</b>. Grapple: attacker can Hold, Choke, or Throw on subsequent turns as a free action. (CP2020 p.100–102)</div></div>`,
-        speaker: ChatMessage.getSpeaker({ actor: targetActor }),
-      });
-    }
-
-    if (action === martialActions.choke) {
+      titleKey = "MartialFxGrappledTitle"; bodyKey = "MartialFxGrappledBody";
+    } else if (action === martialActions.choke) {
       await targetActor.setFlag("cyberpunk2020", "chokeState", { formula: "1d6" }).catch(() => {});
-      await ChatMessage.create({
-        content: `<div class="cyberpunk save-prompt"><h3>🫁 Choke — ${tName}</h3><div><b>${tName}</b> is being choked by <b>${aName}</b>. Takes 1d6 damage per turn and must pass Stun Save each turn or fall unconscious. (CP2020 p.100)</div></div>`,
-        speaker: ChatMessage.getSpeaker({ actor: targetActor }),
-      });
-    }
-
-    if (action === martialActions.escape) {
+      titleKey = "MartialFxChokeTitle"; bodyKey = "MartialFxChokeBody";
+    } else if (action === martialActions.escape) {
       await targetActor.unsetFlag("cyberpunk2020", "heldBy").catch(() => {});
       await targetActor.unsetFlag("cyberpunk2020", "grappledBy").catch(() => {});
       await targetActor.unsetFlag("cyberpunk2020", "chokeState").catch(() => {});
-      await ChatMessage.create({
-        content: `<div class="cyberpunk save-prompt"><h3>🏃 Escaped — ${tName}</h3><div><b>${tName}</b> breaks free from the hold/grapple/choke.</div></div>`,
-        speaker: ChatMessage.getSpeaker({ actor: targetActor }),
-      });
+      titleKey = "MartialFxEscapedTitle"; bodyKey = "MartialFxEscapedBody";
+    } else {
+      return; // no special hit-effect for this action
     }
+
+    await postSavePromptCard({
+      title: localizeParam(titleKey, names),
+      body:  localizeParam(bodyKey, names),
+      speaker: ChatMessage.getSpeaker({ actor: targetActor }),
+    });
   }
 
   /**
