@@ -5,6 +5,7 @@ import { openAcpaMeleeDialog, repairAcpa } from "../vehicle/vehicle-acpa-combat.
 import { REALITY_INTERFACES, REFLEX_CONTROLS } from "../vehicle/vehicle-acpa.js";
 import { acpaSystemsSummary, acpaAreaSpaces, acpaSpacesOver, acpaBuildIssues } from "../vehicle/vehicle-acpa-systems.js";
 import { effectiveVehicleRuleSystem, mmEnabled } from "../settings.js";
+import { localize, tryLocalize } from "../utils.js";
 
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -98,9 +99,9 @@ export class CyberpunkVehicleSheet extends HandlebarsApplicationMixin(foundry.ap
 
     // ACPA build dropdowns (Reality Interface + Reflex/Control). Labels show the key stats inline.
     const realityInterfaceChoices = Object.values(REALITY_INTERFACES)
-      .map(r => ({ key: r.key, label: `${r.label} (SIB ${r.sib >= 0 ? "+" : ""}${r.sib} / DFB ${r.dfb >= 0 ? "+" : ""}${r.dfb})` }));
+      .map(r => ({ key: r.key, label: `${tryLocalize(r.label)} (SIB ${r.sib >= 0 ? "+" : ""}${r.sib} / DFB ${r.dfb >= 0 ? "+" : ""}${r.dfb})` }));
     const reflexControlChoices = Object.values(REFLEX_CONTROLS)
-      .map(r => ({ key: r.key, label: `${r.label} (REF ${r.refMod >= 0 ? "+" : ""}${r.refMod}, max ${r.maxRef})` }));
+      .map(r => ({ key: r.key, label: `${tryLocalize(r.label)} (REF ${r.refMod >= 0 ? "+" : ""}${r.refMod}, max ${r.maxRef})` }));
 
     // ACPA pilot link (polish #3): choose a character actor whose REF drives the suit.
     let pilotChoices = [];
@@ -206,7 +207,7 @@ export class CyberpunkVehicleSheet extends HandlebarsApplicationMixin(foundry.ap
 
   static async _onWeaponAdd(event, _target) {
     event.preventDefault();
-    await this.actor.createEmbeddedDocuments("Item", [{ name: "New Weapon", type: "vehicleWeapon" }]);
+    await this.actor.createEmbeddedDocuments("Item", [{ name: localize("Vehicle.NewWeapon"), type: "vehicleWeapon" }]);
   }
 
   static _onWeaponEdit(event, target) {
@@ -235,7 +236,7 @@ export class CyberpunkVehicleSheet extends HandlebarsApplicationMixin(foundry.ap
 
   static async _onAcpaSystemAdd(event, _target) {
     event.preventDefault();
-    await this.actor.createEmbeddedDocuments("Item", [{ name: "New System", type: "acpaSystem" }]);
+    await this.actor.createEmbeddedDocuments("Item", [{ name: localize("Vehicle.NewSystem"), type: "acpaSystem" }]);
   }
 
   static _onAcpaSystemEdit(event, target) {
