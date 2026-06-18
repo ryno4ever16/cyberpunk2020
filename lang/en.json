@@ -435,6 +435,7 @@
     "SETTINGS.FNFF2EnabledHint": "Enable the optional Friday Night Fistfight 2 martial arts ruleset (new styles, actions, and opposed roll flow).",
     "SETTINGS.RestrictMovementOncePerTurn": "Combat: Restrict Movement to Once per Turn",
     "SETTINGS.RestrictMovementOncePerTurnHint": "When enabled, during an active combat a combatant may reposition freely until they take a tracked action this turn (such as firing a weapon); after acting, further movement is blocked until the next round (CP2020 p.99: one move plus one action per turn). The GM can always move tokens (override). Off by default.",
+    "CYBERPUNK.HitLocCoreVsW4rstar": "Core hit-location display can't be combined with W4RST4R's Limb Rules (it uses its own location table).",
     "CYBERPUNK.NoCombatError": "There's currently no combat encounter present; you'll need to start one",
     "CYBERPUNK.NoAmmo": "Cannot fire: magazine empty. Reload first.",
     "CYBERPUNK.NoAmmoInventory": "Cannot fire: no ammunition in inventory. Add/link ammo, or turn off Ammo Tracking (Free Fire).",
@@ -1085,6 +1086,145 @@
     "SETTINGS.IpSkillLockMutual": "Mutual (two-tier)",
     "SETTINGS.IpShowPending": "Show pending IP pip",
     "SETTINGS.IpShowPendingHint": "Show the GM-only “pending IP” pip on skill rows (pending IP is hidden from players until applied). Per-user.",
+    
+    "SETTINGS.DamageArmorMode": "Damage: Armor Mode",
+    "SETTINGS.DamageArmorModeHint": "How armor SP is applied when calculating damage. Full = SP + ablation per RAW. Simple = SP subtracted, no ablation. None = armor ignored (BTM still applies).",
+    "SETTINGS.DamageArmorModeChoiceFull": "Full (SP + Ablation)",
+    "SETTINGS.DamageArmorModeChoiceSimple": "Simple (SP only)",
+    "SETTINGS.DamageArmorModeChoiceNone": "None (no armor)",
+
+    "SETTINGS.DamageAblation": "Damage: Ablate Armor on Hit",
+    "SETTINGS.DamageAblationHint": "When enabled, armor SP at the hit location is reduced by 1 for each penetrating hit (RAW).",
+
+    "SETTINGS.DamageAutoApply": "Damage: Auto-Apply Without Dialog",
+    "SETTINGS.DamageAutoApplyHint": "When enabled, damage is applied to the target immediately when a targeted weapon fires, without showing the confirmation dialog.",
+
+    "SETTINGS.AutoRangefinding": "Combat: Automated Rangefinding",
+    "SETTINGS.AutoRangefindingHint": "When enabled, the range category (Point Blank / Close / Medium / Long / Extreme) is automatically determined from the distance between the attacking and target tokens on the canvas, using the scene's configured distance units. The attack modifier is set accordingly. Requires a targeted token.",
+
+    "SETTINGS.ReputationEnabled": "Social: Reputation & Facedown",
+    "SETTINGS.ReputationEnabledHint": "Show the Reputation panel on the Combat tab (a GM-set Rep score, plus Facedown and Recognition roll buttons). Facedown = both sides roll 1d10 + COOL + Reputation; the loser backs down or is at −3 vs that foe until they win a Facedown against them (CP2020 p.54). Turn off to hide it for tables that don't use Reputation.",
+
+    "SETTINGS.HeadHitDoubling": "Combat: Head Hit Doubles Damage",
+    "SETTINGS.HeadHitDoublingHint": "When enabled, a hit to the Head doubles the FINAL damage — after armor (SP) and BTM are applied. RAW: 'A head hit always doubles damage' (CP2020 p.103, the optional 'He Shrugs Off Head Hits' rule); the book gives no timing, so the wound that actually gets through is what doubles. Disable for groups that skip this rule.",
+
+    "SETTINGS.LimbLossEnabled": "Combat: Limb Loss & Head Wound Checks",
+    "SETTINGS.LimbLossEnabledHint": "When enabled, a single hit dealing more than 8 net damage to a limb triggers an immediate Death Save at Mortal 0 (severed/crushed). A head wound of the same severity kills automatically (CP2020 p.103 RAW).",
+
+    "SETTINGS.SuppressiveFireSaves": "Combat: Suppressive Fire Zone & Evasion",
+    "SETTINGS.SuppressiveFireSavesHint": "When enabled, suppressive fire automatically places a ray template (fire zone) on the canvas and prompts all tokens within it to roll an Evasion check: Athletics + REF + 1d10 vs DC = rounds / zone width (CP2020 p.101 RAW). Failures take 1d6 random hits.",
+
+    "SETTINGS.AutoDeathSavePerTurn": "Combat: Death Save Each Turn (Mortal)",
+    "SETTINGS.AutoDeathSavePerTurnHint": "When enabled, unstabilized Mortal characters are automatically prompted to make a Death Save at the start of each of their turns in the combat tracker (CP2020 p.105 RAW).",
+
+    "SETTINGS.AutoSaveRePrompt": "Combat: Stun Save Recovery Each Turn",
+    "SETTINGS.AutoSaveRePromptHint": "When enabled, unconscious/stunned characters are automatically prompted to roll a Stun Save recovery check at the start of each of their turns in the combat tracker (CP2020 p.104 RAW).",
+
+    "SETTINGS.LayerRuleSystem": "Armor: Layer Rule System",
+    "SETTINGS.LayerRuleSystemHint": "Core (CP2020 p.99 errata New Rule 1): max 3 layers, max 1 hard per location, EV +1/+2 for 2nd/3rd layer. Chromebook 4 (CB4 p.67): clothing weight categories (Light/Medium/Heavy) with separate EV penalties for over-layering by body area (Torso vs Legs). The two systems are mutually exclusive.",
+    "SETTINGS.LayerRuleSystemChoiceCore": "Core (New Rule 1 per CP2020 errata)",
+    "SETTINGS.LayerRuleSystemChoiceChromebook4": "Chromebook 4 Clothing Layers",
+
+    "SETTINGS.ApplyLayerEVPenalty": "Armor: Apply Layer EV Penalties (New Rule 1)",
+    "SETTINGS.ApplyLayerEVPenaltyHint": "When enabled, the 2nd armor layer at any location adds +1 EV and the 3rd adds an additional +2 EV to the REF penalty (CP2020 errata New Rule 1). Skinweave receives no penalty.",
+
+    "SETTINGS.ActiveDodgeParryEnabled": "Combat: Active Dodge & Parry Declarations",
+    "SETTINGS.ActiveDodgeParryEnabledHint": "When enabled, 🛡 Dodge and ⛨ Parry buttons appear in the combat tracker. Dodge (active combatant): −2 to attacker's melee roll this round; clears on next turn. Parry (any combatant, reactive): blocks the next incoming melee attack; consumed on use. (CP2020 p.102 RAW.)",
+
+    "SETTINGS.AimTrackingEnabled": "Combat: Aim Accumulation Tracking",
+    "SETTINGS.AimTrackingEnabledHint": "When enabled, a Take Aim (🎯) button appears in the combat tracker for the active combatant. Each click accumulates +1 aim round (max 3) stored on the actor. The attack modifier dialog is automatically pre-filled with the saved aim count. Aim resets when the actor fires. (CP2020 p.99 RAW: +1 per consecutive aim round, max +3.)",
+
+    "SETTINGS.WaitForTurnEnabled": "Combat: Wait for Turn Button",
+    "SETTINGS.WaitForTurnEnabledHint": "When enabled, a Wait (⏸) button appears in the combat tracker for the active combatant. Clicking it sets their initiative just below the current minimum and advances to the next combatant, so they act last this round. Since CP2020 re-rolls initiative each round, this is a temporary deferral. (CP2020 p.98 RAW.)",
+
+    "SETTINGS.SpecialMeleeEffectsEnabled": "Combat: Martial Arts Special Hit Effects",
+    "SETTINGS.SpecialMeleeEffectsEnabledHint": "When enabled, successful Hold/Grapple attacks set a status flag on the target with turn-start reminders; Choke deals 1d6 HP damage per turn + forces a Stun Save; Throw/Sweep post knockdown announcements; Escape removes all hold/grapple/choke flags. (CP2020 p.100–102 RAW.)",
+
+    "SETTINGS.GasGrenadeCloudEnabled": "Combat: Gas Grenade Cloud & Per-Turn Saves",
+    "SETTINGS.GasGrenadeCloudEnabledHint": "When enabled, weapons loaded with gas ammo (effectTypes: ['Gas'] on ammo item) place a green circle MeasuredTemplate on the canvas. All tokens within the cloud are prompted to make Stun Saves each turn. Cloud persists for dotTurns turns then auto-deletes. (CP2020 p.107 area weapon rules.)",
+
+    "SETTINGS.GasCloudAutoMove": "Combat: Gas Cloud Auto-Drift (Wind)",
+    "SETTINGS.GasCloudAutoMoveHint": "When enabled, the gas cloud template drifts 2m in a random direction each turn to simulate wind movement (CP2020 p.107). When disabled, the GM may reposition the template manually.",
+
+    "SETTINGS.TaserCumPenaltyEnabled": "Combat: Taser Cumulative Save Penalty",
+    "SETTINGS.TaserCumPenaltyEnabledHint": "When enabled, each successive taser hit within a 3-turn window reduces the target's Stun Save threshold by the ammo item's stunSaveMod value (default −2 per hit). The penalty accumulates: 2nd hit −2, 3rd hit −4, etc. (CP2020 p.101 RAW.)",
+
+    "SETTINGS.AcidArmorDotEnabled": "Combat: Acid Weapon Armor Degradation",
+    "SETTINGS.AcidArmorDotEnabledHint": "When enabled, weapons loaded with acid ammo (dotEnabled on ammo item) degrade the target's armor SP at the hit location by the dotDamageFormula roll (default 1d6) per turn for dotTurns turns. SP is reduced from the outermost layer inward. (CP2020 acid weapon rules.)",
+
+    "SETTINGS.AcidDotStackMode": "Combat: Acid DOT Multiple-Hit Behavior",
+    "SETTINGS.AcidDotStackModeHint": "Controls what happens when a target is hit by acid while an acid effect is already active. Stack: extends the remaining turns at the same location. Reset: overwrites the previous effect (timer restarts). Separate: both effects run concurrently with independent timers.",
+    "SETTINGS.AcidDotStackModeChoiceStack": "Stack (extend duration at same location)",
+    "SETTINGS.AcidDotStackModeChoiceReset": "Reset (overwrite previous effect)",
+    "SETTINGS.AcidDotStackModeChoiceSeparate": "Separate (concurrent independent timers)",
+
+    "SETTINGS.FireDotEnabled": "Combat: Incendiary Burn Damage",
+    "SETTINGS.FireDotEnabledHint": "When enabled, weapons loaded with incendiary/API ammo set the target on fire: the dotDamageFormula roll (default 1d6) is applied as HP damage at the hit location each turn for dotTurns turns, with a Stun Save each turn. Unlike acid, fire burns the target, not their armor.",
+
+    "SETTINGS.FireDotStackMode": "Combat: Fire DOT Multiple-Hit Behavior",
+    "SETTINGS.FireDotStackModeHint": "Controls what happens when a target is set on fire while already burning. Stack: extends the remaining turns at the same location. Reset: overwrites the previous fire (timer restarts). Separate: both fires run concurrently with independent timers.",
+    "SETTINGS.FireDotStackModeChoiceStack": "Stack (extend duration at same location)",
+    "SETTINGS.FireDotStackModeChoiceReset": "Reset (overwrite previous fire)",
+    "SETTINGS.FireDotStackModeChoiceSeparate": "Separate (concurrent independent timers)",
+
+    "SETTINGS.MultiActionPenaltyEnabled": "Combat: Multi-Action Penalty",
+    "SETTINGS.MultiActionPenaltyEnabledHint": "When enabled, each action taken beyond the first in a round applies a cumulative −3 penalty to all rolls that round. A badge in the combat tracker shows the current action count and live penalty. (CP2020 p.105 RAW.)",
+
+    "SETTINGS.MultiActionAutoTrack": "Combat: Multi-Action Auto-Tracking",
+    "SETTINGS.MultiActionAutoTrackHint": "When enabled, weapon fire and tracker button clicks (Aim, Dodge, Parry) automatically increment the action counter. When disabled, only the manual ➕ button in the tracker changes the count — useful for tables that prefer full manual control.",
+
+    "SETTINGS.DamageLayersEnabled": "Armor: Show Layer Compliance Panel",
+    "SETTINGS.DamageLayersEnabledHint": "Displays a per-location armor layer summary on the Combat tab, showing layer order, hard/soft classification, RAW limit warnings (max 3 layers, max 1 hard), and extra EV penalties per New Rule 1.",
+
+    "SETTINGS.CyberpsychosisTracking": "Character: Cyberpsychosis Tracking",
+    "SETTINGS.CyberpsychosisTrackingHint": "Derives a cyberpsychosis state from the character's current Empathy (after humanity loss from cyberware): EMP 3 = cold, 2 = withdrawn, 1 = sociopathic, 0 or less = cyberpsycho (CP2020 p.73). Shown on the Cyberware tab. Humanity loss itself is always tracked; this only controls the derived state readout.",
+
+    "SETTINGS.LimbCripplingDetailed": "Combat: Detailed Crippling Injuries (Listen Up)",
+    "SETTINGS.LimbCripplingDetailedHint": "Optional grittier limb rule from Listen Up You Primitive Screwheads. Limb damage is DOUBLED (post-armor, before BTM); 6–12 net to a limb cripples it (unusable), 13+ destroys it (needs replacement). Replaces the Core flat '>8 = severed' limb branch when on. Requires 'Limb Loss & Head Wound Checks' to be enabled. Default OFF (Core rules).",
+
+    "SETTINGS.HitLocationCoreDisplay": "Combat: Show Hit Location (Core Table)",
+    "SETTINGS.HitLocationCoreDisplayHint": "When on (default), the chat shows which body part each hit struck, using the standard Core rulebook chart (head, torso, arms, legs). Can't be combined with W4RST4R's Limb Rules, which has its own chart — turning that model on switches this off.",
+
+    "SETTINGS.W4rst4rLimbRules": "Combat: W4RST4R's Limb Rules (alternate limb model)",
+    "SETTINGS.W4rst4rLimbRulesHint": "An alternate set of limb-injury rules. When a single hit deals more than 8 damage to an arm or leg the limb is disabled; more than 12 severs it — in either case the character must make a Death Save to survive. A head hit over 8 is instantly fatal. It also uses its own hit-location chart that adds the groin. Turning this on replaces the standard limb rules. Default OFF.",
+
+    "SETTINGS.ShotgunSpreadEnabled": "Combat: Shotgun & Flechette Spread",
+    "SETTINGS.ShotgunSpreadEnabledHint": "When enabled, ammo whose Spread Mode is not 'single' (buckshot, flechette) fires a widening pattern (Close 1m/Med 2m/Long 3m by default) with range-banded damage. Everyone in the straight path takes the hit. Only affects ammo explicitly configured for spread, so normal weapons are unchanged. (CP2020 p.108.)",
+
+    "SETTINGS.ExplosivesEnabled": "Combat: Explosions & Grenades",
+    "SETTINGS.ExplosivesEnabledHint": "When enabled, ammo whose Effect Types include 'Explosive' detonates as an area-effect blast: a circular zone of radius blastRadius, with range-banded damage falloff (blastMultipliers) outward from the center. Every token in the blast takes damage through the normal pipeline. Only affects ammo configured as Explosive. (CP2020 p.108.)",
+
+    "SETTINGS.AreaEffectOcclusion": "Combat: Area-Effect Cover Blocks (walls)",
+    "SETTINGS.AreaEffectOcclusionHint": "When enabled, a token shielded by a wall between it and the blast center (or the shooter, for spread) is exempt from area-effect damage — intervening cover blocks the pattern/blast (CP2020 p.108). Requires walls placed on the scene; disable if your tables don't map cover with walls.",
+
+    "SETTINGS.VehicleControlEnabled": "Vehicles: Movement & Control Rolls",
+    "SETTINGS.VehicleControlEnabledHint": "When enabled, vehicles get a 🎲 Control Roll button (sheet header) and the game.cyberpunk.vehicles.controlRoll API. It opens a dialog to roll REF + Driving/Pilot + 1d10 vs a Difficulty Value (Simple 15 / Difficult 20 / Very Difficult 25), and on failure rolls the Control Loss (Core p.112) or Failure (Maximum Metal p.10) table — whichever the active ruleset selects. Works in Core mode without Maximum Metal. Default ON.",
+
+    "SETTINGS.VehicleDamageEnabled": "Vehicles: Damage Resolver",
+    "SETTINGS.VehicleDamageEnabledHint": "When enabled, vehicles get a 💥 Damage button (sheet header) and the game.cyberpunk.vehicles.applyDamage API. Core (p.112) subtracts SP and reduces SDP; Maximum Metal (p.4-6) compares Penetration to Armor Value, rolls the Surface/Minor/Major/Catastrophic damage table, then a hit location with fuel-fire / ammo-cookoff / crew-damage effects (and honors a Damage Control system). The active branch follows the ruleset (Core when Maximum Metal is off). Default ON.",
+
+    "SETTINGS.MmEnabled": "Maximum Metal: Enable Maximum Metal",
+    "SETTINGS.MmEnabledHint": "Master switch for the Maximum Metal military-hardware layer. When OFF (default), vehicles use only the Core 'Vehicles in FNFF' rules (CP2020 p.112) and every MM-only feature is disabled: the Penetration/Armor-Value resolver, composite armor, personnel-vs-anti-vehicle (p.8), area weapons, missiles, the 5-facing vehicle sheet, and the Maximum Metal weapon compendium seeding. Turn ON for the detailed military system. The settings below belong to Maximum Metal.",
+
+    "SETTINGS.VehicleRuleSystem": "Vehicles: Rule System",
+    "SETTINGS.VehicleRuleSystemHint": "Core = the simple Vehicles-in-FNFF rules (Control Roll vs DV 15/20/25, SP−SDP damage, crash = speed/20 × weight). Maximum Metal = the detailed military system (Penetration vs Armor Value, Surface/Minor/Major/Catastrophic damage, hit-location & crit tables, ACPA). The vehicle sheet shows a single SP in Core mode and all five facings under Maximum Metal.",
+    "SETTINGS.VehicleRuleSystemChoiceCore": "Core (simple — Vehicles in FNFF, p.112)",
+    "SETTINGS.VehicleRuleSystemChoiceMaximumMetal": "Maximum Metal (detailed — Penetration/Armor Value)",
+
+    "SETTINGS.VehicleArmorDamageEnabled": "Maximum Metal: Armor Damage via Penetration (errata)",
+    "SETTINGS.VehicleArmorDamageEnabledHint": "Optional errata rule (Maximum Metal p.107). A heavy round (>20mm) erodes the struck facing's SP whether or not it penetrates: SP removed = factor × Penetration (HE ×½, AP/DPU ×0.6, HEAT ×¾, HESH ×1.0). Because Armor Value is derived from SP (SP÷20), sustained fire grinds armor down over time — addressing 'hard to knock down' heavy armor. Applies only under the Maximum Metal resolver. Default OFF; intended for >20mm vehicle weapons (the GM enables it deliberately).",
+
+    "SETTINGS.VehicleMoraleEnabled": "Maximum Metal: Crew Morale",
+    "SETTINGS.VehicleMoraleEnabledHint": "Optional rule. After a vehicle takes a Minor-or-worse penetrating hit, its crew must pass a morale check — Leadership + 1d10 vs 15 — or bail out / disengage. The damage card shows the 1d10 result and the Leadership needed to hold; the GM adjudicates the consequence. Applies only under the Maximum Metal resolver. Default OFF.",
+
+    "SETTINGS.VehicleArcEnforcement": "Vehicles: Weapon Mount Arc Enforcement",
+    "SETTINGS.VehicleArcEnforcementHint": "How a weapon mount's firing arc (turret 360° / front / side / rear) is enforced when the target lies outside it. Token facing defines 'front' — rotate a vehicle with Ctrl+scroll (Foundry's 0° points north). Free (default): the Fire dialog only WARNS that the target is outside the mount's arc; you can still fire (GM discretion). Strict: an out-of-arc shot is blocked until the mount can bear — rotate the firing vehicle to face the target, or use a turret. Applies to all vehicle/ACPA weapon mounts, missiles included.",
+    "SETTINGS.VehicleArcEnforcementChoiceFree": "Free (warn only — discretionary override, default)",
+    "SETTINGS.VehicleArcEnforcementChoiceStrict": "Strict (block out-of-arc shots — keep mounts within bounds)",
+
+    "SETTINGS.ExplosivesDetailed": "Combat: Detailed Explosives — HEP Concussion (Listen Up)",
+    "SETTINGS.ExplosivesDetailedHint": "Optional grittier blast model from Listen Up You Primitive Screwheads (p.105). Explosion concussion is treated as HEP: armor SP does NOT protect (BTM still applies), half the damage that gets through is permanent and half is stun (a Stun Save is always prompted), and soft armor at the hit location loses 2 SP. If the ammo also has blastShrapnel, each target additionally takes a normal-armor 1d10 shrapnel hit. Default OFF (Core blast = damage through normal armor).",
+
     "CYBERPUNK.ShopNoActor": "No character selected to buy for.",
     "CYBERPUNK.ShopNotAllowed": "Purchasing is GM-only right now — ask your GM.",
     "CYBERPUNK.ShopInsufficientFunds": "Not enough eurobucks for {name}: costs {cost}eb, you have {funds}eb.",
