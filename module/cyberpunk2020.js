@@ -206,14 +206,20 @@ Hooks.once("ready", async function () {
   // PopOut! compat: bind our global chat-card click delegators onto every popped-out window too.
   registerPopoutCompat();
 
-  // Register damage automation hooks (all users)
-  registerDamageHooks();
+  // Combat automation. When the "Cyberpunk 2020: Augmented Edition" module is
+  // active it owns the combat layer (it ports these same hooks), so the system
+  // defers to it to avoid double-processing every shot. Fork-only installs (no
+  // module) are unaffected and register normally.
+  if (!game.modules.get("cp2020-augmented")?.active) {
+    // Register damage automation hooks (all users)
+    registerDamageHooks();
 
-  // Register the optional once-per-turn movement gate (all users; gated by its setting)
-  registerMovementGate();
+    // Register the optional once-per-turn movement gate (all users; gated by its setting)
+    registerMovementGate();
 
-  // Register stun/death save chat button handlers (all users)
-  registerSaveRollHandlers();
+    // Register stun/death save chat button handlers (all users)
+    registerSaveRollHandlers();
+  }
 
   // Register the vehicle-fire "Apply to Targeted Vehicle" chat button handler (all users)
   registerVehicleFireHandlers();
