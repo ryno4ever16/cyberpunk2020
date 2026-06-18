@@ -5,6 +5,7 @@ import { classifySupplement, shortSupplement, isVisibleTo, knownOfficialSuppleme
 import { categoryOfPack, CATEGORIES, EXCLUDED_TYPES, catalogPacks } from "./categories.js";
 import { shoppingEnabled, shopSourceConfig, shopShowSource, shopAllowHomebrew } from "../settings.js";
 import { shimmerWindow } from "../shimmer.js";
+import { getHtmlElement } from "../compat.js";
 import { renderChatCard } from "../compat.js";
 import { getCalibers, getCaliberBox, getAmmoBoxPrice, AMMO_MODIFIERS } from "../lookups.js";
 import { purchaseAmmo } from "../dialog/buy-ammo.js";
@@ -431,7 +432,7 @@ export class CatalogBrowser extends HandlebarsApplicationMixin(ApplicationV2) {
 
   // ── Listeners ────────────────────────────────────────────────────────────────
   activateListeners(html) {
-    const root = html instanceof jQuery ? html[0] : html;
+    const root = getHtmlElement(html);
     if (!root) return;
     const isGM = game.user.isGM;
 
@@ -893,7 +894,7 @@ function openShopFromSidebar() { openShopWindow(resolveSidebarBuyer(), { view: "
 function injectSidebarShopButton(html) {
   try {
     if (!shoppingEnabled()) return;
-    const root = html instanceof jQuery ? html[0] : html;
+    const root = getHtmlElement(html);
     const menu = root?.querySelector?.("nav.tabs menu") ?? root?.querySelector?.(".tabs menu");
     if (!menu || menu.querySelector(".cp-shop-tab")) return;
     const li = document.createElement("li");
@@ -941,7 +942,7 @@ export function registerShopHooks() {
   });
 
   Hooks.on("renderChatMessage", (message, html) => {
-    const root = html instanceof jQuery ? html[0] : html;
+    const root = getHtmlElement(html);
     root?.querySelectorAll?.(".cp-shop-open-link").forEach(btn => {
       if (btn.dataset.cpBound === "1") return;
       btn.dataset.cpBound = "1";

@@ -321,7 +321,7 @@ Hooks.on("renderActorDirectory", (app, html) => {
   try {
     // Skip when the Augmented Edition module is active — it adds its own IP-tracker button.
     if (!game.user.isGM || ipSystem() === "disabled" || game.modules.get("cp2020-augmented")?.active) return;
-    const root = html instanceof jQuery ? html[0] : html;
+    const root = getHtmlElement(html);
     if (!root || root.querySelector(".cp-ip-tracker-btn")) return;
     const btn = document.createElement("button");
     btn.type = "button";

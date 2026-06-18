@@ -13,7 +13,7 @@ import { missileSpeed, turnsToImpact, resolveMissileToHit, resolvePaintHit, coun
 import { onGlobalClick } from "../popout-compat.js";
 import { pixelsToMeters } from "./vehicle-grid.js";
 import { localize, localizeParam } from "../utils.js";
-import { renderChatCard, postSavePromptCard } from "../compat.js";
+import { renderChatCard, postSavePromptCard, getHtmlElement } from "../compat.js";
 
 const SCOPE = "cyberpunk2020";
 const MISSILE_IMG = "systems/cyberpunk2020/img/missile.webp";
@@ -320,7 +320,7 @@ export function registerMissileFlightHooks() {
   });
 
   Hooks.on("renderCombatTracker", async (tracker, html) => {
-    const root = html instanceof jQuery ? html[0] : (Array.isArray(html) ? html[0] : html);
+    const root = getHtmlElement(html);
     if (!root?.querySelector) return;
     root.querySelector(".cp-missiles-panel")?.remove();
     const scene = canvas?.scene;

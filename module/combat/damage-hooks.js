@@ -24,7 +24,7 @@ import { onGlobalClick } from "../popout-compat.js";
 import { applyAreaDamages, ablateLocationOnce, ablateLocationByAmount, assessWoundSeverity, ARMOR_MODES } from "./DamageApplicator.js";
 import { postStunSavePrompt, postDeathSavePrompt, updateTaserState, applyAcidDotState, applyDotFromPayload, postSavePromptCard } from "./save-rolls.js";
 import { rollLocation, localize, localizeParam }              from "../utils.js";
-import { renderChatCard }                                     from "../compat.js";
+import { renderChatCard, getHtmlElement }                     from "../compat.js";
 import { dispatchAttack }                                     from "../vehicle/vehicle-targeting.js";
 import { createArea, tokensInArea, areasByFlag, deleteArea, areaById, usesRegions, moveArea } from "./area-shapes.js";
 
@@ -762,7 +762,7 @@ function _hookAimTracking() {
     if (!game.user.isGM && !actor.isOwner) return;
 
     const aimCount = actor.getFlag("cyberpunk2020", "aimRounds") ?? 0;
-    const root = html instanceof jQuery ? html[0] : (Array.isArray(html) ? html[0] : html);
+    const root = getHtmlElement(html);
     const li   = root?.querySelector?.(`[data-combatant-id="${combatant.id}"]`);
     if (!li) return;
     li.querySelectorAll(".cp-take-aim-btn").forEach(e => e.remove()); // idempotent across re-renders
@@ -785,7 +785,7 @@ function _hookAimTracking() {
     if (!actor) return;
     const savedAim = actor.getFlag("cyberpunk2020", "aimRounds") ?? 0;
     if (savedAim <= 0) return;
-    const root   = html instanceof jQuery ? html[0] : (Array.isArray(html) ? html[0] : html);
+    const root   = getHtmlElement(html);
     const select = root?.querySelector?.("select[name='aimRounds']");
     if (select) select.value = String(Math.min(3, savedAim));
   });
@@ -820,7 +820,7 @@ function _hookWaitForTurn() {
     if (!isEnabled()) return;
     const combat = game.combat;
     if (!combat) return;
-    const root = html instanceof jQuery ? html[0] : (Array.isArray(html) ? html[0] : html);
+    const root = getHtmlElement(html);
     if (!root) return;
 
     for (const combatant of combat.combatants) {
@@ -910,7 +910,7 @@ function _hookDodgeParry() {
     if (!isEnabled()) return;
     const combat = game.combat;
     if (!combat) return;
-    const root = html instanceof jQuery ? html[0] : (Array.isArray(html) ? html[0] : html);
+    const root = getHtmlElement(html);
     if (!root) return;
 
     for (const combatant of combat.combatants) {
@@ -1645,7 +1645,7 @@ function _hookMultiActionPenalty() {
     if (!_isMultiActionEnabled()) return;
     const combat = game.combat;
     if (!combat) return;
-    const root = html instanceof jQuery ? html[0] : (Array.isArray(html) ? html[0] : html);
+    const root = getHtmlElement(html);
     if (!root) return;
 
     for (const combatant of combat.combatants) {
@@ -1688,7 +1688,7 @@ function _hookMultiActionPenalty() {
     if (!actor) return;
     const penalty = _getMultiActionPenalty(actor);
     if (penalty === 0) return;
-    const root  = html instanceof jQuery ? html[0] : (Array.isArray(html) ? html[0] : html);
+    const root  = getHtmlElement(html);
     const input = root?.querySelector?.("input[name='extraMod']");
     if (!input) return;
     const existing = Number(input.value) || 0;

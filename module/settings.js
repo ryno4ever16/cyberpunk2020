@@ -1,4 +1,5 @@
 import { localize } from "./utils.js";
+import { getHtmlElement } from "./compat.js";
 
 const SCOPE = "cyberpunk2020";
 
@@ -861,7 +862,7 @@ export function registerSystemSettings() {
 
   // --- Maximum Metal: in-list section header + master gating of the MM sub-settings ---
   Hooks.on("renderSettingsConfig", (app, html) => {
-    const root = html instanceof jQuery ? html[0] : (Array.isArray(html) ? html[0] : html);
+    const root = getHtmlElement(html);
     if (!root?.querySelector) return;
     const MM_KEYS = ["mmEnabled", "vehicleRuleSystem", "vehicleArmorDamageEnabled", "vehicleMoraleEnabled", "vehicleArcEnforcement"];
     const groupOf = (k) => {
@@ -890,7 +891,7 @@ export function registerSystemSettings() {
 
   // --- Maximum Metal: hide the MM weapon compendium from the sidebar when MM is off ---
   Hooks.on("renderCompendiumDirectory", (app, html) => {
-    const root = html instanceof jQuery ? html[0] : (Array.isArray(html) ? html[0] : html);
+    const root = getHtmlElement(html);
     if (!root?.querySelector || mmEnabled()) return;          // MM on → show it normally
     const li = root.querySelector(`[data-pack="${SCOPE}.vehicle-weapons"]`);
     if (li) li.classList.add("cp-hidden");
