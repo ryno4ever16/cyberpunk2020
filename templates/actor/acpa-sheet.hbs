@@ -226,8 +226,8 @@
                 <img class="cp-weapon-img" src="{{sys.img}}" width="24" height="24"/>
                 <span class="cp-weapon-name" title="{{sys.system.category}} system"><b>{{sys.name}}</b>{{#if sys.system.destroyed}} <span class="cp-acpa-system-destroyed">✖</span>{{/if}}</span>
                 <span class="cp-weapon-stat" title="{{CPLocal 'Vehicle.SystemBodyAreaTip'}}">{{sys.system.area}}</span>
-                <span class="cp-weapon-stat" title="Spaces ({{sys.system.mount}})">{{sys.system.spaces}} sp</span>
-                <span class="cp-weapon-stat" title="Structural points (SOP) — damage {{sys.system.sopDamage}}">SOP {{sys.system.sop}}</span>
+                <span class="cp-weapon-stat" title="{{CPLocal 'Vehicle.SystemSpacesTip' mount=sys.system.mount}}">{{sys.system.spaces}} sp</span>
+                <span class="cp-weapon-stat" title="{{CPLocal 'Vehicle.SystemSopStatTip' damage=sys.system.sopDamage}}">SOP {{sys.system.sop}}</span>
                 <button type="button" data-action="acpaSystemEdit" data-system-id="{{sys.id}}" title="{{CPLocal 'Vehicle.SystemEditTip'}}">✎</button>
                 <button type="button" data-action="acpaSystemDelete" data-system-id="{{sys.id}}" title="{{CPLocal 'Vehicle.SystemDeleteTip'}}">✕</button>
             </div>

@@ -1320,6 +1320,8 @@
     "CYBERPUNK.Vehicle.SysSPTip": "Intrinsic Stopping Power (external / retractable items have their own SP).",
     "CYBERPUNK.Vehicle.SysSOP": "SOP",
     "CYBERPUNK.Vehicle.SysSOPTip": "Structural points — the system is destroyed when its accumulated SOP damage reaches this. 0 = derive 3× SP (Maximum Metal p.62).",
+    "CYBERPUNK.Vehicle.SystemSpacesTip": "Spaces ({mount})",
+    "CYBERPUNK.Vehicle.SystemSopStatTip": "Structural points (SOP) — damage {damage}",
     "CYBERPUNK.Vehicle.SysWeightKg": "Weight (kg)",
     "CYBERPUNK.Vehicle.SysWeightKgTip": "Weight (kg) — counts toward total loaded weight for the SIB.",
     "CYBERPUNK.Vehicle.SysCostEb": "Cost (eb)",
