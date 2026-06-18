@@ -3,11 +3,11 @@ import { login, evalGameOrThrow, setupSceneWithToken, waitForCanvasScene, cleanu
 import { ACCOUNTS } from "../helpers/accounts.js";
 
 /**
- * Catalog interactions: dimmed (disabled-for-players) items sink to the bottom; supplement filters
- * are functional (enabling a source makes its items visible to players); and selecting a token live-
- * updates an OPEN catalog's buyer (no reopen needed).
+ * Catalog interactions: the supplement/source filter is functional (the GM sees hidden-source items,
+ * players don't until the source is enabled — round-7 replaced inline dimming with source filtering);
+ * and selecting a token live-updates an OPEN catalog's buyer (no reopen needed).
  */
-test("dimmed-to-bottom ordering + functional supplement filter", async ({ page }) => {
+test("source visibility: non-core hidden from players by default, GM always, revealed when enabled", async ({ page }) => {
   await login(page, ACCOUNTS.gm);
 
   const R = await evalGameOrThrow(page, async () => {
@@ -16,35 +16,35 @@ test("dimmed-to-bottom ordering + functional supplement filter", async ({ page }
     const mod = await import("/systems/cyberpunk2020/module/shop/catalog.js");
     const sup = await import("/systems/cyberpunk2020/module/shop/supplements.js");
 
-    // GM view: every enabled row precedes every dimmed row; the divider sits on the first dimmed.
+    // The GM catalog renders rows (the world has buyable items).
     const browser = new mod.CatalogBrowser(null, { view: "catalog" });
-    const data = await browser.getData();
-    const firstDim = data.rows.findIndex(r => r.dimmed);
-    const lastEnabled = data.rows.map(r => !r.dimmed).lastIndexOf(true);
-    out.hasDimmed = firstDim !== -1;
-    out.dimmedAllBelow = firstDim === -1 || firstDim > lastEnabled;
-    out.dividerOnFirstDimmed = firstDim === -1 || data.rows[firstDim]._hiddenDivider === true;
+    const data = await browser._prepareContext({});
+    out.gmRowCount = data.rowCount;
 
-    // Functional filter: a real Chromebook item is hidden from players until the source is enabled.
+    // Round-7 replaced inline dimming with SOURCE FILTERING. The gate is isVisibleTo: a non-core
+    // ("official") source is hidden from players by default, revealed once the GM enables that source,
+    // and always visible to the GM. The rule keys off canon + enabledSources — content-independent —
+    // so a representative source key exercises it on any world.
+    const src = "Chromebook";
+    out.playerOff = sup.isVisibleTo(src, "official", { allowHomebrew: false, enabledSources: {} }, false);
+    out.playerOn  = sup.isVisibleTo(src, "official", { allowHomebrew: false, enabledSources: { [src]: true } }, false);
+    out.gmAlways  = sup.isVisibleTo(src, "official", { allowHomebrew: false, enabledSources: {} }, true);
+
+    // Integration check (only when this world actually has non-core content — the isolated rig may
+    // carry only core): the GM's rows must include a real non-core item.
     const index = await mod.getCatalogIndex();
-    const cb = index.find(i => i.supplement === "Chromebook");
-    out.haveChromebook = !!cb;
-    if (cb) {
-      out.cbPlayerOff = sup.isVisibleTo(cb.supplement, cb.canon, { allowHomebrew: false, enabledSources: {} }, false);
-      out.cbPlayerOn  = sup.isVisibleTo(cb.supplement, cb.canon, { allowHomebrew: false, enabledSources: { Chromebook: true } }, false);
-      out.cbGmAlways  = sup.isVisibleTo(cb.supplement, cb.canon, { allowHomebrew: false, enabledSources: {} }, true);
-    }
+    const official = index.find(i => i.canon === "official");
+    out.haveOfficial = !!official;
+    out.gmSeesOfficial = official ? data.rows.some(r => r.name === official.name) : null;
     return out;
   });
 
-  console.log("Catalog interactions:", JSON.stringify(R));
-  expect(R.hasDimmed, "GM has some disabled-for-players items to dim").toBe(true);
-  expect(R.dimmedAllBelow, "all dimmed rows sit below enabled rows").toBe(true);
-  expect(R.dividerOnFirstDimmed, "hidden divider marks the first dimmed row").toBe(true);
-  expect(R.haveChromebook).toBe(true);
-  expect(R.cbPlayerOff, "Chromebook hidden from players by default").toBe(false);
-  expect(R.cbPlayerOn, "enabling Chromebook reveals it to players").toBe(true);
-  expect(R.cbGmAlways, "GM always sees Chromebook").toBe(true);
+  console.log("Source visibility:", JSON.stringify(R));
+  expect(R.gmRowCount, "GM catalog has rows").toBeGreaterThan(0);
+  expect(R.playerOff, "non-core hidden from players by default").toBe(false);
+  expect(R.playerOn, "enabling the source reveals it to players").toBe(true);
+  expect(R.gmAlways, "GM always sees non-core").toBe(true);
+  if (R.haveOfficial) expect(R.gmSeesOfficial, "GM's rows include the non-core item").toBe(true);
 });
 
 test("selecting a token live-updates an open catalog's buyer", async ({ page }) => {
@@ -72,7 +72,7 @@ test("selecting a token live-updates an open catalog's buyer", async ({ page }) 
     await new Promise(r => setTimeout(r, 300));
     out.buyerAfter = browser.buyer?.id ?? null;
     out.expectedActor = ids.actorId;
-    out.domFunds = browser.element?.[0]?.querySelector(".cp-catalog-buyer")?.textContent?.includes("1234");
+    out.domFunds = browser.element?.querySelector(".cp-catalog-buyer")?.textContent?.includes("1234");
 
     await browser.close();
     return out;

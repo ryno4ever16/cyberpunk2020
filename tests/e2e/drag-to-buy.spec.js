@@ -72,7 +72,7 @@ test("purchaseByDrop → confirm dialog → Buy charges + creates the chosen qua
   const qty = gmPage.locator('input[name="qty"]').last();
   await expect(qty, "confirm dialog rendered with a quantity field").toBeVisible({ timeout: 10_000 });
   await qty.fill("3");
-  await gmPage.locator('button[data-button="buy"]').last().click();
+  await gmPage.locator('button[data-action="buy"]').last().click();
 
   const res = await evalGameOrThrow(gmPage, async (arg) => {
     const deadline = Date.now() + 6000;

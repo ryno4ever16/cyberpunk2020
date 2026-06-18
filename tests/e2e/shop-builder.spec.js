@@ -17,7 +17,7 @@ test.afterAll(async ({ browser }) => {
     await evalGameOrThrow(p, async () => {
       try { await game.settings.set("cyberpunk2020", "shoppingEnabled", true); } catch {}
       try { await game.settings.set("cyberpunk2020", "shops", {}); } catch {}
-      try { const mod = await import("/systems/cyberpunk2020/module/shop/catalog.js"); for (const w of Object.values(ui.windows)) if (w instanceof mod.CatalogBrowser) await w.close(); } catch {}
+      try { const mod = await import("/systems/cyberpunk2020/module/shop/catalog.js"); for (const w of [...foundry.applications.instances.values()]) if (w instanceof mod.CatalogBrowser) await w.close(); } catch {}
     });
   } catch {}
   await ctx.close();
@@ -44,7 +44,7 @@ test("builder: ShopDef CRUD, vendor tray, inShop flags, economics, bulk add, rem
     out.dupRejected = (await shops.addShopItem(def.id, sample.key)) === false;
 
     const builder = new mod.CatalogBrowser(null, { view: "build", shopId: def.id });
-    let data = await builder.getData();
+    let data = await builder._prepareContext({});
     out.isBuild = data.isBuild;
     out.vendorHasItem = data.vendor.some(v => v.sourceKey === sample.key);
     out.vendorCount = data.vendorCount;                                   // 1
@@ -58,7 +58,7 @@ test("builder: ShopDef CRUD, vendor tray, inShop flags, economics, bulk add, rem
 
     // economics: price override + limited stock → effective price + vendor reflects
     await shops.setShopItem(def.id, sample.key, { price: 99, unlimited: false, qty: 3 });
-    data = await builder.getData();
+    data = await builder._prepareContext({});
     const v = data.vendor.find(x => x.sourceKey === sample.key);
     out.vEff = v?.eff;          // 99
     out.vQty = v?.qty;          // 3
@@ -71,7 +71,7 @@ test("builder: ShopDef CRUD, vendor tray, inShop flags, economics, bulk add, rem
     // remove
     await shops.removeShopItem(def.id, sample.key);
     out.afterRemove = Object.keys(shops.getShop(def.id).items).length; // 1
-    const data2 = await builder.getData();
+    const data2 = await builder._prepareContext({});
     out.rowNoLongerInShop = !data2.rows.find(r => r.key === sample.key)?.inShop;
 
     await shops.deleteShop(def.id);
@@ -118,7 +118,7 @@ test("storefront: curated-only vs fullSearch; shop discount applied on buy", asy
 
     // curated-only (fullSearch off): exactly the one stocked item, lighter chrome (no filters)
     let sf = new mod.CatalogBrowser(buyer, { view: "storefront", shopId: def.id });
-    let d = await sf.getData();
+    let d = await sf._prepareContext({});
     out.curatedCount = d.rowCount;             // 1
     out.curatedCurated = d.rows[0]?.curated === true;
     out.noFilters = d.showFilters !== true;    // lighter chrome
@@ -127,7 +127,7 @@ test("storefront: curated-only vs fullSearch; shop discount applied on buy", asy
     // fullSearch ON: whole catalog + curated featured
     await shops.updateShop(def.id, { fullSearch: true });
     sf = new mod.CatalogBrowser(buyer, { view: "storefront", shopId: def.id });
-    d = await sf.getData();
+    d = await sf._prepareContext({});
     out.fullBig = d.rowCount > 1;
     out.featured = d.rows.find(r => r.sourceKey === sample.key)?.featured === true;
 
@@ -160,7 +160,7 @@ test("home directory + singleton window navigation", async ({ page }) => {
     const mod = await import("/systems/cyberpunk2020/module/shop/catalog.js");
     const shops = await import("/systems/cyberpunk2020/module/shop/shops.js");
     const wait = (ms) => new Promise(r => setTimeout(r, ms));
-    const wins = () => Object.values(ui.windows).filter(w => w instanceof mod.CatalogBrowser);
+    const wins = () => [...foundry.applications.instances.values()].filter(w => w instanceof mod.CatalogBrowser);
     for (const w of wins()) await w.close();
 
     const a = await shops.createShop({ name: "__PW__home1" });
@@ -168,7 +168,7 @@ test("home directory + singleton window navigation", async ({ page }) => {
 
     // home directory lists Catalog + the shops
     const home = new mod.CatalogBrowser(null, { view: "home" });
-    const hd = await home.getData();
+    const hd = await home._prepareContext({});
     out.homeShops = hd.shops.length;       // 2
     out.canCreate = hd.canCreate;          // GM
 
@@ -177,7 +177,7 @@ test("home directory + singleton window navigation", async ({ page }) => {
     mod.openShopWindow(null, { view: "home" }); await wait(300);
     out.windowCount = wins().length;       // 1
     // home cards are normal-sized, not stretched to fill the window (regression guard)
-    const cards = [...(wins()[0]?.element?.[0]?.querySelectorAll(".cp-home-entry") ?? [])].map(b => Math.round(b.getBoundingClientRect().height));
+    const cards = [...(wins()[0]?.element?.querySelectorAll(".cp-home-entry") ?? [])].map(b => Math.round(b.getBoundingClientRect().height));
     out.cardCount = cards.length;          // Catalog + 2 shops + Create = 4
     out.maxCardH = Math.max(0, ...cards);  // ~80, not ~300
     mod.openShopWindow(null, { view: "build", shopId: a.id }); await wait(250);
