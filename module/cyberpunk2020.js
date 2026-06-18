@@ -247,8 +247,9 @@ Hooks.once("ready", async function () {
   // One-time: migrate any legacy `shop`-type Actors into world-data ShopDefs, then drop them (round-7).
   migrateShopActorsToDefs();
 
-  // Register IP-tracker hooks (skill-roll auto-queue + GM relay).
-  registerIpHooks();
+  // Register IP-tracker hooks (skill-roll auto-queue + GM relay). The Augmented Edition module ports
+  // these (storing IP in its own flags), so the system defers to it when the module is active.
+  if (!game.modules.get("cp2020-augmented")?.active) registerIpHooks();
 
   // Seed the Vehicle Weapons (MM) compendium from the verified catalog if it's empty (active GM only).
   ensureVehicleWeaponSeed();
@@ -318,7 +319,8 @@ Hooks.on("updateActor", async (actor, changes, options, userId) => {
  */
 Hooks.on("renderActorDirectory", (app, html) => {
   try {
-    if (!game.user.isGM || ipSystem() === "disabled") return;
+    // Skip when the Augmented Edition module is active — it adds its own IP-tracker button.
+    if (!game.user.isGM || ipSystem() === "disabled" || game.modules.get("cp2020-augmented")?.active) return;
     const root = html instanceof jQuery ? html[0] : html;
     if (!root || root.querySelector(".cp-ip-tracker-btn")) return;
     const btn = document.createElement("button");
