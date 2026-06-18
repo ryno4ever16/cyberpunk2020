@@ -221,17 +221,25 @@ Hooks.once("ready", async function () {
     registerSaveRollHandlers();
   }
 
-  // Register the vehicle-fire "Apply to Targeted Vehicle" chat button handler (all users)
-  registerVehicleFireHandlers();
+  // Vehicle / ACPA combat handlers. Like the personnel-combat layer above, the
+  // "Cyberpunk 2020: Augmented Edition" module ports these same hooks (for its own
+  // cp2020-augmented.vehicle sub-type), so the system defers to it when the module
+  // is active to avoid double-processing vehicle-fire / luck-save / missile cards.
+  // The vehicle TYPE, sheet, DataModels and compendium seeds stay registered either
+  // way, so existing system `vehicle` actors still load — no migration required.
+  if (!game.modules.get("cp2020-augmented")?.active) {
+    // Register the vehicle-fire "Apply to Targeted Vehicle" chat button handler (all users)
+    registerVehicleFireHandlers();
 
-  // Register the MM p.8 LUCK-save chat button handler (Penetration weapon vs a person)
-  registerVehicleTargetingHandlers();
+    // Register the MM p.8 LUCK-save chat button handler (Penetration weapon vs a person)
+    registerVehicleTargetingHandlers();
 
-  // Register guided-missile multi-turn flight (auto-advance per round + Missiles-in-Flight panel)
-  registerMissileFlightHooks();
+    // Register guided-missile multi-turn flight (auto-advance per round + Missiles-in-Flight panel)
+    registerMissileFlightHooks();
 
-  // Register ACPA per-round status ticks (seize-up / interface-out countdowns).
-  registerAcpaCombatHooks();
+    // Register ACPA per-round status ticks (seize-up / interface-out countdowns).
+    registerAcpaCombatHooks();
+  }
 
   // Register shopping hooks (published-shop chat links + GM stock-depletion relay).
   registerShopHooks();
