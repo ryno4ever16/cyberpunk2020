@@ -26,20 +26,20 @@
 {{#if (equals layerRuleSystem "Chromebook 4")}}
   {{!-- CB4 MODE --}}
   <div class="inactive" style="font-size:0.8em; border-bottom:1px solid var(--color-border-dark-tertiary); padding-bottom:2px; margin-bottom:4px;">
-    Clothing Layers <span style="font-weight:normal;">(Chromebook 4 p.67)</span>
-    <span style="float:right; opacity:0.6;" title="Free: Torso = 1 Light + 1 Heavy; Legs = 1 Medium + 1 Heavy. Set clothingWeight on armor items.">ℹ</span>
+    {{CPLocal "ArmorLayers.ClothingLayers"}} <span style="font-weight:normal;">{{CPLocal "ArmorLayers.Cb4Ref"}}</span>
+    <span style="float:right; opacity:0.6;" title="{{CPLocal 'ArmorLayers.Cb4InfoTip'}}">ℹ</span>
   </div>
 
   {{#if cb4TorsoRows.length}}
   <div style="margin-bottom:4px;">
-    <span style="font-weight:bold;">Torso</span>
-    <span class="inactive" style="font-size:0.78em; margin-left:4px;">free: 1 Light + 1 Heavy</span>
-    {{#if cb4TorsoEV}}<span style="color:var(--color-level-warning); font-size:0.85em; margin-left:4px;">+{{cb4TorsoEV}} EV</span>{{/if}}
+    <span style="font-weight:bold;">{{CPLocal "Torso"}}</span>
+    <span class="inactive" style="font-size:0.78em; margin-left:4px;">{{CPLocal "ArmorLayers.TorsoFree"}}</span>
+    {{#if cb4TorsoEV}}<span style="color:var(--color-level-warning); font-size:0.85em; margin-left:4px;">{{CPLocal "ArmorLayers.EvPlus" ev=cb4TorsoEV}}</span>{{/if}}
     <div style="padding-left:8px; margin-top:2px;">
       {{#each cb4TorsoRows as |row|}}
       <div>
-        <span>{{row.label}}: ×{{row.count}}{{#if (gt row.freeCount 0)}} ({{row.freeCount}} free){{/if}}</span>
-        {{#if row.warn}}<span style="color:var(--color-level-warning); margin-left:4px;">+{{row.extra}} extra → −{{row.pen}} EV</span>{{/if}}
+        <span>{{row.label}}: ×{{row.count}}{{#if (gt row.freeCount 0)}} {{CPLocal "ArmorLayers.FreeCount" n=row.freeCount}}{{/if}}</span>
+        {{#if row.warn}}<span style="color:var(--color-level-warning); margin-left:4px;">{{CPLocal "ArmorLayers.ExtraEv" extra=row.extra pen=row.pen}}</span>{{/if}}
       </div>
       {{/each}}
     </div>
@@ -48,14 +48,14 @@
 
   {{#if cb4LegsRows.length}}
   <div style="margin-bottom:4px;">
-    <span style="font-weight:bold;">Legs</span>
-    <span class="inactive" style="font-size:0.78em; margin-left:4px;">free: 1 Medium + 1 Heavy</span>
-    {{#if cb4LegsEV}}<span style="color:var(--color-level-warning); font-size:0.85em; margin-left:4px;">+{{cb4LegsEV}} EV</span>{{/if}}
+    <span style="font-weight:bold;">{{CPLocal "ArmorLayers.Legs"}}</span>
+    <span class="inactive" style="font-size:0.78em; margin-left:4px;">{{CPLocal "ArmorLayers.LegsFree"}}</span>
+    {{#if cb4LegsEV}}<span style="color:var(--color-level-warning); font-size:0.85em; margin-left:4px;">{{CPLocal "ArmorLayers.EvPlus" ev=cb4LegsEV}}</span>{{/if}}
     <div style="padding-left:8px; margin-top:2px;">
       {{#each cb4LegsRows as |row|}}
       <div>
-        <span>{{row.label}}: ×{{row.count}}{{#if (gt row.freeCount 0)}} ({{row.freeCount}} free){{/if}}</span>
-        {{#if row.warn}}<span style="color:var(--color-level-warning); margin-left:4px;">+{{row.extra}} extra → −{{row.pen}} EV</span>{{/if}}
+        <span>{{row.label}}: ×{{row.count}}{{#if (gt row.freeCount 0)}} {{CPLocal "ArmorLayers.FreeCount" n=row.freeCount}}{{/if}}</span>
+        {{#if row.warn}}<span style="color:var(--color-level-warning); margin-left:4px;">{{CPLocal "ArmorLayers.ExtraEv" extra=row.extra pen=row.pen}}</span>{{/if}}
       </div>
       {{/each}}
     </div>
@@ -64,15 +64,15 @@
 
   {{#unless cb4TorsoRows.length}}
   {{#unless cb4LegsRows.length}}
-  <div class="inactive" style="padding:2px 0;">No clothing items with clothingWeight set equipped.</div>
+  <div class="inactive" style="padding:2px 0;">{{CPLocal "ArmorLayers.NoClothing"}}</div>
   {{/unless}}
   {{/unless}}
 
 {{else}}
   {{!-- CORE MODE (New Rule 1) --}}
   <div class="inactive" style="font-size:0.8em; border-bottom:1px solid var(--color-border-dark-tertiary); padding-bottom:2px; margin-bottom:4px;">
-    Armor Layers <span style="font-weight:normal;">(New Rule 1 &amp; 2)</span>
-    <span style="float:right; opacity:0.6;" title="Hard (H) = rigid: MetalGear, Body Armor, Bodyplating. Max 1 per location. SW = Skinweave (no EV penalty).">ℹ</span>
+    {{CPLocal "ArmorLayers.ArmorLayers"}} <span style="font-weight:normal;">{{CPLocal "ArmorLayers.NewRule12"}}</span>
+    <span style="float:right; opacity:0.6;" title="{{CPLocal 'ArmorLayers.CoreInfoTip'}}">ℹ</span>
   </div>
 
   {{#if armorLayersSummary.length}}
@@ -88,15 +88,15 @@
       {{#if loc.violations.length}}
         {{#each loc.violations as |v|}}
           {{#if (equals v "MAX_LAYERS")}}
-          <span style="color:var(--color-level-error); font-size:0.85em;" title="More than 3 layers — violates New Rule 1">⚠ &gt;3 layers</span>
+          <span style="color:var(--color-level-error); font-size:0.85em;" title="{{CPLocal 'ArmorLayers.MaxLayersTip'}}">{{CPLocal "ArmorLayers.MaxLayersWarn"}}</span>
           {{/if}}
           {{#if (equals v "MAX_HARD")}}
-          <span style="color:var(--color-level-error); font-size:0.85em;" title="More than 1 hard armor — violates New Rule 1">&nbsp;⚠ &gt;1 hard</span>
+          <span style="color:var(--color-level-error); font-size:0.85em;" title="{{CPLocal 'ArmorLayers.MaxHardTip'}}">&nbsp;{{CPLocal "ArmorLayers.MaxHardWarn"}}</span>
           {{/if}}
         {{/each}}
       {{else}}
       <span class="inactive" style="font-size:0.78em;">
-        {{loc.layerCountText}}{{#if loc.extraEV}}&nbsp;·&nbsp;+{{loc.extraEV}} EV{{/if}}
+        {{loc.layerCountText}}{{#if loc.extraEV}}&nbsp;·&nbsp;{{CPLocal "ArmorLayers.EvPlus" ev=loc.extraEV}}{{/if}}
       </span>
       {{/if}}
     </div>
@@ -107,8 +107,8 @@
         {{#if layer.layerLabel}}
         <span class="inactive" style="font-size:0.76em;">{{layer.layerLabel}}:</span>
         {{/if}}
-        <span title="{{layer.layerTitle}}{{#if layer.isSkinweave}} — no EV penalty{{/if}}">
-          {{layer.name}}&nbsp;<span class="inactive">({{layer.sp}}{{#if layer.isHard}}&nbsp;H{{/if}}{{#if layer.isSkinweave}}&nbsp;SW{{/if}})</span>
+        <span title="{{layer.layerTitle}}{{#if layer.isSkinweave}}{{CPLocal 'ArmorLayers.NoEvPenaltySuffix'}}{{/if}}">
+          {{layer.name}}&nbsp;<span class="inactive">({{layer.sp}}{{#if layer.isHard}}&nbsp;{{CPLocal "ArmorLayers.HardAbbr"}}{{/if}}{{#if layer.isSkinweave}}&nbsp;{{CPLocal "ArmorLayers.SkinweaveAbbr"}}{{/if}})</span>
         </span>
         {{#unless layer.isLast}}
         <span class="inactive">→</span>
@@ -119,7 +119,7 @@
   </div>
   {{/each}}
   {{else}}
-  <div class="inactive" style="padding:2px 0;">No layered armor equipped at any location.</div>
+  <div class="inactive" style="padding:2px 0;">{{CPLocal "ArmorLayers.NoLayered"}}</div>
   {{/if}}
 
 {{/if}}
