@@ -28,7 +28,7 @@ export function vehicleArcEnforcement() {
 export function shoppingEnabled() {
   // Defer the whole shop surface (sidebar cart, catalog, Services tab, drag-to-buy) to the
   // Cyberpunk 2020: Augmented Edition module when it is active, so the two don't double up.
-  if (game.modules?.get?.("cp2020-augmented")?.active) return false;
+  if (globalThis.game?.modules?.get?.("cp2020-augmented")?.active) return false;
   try { return game.settings.get(SCOPE, "shoppingEnabled") === true; } catch { return false; }
 }
 
@@ -81,7 +81,7 @@ export function ipSystem() {
 export function ipEnabled() {
   // Stand the system IP feature down when "Cyberpunk 2020: Augmented Edition" is active — it owns the
   // IP layer (storing IP in module flags), so the system's own IP UI/logic must not show stale data.
-  if (game.modules?.get?.("cp2020-augmented")?.active) return false;
+  if (globalThis.game?.modules?.get?.("cp2020-augmented")?.active) return false;
   return ipSystem() !== "disabled";
 }
 
