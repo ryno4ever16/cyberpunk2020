@@ -2959,4 +2959,46 @@ img#anatomy-img {
   border-radius: 0 !important;
 }
 
+/* ── Vehicle / ACPA sheet semantic color classes ────────────────────────── */
+
+/* DESTROYED label — red bold, used when a vehicle/suit SDP reaches 0. */
+.cp-vehicle-destroyed {
+  color: #ff4040;
+  font-weight: bold;
+}
+
+/* Destroyed ACPA system indicator (✖ icon inside the system row name span). */
+.cp-acpa-system-destroyed {
+  color: #ff4040;
+}
+
+/* Over-budget spaces cell — shown in red when used > available in a body area. */
+.cp-acpa-spaces-over {
+  color: #ff6060;
+  font-weight: bold;
+}
+
+/* Legal-build success paragraph — shown in green when the ACPA build passes all checks. */
+.cp-acpa-build-valid {
+  color: #3ad13a;
+  font-size: 0.85em;
+  margin: 2px 0;
+}
+
+/* Build-issues container — red border box wrapping the error list. */
+.cp-acpa-build-issues {
+  border: 1px solid #ff6060;
+  border-radius: 3px;
+  padding: 4px 6px;
+  margin: 2px 0;
+}
+
+/* Build-issues header paragraph inside the container. */
+.cp-acpa-build-issues-header {
+  color: #ff6060;
+  font-weight: bold;
+  font-size: 0.85em;
+  margin: 0 0 2px;
+}
+
 /*# sourceMappingURL=cyberpunk2020.css.map */
