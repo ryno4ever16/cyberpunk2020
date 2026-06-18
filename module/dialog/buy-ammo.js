@@ -1,5 +1,5 @@
 import { getCalibers, AMMO_MODIFIERS, getCaliberBox, getAmmoBoxPrice, normalizeCaliber } from "../lookups.js";
-import { localize } from "../utils.js";
+import { localize, tryLocalize } from "../utils.js";
 
 /**
  * Whether the current user may purchase ammunition.
@@ -56,9 +56,9 @@ export function applyAmmoModifierUpdate(modifierId) {
 function _ammoOptions() {
   const calibers = getCalibers();
   const caliberOpts = Object.entries(calibers)
-    .map(([id, c]) => ({ id, label: (c && c.label) ? c.label : id }))
+    .map(([id, c]) => ({ id, label: (c && c.label) ? tryLocalize(c.label) : id }))
     .sort((a, b) => a.label.localeCompare(b.label));
-  const modifierOpts = Object.entries(AMMO_MODIFIERS).map(([id, m]) => ({ id, label: (m && m.label) ? m.label : id }));
+  const modifierOpts = Object.entries(AMMO_MODIFIERS).map(([id, m]) => ({ id, label: (m && m.label) ? tryLocalize(m.label) : id }));
   return { caliberOpts, modifierOpts };
 }
 
@@ -198,7 +198,7 @@ export async function purchaseAmmo(actor, { caliber, modifier = "standard", boxe
   }
 
   ui.notifications.info(game.i18n.format("CYBERPUNK.AmmoBoughtFull", {
-    rounds: totalRounds, cal: caliber, mod: (AMMO_MODIFIERS[modifier]?.label ?? "Standard"), cost: totalCost
+    rounds: totalRounds, cal: caliber, mod: tryLocalize(AMMO_MODIFIERS[modifier]?.label ?? "Standard"), cost: totalCost
   }));
   return true;
 }
