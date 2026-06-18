@@ -1,5 +1,5 @@
 import { martialOptions, martialActionGroups, meleeAttackTypes, meleeBonkOptions, rangedModifiers, weaponTypes, FNFF2_ONLY_MARTIAL_ART_IDS, isFnff2Enabled, ANATOMY_IMAGES, DEFAULT_ANATOMY_KEY } from "../lookups.js"
-import { deleteFieldUpdate, localize, localizeParam, cwHasType, cwIsEnabled } from "../utils.js"
+import { deleteFieldUpdate, localize, localizeParam, tryLocalize, cwHasType, cwIsEnabled } from "../utils.js"
 import { ModifiersDialog } from "../dialog/modifiers.js"
 import { SortOrders, sortSkills } from "./skill-sort.js";
 import { getHtmlElement, getRichEditorHTML, itemFromDropData, saveRichEditorHTML } from "../compat.js";
@@ -566,22 +566,30 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
           };
           const rangeKey = CATEGORY_TO_RANGE_KEY[rangeResult.category] ?? "RangeClose";
 
+          // Localized plain category name for the GM-facing note/notifications. This is the only
+          // consumer of rangefinding.js's English LABELS, so the render edge lives here.
+          const RANGE_CAT_LABEL_KEY = {
+            pointBlank: "RangeCatPointBlank", close: "RangeCatClose", medium: "RangeCatMedium",
+            long: "RangeCatLong", extreme: "RangeCatExtreme", outOfRange: "RangeCatOutOfRange",
+          };
+          const rangeLabel = localize(RANGE_CAT_LABEL_KEY[rangeResult.category] ?? "RangeCatClose");
+
           // modifierGroups[0] is the first row; [1] is the Range selector
           if (modifierGroups?.[0]?.[1]?.dataPath === "range") {
             modifierGroups[0][1].defaultValue = rangeKey;
             // Add distance info to the label so the GM can see the measurement
             modifierGroups[0][1]._rangefindingNote =
-              `Auto: ${rangeResult.label} (${rangeResult.distanceMeters}m, weapon max ${rangeResult.longRange}m)`;
+              localize("RangefindingNote", { range: rangeLabel, dist: rangeResult.distanceMeters, max: rangeResult.longRange });
           }
 
           // Notify in chat log so GM can see the auto-selected range
           if (rangeResult.category === "outOfRange") {
             ui.notifications.warn(
-              `${item.name}: target is beyond extreme range (${rangeResult.distanceMeters}m > ${rangeResult.longRange * 2}m)`
+              localize("RangefindingBeyondExtreme", { name: item.name, dist: rangeResult.distanceMeters, max: rangeResult.longRange * 2 })
             );
           } else {
             ui.notifications.info(
-              `Rangefinding: ${rangeResult.label} — ${rangeResult.distanceMeters}m (weapon long range ${rangeResult.longRange}m)`
+              localize("RangefindingInfo", { range: rangeLabel, dist: rangeResult.distanceMeters, max: rangeResult.longRange })
             );
           }
         }
@@ -1147,7 +1155,7 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       if (svcAdd) {
         event.preventDefault();
         const [created] = await this.actor.createEmbeddedDocuments("Item", [{
-          name: "New Service", type: "misc", system: { serviceMode: "recurring", servicePeriod: "month", cost: 0 }
+          name: localize("NewService"), type: "misc", system: { serviceMode: "recurring", servicePeriod: "month", cost: 0 }
         }]);
         created?.sheet?.render(true);
         return;
@@ -1423,18 +1431,18 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     const anatomyKey = this.actor.getFlag?.("cyberpunk2020", "anatomyImage") || DEFAULT_ANATOMY_KEY;
     const anatomyDef = ANATOMY_IMAGES[anatomyKey] ?? ANATOMY_IMAGES[DEFAULT_ANATOMY_KEY];
     sheetData.anatomy = { key: anatomyKey, src: anatomyDef.src, svg: anatomyDef.svg };
-    sheetData.anatomyOptions = Object.entries(ANATOMY_IMAGES).map(([key, v]) => ({ key, label: v.label, selected: key === anatomyKey }));
+    sheetData.anatomyOptions = Object.entries(ANATOMY_IMAGES).map(([key, v]) => ({ key, label: tryLocalize(v.label), selected: key === anatomyKey }));
 
     // ── Armor layer compliance panel ───────────────────────────────────────
     sheetData.showArmorLayers = game.settings.get("cyberpunk2020", "damageLayersEnabled") ?? false;
 
     const LOCATION_LABELS = {
-      Head:  "Head",
-      Torso: "Torso",
-      lArm:  "L. Arm",
-      rArm:  "R. Arm",
-      lLeg:  "L. Leg",
-      rLeg:  "R. Leg",
+      Head:  localize("Head"),
+      Torso: localize("Torso"),
+      lArm:  localize("ArmorLayers.LocLArm"),
+      rArm:  localize("ArmorLayers.LocRArm"),
+      lLeg:  localize("ArmorLayers.LocLLeg"),
+      rLeg:  localize("ArmorLayers.LocRLeg"),
     };
 
     // Inline hard-armor check (mirrors getArmorHardness in armor-layers.js)
@@ -1494,16 +1502,19 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       const n = allLayers.length;
       const layers = allLayers.map((layer, i) => ({
         ...layer,
-        layerLabel: n <= 1 ? "" : i === 0 ? "I" : i === n - 1 ? "O" : "M",
-        layerTitle: n <= 1 ? "Only layer"
-          : i === 0       ? "Innermost"
-          : i === n - 1   ? "Outermost"
-          : `Layer ${i + 1}`,
+        layerLabel: n <= 1 ? ""
+          : i === 0       ? localize("ArmorLayers.LayerLabelInner")
+          : i === n - 1   ? localize("ArmorLayers.LayerLabelOuter")
+          : localize("ArmorLayers.LayerLabelMid"),
+        layerTitle: n <= 1 ? localize("ArmorLayers.OnlyLayer")
+          : i === 0       ? localize("ArmorLayers.Innermost")
+          : i === n - 1   ? localize("ArmorLayers.Outermost")
+          : localize("ArmorLayers.LayerN", { n: i + 1 }),
         isLast: i === n - 1,
       }));
 
       return { locationKey: key, label, layers, layerCount, hardCount, extraEV, violations,
-               layerCountText: layerCount === 1 ? "1 layer" : `${layerCount} layers` };
+               layerCountText: layerCount === 1 ? localize("ArmorLayers.LayerCountOne") : localize("ArmorLayers.LayerCountMany", { n: layerCount }) };
     }).filter(Boolean);
 
     // CB4 clothing layer summary — only used when layerRuleSystem === "Chromebook 4"
@@ -1524,14 +1535,14 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
                  warn: extra > 0 };
       };
       sheetData.cb4TorsoRows = [
-        rowIfAny("Light",  t.Light,  1, 1),
-        rowIfAny("Medium", t.Medium, 0, 3),
-        rowIfAny("Heavy",  t.Heavy,  1, 4),
+        rowIfAny(localize("Light"),  t.Light,  1, 1),
+        rowIfAny(localize("Medium"), t.Medium, 0, 3),
+        rowIfAny(localize("Heavy"),  t.Heavy,  1, 4),
       ].filter(Boolean);
       sheetData.cb4LegsRows = [
-        rowIfAny("Light",  l.Light,  0, 1),
-        rowIfAny("Medium", l.Medium, 1, 2),
-        rowIfAny("Heavy",  l.Heavy,  1, 3),
+        rowIfAny(localize("Light"),  l.Light,  0, 1),
+        rowIfAny(localize("Medium"), l.Medium, 1, 2),
+        rowIfAny(localize("Heavy"),  l.Heavy,  1, 3),
       ].filter(Boolean);
       sheetData.cb4TorsoEV = sheetData.cb4TorsoRows.reduce((s, r) => s + r.pen, 0);
       sheetData.cb4LegsEV  = sheetData.cb4LegsRows.reduce((s, r) => s + r.pen, 0);
