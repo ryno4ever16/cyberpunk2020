@@ -12,7 +12,7 @@
                     <div class="field">
                         <label>{{CPLocal "Vehicle.TypeLabel"}}</label>
                         <select name="system.vehicleType">
-                            {{#each vehicleTypes}}<option value="{{this}}" {{#if (equals ../system.vehicleType this)}}selected{{/if}}>{{this}}</option>{{/each}}
+                            {{#each vehicleTypes}}<option value="{{this}}" {{#if (equals ../system.vehicleType this)}}selected{{/if}}>{{CPLocal this}}</option>{{/each}}
                         </select>
                     </div>
                     <div class="field" title="{{CPLocal 'Vehicle.AcpaPoweredArmorTip'}}">
