@@ -328,6 +328,8 @@
     "CYBERPUNK.CyberwareSubtype": "Subtype",
     "CYBERPUNK.HumanityCostRoll": "Humanity Cost Roll",
     "CYBERPUNK.Cyberpsychosis": "Cyberpsychosis",
+    "CYBERPUNK.AnatomySelectTip": "Body type shown for cyberware placement",
+    "CYBERPUNK.CyberInstallTip": "Pay surgery cost, roll Humanity loss, and apply surgical damage to the owner, then mark this installed.",
     "CYBERPUNK.CpStateStable": "Stable",
     "CYBERPUNK.CpStateCold": "Cold (EMP 3) — emotionless, distant",
     "CYBERPUNK.CpStateWithdrawn": "Withdrawn (EMP 2) — chilly, forbidding",
