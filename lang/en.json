@@ -1123,7 +1123,7 @@
     "CYBERPUNK.ShopStyleUrbanFlash": "Urban Flash",
     "CYBERPUNK.ShopStyleBusiness": "Businesswear",
     "CYBERPUNK.ShopStyleHighFashion": "High Fashion",
-    "CYBERPUNK.ShopOpenForBusiness": "{shop} is open for business.",
+    "CYBERPUNK.ShopOpenForBusiness": "<b>{shop}</b> is open for business.",
     "CYBERPUNK.ShopBrowse": "Browse",
     "CYBERPUNK.ShopBrowseHint": "Open the shopping catalog (or a published shop) to buy gear.",
     "CYBERPUNK.ShopDisabled": "Shopping is disabled — ask your GM to enable it.",
