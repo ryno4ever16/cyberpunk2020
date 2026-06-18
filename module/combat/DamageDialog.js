@@ -241,7 +241,7 @@ export class DamageDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     await this.target.sheet?.render(false);
-    ui.notifications.info(localizeParam("DamageApplied", { amount: totalApplied, name: this.target.name }));
+    ui.notifications.info(localizeParam("DamageApplied", { amount: totalApplied, target: this.target.name }));
 
     // Taser flag must be updated BEFORE the save prompt — threshold calculation reads it
     if (this.payload.stunSaveOnHit && resolvedHits.some(h => h.penetrates)) {

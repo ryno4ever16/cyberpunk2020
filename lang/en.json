@@ -627,7 +627,6 @@
     "CYBERPUNK.UseCanvasTarget": "Use Canvas Target",
     "CYBERPUNK.UseList": "Use List",
     "CYBERPUNK.ApplyDamageBtn": "Apply Damage",
-    "CYBERPUNK.DamageApplied": "Applied {amount} damage to {name}.",
     "CYBERPUNK.WaitAfterWhichTurn": "Act after which combatant's turn?",
     "CYBERPUNK.ChosenCombatant": "chosen combatant",
     "CYBERPUNK.TargetPickPrompt": "🎯 Target a token on the canvas:",
