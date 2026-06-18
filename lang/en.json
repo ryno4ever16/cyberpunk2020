@@ -795,6 +795,7 @@
     "CYBERPUNK.Vehicle.Bomb": "Bomb",
     "CYBERPUNK.Vehicle.NewWeapon": "New Weapon",
     "CYBERPUNK.Vehicle.NewSystem": "New System",
+    "CYBERPUNK.Vehicle.NewShell": "New Shell",
     "CYBERPUNK.Vehicle.OtherToHitMods": "Other to-hit mods",
     "CYBERPUNK.Vehicle.Drop": "🛩 Drop",
     "CYBERPUNK.Vehicle.BombFlavor": "{actor} — {shell} (bomb)",

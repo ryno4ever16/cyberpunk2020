@@ -843,7 +843,7 @@ async _prepareCyberware(sheet) {
       if (this.item.type !== "vehicleWeapon") return;
       ev.preventDefault();
       const arr = _svArray();
-      arr.push({ name: "New Shell", pen: Number(this.item.system?.penetration) || 0, burst: Number(this.item.system?.burst) || 0, warhead: "", ap: false });
+      arr.push({ name: localize("Vehicle.NewShell"), pen: Number(this.item.system?.penetration) || 0, burst: Number(this.item.system?.burst) || 0, warhead: "", ap: false });
       await this.item.update({ "system.shellVariants": arr });
     });
     html.on("click.cpItem", ".cp-sv-remove", async (ev) => {
