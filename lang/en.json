@@ -607,6 +607,7 @@
     "CYBERPUNK.AddActionTitle": "Manual Action — mark an action not tracked automatically (e.g., reload, mount/dismount)",
     "CYBERPUNK.MultiActionBadgeTitle": "{count} action(s) this round. Multi-action penalty: {penalty}.",
     "CYBERPUNK.MultiActionPenaltyNone": "none",
+    "CYBERPUNK.ApplyDamageTitle": "Apply Damage",
     "CYBERPUNK.ApplyDamageSelectTarget": "Apply Damage — Select Target",
     "CYBERPUNK.UseCanvasTarget": "Use Canvas Target",
     "CYBERPUNK.UseList": "Use List",
