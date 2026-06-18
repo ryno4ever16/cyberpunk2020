@@ -538,11 +538,11 @@ export class CyberpunkActor extends Actor {
     if (cpTracking) {
       const e = emp.total;
       let state, label;
-      if      (e >= 4) { state = "stable";         label = "Stable"; }
-      else if (e === 3) { state = "cold";          label = "Cold (EMP 3) — emotionless, distant"; }
-      else if (e === 2) { state = "withdrawn";     label = "Withdrawn (EMP 2) — chilly, forbidding"; }
-      else if (e === 1) { state = "sociopathic";   label = "Sociopathic (EMP 1) — violent, on the edge"; }
-      else              { state = "cyberpsychotic"; label = "CYBERPSYCHOTIC (EMP ≤ 0) — lost to the chrome"; }
+      if      (e >= 4) { state = "stable";         label = localize("CpStateStable"); }
+      else if (e === 3) { state = "cold";          label = localize("CpStateCold"); }
+      else if (e === 2) { state = "withdrawn";     label = localize("CpStateWithdrawn"); }
+      else if (e === 1) { state = "sociopathic";   label = localize("CpStateSociopathic"); }
+      else              { state = "cyberpsychotic"; label = localize("CpStateCyberpsychotic"); }
       emp.cyberpsychosis = { emp: e, state, label, atRisk: e <= 3, lost: e <= 0 };
     } else {
       emp.cyberpsychosis = null;
