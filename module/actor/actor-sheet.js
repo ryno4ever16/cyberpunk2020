@@ -222,11 +222,9 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
         current: "",
         callback: (path) => this.actor.update({ img: path })
       });
+      // V2 FilePicker shows the browser on render; the legacy fp.browse(...) re-navigation throws
+      // ("target.replace is not a function") because browse() expects a string path, not an object.
       fp.render(true);
-      setTimeout(() => {
-        try { fp.browse({ activeSource: "data", current: "" }); }
-        catch { try { fp.browse("data", "", {}); } catch (e) { console.warn(e); } }
-      }, 0);
     };
 
     root.addEventListener("pointerdown", cpAvatarCapture, { capture: true });
@@ -250,9 +248,7 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
             if (img) img.setAttribute("src", path);
             const input = root.querySelector('input[name="system.icon"]');
             if (input) input.value = path;
-          },
-          top: (this.position?.top ?? 0) + 40,
-          left: (this.position?.left ?? 0) + 10
+          }
         });
         fp.render(true);
       });
