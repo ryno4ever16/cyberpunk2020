@@ -941,7 +941,7 @@ export function registerShopHooks() {
     }, 50);
   });
 
-  Hooks.on("renderChatMessage", (message, html) => {
+  Hooks.on("renderChatMessageHTML", (message, html) => {
     const root = getHtmlElement(html);
     root?.querySelectorAll?.(".cp-shop-open-link").forEach(btn => {
       if (btn.dataset.cpBound === "1") return;
