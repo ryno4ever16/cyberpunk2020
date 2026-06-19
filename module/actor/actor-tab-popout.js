@@ -43,7 +43,12 @@ export class CyberpunkActorTabSheet extends CyberpunkActorSheet {
     return this.options.tabKey ?? "combat";
   }
 
-  /** A distinct DOM id per (actor, tab) so several tab windows of one actor can coexist. */
+  /** A distinct DOM id per (actor, tab) so several tab windows of one actor can coexist.
+   *  NOTE: ApplicationV2 derives the real element id + the foundry.applications.instances key from
+   *  `options.id` (the "{id}" template → document-derived), NOT from this getter. So this override
+   *  alone is IGNORED by V2 — `static open()` MUST pass the same string as `options.id` (it does),
+   *  or every tab popout of one actor collides on `CyberpunkActorTabSheet-Actor-<id>` and the 2nd
+   *  render clobbers the 1st. This getter is kept only to mirror that id for any `this.id` reader. */
   get id() {
     return `cp-tab-${this.actor.id}-${this.tabKey}`;
   }
@@ -106,7 +111,9 @@ export class CyberpunkActorTabSheet extends CyberpunkActorSheet {
     if (left != null) position.left = left;
     if (top != null) position.top = top;
     // V2: ActorSheetV2 takes an options object with the document; `tabKey` is a custom option read
-    // by get tabKey(); get id() derives a per-(actor,tab) element id so windows stay distinct.
-    return new CyberpunkActorTabSheet({ document: actor, tabKey, position }).render({ force: true });
+    // by get tabKey(). Pass an explicit per-(actor,tab) `id` — V2 keys the real element + the
+    // instances registry off options.id, so without this every tab popout of one actor shares the
+    // document-derived id and the 2nd render clobbers the 1st (the tear-out "only one tab" bug).
+    return new CyberpunkActorTabSheet({ document: actor, tabKey, id: `cp-tab-${actor.id}-${tabKey}`, position }).render({ force: true });
   }
 }
