@@ -2,7 +2,7 @@ import { makeD10Roll, Multiroll } from "../dice.js";
 import { isFumbleRoll, buildSkillFumbleData } from "../utils.js";
 import { SortOrders, sortSkills } from "./skill-sort.js";
 import { btmFromBT, MARTIAL_ART_KEY_BY_ID, MARTIAL_ART_ID_BY_KEY, FNFF2_ONLY_MARTIAL_ART_IDS, FNFF2_ONLY_MARTIAL_ART_KEYS, isFnff2Enabled, isMartialArtSkillItem, martialArtDisplayName } from "../lookups.js";
-import { properCase, localize, getDefaultSkills, cwHasType, cwIsEnabled } from "../utils.js"
+import { properCase, localize, getDefaultSkills, cwHasType, cwIsEnabled, cwIsSkinweave } from "../utils.js"
 import { acpaInitiativeRollData } from "../vehicle/vehicle-acpa.js";
 import { reputationEnabled } from "../settings.js";
 import { createCyberpunkRollCard, renderChatCard } from "../compat.js";
@@ -309,12 +309,11 @@ export class CyberpunkActor extends Actor {
     // Layer count per location for New Rule 1 EV penalty (non-skinweave layers only)
     const armorLayerCountByArea = {};
 
-    // Inventory armor: accumulate EV and layer SP
+    // Inventory armor: accumulate EV and layer SP. Skinweave is a cyberware subtype, never an
+    // inventory armor item, so every inventory layer counts toward the New Rule 1 EV penalty.
     equippedItems.filter(i => i.type === "armor").forEach(armor => {
       const armorData = armor.system;
       totalEncumbrance += Number(armorData.encumbrance || 0);
-
-      const isSkinweave = (armor.name ?? "").toLowerCase().includes("skinweave");
 
       for (const armorArea in armorData.coverage) {
         const location = system.hitLocations[armorArea];
@@ -326,10 +325,7 @@ export class CyberpunkActor extends Actor {
         if (!armorLayersByArea[armorArea]) armorLayersByArea[armorArea] = [];
         armorLayersByArea[armorArea].push(addSP);
 
-        // Track non-skinweave layers for New Rule 1 EV penalty
-        if (!isSkinweave) {
-          armorLayerCountByArea[armorArea] = (armorLayerCountByArea[armorArea] || 0) + 1;
-        }
+        armorLayerCountByArea[armorArea] = (armorLayerCountByArea[armorArea] || 0) + 1;
       }
     });
 
@@ -361,9 +357,7 @@ export class CyberpunkActor extends Actor {
 
       // Subdermal armor and bodyplating count as layers WITH EV penalty (p.99 errata)
       // Skinweave cyberware should not count (no EV penalty)
-      const cwName = (cw.name ?? "").toLowerCase();
-      const isCwSkinweave = cwName.includes("skinweave");
-      if (!isCwSkinweave && evImpl > 0) {
+      if (!cwIsSkinweave(cw) && evImpl > 0) {
         const locs = cw.system?.CyberWorkType?.Locations || {};
         for (const areaKey of Object.keys(locs)) {
           if (system.hitLocations[areaKey]) {
@@ -410,8 +404,8 @@ export class CyberpunkActor extends Actor {
         if (locs.some(k => LEG_AREAS.has(k)))   l[w]++;
       });
       // Torso free: 1 Light + 1 Heavy. Legs free: 1 Medium + 1 Heavy.
-      const cb4EV = Math.max(0, t.Light  - 1) * 1 + t.Medium * 3             + Math.max(0, t.Heavy  - 1) * 4
-                  + l.Light * 1                    + Math.max(0, l.Medium - 1) * 2 + Math.max(0, l.Heavy  - 1) * 3;
+      const cb4EV = Math.max(0, t.Light - 1) * 1 + t.Medium * 3 + Math.max(0, t.Heavy - 1) * 4
+                  + l.Light * 1 + Math.max(0, l.Medium - 1) * 2 + Math.max(0, l.Heavy - 1) * 3;
       totalEncumbrance -= layerEVPenalty;  // undo Core EV that was already added
       layerEVPenalty = cb4EV;
       totalEncumbrance += layerEVPenalty;

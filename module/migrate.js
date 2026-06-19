@@ -1,4 +1,4 @@
-import { deleteFieldUpdate, getDefaultSkills, localize, cwHasType } from "./utils.js";
+import { deleteFieldUpdate, getDefaultSkills, localize, cwHasType, CYBERWARE_SUBTYPE_SKINWEAVE } from "./utils.js";
 
 /* -------------------------------------------- */
 /*  Ammo Caliber Cleanup (focused, self-gating) */
@@ -580,6 +580,12 @@ export async function migrateItem(item) {
 
     // Not found in compendium: keep the item usable and normalize type shape.
     normalizeCyberwareTypesForUpdate(itemData, updateData);
+    // One-shot: tag legacy/homebrew Skinweave implants with the SKINWEAVE subtype that now drives
+    // EV-exemption (it replaced the old runtime item-name check). A name match is acceptable HERE
+    // because a migration runs once; stock implants already get the subtype from their template above.
+    if (!itemData.system?.cyberwareSubtype && /skinweave/i.test(item.name ?? "")) {
+      updateData["system.cyberwareSubtype"] = CYBERWARE_SUBTYPE_SKINWEAVE;
+    }
     return updateData;
   }
 

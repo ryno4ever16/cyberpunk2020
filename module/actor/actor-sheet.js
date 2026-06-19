@@ -1,5 +1,5 @@
 import { martialOptions, martialActionGroups, meleeAttackTypes, meleeBonkOptions, rangedModifiers, weaponTypes, FNFF2_ONLY_MARTIAL_ART_IDS, isFnff2Enabled, ANATOMY_IMAGES, DEFAULT_ANATOMY_KEY } from "../lookups.js"
-import { deleteFieldUpdate, localize, localizeParam, tryLocalize, cwHasType, cwIsEnabled } from "../utils.js"
+import { deleteFieldUpdate, localize, localizeParam, tryLocalize, cwHasType, cwIsEnabled, cwIsSkinweave } from "../utils.js"
 import { ModifiersDialog } from "../dialog/modifiers.js"
 import { SortOrders, sortSkills } from "./skill-sort.js";
 import { getHtmlElement, getRichEditorHTML, itemFromDropData, saveRichEditorHTML } from "../compat.js";
@@ -1469,7 +1469,7 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
             name:        c.name,
             sp:          Number(c.system?.CyberWorkType?.Locations?.[key]) || 0,
             isHard:      /bodyplating|body plating/.test(nameLower),
-            isSkinweave: /skinweave/.test(nameLower),
+            isSkinweave: cwIsSkinweave(c),
             isCyberware: true,
           };
         });
@@ -2500,5 +2500,4 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
 
     return super._preClose(options);
   }
-
 }

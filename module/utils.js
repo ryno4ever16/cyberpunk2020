@@ -311,6 +311,16 @@ export function cwIsEnabled(obj) {
   return true;
 }
 
+// Skinweave subtype tag. Skinweave is a subdermal weave: it adds SP without an EV layering penalty.
+export const CYBERWARE_SUBTYPE_SKINWEAVE = "SKINWEAVE";
+
+// Is this cyberware a Skinweave? Detect by the stable subtype field, NEVER the item name — names get
+// renamed by players and rewritten by localization, while the subtype is data that survives both.
+export function cwIsSkinweave(obj) {
+  const sys = obj?.system ?? obj;
+  return sys?.cyberwareSubtype === CYBERWARE_SUBTYPE_SKINWEAVE;
+}
+
 // Fumble Table (optional rule)
 
 /**

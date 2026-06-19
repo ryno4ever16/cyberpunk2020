@@ -22,6 +22,7 @@ import {
   clamp,
   cwHasType,
   cwIsEnabled,
+  cwIsSkinweave,
   reliabilityThreshold,
   deleteFieldUpdate,
 } from "../../module/utils.js";
@@ -217,6 +218,29 @@ describe("cwIsEnabled", () => {
   it("accepts system object directly (without item wrapper)", () => {
     expect(cwIsEnabled({ EffectMode: "Activatable", EffectActive: true })).toBe(true);
     expect(cwIsEnabled({ EffectMode: "Activatable", EffectActive: false })).toBe(false);
+  });
+});
+
+// ─── cwIsSkinweave ────────────────────────────────────────────────────────────
+
+describe("cwIsSkinweave", () => {
+  it("detects the SKINWEAVE subtype regardless of the item name", () => {
+    // Thermaskin is SKINWEAVE-subtype with no "skinweave" in its name — the old name check missed it.
+    expect(cwIsSkinweave({ name: "Thermaskin", system: { cyberwareSubtype: "SKINWEAVE" } })).toBe(true);
+    // A localized/renamed Skinweave still resolves by subtype.
+    expect(cwIsSkinweave({ name: "Подкожное плетение", system: { cyberwareSubtype: "SKINWEAVE" } })).toBe(true);
+  });
+
+  it("does not false-positive on a skinweave-like name without the subtype", () => {
+    expect(cwIsSkinweave({ name: "Skinweave Knockoff", system: { cyberwareSubtype: "" } })).toBe(false);
+    expect(cwIsSkinweave({ name: "Subdermal Armor", system: { cyberwareSubtype: "SUBDERMAL" } })).toBe(false);
+  });
+
+  it("accepts a system object directly and is safe on empty/nullish input", () => {
+    expect(cwIsSkinweave({ cyberwareSubtype: "SKINWEAVE" })).toBe(true);
+    expect(cwIsSkinweave({})).toBe(false);
+    expect(cwIsSkinweave(null)).toBe(false);
+    expect(cwIsSkinweave(undefined)).toBe(false);
   });
 });
 
