@@ -308,7 +308,10 @@ export class CyberpunkItem extends Item {
     }
 
     let nowOwned = !system.lastOwnerId && this.actor;
-    let changedHands = system.lastOwnerId !== undefined && system.lastOwnerId != this.actor.id;
+    // Guard this.actor: a world (unowned) armor item has no actor, so this.actor.id would throw
+    // "Cannot read properties of null (reading 'id')" during prepareData (the try/catch above only
+    // protects the idCheck probe, not this line). The reform below is already gated on !skipReform.
+    let changedHands = this.actor && system.lastOwnerId !== undefined && system.lastOwnerId != this.actor.id;
     if(!skipReform && (nowOwned || changedHands)) {
       system.lastOwnerId = this.actor.id;
       let ownerLocs = this.actor.system.hitLocations;
