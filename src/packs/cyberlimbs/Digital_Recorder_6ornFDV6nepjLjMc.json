@@ -1,11 +1,11 @@
 {
-  "name": "Audio/Video Recorder",
+  "name": "Digital Recorder",
   "type": "cyberware",
   "effects": [],
   "system": {
-    "flavor": "stores input from external mic, video cam or recording link",
+    "flavor": "Digital chip recorder. Download or erase chip",
     "notes": "",
-    "cost": 250,
+    "cost": 300,
     "weight": null,
     "equipped": true,
     "source": "Cyberpunk 2020 p.91",
@@ -13,7 +13,7 @@
     "humanityCost": "1",
     "cyberwareType": "CYBERLIMB",
     "cyberwareSubtype": "BUILTIN",
-    "abbrev": "AVR2",
+    "abbrev": "DGRC",
     "humanityLoss": null,
     "MountZone": "Arm",
     "EffectMode": "Permanent",
@@ -73,7 +73,7 @@
   "img": "systems/cyberpunk2020/img/implant-icon-2.svg",
   "folder": null,
   "flags": {},
-  "_id": "xYJeiaIBNYPhT4wU",
+  "_id": "6ornFDV6nepjLjMc",
   "ownership": {
     "default": 0
   },
@@ -89,5 +89,5 @@
     "exportSource": null
   },
   "sort": 0,
-  "_key": "!items!xYJeiaIBNYPhT4wU"
+  "_key": "!items!6ornFDV6nepjLjMc"
 }
