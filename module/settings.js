@@ -914,5 +914,4 @@ export function registerSystemSettings() {
     const li = root.querySelector(`[data-pack="${SCOPE}.vehicle-weapons"]`);
     if (li) li.classList.add("cp-hidden");
   });
-
 }
