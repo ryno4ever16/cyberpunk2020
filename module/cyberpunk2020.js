@@ -192,9 +192,12 @@ Hooks.once('init', async function () {
           });
         };
 
+        // Position once, when the tip is shown (in showTip's rAF). Never reposition on mousemove:
+        // reading layout (getBoundingClientRect) on every pointer move forces a synchronous reflow
+        // each time — expensive over a large DOM. The tip is anchored to the element, not the cursor,
+        // so it has no reason to follow the pointer.
         el.addEventListener("mouseenter", () => { void showTip(); });
         el.addEventListener("mouseleave", hideTip);
-        el.addEventListener("mousemove", positionTip);
       }
     });
 });
