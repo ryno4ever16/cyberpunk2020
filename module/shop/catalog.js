@@ -221,9 +221,9 @@ export class CatalogBrowser extends HandlebarsApplicationMixin(ApplicationV2) {
    *  official, then homebrew). Each chip is a display filter; on the GM's catalog/build view each official
    *  /homebrew chip also carries an eye toggle for player visibility (the old per-source curation). */
   _booksPanel(all, { isGM, cfg, canCurate }) {
-    const present = new Set(all.map(i => i.supplement + " " + i.canon));
+    const present = new Set(all.map(i => i.supplement + "\u0000" + i.canon));
     const enabled = cfg.enabledSources ?? {};
-    const seen = (name, canon) => present.has(name + " " + canon) && (isGM || isVisibleTo(name, canon, cfg, false));
+    const seen = (name, canon) => present.has(name + "\u0000" + canon) && (isGM || isVisibleTo(name, canon, cfg, false));
     const mk = (names, canon) => names.filter(n => seen(n, canon)).map(n => ({
       key: n, name: n, short: shortSupplement(n),
       active: this._books.has(n), curate: canCurate, enabled: enabled[n] === true
