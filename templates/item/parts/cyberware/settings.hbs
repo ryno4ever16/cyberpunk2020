@@ -6,16 +6,23 @@
   <div class="field">
     <label for="system.humanityCost">{{CPLocal "HumanityCostRoll"}}</label>
     <span class="flex-pad"></span>
-    <input class="textsize" name="system.humanityCost" type="text" value="{{system.humanityCost}}" {{#unless isGM}}readonly{{/unless}}/>
+    <input
+      class="textsize{{#unless canEditCyberwareHumanity}} cyberware-humanity-locked{{/unless}}"
+      name="system.humanityCost"
+      type="text"
+      value="{{system.humanityCost}}"
+      {{#unless canEditCyberwareHumanity}}readonly{{/unless}}
+    />
     <div class="humanity-cost-roll field-image action" style="background-image: url('../../../icons/svg/d10-grey.svg')"></div>
   </div>
 
-  {{#if isGM}}
+  {{#if canEditCyberwareHumanity}}
     {{> (template "fields/number") label="HumanityLoss" edit="system.humanityLoss"}}
   {{else}}
-    {{> (template "fields/number") label="HumanityLoss" edit="system.humanityLoss" readOnly=true}}
+    {{> (template "fields/number") label="HumanityLoss" edit="system.humanityLoss" readOnly=true extraClasses="cyberware-humanity-locked"}}
   {{/if}}
 
+  {{!-- Install (Surgery) button (our net-new): only on actor-owned cyberware. Handler = _cpActivateCyberwareInstall. --}}
   {{#if item.isEmbedded}}
   <div class="field">
     <label>{{CPLocal "CyberInstall"}}</label>
@@ -341,13 +348,13 @@
           <div class="flex-pad"></div>
           {{#if (equals system.CyberWorkType.Weapon.weaponType 'Exotic')}}
             <datalist id="possibleSkillsCW">
-              {{#each attackSkills as |skill|}}<option value="{{skill}}">{{skill}}</option>{{/each}}
+                {{#each attackSkills as |skill|}}<option value="{{skill}}">{{skill}}</option>{{/each}}
             </datalist>
             <input type="text" list="possibleSkillsCW" placeholder="{{CPLocal 'AttackSkill'}}" name="system.CyberWorkType.Weapon.attackSkill" value="{{system.CyberWorkType.Weapon.attackSkill}}">
           {{else}}
             <select name="system.CyberWorkType.Weapon.attackSkill">
               {{#each attackSkills as |skill|}}
-                <option value="{{skill}}" {{#if (equals ../system.CyberWorkType.Weapon.attackSkill skill)}}selected{{/if}}>{{skill}}</option>
+                <option value="{{skill.value}}" {{#if (equals ../system.CyberWorkType.Weapon.attackSkill skill.value)}}selected{{/if}}{{#if (equals ../system.CyberWorkType.Weapon.attackSkill skill.label)}}selected{{/if}}>{{skill.label}}</option>
               {{/each}}
             </select>
           {{/if}}

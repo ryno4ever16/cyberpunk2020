@@ -137,6 +137,24 @@ export function registerSystemSettings() {
     default: true
   });
 
+  // --- Cyberware: who may edit Humanity Cost / Humanity Loss (upstream parity, supercoon d287c41) ---
+  game.settings.register("cyberpunk2020", "playersCanEditCyberwareHumanity", {
+    name: "SETTINGS.PlayersCanEditCyberwareHumanity",
+    hint: "SETTINGS.PlayersCanEditCyberwareHumanityHint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false,
+    onChange: () => {
+      // Re-render any open cyberware item sheets so the HC/HL field lock state updates.
+      // v14-safe: iterate ApplicationV2 instances (his upstream onChange used V1 ui.windows/ItemSheet,
+      // which never match our ItemSheetV2 sheet).
+      for (const app of foundry.applications.instances.values()) {
+        if (app?.document?.type === "cyberware") app.render(false);
+      }
+    }
+  });
+
     // --- Ammunition: purchasing access ---
   game.settings.register("cyberpunk2020", "playersCanBuyAmmo", {
     name: "SETTINGS.PlayersCanBuyAmmo",

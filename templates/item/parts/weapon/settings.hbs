@@ -14,7 +14,7 @@
     {{> (template "fields/number") label="Shots" edit="system.shots"}}
     {{> (template "fields/number") label="RoF" edit="system.rof"}}
     {{> (template "fields/select") label="Ammo" edit="system.ammoItemId" choices=ammoChoices allowBlank=true}}
-    {{!-- Fire-mode capability. Full auto also grants Suppressive; burst is separate (e.g. M16A4). --}}
+    {{!-- Fire-mode capability (our net-new). Full auto also grants Suppressive; burst is separate (e.g. M16A4). --}}
     {{> (template "fields/boolean") label="FullAutoCapable" edit="system.fullAutoCapable"}}
     {{> (template "fields/boolean") label="BurstCapable" edit="system.burstCapable"}}
 </div>
@@ -34,14 +34,14 @@
             {{!-- This will be populated by actor skills if it's held by an actor, but an input is at least editable --}}
             <datalist id="possibleSkills">
                 {{#each attackSkills as |skill|}}
-                <option value="{{skill}}">{{skill}}</option>
+                <option value="{{skill.value}}">{{skill.label}}</option>
                 {{/each}}
             </datalist>
             <input type="text" list="possibleSkills" placeholder="Choose Skill" name="system.attackSkill" value="{{system.attackSkill}}"/>
         {{else}}
             <select name="system.attackSkill">
                 {{#each attackSkills as |skill|}}
-                <option value="{{skill}}" {{#if (equals ../system.attackSkill skill)}}selected{{/if}}>{{skill}}</option>
+                <option value="{{skill.value}}" {{#if (equals ../system.attackSkill skill.value)}}selected{{/if}}{{#if (equals ../system.attackSkill skill.label)}}selected{{/if}}>{{skill.label}}</option>
                 {{/each}}
             </select>
         {{/if}}
