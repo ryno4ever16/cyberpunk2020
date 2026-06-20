@@ -157,7 +157,10 @@ export class CyberpunkNpcData extends CyberpunkBaseActorData {}
 export class CyberpunkVehicleActorData extends foundry.abstract.TypeDataModel {
   static defineSchema() {
     return {
-      vehicleType: stringField("car"),   // car/sportscar/limo/AV-4/AV-6/AV-7/cycle/truck/rotor/osprey/boat/tank/APC/acpa
+      vehicleType: stringField("car"),   // FREE TEXT name/flavor (the sheet offers datalist suggestions)
+      // Movement class — drives the aircraft loss-table branch (isAircraft reads THIS, not the type
+      // name, so a custom/renamed/localized type can't silently mis-flag a flier). ground|air|water.
+      locomotion:  stringField("ground"),
       isACPA:      booleanField(false),
       str:         numberField(0),        // ACPA chassis STR — drives Body Value when isACPA
 
@@ -253,6 +256,14 @@ export class CyberpunkVehicleActorData extends foundry.abstract.TypeDataModel {
     source ??= {};
     if (hasOwn(source, "sp"))  source.sp  = mergeDefaults(source.sp,  { front: 0, side: 0, rear: 0, top: 0, bottom: 0 });
     if (hasOwn(source, "sdp")) source.sdp = mergeDefaults(source.sdp, { value: 0, max: 0 });
+    // One-time backfill: derive the movement class from the legacy free-text vehicleType so existing
+    // aircraft keep their (stall/spin) loss-table branch once isAircraft stops reading the name.
+    if (!hasOwn(source, "locomotion") && hasOwn(source, "vehicleType")) {
+      const t = String(source.vehicleType ?? "").toLowerCase();
+      source.locomotion = /av-|\bav\b|rotor|osprey|heli|plane|jet|airship|gyro|aerodyne|dirigible|wing/.test(t) ? "air"
+        : /boat|ship|barge|hovercraft|submar|yacht|naval|dinghy/.test(t) ? "water"
+        : "ground";
+    }
     return super.migrateData(source);
   }
 

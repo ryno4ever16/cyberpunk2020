@@ -11,8 +11,15 @@
                 <div class="fieldrow">
                     <div class="field">
                         <label>{{CPLocal "Vehicle.TypeLabel"}}</label>
-                        <select name="system.vehicleType">
-                            {{#each vehicleTypes}}<option value="{{this}}" {{#if (equals ../system.vehicleType this)}}selected{{/if}}>{{CPLocal this}}</option>{{/each}}
+                        <input type="text" class="field-value" name="system.vehicleType" value="{{system.vehicleType}}" list="cp-vehicle-types"/>
+                        <datalist id="cp-vehicle-types">
+                            {{#each vehicleTypes}}<option value="{{this}}"></option>{{/each}}
+                        </datalist>
+                    </div>
+                    <div class="field" title="{{CPLocal 'Vehicle.LocomotionTip'}}">
+                        <label>{{CPLocal "Vehicle.LocomotionLabel"}}</label>
+                        <select name="system.locomotion">
+                            {{#each locomotions}}<option value="{{this.value}}" {{#if (equals ../system.locomotion this.value)}}selected{{/if}}>{{CPLocal this.localKey}}</option>{{/each}}
                         </select>
                     </div>
                     <div class="field" title="{{CPLocal 'Vehicle.AcpaPoweredArmorTip'}}">

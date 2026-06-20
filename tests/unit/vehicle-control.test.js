@@ -218,44 +218,29 @@ describe("defaultControlMod", () => {
 // ─── isAircraft ──────────────────────────────────────────────────────────────
 
 describe("isAircraft", () => {
-  it("recognises AV variants", () => {
-    expect(isAircraft("av-4")).toBe(true);
-    expect(isAircraft("av-6")).toBe(true);
-    expect(isAircraft("av-7")).toBe(true);
-    expect(isAircraft("av")).toBe(true);
+  it("is true only for the 'air' locomotion class (case-insensitive)", () => {
+    expect(isAircraft("air")).toBe(true);
+    expect(isAircraft("AIR")).toBe(true);
   });
 
-  it("recognises rotor, osprey, heli, plane, jet, airship, gyro, aerodyne, dirigible, wing", () => {
-    expect(isAircraft("rotor")).toBe(true);
-    expect(isAircraft("osprey")).toBe(true);
-    expect(isAircraft("heli")).toBe(true);
-    expect(isAircraft("helicopter")).toBe(true);
-    expect(isAircraft("plane")).toBe(true);
-    expect(isAircraft("jet")).toBe(true);
-    expect(isAircraft("airship")).toBe(true);
-    expect(isAircraft("gyro")).toBe(true);
-    expect(isAircraft("aerodyne")).toBe(true);
-    expect(isAircraft("dirigible")).toBe(true);
-    expect(isAircraft("wing")).toBe(true);
+  it("is false for ground / water / other classes", () => {
+    expect(isAircraft("ground")).toBe(false);
+    expect(isAircraft("water")).toBe(false);
+    expect(isAircraft("walker")).toBe(false);
   });
 
-  it("returns false for ground vehicles", () => {
-    expect(isAircraft("car")).toBe(false);
-    expect(isAircraft("truck")).toBe(false);
-    expect(isAircraft("motorcycle")).toBe(false);
-    expect(isAircraft("tank")).toBe(false);
-    expect(isAircraft("boat")).toBe(false);
-  });
-
-  it("returns false for null / empty", () => {
+  it("returns false for null / empty / undefined", () => {
     expect(isAircraft(null)).toBe(false);
     expect(isAircraft("")).toBe(false);
     expect(isAircraft(undefined)).toBe(false);
   });
 
-  it("is case-insensitive", () => {
-    expect(isAircraft("AV-4")).toBe(true);
-    expect(isAircraft("ROTOR")).toBe(true);
+  it("does NOT key off the vehicle type NAME (the old name-regex is retired)", () => {
+    // A flier identified only by a free-text name is no longer auto-detected — locomotion is the
+    // source of truth, so custom / renamed / localized type names can't mis-flag the loss table.
+    expect(isAircraft("rotor")).toBe(false);
+    expect(isAircraft("av-4")).toBe(false);
+    expect(isAircraft("Hovercopter")).toBe(false);
   });
 });
 
@@ -570,7 +555,7 @@ describe("composeControlOutcome", () => {
 
   it("Core failure d6=5 aircraft: no crashDamage even if crashD6Total given", () => {
     const { outcome } = composeControlOutcome(
-      { ruleSystem: "Core", difficulty: "simple", ref: 0, skill: 0, vehicleType: "av-4" },
+      { ruleSystem: "Core", difficulty: "simple", ref: 0, skill: 0, locomotion: "air" },
       { d10: 1, tableD6: 5, slideD10: 3, crashD6Total: 17 }
     );
     // aircraft=true → crashDamage is 0
@@ -598,9 +583,9 @@ describe("composeControlOutcome", () => {
     expect(outcome.band).toBe("1-4");
   });
 
-  it("aircraft flag is set correctly from vehicleType", () => {
+  it("aircraft flag is set correctly from locomotion", () => {
     const { aircraft } = composeControlOutcome(
-      { ruleSystem: "Core", vehicleType: "rotor", difficulty: "simple", ref: 0, skill: 0 },
+      { ruleSystem: "Core", locomotion: "air", difficulty: "simple", ref: 0, skill: 0 },
       { d10: 8, tableD6: 1, slideD10: 2 }
     );
     expect(aircraft).toBe(true);

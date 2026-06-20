@@ -58,11 +58,10 @@ test("Phase 3: control/maneuver math, loss tables, and the dice→table wiring",
     out.unknownType = VC.defaultControlMod("hovertank", "Core");     //  0 fallback
 
     // --- Aircraft branch detection ---
-    out.airAV4   = VC.isAircraft("AV-4");
-    out.airRotor = VC.isAircraft("rotor");
-    out.airOsprey= VC.isAircraft("osprey");
-    out.airCar   = VC.isAircraft("car");
-    out.airTruck = VC.isAircraft("truck");
+    out.airAir    = VC.isAircraft("air");      // true — keys off the explicit movement class
+    out.airGround = VC.isAircraft("ground");   // false
+    out.airWater  = VC.isAircraft("water");    // false
+    out.airName   = VC.isAircraft("rotor");    // false — the type NAME no longer triggers it
 
     // --- resolveControlRoll success/fail boundaries ---
     // Core: 1d10=7 + REF 8 + Skill 4 + handling -3 = 16 ≥ 15 (simple) → success
@@ -159,11 +158,10 @@ test("Phase 3: control/maneuver math, loss tables, and the dice→table wiring",
   expect(R.unknownType).toBe(0);
 
   // Aircraft detection
-  expect(R.airAV4).toBe(true);
-  expect(R.airRotor).toBe(true);
-  expect(R.airOsprey).toBe(true);
-  expect(R.airCar).toBe(false);
-  expect(R.airTruck).toBe(false);
+  expect(R.airAir).toBe(true);
+  expect(R.airGround).toBe(false);
+  expect(R.airWater).toBe(false);
+  expect(R.airName).toBe(false);
 
   // resolveControlRoll boundaries
   expect(R.coreSuccess).toBe(true);
@@ -224,7 +222,7 @@ test("Phase 3: a real control roll posts a result card (live dice path)", async 
       system: { vehicleType: "car", sdp: { value: 100, max: 100 }, safeSpeed: 50, controlMod: 0 } });
 
     const ref = Number(driver.system.stats.ref.total) || 0;
-    const params = { ruleSystem: "Core", difficulty: "veryDifficult", vehicleType: veh.system.vehicleType,
+    const params = { ruleSystem: "Core", difficulty: "veryDifficult", vehicleType: veh.system.vehicleType, locomotion: veh.system.locomotion,
       ref, skill: 0, handlingMod: Number(veh.system.controlMod) || 0, currentSpeed: 150, safeSpeed: 50 };
 
     const d10 = (await new Roll("1d10").evaluate()).total;
@@ -233,7 +231,7 @@ test("Phase 3: a real control roll posts a result card (live dice path)", async 
     if (!pre.success) {
       dice.tableD6 = (await new Roll("1d6").evaluate()).total;
       dice.slideD10 = (await new Roll("1d10").evaluate()).total;
-      if (dice.tableD6 >= 5 && !VC.isAircraft(params.vehicleType)) dice.crashD6Total = (await new Roll("5d6").evaluate()).total;
+      if (dice.tableD6 >= 5 && !VC.isAircraft(params.locomotion)) dice.crashD6Total = (await new Roll("5d6").evaluate()).total;
     }
     const composed = VC.composeControlOutcome(params, dice);
 

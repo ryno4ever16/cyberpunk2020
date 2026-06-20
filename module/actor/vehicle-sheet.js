@@ -92,6 +92,12 @@ export class CyberpunkVehicleSheet extends HandlebarsApplicationMixin(foundry.ap
     // "acpa" is intentionally NOT a vehicle type — Powered Armor is marked by the ACPA checkbox
     // (system.isACPA), which is what the data model + resolver key on.
     const vehicleTypes = ["car", "sportscar", "limo", "AV-4", "AV-6", "AV-7", "cycle", "truck", "rotor", "osprey", "boat", "tank", "APC"];
+    // Movement class drives the aircraft loss-table branch (isAircraft reads this, not the type name).
+    const locomotions = [
+      { value: "ground", localKey: "Vehicle.LocomotionGround" },
+      { value: "air",    localKey: "Vehicle.LocomotionAir" },
+      { value: "water",  localKey: "Vehicle.LocomotionWater" },
+    ];
 
     // Weapons are embedded vehicleWeapon Items (Phase 5b).
     const weapons = (actor.itemTypes?.vehicleWeapon ?? actor.items.filter(i => i.type === "vehicleWeapon"))
@@ -162,6 +168,7 @@ export class CyberpunkVehicleSheet extends HandlebarsApplicationMixin(foundry.ap
       reactiveWear,
       oneReactiveHit,
       vehicleTypes,
+      locomotions,
       weapons,
       realityInterfaceChoices,
       reflexControlChoices,

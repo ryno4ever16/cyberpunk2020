@@ -93,10 +93,11 @@ export function defaultControlMod(vehicleType, ruleSystem = "Core") {
   return Object.prototype.hasOwnProperty.call(table, t) ? table[t] : 0;
 }
 
-/** Aircraft branch of the loss tables (stall/spin instead of skid/roll). */
-export function isAircraft(vehicleType) {
-  const t = String(vehicleType || "").toLowerCase();
-  return /av-|\bav\b|rotor|osprey|heli|plane|jet|airship|gyro|aerodyne|dirigible|wing/.test(t);
+/** Aircraft branch of the loss tables (stall/spin instead of skid/roll). Reads the vehicle's explicit
+ *  `locomotion` movement class — NOT a type-name string — so custom / renamed / localized vehicle types
+ *  stay correct (no regex guessing on a free-text, translatable name). */
+export function isAircraft(locomotion) {
+  return String(locomotion ?? "").toLowerCase() === "air";
 }
 
 /**
@@ -203,13 +204,13 @@ export function mmFailureTable(tableRoll, { aircraft = false, skidDie = 0 } = {}
  * the +missedBy/3 escalation, the "5d6 only on a ground 5-6" rule) is exercised by tests rather
  * than duplicated in a parallel copy.
  *
- * @param {object} params  same shape as resolveControlRoll, plus `vehicleType` for the aircraft branch
+ * @param {object} params  same shape as resolveControlRoll, plus `locomotion` for the aircraft branch
  * @param {object} dice    { d10, tableD6, slideD10, crashD6Total }
  * @returns {{result, outcome:(object|null), aircraft:boolean}}
  */
 export function composeControlOutcome(params = {}, dice = {}) {
   const result = resolveControlRoll({ ...params, d10: dice.d10 ?? 0 });
-  const aircraft = isAircraft(params.vehicleType);
+  const aircraft = isAircraft(params.locomotion);
   let outcome = null;
   if (!result.success) {
     const tableD6 = Number(dice.tableD6) || 0;
@@ -383,7 +384,7 @@ export async function openControlRollDialog(actor, opts = {}) {
 /** Roll the dice, run the pure resolver + loss tables, and post the result card. */
 async function _executeControlRoll(actor, p) {
   const params = {
-    ruleSystem: p.ruleSystem, difficulty: p.difficulty, vehicleType: actor.system?.vehicleType,
+    ruleSystem: p.ruleSystem, difficulty: p.difficulty, vehicleType: actor.system?.vehicleType, locomotion: actor.system?.locomotion,
     ref: p.ref, skill: p.skill, handlingMod: p.handlingMod,
     currentSpeed: p.currentSpeed, safeSpeed: p.safeSpeed, topSpeed: p.topSpeed,
     cyberlink: p.cyberlink, otherMod: p.isMM ? p.otherDV : p.otherMod,
@@ -402,7 +403,7 @@ async function _executeControlRoll(actor, p) {
     rolls.push(tblRoll, slideRoll);
     dice.tableD6 = tblRoll.total;
     dice.slideD10 = slideRoll.total;
-    if (!p.isMM && tblRoll.total >= 5 && !isAircraft(params.vehicleType)) {
+    if (!p.isMM && tblRoll.total >= 5 && !isAircraft(params.locomotion)) {
       const dmg = await new Roll("5d6").evaluate();
       rolls.push(dmg);
       dice.crashD6Total = dmg.total;
