@@ -257,8 +257,10 @@ Hooks.once("ready", async function () {
     registerAcpaCombatHooks();
   }
 
-  // Register shopping hooks (published-shop chat links + GM stock-depletion relay).
-  registerShopHooks();
+  // Register shopping hooks (published-shop chat links + GM stock-depletion relay). The Augmented
+  // Edition module ports these (using its own scope for shop data + sockets), so the system defers
+  // to it when the module is active to avoid double-binding the chat-link + purchase-request handlers.
+  if (!game.modules.get("cp2020-augmented")?.active) registerShopHooks();
 
   // One-time: migrate any legacy `shop`-type Actors into world-data ShopDefs, then drop them (round-7).
   migrateShopActorsToDefs();
