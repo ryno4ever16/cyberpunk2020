@@ -5,7 +5,11 @@
     {{> (template "fields/string") label="Source" edit="system.source"}}
 
     {{!-- Services (Shopping #15): override how this item is treated when shopping is enabled. "Auto"
-         infers from the source list / name; the others force gear / a recurring bill / a one-off. --}}
+         infers from the source list / name; the others force gear / a recurring bill / a one-off.
+         serviceMode/servicePeriod live ONLY on the `misc` data model, but this part doubles as the
+         shared Cost/Weight/Source footer for every item type → gate the block to misc so it doesn't
+         render (vestigially) on cyberware/weapons/armor/etc. --}}
+    {{#if (equals item.type "misc")}}
     <div class="field">
         <label for="system.serviceMode">{{CPLocal "ServiceMode"}}</label>
         <span class="flex-pad"></span>
@@ -22,6 +26,7 @@
         <span class="flex-pad"></span>
         <input class="textsize" name="system.servicePeriod" type="text" value="{{system.servicePeriod}}"/>
     </div>
+    {{/if}}
     {{/if}}
 
     {{!-- Ammo Locker: optional feature (GM setting, off by default). Turns this item into an
