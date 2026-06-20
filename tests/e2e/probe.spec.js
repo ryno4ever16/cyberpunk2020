@@ -21,7 +21,6 @@ test("running world has Session-16 settings + hooks loaded", async ({ page }) =>
       settings: {
         fireDotEnabled: has("fireDotEnabled"),
         fireDotStackMode: has("fireDotStackMode"),
-        ammoLockerEnabled: has("ammoLockerEnabled"),
         playersCanBuyAmmo: has("playersCanBuyAmmo"),
         ammoCaliberMigration: has("ammoCaliberMigration"),
         suppressiveFireSaves: has("suppressiveFireSaves"),
@@ -36,9 +35,8 @@ test("running world has Session-16 settings + hooks loaded", async ({ page }) =>
   });
   console.log("PROBE:", JSON.stringify(probe, null, 2));
 
-  // The Session-16 fire DOT + ammo locker settings are the tell-tale of my edits.
+  // The Session-16 fire DOT setting + ammoCaliberMigration are the tell-tale of my edits.
   expect(probe.settings.fireDotEnabled, "fireDotEnabled setting (Session 16) should be registered").toBe(true);
-  expect(probe.settings.ammoLockerEnabled, "ammoLockerEnabled setting (Session 16) should be registered").toBe(true);
   expect(probe.settings.ammoCaliberMigration, "ammoCaliberMigration setting (Session 16) should be registered").toBe(true);
   expect(probe.hooks.suppressiveFire, "suppressiveFire hook should have a listener").toBeGreaterThan(0);
 });

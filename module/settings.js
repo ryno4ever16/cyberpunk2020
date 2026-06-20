@@ -165,15 +165,6 @@ export function registerSystemSettings() {
     default: true
   });
 
-  game.settings.register("cyberpunk2020", "ammoLockerEnabled", {
-    name: "SETTINGS.AmmoLockerEnabled",
-    hint: "SETTINGS.AmmoLockerEnabledHint",
-    scope: "world",
-    config: true,
-    type: Boolean,
-    default: false
-  });
-
     // --- Ammunition: optional Blackhand's Guide pricing ---
   game.settings.register("cyberpunk2020", "ammoUseBlackhandsBoxes", {
     name: "SETTINGS.AmmoBlackhandsBoxes",

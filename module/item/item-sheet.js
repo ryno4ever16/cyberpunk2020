@@ -1,5 +1,5 @@
 import { weaponTypes, meleeAttackTypes, rangedAttackTypes, attackSkills, concealability, availability, reliability, getStatNames, MARTIAL_BONUS_ACTIONS, getCalibers, AMMO_MODIFIERS, caliberMatches, normalizeCaliber, getCaliberBox, getAmmoBoxPrice } from "../lookups.js";
-import { canBuyAmmo, applyAmmoModifierUpdate, openBuyAmmoDialog, ammoLockerEnabled } from "../dialog/buy-ammo.js";
+import { canBuyAmmo, applyAmmoModifierUpdate } from "../dialog/buy-ammo.js";
 import { formulaHasDice } from "../dice.js";
 import { installCyberware } from "../cyberware/install.js";
 import { deleteFieldUpdate, localize, cwHasType, getSkillIndex } from "../utils.js";
@@ -55,10 +55,6 @@ export class CyberpunkItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) 
     data.isGM = game.user.isGM;
     data.canEditCyberwareHumanity = game.user.isGM
       || game.settings.get("cyberpunk2020", "playersCanEditCyberwareHumanity");
-
-    // Ammo Locker feature (our net-new): controls whether misc items can act as a buy-ammo locker.
-    data.ammoLockerFeature = ammoLockerEnabled();
-    data.isAmmoLocker = data.ammoLockerFeature && !!this.item.getFlag?.("cyberpunk2020", "ammoLocker");
 
     switch (this.item.type) {
       case "weapon":
@@ -700,7 +696,6 @@ async _prepareCyberware(sheet) {
     this._cpActivateNumericCommaInputs(root);
     this._cpActivateCyberwareInstall(root);
     this._cpActivateVehicleWeaponShellControls(root);
-    this._cpActivateAmmoLockerControls(root);
     this._cpActivateAmmoControls(root);
   }
 
@@ -1719,28 +1714,6 @@ async _prepareCyberware(sheet) {
         ? !!field.checked
         : (field.type === "number" ? (Number(String(field.value).replace(",", ".")) || 0) : field.value);
       await this.item.update({ "system.shellVariants": arr }, { render: false });
-    }, true);
-  }
-
-  /** Ammo-locker controls (a misc item flagged as a locker): toggle the flag + open Buy-Ammo. */
-  _cpActivateAmmoLockerControls(root) {
-    if (!root?.addEventListener) return;
-    const editable = this.isEditable ?? this.options?.editable ?? false;
-    if (!editable) return;
-    if (root.dataset.cpAmmoLockerBound === "1") return;
-    root.dataset.cpAmmoLockerBound = "1";
-
-    root.addEventListener("change", async (event) => {
-      const toggle = event.target?.closest?.(".cp-locker-toggle");
-      if (!toggle || !root.contains(toggle)) return;
-      await this.item.setFlag("cyberpunk2020", "ammoLocker", !!toggle.checked);
-    }, true);
-
-    root.addEventListener("click", async (event) => {
-      const buy = event.target?.closest?.(".cp-locker-buy");
-      if (!buy || !root.contains(buy)) return;
-      event.preventDefault();
-      await openBuyAmmoDialog(this.item.actor ?? null);
     }, true);
   }
 

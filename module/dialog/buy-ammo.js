@@ -14,11 +14,6 @@ export function canBuyAmmo() {
   return allowed ? { ok: true, reason: "" } : { ok: false, reason: game.i18n.localize("CYBERPUNK.AmmoBuyAtShop") };
 }
 
-/** Whether the optional "Ammo Locker" item feature is enabled (off by default). */
-export function ammoLockerEnabled() {
-  try { return game.settings.get("cyberpunk2020", "ammoLockerEnabled") === true; } catch (e) { return false; }
-}
-
 /** The system-data fields (un-dotted) that a given modifier seeds onto an ammo item. */
 export function ammoModifierSystemFields(modifierId) {
   const mod = AMMO_MODIFIERS[modifierId] ?? AMMO_MODIFIERS.standard;
