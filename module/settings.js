@@ -394,11 +394,13 @@ export function registerSystemSettings() {
   // The notice shows for the GM on every load until they tick "Don't show this again" (or untick this
   // here to bring it back). Replaces the old one-time `automationMigrationShown` flag so the expanded
   // notice reaches users who already dismissed the original.
+  // config:false — this is driven by the notice's own "Don't show this again" checkbox, not a
+  // menu toggle (it would just duplicate that checkbox in the settings list). Off the menu.
   game.settings.register("cyberpunk2020", "automationNoticeHide", {
     name: "SETTINGS.AutomationNoticeHide",
     hint: "SETTINGS.AutomationNoticeHideHint",
     scope: "world",
-    config: true,
+    config: false,
     type: Boolean,
     default: false,
   });
