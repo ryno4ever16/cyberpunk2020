@@ -51,7 +51,7 @@ describe("per-tier values (authoritative spec)", () => {
     expect(M.limbModel).toBe("core");
   });
 
-  it("Standard: full combat automation (incl. RAW combat rules) + subsystems + simple IP; bookkeeping OFF", () => {
+  it("Standard: full combat automation (incl. RAW combat rules) + subsystems + RAW IP; bookkeeping OFF", () => {
     // full automation on
     for (const k of [
       "damageAutoApply", "autoRangefinding", "autoDeathSavePerTurn", "autoSaveRePrompt",
@@ -63,7 +63,7 @@ describe("per-tier values (authoritative spec)", () => {
     expect(S.shoppingEnabled).toBe(true);
     expect(S.vehicleControlEnabled).toBe(true);
     expect(S.vehicleDamageEnabled).toBe(true);
-    expect(S.ipSystem).toBe("simple");
+    expect(S.ipSystem).toBe("raw");
     // bookkeeping delta deliberately still off in Standard
     expect(S.restrictMovementOncePerTurn).toBe(false);
     expect(S.damageAblation).toBe(false);
@@ -111,25 +111,25 @@ describe("presetChanges (pure diff)", () => {
     expect(res.featuresOn).toEqual([]);
   });
 
-  it("Manual → Standard: names auto-apply/shopping/vehicles, NOT raw IP", () => {
+  it("Manual → Standard: names auto-apply/RAW IP/shopping/vehicles", () => {
     const res = presetChanges("standard", resolvePreset("manual"));
     const ids = res.featuresOn.map((f) => f.id);
     expect(ids).toContain("autoApply");
     expect(ids).toContain("limbLoss");
+    expect(ids).toContain("rawIp");            // Standard now defaults to RAW IP
     expect(ids).toContain("shopping");
     expect(ids).toContain("vehicles");
-    expect(ids).not.toContain("rawIp");        // standard = simple, not raw
     expect(ids).not.toContain("maximumMetal");
     expect(res.changed.length).toBeGreaterThan(0);
   });
 
-  it("Standard → By the Book: names RAW IP + layers + ablation + restrict-move", () => {
+  it("Standard → By the Book: names layers + ablation + restrict-move, NOT raw IP (already on)", () => {
     const res = presetChanges("bythebook", resolvePreset("standard"));
     const ids = res.featuresOn.map((f) => f.id);
-    expect(ids).toContain("rawIp");
     expect(ids).toContain("layers");
     expect(ids).toContain("ablation");
     expect(ids).toContain("restrictMove");
+    expect(ids).not.toContain("rawIp");        // already raw in Standard
     expect(ids).not.toContain("autoApply");    // already on in Standard
   });
 

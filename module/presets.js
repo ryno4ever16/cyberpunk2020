@@ -33,20 +33,20 @@ const MANUAL = {
   headHitDoubling: true, damageArmorMode: "full", limbModel: "core",
 };
 
-// STANDARD = Manual + full combat automation on + core subsystems + the friendly "simple" IP.
+// STANDARD = Manual + full combat automation on + core subsystems + RAW IP (the Model-A redesign
+// makes RAW self-announcing/non-ignorable, so it's a safe default rather than the clunky old system).
 const STANDARD_DELTA = {
   damageAutoApply: true, autoRangefinding: true, autoDeathSavePerTurn: true, autoSaveRePrompt: true,
   activeDodgeParryEnabled: true, aimTrackingEnabled: true, waitForTurnEnabled: true, fumbleTableEnabled: true,
   multiActionPenaltyEnabled: true, multiActionAutoTrack: true, limbLossEnabled: true, suppressiveFireSaves: true,
   shotgunSpreadEnabled: true, explosivesEnabled: true, areaEffectOcclusion: true, gasGrenadeCloudEnabled: true,
   taserCumPenaltyEnabled: true, acidArmorDotEnabled: true, fireDotEnabled: true, specialMeleeEffectsEnabled: true,
-  shoppingEnabled: true, vehicleControlEnabled: true, vehicleDamageEnabled: true, ipSystem: "simple",
+  shoppingEnabled: true, vehicleControlEnabled: true, vehicleDamageEnabled: true, ipSystem: "raw",
 };
 
-// BY THE BOOK = Standard + the divisive-but-faithful bookkeeping rules + RAW IP.
+// BY THE BOOK = Standard + the divisive-but-faithful bookkeeping rules. (IP is already RAW from Standard.)
 const BYBOOK_DELTA = {
   restrictMovementOncePerTurn: true, damageAblation: true, damageLayersEnabled: true, applyLayerEVPenalty: true,
-  ipSystem: "raw",
 };
 
 // MAXIMUM CRUNCH = By the Book + the supplement layer (Maximum Metal + Listen Up + ammo/layer crunch).
