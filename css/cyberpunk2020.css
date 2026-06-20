@@ -1029,6 +1029,14 @@ div.statderive .value.rightborder {
 /* Greyed-out state for MM sub-settings when the master toggle is off (replaces an inline opacity). */
 .cp-mm-disabled { opacity: 0.5; }
 
+/* Phase-2 settings section headers injected into the native System Settings page. */
+.cp-settings-header {
+  margin: 16px 0 4px; padding: 6px 0 4px;
+  border-bottom: 2px solid var(--color-border-light-primary);
+  font-size: 1.05em; font-weight: bold; letter-spacing: 0.02em;
+}
+.cp-settings-header:first-of-type { margin-top: 8px; }
+
 /* Buy-Ammo dialog live cost preview line (DialogV2 content). */
 .cp-buy-ammo-preview { margin-top: 6px; font-weight: bold; }
 

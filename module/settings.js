@@ -1,5 +1,6 @@
 import { localize } from "./utils.js";
 import { getHtmlElement } from "./compat.js";
+import { enhanceSettingsConfig } from "./settings-sections.js";
 
 const SCOPE = "cyberpunk2020";
 
@@ -864,51 +865,10 @@ export function registerSystemSettings() {
     default: false,
   });
 
-  // --- Maximum Metal: in-list section header + master gating of the MM sub-settings ---
-  Hooks.on("renderSettingsConfig", (app, html) => {
-    const root = getHtmlElement(html);
-    if (!root?.querySelector) return;
-    const MM_KEYS = ["mmEnabled", "vehicleRuleSystem", "vehicleArmorDamageEnabled", "vehicleMoraleEnabled", "vehicleArcEnforcement"];
-    const groupOf = (k) => {
-      const el = root.querySelector(`[name="${SCOPE}.${k}"], [data-setting-id="${SCOPE}.${k}"]`);
-      return el?.closest(".form-group") ?? el?.closest(".setting") ?? null;
-    };
-    const groups = MM_KEYS.map(groupOf).filter(Boolean);
-    if (!groups.length) return;
-    const first = groups[0];
-    if (!first.previousElementSibling?.classList?.contains("cp-mm-header")) {
-      const header = document.createElement("h3");
-      header.className = "cp-mm-header";
-      header.textContent = localize("Vehicle.SystemMM");
-      first.parentNode.insertBefore(header, first);
-    }
-    // Keep the MM groups consecutive under the header.
-    let anchor = first;
-    for (const g of groups.slice(1)) { if (anchor.nextElementSibling !== g) anchor.parentNode.insertBefore(g, anchor.nextElementSibling); anchor = g; }
-    // Grey out / disable the MM sub-settings when the master is off; live-update when it's toggled.
-    const subGroups = groups.slice(1);
-    const setEnabled = (on) => { for (const g of subGroups) { g.classList.toggle("cp-mm-disabled", !on); g.querySelectorAll("input,select,button,textarea").forEach(el => { el.disabled = !on; }); } };
-    setEnabled(mmEnabled());
-    const masterInput = first.querySelector(`[name="${SCOPE}.mmEnabled"]`);
-    masterInput?.addEventListener("change", () => setEnabled(!!masterInput.checked));
-  });
-
-  // --- IP: grey out the RAW-only sub-settings while RAW auto-tracking is off (reuses .cp-mm-disabled) ---
-  Hooks.on("renderSettingsConfig", (app, html) => {
-    const root = getHtmlElement(html);
-    if (!root?.querySelector) return;
-    const IP_SUB_KEYS = ["ipAwardModel", "ipAutoBaselineAmount", "ipThrottle", "ipSkillLockMode"];
-    const groupOf = (k) => {
-      const el = root.querySelector(`[name="${SCOPE}.${k}"], [data-setting-id="${SCOPE}.${k}"]`);
-      return el?.closest(".form-group") ?? el?.closest(".setting") ?? null;
-    };
-    const subGroups = IP_SUB_KEYS.map(groupOf).filter(Boolean);
-    if (!subGroups.length) return;
-    const setEnabled = (on) => { for (const g of subGroups) { g.classList.toggle("cp-mm-disabled", !on); g.querySelectorAll("input,select,button,textarea").forEach(el => { el.disabled = !on; }); } };
-    setEnabled(ipRawTracking());
-    const masterInput = root.querySelector(`[name="${SCOPE}.ipRawTracking"]`);
-    masterInput?.addEventListener("change", () => setEnabled(!!masterInput.checked));
-  });
+  // --- Phase 2: organize the native System Settings page — section headers + reorder + master-gating
+  // of sub-options (RAW IP, Maximum Metal, armor layers, weapon-effect families, etc.). Data-driven;
+  // see module/settings-sections.js. Replaces the old per-feature MM/IP renderSettingsConfig hooks. ---
+  Hooks.on("renderSettingsConfig", (app, html) => enhanceSettingsConfig(html));
 
   // --- Maximum Metal: hide the MM weapon compendium from the sidebar when MM is off ---
   Hooks.on("renderCompendiumDirectory", (app, html) => {
