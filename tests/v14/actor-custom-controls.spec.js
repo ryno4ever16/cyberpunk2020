@@ -27,9 +27,9 @@ test("actor-sheet V2: custom controls (ammo / shop / services / IP / martial) ar
     let prevShop, prevIp;
     try {
       prevShop = game.settings.get(SCOPE, "shoppingEnabled");
-      prevIp = game.settings.get(SCOPE, "ipSystem");
+      prevIp = game.settings.get(SCOPE, "ipRawTracking");
       await game.settings.set(SCOPE, "shoppingEnabled", true);
-      await game.settings.set(SCOPE, "ipSystem", "simple");
+      await game.settings.set(SCOPE, "ipRawTracking", false);
 
       actor = await Actor.create({ name: "ZZ Custom Probe", type: "character" });
       await actor.createEmbeddedDocuments("Item", [
@@ -102,7 +102,7 @@ test("actor-sheet V2: custom controls (ammo / shop / services / IP / martial) ar
     } finally {
       try { await actor?.delete(); } catch (_) {}
       try { if (prevShop !== undefined) await game.settings.set(SCOPE, "shoppingEnabled", prevShop); } catch (_) {}
-      try { if (prevIp !== undefined) await game.settings.set(SCOPE, "ipSystem", prevIp); } catch (_) {}
+      try { if (prevIp !== undefined) await game.settings.set(SCOPE, "ipRawTracking", prevIp); } catch (_) {}
     }
     return out;
   });

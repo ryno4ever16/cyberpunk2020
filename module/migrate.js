@@ -156,6 +156,38 @@ export async function migrateBlackhandsPricingSetting() {
 }
 
 /**
+ * Map the retired 3-way `ipSystem` world setting to the two new gates (`ipRawTracking` behaviour +
+ * `ipHideUI` presence): disabled → hide the UI; simple → pool, UI shown; raw → RAW auto-tracking on.
+ * The dual-bucket DATA (per-skill `ip` + actor `ipPool`) already exists, so there is NO per-actor data
+ * migration — only this setting remap. Self-gating by DELETING the orphaned legacy `ipSystem` doc once
+ * migrated (so it never re-runs); only writes a new key when it differs from its `false` default.
+ * GM-only on ready, no version bump. Safe to fail — IP just stays shown with RAW off.
+ *
+ * @returns {Promise<{set:?Object, skipped:boolean}>}
+ */
+export async function migrateIpSettingModel() {
+  try {
+    const old = rawWorldSetting("ipSystem");
+    if (old === undefined) return { set: null, skipped: true };   // no legacy key → fresh world or already migrated
+
+    const rawTracking = old === "raw";
+    const hideUI = old === "disabled";
+    if (rawTracking && rawWorldSetting("ipRawTracking") === undefined) await game.settings.set("cyberpunk2020", "ipRawTracking", true);
+    if (hideUI && rawWorldSetting("ipHideUI") === undefined) await game.settings.set("cyberpunk2020", "ipHideUI", true);
+
+    // Drop the now-orphaned legacy doc so this self-gates (old key absent → skip next load).
+    const doc = game.settings?.storage?.get?.("world")?.find?.((s) => s.key === "cyberpunk2020.ipSystem");
+    if (doc) await doc.delete();
+
+    console.log(`Cyberpunk2020 | IP setting migrated: ipSystem "${old}" → rawTracking=${rawTracking}, hideUI=${hideUI}.`);
+    return { set: { rawTracking, hideUI }, skipped: false };
+  } catch (err) {
+    console.error("Cyberpunk2020 | IP setting migration failed (IP shown, RAW off by default)", err);
+    return { set: null, skipped: true };
+  }
+}
+
+/**
  * Migration entrypoint.
  */
 export const migrateWorld = async function (targetVersion = game.system.version) {

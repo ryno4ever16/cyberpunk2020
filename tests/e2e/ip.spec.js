@@ -9,7 +9,7 @@ import { login, evalGameOrThrow, cleanupTestData } from "../helpers/foundry.js";
  * two-tier skill lock. Confirm dialogs bypassed with { confirm:false }.
  */
 
-const DEFAULTS = { ipSystem: "disabled", ipAwardModel: "manual", ipThrottle: "off", ipSkillLockMode: "owner" };
+const DEFAULTS = { ipRawTracking: false, ipHideUI: false, ipAwardModel: "manual", ipThrottle: "off", ipSkillLockMode: "owner" };
 
 test.afterAll(async ({ browser }) => {
   const ctx = await browser.newContext({ ignoreHTTPSErrors: true });
@@ -39,7 +39,8 @@ test("IP cost, data fields, queue+hook, award→pending→apply, level-up (RAW+S
       await game.settings.set("cyberpunk2020", "ipQueue", []);
       await game.settings.set("cyberpunk2020", "ipThrottleCounts", {});
     };
-    await game.settings.set("cyberpunk2020", "ipSystem", "raw");
+    await game.settings.set("cyberpunk2020", "ipRawTracking", true);
+    await game.settings.set("cyberpunk2020", "ipHideUI", false);
     await game.settings.set("cyberpunk2020", "ipAwardModel", "manual");
     await game.settings.set("cyberpunk2020", "ipThrottle", "off");
     await reset();
@@ -90,13 +91,15 @@ test("IP cost, data fields, queue+hook, award→pending→apply, level-up (RAW+S
     out.levelStill3 = actor.items.get(skill.id).system.level;          // 3
 
     // ── Simple-mode pool level-up ───────────────────────────────────
-    await game.settings.set("cyberpunk2020", "ipSystem", "simple");
+    await game.settings.set("cyberpunk2020", "ipRawTracking", false);
+    await game.settings.set("cyberpunk2020", "ipHideUI", false);
     const a2 = await Actor.create({ name: "__PW__ipSimple", type: "character", flags, system: { ipPool: 30 } });
     const [s2] = await a2.createEmbeddedDocuments("Item", [{ name: "__PW__Brawl", type: "skill", system: { level: 2, diffMod: 1 } }]);
     out.simpleOk = await ip.levelUpSkill(a2, a2.items.get(s2.id), { confirm: false });   // cost 20
     out.simpleLevel = a2.items.get(s2.id).system.level;                // 3
     out.simplePool = a2.system.ipPool;                                 // 30 - 20 = 10
-    await game.settings.set("cyberpunk2020", "ipSystem", "raw");
+    await game.settings.set("cyberpunk2020", "ipRawTracking", true);
+    await game.settings.set("cyberpunk2020", "ipHideUI", false);
 
     // ── throttle: hard cap ──────────────────────────────────────────
     await game.settings.set("cyberpunk2020", "ipThrottle", "hardcap");
@@ -131,7 +134,8 @@ test("IP cost, data fields, queue+hook, award→pending→apply, level-up (RAW+S
     await actor.unsetFlag("cyberpunk2020", "ipOwnerLock");
     await actor.unsetFlag("cyberpunk2020", "ipGmLock");
 
-    await game.settings.set("cyberpunk2020", "ipSystem", "disabled");
+    await game.settings.set("cyberpunk2020", "ipRawTracking", false);
+    await game.settings.set("cyberpunk2020", "ipHideUI", true);
     out.disabledNoLock = ip.canEditSkillLevels(actor);             // true (lock ignored when disabled)
 
     return out;
@@ -182,7 +186,8 @@ test("IP tracker app + skill-sheet IP UI render without throwing", async ({ page
   const R = await evalGameOrThrow(page, async () => {
     const out = {};
     const flags = { cyberpunk2020: { __pwtest: true } };
-    await game.settings.set("cyberpunk2020", "ipSystem", "raw");
+    await game.settings.set("cyberpunk2020", "ipRawTracking", true);
+    await game.settings.set("cyberpunk2020", "ipHideUI", false);
 
     const actor = await Actor.create({ name: "__PW__ipRender", type: "character", flags });
     const [skill] = await actor.createEmbeddedDocuments("Item", [{
@@ -211,7 +216,8 @@ test("IP tracker app + skill-sheet IP UI render without throwing", async ({ page
     out.sheetHasBanked = !!el?.querySelector(".ip-banked");
     await actor.sheet.close();
 
-    await game.settings.set("cyberpunk2020", "ipSystem", "disabled");
+    await game.settings.set("cyberpunk2020", "ipRawTracking", false);
+    await game.settings.set("cyberpunk2020", "ipHideUI", true);
     await game.settings.set("cyberpunk2020", "ipQueue", []);
     return out;
   });

@@ -213,19 +213,19 @@ describe("ipLockState — Node environment (mode defaults to 'owner')", () => {
 
 // ─── canEditSkillLevels ───────────────────────────────────────────────────────
 //
-// In Node: ipEnabled() = (ipSystem() !== "disabled") = ("disabled" !== "disabled") = false.
-// When IP system is disabled, canEditSkillLevels always returns true (no lock applies).
+// In Node: ipEnabled() = !ipHideUI(). ipHideUI() catches (no game.settings) → false, so ipEnabled()
+// = true — IP is PRESENT by default now (only ipHideUI hides it), so the skill lock DOES apply.
 
-describe("canEditSkillLevels — Node environment (ipEnabled() = false → always true)", () => {
-  it("plain actor → true (IP system disabled in Node)", () => {
+describe("canEditSkillLevels — Node environment (ipEnabled() = true → the lock applies)", () => {
+  it("plain actor (no lock) → true", () => {
     expect(canEditSkillLevels(actor())).toBe(true);
   });
 
-  it("locked actor → still true because IP system is off in Node", () => {
-    expect(canEditSkillLevels(actor({ ownerLock: true }))).toBe(true);
+  it("locked actor → false (the owner-lock applies; IP is on by default now)", () => {
+    expect(canEditSkillLevels(actor({ ownerLock: true }))).toBe(false);
   });
 
-  it("null actor → true", () => {
+  it("null actor → true (no flags → no lock)", () => {
     expect(canEditSkillLevels(null)).toBe(true);
   });
 });

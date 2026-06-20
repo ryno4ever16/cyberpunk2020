@@ -22,8 +22,9 @@ const MANUAL = {
   multiActionPenaltyEnabled: false, multiActionAutoTrack: false, limbLossEnabled: false, suppressiveFireSaves: false,
   shotgunSpreadEnabled: false, explosivesEnabled: false, areaEffectOcclusion: false, gasGrenadeCloudEnabled: false,
   taserCumPenaltyEnabled: false, acidArmorDotEnabled: false, fireDotEnabled: false, specialMeleeEffectsEnabled: false,
-  // Subsystems — off
-  shoppingEnabled: false, vehicleControlEnabled: false, vehicleDamageEnabled: false, ipSystem: "disabled",
+  // Subsystems — off (IP stays present-but-ignorable: just RAW auto-tracking off; ipHideUI is a
+  // separate manual GM presence choice that presets never touch)
+  shoppingEnabled: false, vehicleControlEnabled: false, vehicleDamageEnabled: false, ipRawTracking: false,
   // Bookkeeping rules + supplements — off / Core
   restrictMovementOncePerTurn: false, damageAblation: false, damageLayersEnabled: false, applyLayerEVPenalty: false,
   layerRuleSystem: "Core", mmEnabled: false, vehicleRuleSystem: "Core", vehicleArmorDamageEnabled: false,
@@ -41,7 +42,7 @@ const STANDARD_DELTA = {
   multiActionPenaltyEnabled: true, multiActionAutoTrack: true, limbLossEnabled: true, suppressiveFireSaves: true,
   shotgunSpreadEnabled: true, explosivesEnabled: true, areaEffectOcclusion: true, gasGrenadeCloudEnabled: true,
   taserCumPenaltyEnabled: true, acidArmorDotEnabled: true, fireDotEnabled: true, specialMeleeEffectsEnabled: true,
-  shoppingEnabled: true, vehicleControlEnabled: true, vehicleDamageEnabled: true, ipSystem: "raw",
+  shoppingEnabled: true, vehicleControlEnabled: true, vehicleDamageEnabled: true, ipRawTracking: true,
 };
 
 // BY THE BOOK = Standard + the divisive-but-faithful bookkeeping rules. (IP is already RAW from Standard.)
@@ -72,7 +73,7 @@ export const PRESETS = [
 /** Notable ACTIVE features a preset can switch on, named in the confirm dialog (esp. silent ones). */
 const NOTABLE = [
   { id: "autoApply",    key: "damageAutoApply",            on: (v) => v === true,      nameKey: "PresetFeatureAutoApply" },
-  { id: "rawIp",        key: "ipSystem",                   on: (v) => v === "raw",     nameKey: "PresetFeatureRawIp" },
+  { id: "rawIp",        key: "ipRawTracking",              on: (v) => v === true,      nameKey: "PresetFeatureRawIp" },
   { id: "maximumMetal", key: "mmEnabled",                  on: (v) => v === true,      nameKey: "PresetFeatureMaximumMetal" },
   { id: "limbLoss",     key: "limbLossEnabled",            on: (v) => v === true,      nameKey: "PresetFeatureLimbLoss" },
   { id: "layers",       key: "damageLayersEnabled",        on: (v) => v === true,      nameKey: "PresetFeatureLayers" },

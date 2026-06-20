@@ -5,7 +5,7 @@ import { registerShopHooks } from "./shop/catalog.js";
 import { migrateShopActorsToDefs } from "./shop/shops.js";
 import { registerIpHooks } from "./ip/ip.js";
 import { openIpTracker } from "./ip/tracker.js";
-import { ipSystem } from "./settings.js";
+import { ipHideUI } from "./settings.js";
 import { CyberpunkItem } from "./item/item.js";
 import { CyberpunkItemSheet } from "./item/item-sheet.js";
 import { CyberpunkCharacterData, CyberpunkNpcData, CyberpunkVehicleActorData } from "./data/actor-data.js";
@@ -298,6 +298,13 @@ Hooks.once("ready", async function () {
     console.error("Cyberpunk2020 | Blackhand's pricing migration failed (pricing defaults to Core)", err);
   }
 
+  // Self-gating: map the retired 3-way `ipSystem` to the new ipRawTracking + ipHideUI gates.
+  try {
+    await migrations.migrateIpSettingModel();
+  } catch (err) {
+    console.error("Cyberpunk2020 | IP setting migration failed (IP shown, RAW off by default)", err);
+  }
+
   const TARGET_VERSION = game.system.version;
 
   const stored = game.settings.get("cyberpunk2020", "systemMigrationVersion") || "";
@@ -350,7 +357,7 @@ Hooks.on("updateActor", async (actor, changes, options, userId) => {
 Hooks.on("renderActorDirectory", (app, html) => {
   try {
     // Skip when the Augmented Edition module is active — it adds its own IP-tracker button.
-    if (!game.user.isGM || ipSystem() === "disabled" || game.modules.get("cp2020-augmented")?.active) return;
+    if (!game.user.isGM || ipHideUI() || game.modules.get("cp2020-augmented")?.active) return;
     const root = getHtmlElement(html);
     if (!root || root.querySelector(".cp-ip-tracker-btn")) return;
     const btn = document.createElement("button");

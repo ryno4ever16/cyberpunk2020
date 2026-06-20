@@ -1,7 +1,7 @@
 import { localize } from "../utils.js";
 import { postSavePromptCard } from "../compat.js";
 import {
-  ipEnabled, ipSystem, ipAwardModel, ipAutoBaselineAmount, ipThrottle, ipSkillLockMode
+  ipEnabled, ipRawTracking, ipAwardModel, ipAutoBaselineAmount, ipThrottle, ipSkillLockMode
 } from "../settings.js";
 
 /**
@@ -92,7 +92,7 @@ function _rerenderTracker() {
  * Called from rollSkill; relays to the active GM if the roller isn't the GM.
  */
 export function recordSkillRoll(payload) {
-  if (ipSystem() !== "raw") return;
+  if (!ipRawTracking()) return;
   if (_isActiveGM()) return _enqueue(payload);   // returns the write promise (await-able for tests)
   else if (game.users.activeGM) game.socket.emit("system.cyberpunk2020", { type: "ipSkillRolled", payload });
 }
@@ -239,7 +239,7 @@ export async function applyPending(actor = null) {
 export async function levelUpSkill(actor, skill, { confirm = true } = {}) {
   if (!actor || !skill || skill.type !== "skill") return false;
   if (!ipEnabled()) return false;
-  const simple = ipSystem() === "simple";
+  const simple = !ipRawTracking();
   const cost = ipCost(skill);
   const have = simple ? (Number(actor.system?.ipPool) || 0) : (Number(skill.system?.ip) || 0);
   if (have < cost) { ui.notifications?.warn(localize("IpNotEnough", { cost, have })); return false; }

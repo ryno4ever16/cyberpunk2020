@@ -46,7 +46,7 @@ describe("per-tier values (authoritative spec)", () => {
     expect(M.limbLossEnabled).toBe(false);
     expect(M.shoppingEnabled).toBe(false);
     expect(M.vehicleControlEnabled).toBe(false);
-    expect(M.ipSystem).toBe("disabled");
+    expect(M.ipRawTracking).toBe(false);
     expect(M.mmEnabled).toBe(false);
     expect(M.limbModel).toBe("core");
   });
@@ -63,7 +63,7 @@ describe("per-tier values (authoritative spec)", () => {
     expect(S.shoppingEnabled).toBe(true);
     expect(S.vehicleControlEnabled).toBe(true);
     expect(S.vehicleDamageEnabled).toBe(true);
-    expect(S.ipSystem).toBe("raw");
+    expect(S.ipRawTracking).toBe(true);
     // bookkeeping delta deliberately still off in Standard
     expect(S.restrictMovementOncePerTurn).toBe(false);
     expect(S.damageAblation).toBe(false);
@@ -78,7 +78,7 @@ describe("per-tier values (authoritative spec)", () => {
     expect(B.damageAblation).toBe(true);
     expect(B.damageLayersEnabled).toBe(true);
     expect(B.applyLayerEVPenalty).toBe(true);
-    expect(B.ipSystem).toBe("raw");
+    expect(B.ipRawTracking).toBe(true);   // inherited from Standard
     expect(B.limbLossEnabled).toBe(true);      // inherited from Standard
     expect(B.layerRuleSystem).toBe("Core");    // Core layer math, not Chromebook 4
     expect(B.mmEnabled).toBe(false);
@@ -96,7 +96,7 @@ describe("per-tier values (authoritative spec)", () => {
     expect(C.fnff2Enabled).toBe(true);
     expect(C.layerRuleSystem).toBe("Chromebook 4");
     expect(C.reloadByMagazines).toBe(true);
-    expect(C.ipSystem).toBe("raw");            // inherited
+    expect(C.ipRawTracking).toBe(true);        // inherited
   });
 });
 

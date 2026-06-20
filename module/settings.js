@@ -69,16 +69,23 @@ export function shopSourceConfig() {
 }
 
 // --- IP (Improvement Points) tracker ([[ip-tracker-design]]) ---------------
-/** IP system mode: "disabled" (default — free skill editing) / "simple" (single pool) / "raw" (per-skill tracker). */
-export function ipSystem() {
-  try { return game.settings.get(SCOPE, "ipSystem") || "disabled"; } catch { return "disabled"; }
+// IP is ALWAYS present as a dual-bucket store (per-skill `ip` bank + a fungible actor `ipPool`); it is
+// ignorable when unused. Two world gates: ipRawTracking (behaviour — per-skill auto-attribution + the
+// skill-roll queue) and ipHideUI (presence — hide the IP UI entirely for pure-narrative tables).
+/** Whether RAW auto-tracking (per-skill attribution + the skill-roll queue) is on. Off by default. */
+export function ipRawTracking() {
+  try { return game.settings.get(SCOPE, "ipRawTracking") === true; } catch { return false; }
 }
-/** Whether the IP system is active at all. */
+/** Whether the GM has hidden the IP UI entirely (presence gate, for pure-narrative tables). */
+export function ipHideUI() {
+  try { return game.settings.get(SCOPE, "ipHideUI") === true; } catch { return false; }
+}
+/** Whether the IP UI/logic is shown. The dual-bucket store always exists; this only hides the UI. */
 export function ipEnabled() {
   // Stand the system IP feature down when "Cyberpunk 2020: Augmented Edition" is active — it owns the
   // IP layer (storing IP in module flags), so the system's own IP UI/logic must not show stale data.
   if (globalThis.game?.modules?.get?.("cp2020-augmented")?.active) return false;
-  return ipSystem() !== "disabled";
+  return !ipHideUI();
 }
 
 /** IP award model: "manual" (RAW GM-per-use, default) / "autoBaseline" (GM-marked success → +N). */
@@ -264,14 +271,25 @@ export function registerSystemSettings() {
   });
 
     // --- IP (Improvement Points) tracker ---
-  game.settings.register("cyberpunk2020", "ipSystem", {
-    name: "SETTINGS.IpSystem",
-    hint: "SETTINGS.IpSystemHint",
+  // Two gates over the always-present dual-bucket store (see the accessors above). The 4 sub-settings
+  // below only matter under RAW; the renderSettingsConfig hook at the end of this function greys them
+  // out while ipRawTracking is off. Migrated from the old 3-way `ipSystem` by migrateIpSettingModel().
+  game.settings.register("cyberpunk2020", "ipRawTracking", {
+    name: "SETTINGS.IpRawTracking",
+    hint: "SETTINGS.IpRawTrackingHint",
     scope: "world",
     config: true,
-    type: String,
-    choices: { disabled: "SETTINGS.IpSystemDisabled", simple: "SETTINGS.IpSystemSimple", raw: "SETTINGS.IpSystemRaw" },
-    default: "disabled"
+    type: Boolean,
+    default: false,
+  });
+
+  game.settings.register("cyberpunk2020", "ipHideUI", {
+    name: "SETTINGS.IpHideUI",
+    hint: "SETTINGS.IpHideUIHint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false,
   });
 
   game.settings.register("cyberpunk2020", "ipAwardModel", {
@@ -855,6 +873,23 @@ export function registerSystemSettings() {
     const setEnabled = (on) => { for (const g of subGroups) { g.classList.toggle("cp-mm-disabled", !on); g.querySelectorAll("input,select,button,textarea").forEach(el => { el.disabled = !on; }); } };
     setEnabled(mmEnabled());
     const masterInput = first.querySelector(`[name="${SCOPE}.mmEnabled"]`);
+    masterInput?.addEventListener("change", () => setEnabled(!!masterInput.checked));
+  });
+
+  // --- IP: grey out the RAW-only sub-settings while RAW auto-tracking is off (reuses .cp-mm-disabled) ---
+  Hooks.on("renderSettingsConfig", (app, html) => {
+    const root = getHtmlElement(html);
+    if (!root?.querySelector) return;
+    const IP_SUB_KEYS = ["ipAwardModel", "ipAutoBaselineAmount", "ipThrottle", "ipSkillLockMode"];
+    const groupOf = (k) => {
+      const el = root.querySelector(`[name="${SCOPE}.${k}"], [data-setting-id="${SCOPE}.${k}"]`);
+      return el?.closest(".form-group") ?? el?.closest(".setting") ?? null;
+    };
+    const subGroups = IP_SUB_KEYS.map(groupOf).filter(Boolean);
+    if (!subGroups.length) return;
+    const setEnabled = (on) => { for (const g of subGroups) { g.classList.toggle("cp-mm-disabled", !on); g.querySelectorAll("input,select,button,textarea").forEach(el => { el.disabled = !on; }); } };
+    setEnabled(ipRawTracking());
+    const masterInput = root.querySelector(`[name="${SCOPE}.ipRawTracking"]`);
     masterInput?.addEventListener("change", () => setEnabled(!!masterInput.checked));
   });
 

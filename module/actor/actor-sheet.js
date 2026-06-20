@@ -8,7 +8,7 @@ import { getAutoLayerOrder } from "../combat/armor-layers.js";
 import { openShopForPlayer, purchaseByDrop } from "../shop/catalog.js";
 import { classifyService, payService } from "../shop/services.js";
 import { ipCost, ipLockState, canEditSkillLevels, levelUpSkill, toggleSkillLock } from "../ip/ip.js";
-import { shoppingEnabled, ipEnabled, ipSystem, ipShowPending } from "../settings.js";
+import { shoppingEnabled, ipEnabled, ipRawTracking, ipShowPending } from "../settings.js";
 
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -1258,7 +1258,7 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     try { on = ipEnabled(); } catch (e) { on = false; }
     if (!on) { sheetData.ip = { enabled: false }; sheetData.ipBySkill = {}; return; }
 
-    const simple = ipSystem() === "simple";
+    const simple = !ipRawTracking();
     const isGM = game.user.isGM;
     const lock = ipLockState(this.actor);
     const pool = Number(this.actor.system?.ipPool) || 0;
