@@ -38,9 +38,9 @@ import {
 // ─── game shim ────────────────────────────────────────────────────────────────
 // getCaliberBox, getModifierCostMult, getAmmoBoxPrice, and getCalibers all call
 // game.settings.get without a try/catch (getCalibers wraps in try/catch, but the
-// box/modifier helpers call _ammoSetting which uses try/catch to default to false).
-// We set up a minimal shim so the tests drive the non-Blackhands (core) path by
-// default, and individual tests can override specific keys.
+// box/modifier helpers call _blackhandsPricing which uses try/catch to default to "off"/Core).
+// We set up a minimal shim so the tests drive the non-Blackhands (core) path by default; the two
+// legacy toggle vars below still control each facet and are mapped to the merged selector value.
 
 let _savedGame;
 let _ammoUseBlackhandsBoxes = false;
@@ -52,8 +52,11 @@ beforeAll(() => {
   globalThis.game = {
     settings: {
       get: (_scope, key) => {
-        if (key === "ammoUseBlackhandsBoxes") return _ammoUseBlackhandsBoxes;
-        if (key === "ammoUseBlackhandsBrass") return _ammoUseBlackhandsBrass;
+        if (key === "ammoBlackhandsPricing") {
+          // Map the two legacy test toggles to the merged selector value the helpers now read.
+          const b = _ammoUseBlackhandsBoxes, r = _ammoUseBlackhandsBrass;
+          return b && r ? "both" : b ? "boxes" : r ? "brass" : "off";
+        }
         if (key === "customCalibers") {
           if (_customCalibers) return _customCalibers;
           throw new Error("setting not registered");

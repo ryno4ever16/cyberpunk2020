@@ -278,6 +278,13 @@ Hooks.once("ready", async function () {
     console.error("Cyberpunk2020 | limb-model setting migration failed (limb model defaults to Core)", err);
   }
 
+  // Self-gating: seed the merged `ammoBlackhandsPricing` selector from the retired Blackhand booleans.
+  try {
+    await migrations.migrateBlackhandsPricingSetting();
+  } catch (err) {
+    console.error("Cyberpunk2020 | Blackhand's pricing migration failed (pricing defaults to Core)", err);
+  }
+
   const TARGET_VERSION = game.system.version;
 
   const stored = game.settings.get("cyberpunk2020", "systemMigrationVersion") || "";

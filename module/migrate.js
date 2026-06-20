@@ -74,8 +74,27 @@ export async function migrateAmmoCalibers() {
 }
 
 /* ----------------------------------------------------------- */
-/*  Limb-model setting merge (focused, self-gating)            */
+/*  Settings-merge migrations (focused, self-gating)           */
 /* ----------------------------------------------------------- */
+
+/**
+ * Read a raw stored world-setting value by key, even when the setting is no longer registered.
+ * The Setting document's `value` may surface as the native value (boolean/string), a JSON string
+ * ("true"), or a bare string ("core") depending on the Foundry version — handle all three so a
+ * non-JSON string never throws (which would defeat a self-gate that checks the value's presence).
+ * @param {string} key  The bare setting key (without the "cyberpunk2020." namespace).
+ * @returns {*} the parsed value, or undefined if absent/unreadable.
+ */
+function rawWorldSetting(key) {
+  try {
+    const world = game.settings?.storage?.get?.("world");
+    const doc = world?.find?.((s) => s.key === `cyberpunk2020.${key}`);
+    if (!doc || doc.value === undefined || doc.value === null) return undefined;
+    let v = doc.value;
+    if (typeof v === "string") { try { v = JSON.parse(v); } catch (e) { /* bare string */ } }
+    return v;
+  } catch (e) { return undefined; }
+}
 
 /**
  * Seed the new `limbModel` selector from the retired `limbCripplingDetailed` + `w4rst4rLimbRules`
@@ -88,21 +107,6 @@ export async function migrateAmmoCalibers() {
  * @returns {Promise<{set:?string, skipped:boolean}>}
  */
 export async function migrateLimbModelSetting() {
-  // Read a raw stored world-setting value by key, even if the setting is no longer registered.
-  // The Setting document's `value` may surface as the native value (boolean/string), as a JSON
-  // string ("true"), or as a bare string ("core") depending on the Foundry version — handle all
-  // three so a non-JSON string never throws (which would defeat the self-gate below).
-  const rawWorldSetting = (key) => {
-    try {
-      const world = game.settings?.storage?.get?.("world");
-      const doc = world?.find?.((s) => s.key === `cyberpunk2020.${key}`);
-      if (!doc || doc.value === undefined || doc.value === null) return undefined;
-      let v = doc.value;
-      if (typeof v === "string") { try { v = JSON.parse(v); } catch (e) { /* bare string */ } }
-      return v;
-    } catch (e) { return undefined; }
-  };
-
   try {
     // Already migrated or explicitly chosen → leave it alone (self-gate).
     if (rawWorldSetting("limbModel") !== undefined) return { set: null, skipped: true };
@@ -118,6 +122,35 @@ export async function migrateLimbModelSetting() {
     return { set: model, skipped: false };
   } catch (err) {
     console.error("Cyberpunk2020 | limb-model setting migration failed (limb model defaults to Core)", err);
+    return { set: null, skipped: true };
+  }
+}
+
+/**
+ * Seed the new `ammoBlackhandsPricing` selector from the retired `ammoUseBlackhandsBoxes` +
+ * `ammoUseBlackhandsBrass` world booleans (off / boxes / brass / both). Same self-gating, idempotent,
+ * no-version-bump shape as {@link migrateLimbModelSetting}; safe to fail — pricing stays Core ("off").
+ *
+ * @returns {Promise<{set:?string, skipped:boolean}>}
+ */
+export async function migrateBlackhandsPricingSetting() {
+  try {
+    // Already migrated or explicitly chosen → leave it alone (self-gate).
+    if (rawWorldSetting("ammoBlackhandsPricing") !== undefined) return { set: null, skipped: true };
+
+    const boxes = rawWorldSetting("ammoUseBlackhandsBoxes");
+    const brass = rawWorldSetting("ammoUseBlackhandsBrass");
+    // No old keys stored → fresh world (or already cleaned); nothing to migrate.
+    if (boxes === undefined && brass === undefined) return { set: null, skipped: true };
+
+    const mode = (boxes === true && brass === true) ? "both"
+               : (boxes === true) ? "boxes"
+               : (brass === true) ? "brass" : "off";
+    await game.settings.set("cyberpunk2020", "ammoBlackhandsPricing", mode);
+    console.log(`Cyberpunk2020 | Blackhand's ammo-pricing setting migrated from legacy toggles → "${mode}".`);
+    return { set: mode, skipped: false };
+  } catch (err) {
+    console.error("Cyberpunk2020 | Blackhand's pricing migration failed (pricing defaults to Core)", err);
     return { set: null, skipped: true };
   }
 }

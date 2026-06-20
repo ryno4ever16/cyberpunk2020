@@ -161,22 +161,22 @@ export function registerSystemSettings() {
   });
 
     // --- Ammunition: optional Blackhand's Guide pricing ---
-  game.settings.register("cyberpunk2020", "ammoUseBlackhandsBoxes", {
-    name: "SETTINGS.AmmoBlackhandsBoxes",
-    hint: "SETTINGS.AmmoBlackhandsBoxesHint",
+  // One selector replacing the old ammoUseBlackhandsBoxes + ammoUseBlackhandsBrass booleans. Each
+  // combination is still reachable (off / box prices / brass ×3 / both); read in module/lookups.js.
+  // Existing worlds are migrated from the old booleans by migrateBlackhandsPricingSetting().
+  game.settings.register("cyberpunk2020", "ammoBlackhandsPricing", {
+    name: "SETTINGS.AmmoBlackhandsPricing",
+    hint: "SETTINGS.AmmoBlackhandsPricingHint",
     scope: "world",
     config: true,
-    type: Boolean,
-    default: false
-  });
-
-  game.settings.register("cyberpunk2020", "ammoUseBlackhandsBrass", {
-    name: "SETTINGS.AmmoBlackhandsBrass",
-    hint: "SETTINGS.AmmoBlackhandsBrassHint",
-    scope: "world",
-    config: true,
-    type: Boolean,
-    default: false
+    type: String,
+    choices: {
+      "off":   "SETTINGS.AmmoBlackhandsPricingChoiceOff",
+      "boxes": "SETTINGS.AmmoBlackhandsPricingChoiceBoxes",
+      "brass": "SETTINGS.AmmoBlackhandsPricingChoiceBrass",
+      "both":  "SETTINGS.AmmoBlackhandsPricingChoiceBoth",
+    },
+    default: "off",
   });
 
     // --- Shopping / economy ---
