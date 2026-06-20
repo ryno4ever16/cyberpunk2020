@@ -271,6 +271,13 @@ Hooks.once("ready", async function () {
     console.error("Cyberpunk2020 | ammo caliber cleanup failed (weapons still function normally)", err);
   }
 
+  // Self-gating: seed the merged `limbModel` selector from the retired limb booleans (no version bump).
+  try {
+    await migrations.migrateLimbModelSetting();
+  } catch (err) {
+    console.error("Cyberpunk2020 | limb-model setting migration failed (limb model defaults to Core)", err);
+  }
+
   const TARGET_VERSION = game.system.version;
 
   const stored = game.settings.get("cyberpunk2020", "systemMigrationVersion") || "";

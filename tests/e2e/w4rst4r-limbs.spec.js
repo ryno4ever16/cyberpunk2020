@@ -9,8 +9,7 @@ import { login, evalGameOrThrow, cleanupTestData } from "../helpers/foundry.js";
  *   - Limb damage is NOT doubled: >8 net DISABLES, >12 SEVERS — either way a Mortal-0 Death Save.
  *     Head >8 auto-kills. Groin is a non-limb location (Torso armor; no limb rule).
  *   - activeLimbModel precedence W4RST4R > ListenUp > Core.
- *   - The Core hit-location display setting and W4RST4R are mutually exclusive (enabling W4RST4R
- *     forces Core-display and Listen Up off).
+ *   - The limb model is a single selector; choosing "w4rst4r" is what makes activeLimbModel "W4RST4R".
  */
 
 test.afterAll(async ({ browser }) => {
@@ -20,7 +19,7 @@ test.afterAll(async ({ browser }) => {
   await ctx.close();
 });
 
-test("W4RST4R limb rules, hit-location table, Groin handling, and setting exclusivity", async ({ page }) => {
+test("W4RST4R limb rules, hit-location table, Groin handling, under the limb-model selector", async ({ page }) => {
   await login(page, ACCOUNTS.gm);
   await cleanupTestData(page).catch(() => {});
 
@@ -33,21 +32,15 @@ test("W4RST4R limb rules, hit-location table, Groin handling, and setting exclus
     const set = (k, v) => game.settings.set("cyberpunk2020", k, v);
 
     // Save originals
-    const orig = { w4: S("w4rst4rLimbRules"), core: S("hitLocationCoreDisplay"), listen: S("limbCripplingDetailed"),
-                   limb: S("limbLossEnabled"), head: S("headHitDoubling") };
+    const orig = { model: S("limbModel"), limb: S("limbLossEnabled"), head: S("headHitDoubling") };
 
     // --- W4RST4R hit-location table mapping ---
     const T = LK.W4RST4R_AREA_LOOKUP;
     out.table = { 1: T[1], 2: T[2], 3: T[3], 4: T[4], 7: T[7], 8: T[8], 9: T[9], 10: T[10] };
 
-    // --- Mutual exclusivity: enabling W4RST4R forces Core-display + Listen Up off ---
+    // --- Select the W4RST4R limb model (single selector; exclusivity is inherent) ---
     await set("limbLossEnabled", true);
-    await set("hitLocationCoreDisplay", true);
-    await set("limbCripplingDetailed", true);
-    await set("w4rst4rLimbRules", true);
-    await new Promise(r => setTimeout(r, 150));   // let onChange settle
-    out.coreOffAfterW4 = S("hitLocationCoreDisplay");        // false
-    out.listenOffAfterW4 = S("limbCripplingDetailed");       // false
+    await set("limbModel", "w4rst4r");
     out.activeModel = DA.activeLimbModel();                  // "W4RST4R"
 
     await set("headHitDoubling", false);   // keep net deterministic for the head case
@@ -92,9 +85,7 @@ test("W4RST4R limb rules, hit-location table, Groin handling, and setting exclus
     out.groinNoLimbMsg = !msgFor("__PW__W4Groin", "Limb");
 
     // Restore
-    await set("w4rst4rLimbRules", orig.w4);
-    await set("hitLocationCoreDisplay", orig.core);
-    await set("limbCripplingDetailed", orig.listen);
+    await set("limbModel", orig.model);
     await set("limbLossEnabled", orig.limb);
     await set("headHitDoubling", orig.head);
 
@@ -107,9 +98,7 @@ test("W4RST4R limb rules, hit-location table, Groin handling, and setting exclus
   // Hit-location table
   expect(R.table).toEqual({ 1: "Head", 2: "rArm", 3: "lArm", 4: "Torso", 7: "Torso", 8: "rLeg", 9: "lLeg", 10: "Groin" });
 
-  // Mutual exclusivity
-  expect(R.coreOffAfterW4, "enabling W4RST4R forces Core-display off").toBe(false);
-  expect(R.listenOffAfterW4, "enabling W4RST4R forces Listen Up off").toBe(false);
+  // Limb model
   expect(R.activeModel, "active model is W4RST4R").toBe("W4RST4R");
 
   // Limb rules

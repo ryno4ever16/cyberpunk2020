@@ -3,7 +3,7 @@ import { ACCOUNTS } from "../helpers/accounts.js";
 import { login, evalGameOrThrow, cleanupTestData } from "../helpers/foundry.js";
 
 /**
- * C4 — Detailed crippling injuries (Listen Up), behind limbCripplingDetailed (default OFF).
+ * C4 — Detailed crippling injuries (Listen Up), the limbModel="listenup" selection (default "core").
  *
  * computeNetDamage centralizes the doubling: limbs double post-armor BEFORE BTM (Listen Up),
  * head doubles AFTER BTM (Core p.103). assessWoundSeverity then applies the bands:
@@ -31,14 +31,14 @@ test("C4 crippling: limb doubling + crippled/destroyed bands; Core path when off
     await game.settings.set("cyberpunk2020", "headHitDoubling", true);
 
     // --- computeNetDamage math ---
-    await game.settings.set("cyberpunk2020", "limbCripplingDetailed", true);
+    await game.settings.set("cyberpunk2020", "limbModel", "listenup");
     const limbDoubledOn = DA.computeNetDamage(5, 0, true, "rArm");  // limb: 5×2 → 10
     const headDoubledOn = DA.computeNetDamage(5, 0, true, "Head");  // head: 5 → ×2 → 10
-    await game.settings.set("cyberpunk2020", "limbCripplingDetailed", false);
+    await game.settings.set("cyberpunk2020", "limbModel", "core");
     const limbPlainOff  = DA.computeNetDamage(5, 0, true, "rArm");  // off: 5 (no limb double)
 
     // --- apply with detailed ON: crippled then destroyed ---
-    await game.settings.set("cyberpunk2020", "limbCripplingDetailed", true);
+    await game.settings.set("cyberpunk2020", "limbModel", "listenup");
     const a = await Actor.create({ name: "__PW__Crip", type: "character", flags, system: { stats: { bt: { base: 2 } }, damage: 0 } });
     await DA.applyAreaDamages({ target: a, areaDamages: { rArm: [{ damage: 5 }] }, ap: false, armorMode: "full", ablate: false, dryRun: false });
     const crippled = { damage: a.system.damage, status: a.getFlag("cyberpunk2020", "limbStatus")?.rArm ?? null };
@@ -46,7 +46,7 @@ test("C4 crippling: limb doubling + crippled/destroyed bands; Core path when off
     const destroyed = { damage: a.system.damage, status: a.getFlag("cyberpunk2020", "limbStatus")?.lArm ?? null };
 
     // --- apply with detailed OFF: Core path (no double, no crippling flag) ---
-    await game.settings.set("cyberpunk2020", "limbCripplingDetailed", false);
+    await game.settings.set("cyberpunk2020", "limbModel", "core");
     const b = await Actor.create({ name: "__PW__Core", type: "character", flags, system: { stats: { bt: { base: 2 } }, damage: 0 } });
     await DA.applyAreaDamages({ target: b, areaDamages: { rLeg: [{ damage: 12 }] }, ap: false, armorMode: "full", ablate: false, dryRun: false });
     const coreLimb = { damage: b.system.damage, status: b.getFlag("cyberpunk2020", "limbStatus")?.rLeg ?? null };

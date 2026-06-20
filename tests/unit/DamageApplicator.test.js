@@ -3,7 +3,7 @@
  *
  * All game.settings / canvas accesses in this module are wrapped in try/catch with safe
  * defaults, so they degrade gracefully in a Node test environment:
- *   - activeLimbModel()    → "Core"  (both settings throw)
+ *   - activeLimbModel()    → "Core"  (the limbModel setting throws)
  *   - computeNetDamage()   → Core rules (no head doubling, no limb doubling)
  *
  * Skipped (side-effects / Foundry dependencies):

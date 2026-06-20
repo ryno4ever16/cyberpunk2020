@@ -672,17 +672,28 @@ export function registerSystemSettings() {
     default: false,
   });
 
-  // --- Combat: Detailed crippling injuries (Listen Up, optional) ---
-  game.settings.register("cyberpunk2020", "limbCripplingDetailed", {
-    name: "SETTINGS.LimbCripplingDetailed",
-    hint: "SETTINGS.LimbCripplingDetailedHint",
+  // --- Combat: Limb-damage model (Core / Listen Up crippling / W4RST4R) ---
+  // One selector replacing the old limbCripplingDetailed + w4rst4rLimbRules booleans (and their
+  // mutual-exclusivity onChange guards — a single selector is exclusive by construction). Read via
+  // activeLimbModel() in DamageApplicator.js; existing worlds are migrated by migrateLimbModelSetting().
+  game.settings.register("cyberpunk2020", "limbModel", {
+    name: "SETTINGS.LimbModel",
+    hint: "SETTINGS.LimbModelHint",
     scope:   "world",
     config:  true,
-    type:    Boolean,
-    default: false,
+    type:    String,
+    choices: {
+      "core":     "SETTINGS.LimbModelChoiceCore",
+      "listenup": "SETTINGS.LimbModelChoiceListenUp",
+      "w4rst4r":  "SETTINGS.LimbModelChoiceW4rst4r",
+    },
+    default: "core",
   });
 
-  // --- Combat: Hit-location chat display (Core table) ---
+  // --- Combat: Hit-location table (Core human table vs each actor's own) ---
+  // Orthogonal to the limb model: ON (default) forces the canonical Core human hit-location table;
+  // OFF honors a per-actor custom hitLocLookup (for non-standard creatures). The W4RST4R limb model
+  // always uses its own table regardless of this.
   game.settings.register("cyberpunk2020", "hitLocationCoreDisplay", {
     name: "SETTINGS.HitLocationCoreDisplay",
     hint: "SETTINGS.HitLocationCoreDisplayHint",
@@ -690,34 +701,6 @@ export function registerSystemSettings() {
     config:  true,
     type:    Boolean,
     default: true,
-    onChange: (value) => {
-      if (!game.user?.isGM) return;
-      try {
-        if (value && game.settings.get("cyberpunk2020", "w4rst4rLimbRules")) {
-          game.settings.set("cyberpunk2020", "hitLocationCoreDisplay", false);
-          ui.notifications?.warn?.(localize("HitLocCoreVsW4rstar"));
-        }
-      } catch (e) { /* settings not ready */ }
-    },
-  });
-
-  // --- Combat: W4RST4R's Limb Rules (alternate limb model) ---
-  game.settings.register("cyberpunk2020", "w4rst4rLimbRules", {
-    name: "SETTINGS.W4rst4rLimbRules",
-    hint: "SETTINGS.W4rst4rLimbRulesHint",
-    scope:   "world",
-    config:  true,
-    type:    Boolean,
-    default: false,
-    onChange: (value) => {
-      if (!game.user?.isGM) return;
-      try {
-        if (value) {
-          if (game.settings.get("cyberpunk2020", "hitLocationCoreDisplay")) game.settings.set("cyberpunk2020", "hitLocationCoreDisplay", false);
-          if (game.settings.get("cyberpunk2020", "limbCripplingDetailed")) game.settings.set("cyberpunk2020", "limbCripplingDetailed", false);
-        }
-      } catch (e) { /* settings not ready */ }
-    },
   });
 
   // --- Combat: Shotgun / flechette spread (CP2020 p.108) ---

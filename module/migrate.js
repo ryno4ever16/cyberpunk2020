@@ -73,6 +73,55 @@ export async function migrateAmmoCalibers() {
   return { fixed, errors, skipped: false };
 }
 
+/* ----------------------------------------------------------- */
+/*  Limb-model setting merge (focused, self-gating)            */
+/* ----------------------------------------------------------- */
+
+/**
+ * Seed the new `limbModel` selector from the retired `limbCripplingDetailed` + `w4rst4rLimbRules`
+ * world booleans when a world upgrades across the settings merge. Like {@link migrateAmmoCalibers}
+ * this runs GM-only on ready WITHOUT a version bump; it is idempotent and self-gating: it acts only
+ * when the old keys are present AND the new one was never set, then writes the resolved value so it
+ * never runs again. The old keys are no longer registered, so they're read straight from world
+ * settings storage. Safe to fail — the limb model just stays Core (the default).
+ *
+ * @returns {Promise<{set:?string, skipped:boolean}>}
+ */
+export async function migrateLimbModelSetting() {
+  // Read a raw stored world-setting value by key, even if the setting is no longer registered.
+  // The Setting document's `value` may surface as the native value (boolean/string), as a JSON
+  // string ("true"), or as a bare string ("core") depending on the Foundry version — handle all
+  // three so a non-JSON string never throws (which would defeat the self-gate below).
+  const rawWorldSetting = (key) => {
+    try {
+      const world = game.settings?.storage?.get?.("world");
+      const doc = world?.find?.((s) => s.key === `cyberpunk2020.${key}`);
+      if (!doc || doc.value === undefined || doc.value === null) return undefined;
+      let v = doc.value;
+      if (typeof v === "string") { try { v = JSON.parse(v); } catch (e) { /* bare string */ } }
+      return v;
+    } catch (e) { return undefined; }
+  };
+
+  try {
+    // Already migrated or explicitly chosen → leave it alone (self-gate).
+    if (rawWorldSetting("limbModel") !== undefined) return { set: null, skipped: true };
+
+    const w4 = rawWorldSetting("w4rst4rLimbRules");
+    const lu = rawWorldSetting("limbCripplingDetailed");
+    // No old keys stored → fresh world (or already cleaned); nothing to migrate.
+    if (w4 === undefined && lu === undefined) return { set: null, skipped: true };
+
+    const model = (w4 === true) ? "w4rst4r" : (lu === true) ? "listenup" : "core";
+    await game.settings.set("cyberpunk2020", "limbModel", model);
+    console.log(`Cyberpunk2020 | Limb-model setting migrated from legacy toggles → "${model}".`);
+    return { set: model, skipped: false };
+  } catch (err) {
+    console.error("Cyberpunk2020 | limb-model setting migration failed (limb model defaults to Core)", err);
+    return { set: null, skipped: true };
+  }
+}
+
 /**
  * Migration entrypoint.
  */
