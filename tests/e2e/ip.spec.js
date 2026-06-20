@@ -98,6 +98,15 @@ test("IP cost, data fields, queue+hook, award→pending→apply, level-up (RAW+S
     out.simpleOk = await ip.levelUpSkill(a2, a2.items.get(s2.id), { confirm: false });   // cost 20
     out.simpleLevel = a2.items.get(s2.id).system.level;                // 3
     out.simplePool = a2.system.ipPool;                                 // 30 - 20 = 10
+
+    // ── dual-bucket level-up (Model A): spend the skill bank first, then the pool ──
+    const a3 = await Actor.create({ name: "__PW__ipDual", type: "character", flags, system: { ipPool: 30 } });
+    const [s3d] = await a3.createEmbeddedDocuments("Item", [{ name: "__PW__Dual", type: "skill", system: { level: 2, diffMod: 1, ip: 8, IP: 8 } }]);
+    out.dualOk = await ip.levelUpSkill(a3, a3.items.get(s3d.id), { confirm: false });   // cost 20: 8 bank + 12 pool
+    out.dualLevel = a3.items.get(s3d.id).system.level;                 // 3
+    out.dualBank = a3.items.get(s3d.id).system.ip;                     // 8 - 8 = 0 (bank spent first)
+    out.dualPool = a3.system.ipPool;                                   // 30 - 12 = 18 (pool covered the rest)
+
     await game.settings.set("cyberpunk2020", "ipRawTracking", true);
     await game.settings.set("cyberpunk2020", "ipHideUI", false);
 
@@ -168,6 +177,12 @@ test("IP cost, data fields, queue+hook, award→pending→apply, level-up (RAW+S
   expect(R.simpleLevel).toBe(3);
   expect(R.simplePool, "pool 30 − 20").toBe(10);
 
+  // dual-bucket: cost 20 paid as 8 (bank) + 12 (pool)
+  expect(R.dualOk).toBe(true);
+  expect(R.dualLevel).toBe(3);
+  expect(R.dualBank, "skill bank spent first (8 → 0)").toBe(0);
+  expect(R.dualPool, "pool covered the rest (30 − 12)").toBe(18);
+
   expect(R.hardcapPending, "hard cap: only first award counts").toBe(5);
   expect(R.hardcapSecondReturn).toBe(false);
   expect(R.diminishingPending, "diminishing: 8 + 4").toBe(12);
@@ -200,17 +215,19 @@ test("IP tracker app + skill-sheet IP UI render without throwing", async ({ page
     const tracker = await import("/systems/cyberpunk2020/module/ip/tracker.js");
     tracker.openIpTracker();
     let win = null, dl = Date.now() + 8000;
-    while (Date.now() < dl) { win = document.querySelector(".cp-ip-tracker-window"); if (win && win.querySelector(".cp-ip-apply")) break; await new Promise(r => setTimeout(r, 150)); }
+    while (Date.now() < dl) { win = document.querySelector(".cp-ip-tracker-window"); if (win && win.querySelector("[data-action='ipApply']")) break; await new Promise(r => setTimeout(r, 150)); }
     out.trackerRendered = !!win;
-    out.trackerHasApply = !!win?.querySelector(".cp-ip-apply");
+    out.trackerHasApply = !!win?.querySelector("[data-action='ipApply']");
     out.trackerHasRow = !!win?.querySelector(".cp-ip-row");
-    for (const app of Object.values(ui.windows)) { if (app?.options?.classes?.includes?.("cp-ip-tracker")) app.close(); }
+    for (const app of foundry.applications.instances.values()) { if (app?.options?.classes?.includes?.("cp-ip-tracker")) app.close(); }
 
     // Skill-sheet IP UI (skills is the initial tab; the row should show the level-up arrow + lock toggle).
+    // V2 sheets expose `element` as a raw HTMLElement (not a jQuery array), so read it V2-safely.
     actor.sheet.render(true);
+    const sheetRoot = () => (actor.sheet.element instanceof HTMLElement ? actor.sheet.element : actor.sheet.element?.[0]);
     dl = Date.now() + 8000;
-    while (Date.now() < dl) { if (actor.sheet.rendered && actor.sheet.element?.[0]?.querySelector(".ip-lock-toggle")) break; await new Promise(r => setTimeout(r, 150)); }
-    const el = actor.sheet.element?.[0] ?? actor.sheet.element;
+    while (Date.now() < dl) { if (actor.sheet.rendered && sheetRoot()?.querySelector(".ip-lock-toggle")) break; await new Promise(r => setTimeout(r, 150)); }
+    const el = sheetRoot();
     out.sheetHasLockToggle = !!el?.querySelector(".ip-lock-toggle");
     out.sheetHasLevelUp = !!el?.querySelector(".ip-level-up");   // ip 20 ≥ cost 20 → levelable
     out.sheetHasBanked = !!el?.querySelector(".ip-banked");
