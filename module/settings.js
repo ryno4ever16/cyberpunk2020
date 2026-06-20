@@ -356,6 +356,23 @@ export function registerSystemSettings() {
     default: {}
   });
 
+    // RAW-IP neglect detector state (not in the menu): muted = GM ticked "don't ask again";
+    // nudged = a nudge already fired for the current over-threshold episode (re-arms when the
+    // queue drops back below the threshold). See module/ip/ip.js.
+  game.settings.register("cyberpunk2020", "ipNeglectMuted", {
+    scope: "world",
+    config: false,
+    type: Boolean,
+    default: false
+  });
+
+  game.settings.register("cyberpunk2020", "ipNeglectNudged", {
+    scope: "world",
+    config: false,
+    type: Boolean,
+    default: false
+  });
+
     // GM-defined custom calibers: { id: { label, costClass } }. Not shown in the menu.
   game.settings.register("cyberpunk2020", "customCalibers", {
     scope: "world",

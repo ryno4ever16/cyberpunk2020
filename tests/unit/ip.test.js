@@ -30,6 +30,8 @@ import { describe, it, expect } from "vitest";
 import {
   ipCost,
   ipSpendBreakdown,
+  shouldNudgeNeglect,
+  NEGLECT_THRESHOLD,
   ipLockState,
   canEditSkillLevels,
 } from "../../module/ip/ip.js";
@@ -257,5 +259,41 @@ describe("ipSpendBreakdown", () => {
   it("coerces junk/negatives to 0", () => {
     expect(ipSpendBreakdown(undefined, null, NaN)).toEqual({ fromBank: 0, fromPool: 0, newBank: 0, newPool: 0, affordable: true });
     expect(ipSpendBreakdown(-5, -5, 10).affordable).toBe(false);
+  });
+});
+
+// ─── shouldNudgeNeglect (the RAW-IP neglect trigger predicate) ─────────────────
+
+describe("shouldNudgeNeglect", () => {
+  const base = { rawOn: true, queueLength: NEGLECT_THRESHOLD, muted: false, nudged: false };
+
+  it("threshold is 20", () => {
+    expect(NEGLECT_THRESHOLD).toBe(20);
+  });
+
+  it("fires at exactly the threshold (raw on, not muted, not yet nudged)", () => {
+    expect(shouldNudgeNeglect(base)).toBe(true);
+    expect(shouldNudgeNeglect({ ...base, queueLength: 25 })).toBe(true);
+  });
+
+  it("does not fire below the threshold", () => {
+    expect(shouldNudgeNeglect({ ...base, queueLength: 19 })).toBe(false);
+  });
+
+  it("does not fire when RAW tracking is off", () => {
+    expect(shouldNudgeNeglect({ ...base, rawOn: false })).toBe(false);
+  });
+
+  it("does not fire when muted", () => {
+    expect(shouldNudgeNeglect({ ...base, muted: true })).toBe(false);
+  });
+
+  it("does not fire again once nudged this episode", () => {
+    expect(shouldNudgeNeglect({ ...base, nudged: true })).toBe(false);
+  });
+
+  it("tolerates missing/garbage input", () => {
+    expect(shouldNudgeNeglect()).toBe(false);
+    expect(shouldNudgeNeglect({ rawOn: true, queueLength: "lots" })).toBe(false);
   });
 });

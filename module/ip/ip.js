@@ -103,6 +103,50 @@ function _rerenderTracker() {
   }
 }
 
+/* --------------------------------------------------------------------- */
+/*  Neglect detector — nudge the GM when RAW IP is accruing un-worked     */
+/* --------------------------------------------------------------------- */
+
+/** The pending-queue length at which the RAW-IP neglect nudge fires (tunable). */
+export const NEGLECT_THRESHOLD = 20;
+
+/**
+ * PURE: should the RAW-IP neglect nudge fire right now? True only when RAW auto-tracking is on, the
+ * queue is at/over the threshold, the GM hasn't muted it, and a nudge hasn't already fired for this
+ * over-threshold episode.
+ */
+export function shouldNudgeNeglect({ rawOn, queueLength, muted, nudged } = {}) {
+  return !!rawOn && (Number(queueLength) || 0) >= NEGLECT_THRESHOLD && !muted && !nudged;
+}
+
+function _neglectFlag(key) { try { return game.settings.get(SCOPE, key) === true; } catch { return false; } }
+
+/** Fire the once-per-episode GM neglect nudge when the queue crosses the threshold (active GM only). */
+async function _maybeNudgeNeglect(queueLength) {
+  if (!_isActiveGM() || !ipRawTracking()) return;
+  if (!shouldNudgeNeglect({ rawOn: true, queueLength, muted: _neglectFlag("ipNeglectMuted"), nudged: _neglectFlag("ipNeglectNudged") })) return;
+  try { await game.settings.set(SCOPE, "ipNeglectNudged", true); } catch (e) { /* ignore */ }
+  try {
+    const { showIpNeglectNudge } = await import("../dialog/ip-neglect.js");
+    await showIpNeglectNudge(queueLength);
+  } catch (e) { console.warn("Cyberpunk2020 | IP neglect nudge failed", e); }
+}
+
+/** Re-arm the nudge once the queue drops back below the threshold (so a future buildup re-nudges). */
+async function _rearmNeglectIfBelow() {
+  if (!_isActiveGM()) return;
+  if (getQueue().length < NEGLECT_THRESHOLD && _neglectFlag("ipNeglectNudged")) {
+    try { await game.settings.set(SCOPE, "ipNeglectNudged", false); } catch (e) { /* ignore */ }
+  }
+}
+
+/** Empty the queue without awarding (the nudge's "Clear the backlog" off-ramp). */
+export async function clearQueue() {
+  await setQueue([]);
+  await _rearmNeglectIfBelow();
+  _rerenderTracker();
+}
+
 /**
  * Record a skill roll into the auto-queue. RAW mode only (Simple mode has no per-skill attribution).
  * Called from rollSkill; relays to the active GM if the roller isn't the GM.
@@ -123,11 +167,13 @@ async function _enqueue(row) {
   });
   await setQueue(q);
   _rerenderTracker();
+  await _maybeNudgeNeglect(q.length);
 }
 
 /** Remove a queue row without awarding (skip). */
 export async function dismissQueueRow(rowId) {
   await setQueue(getQueue().filter(r => r.id !== rowId));
+  await _rearmNeglectIfBelow();
   _rerenderTracker();
 }
 
@@ -209,6 +255,7 @@ export async function resolveQueueRow(rowId) {
     if (amount > 0) await awardPending(actor, skill, amount);
   }
   await setQueue(q.filter(r => r.id !== rowId));
+  await _rearmNeglectIfBelow();
   _rerenderTracker();
 }
 
@@ -238,6 +285,7 @@ export async function applyPending(actor = null) {
   // Clear the queue + throttle for the new cycle.
   await setQueue(actor ? getQueue().filter(r => r.actorId !== actor.id) : []);
   await resetThrottle();
+  await _rearmNeglectIfBelow();
   _rerenderTracker();
   ui.notifications?.info(localize("IpApplied", { ip: released }));
   return released;
