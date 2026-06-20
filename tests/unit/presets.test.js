@@ -41,12 +41,12 @@ describe("per-tier values (authoritative spec)", () => {
     }
   });
 
-  it("Manual: everything off, IP disabled, Core", () => {
+  it("Manual: combat off + Core, but the ignorable subsystems (Shopping + RAW IP) on at every tier", () => {
     expect(M.damageAutoApply).toBe(false);
     expect(M.limbLossEnabled).toBe(false);
-    expect(M.shoppingEnabled).toBe(false);
-    expect(M.vehicleControlEnabled).toBe(false);
-    expect(M.ipRawTracking).toBe(false);
+    expect(M.shoppingEnabled).toBe(true);          // ignorable subsystem — on at every tier
+    expect(M.ipRawTracking).toBe(true);            // ignorable subsystem — on at every tier
+    expect(M.vehicleControlEnabled).toBe(false);   // vehicles still wait for Standard
     expect(M.mmEnabled).toBe(false);
     expect(M.limbModel).toBe("core");
   });
@@ -111,14 +111,14 @@ describe("presetChanges (pure diff)", () => {
     expect(res.featuresOn).toEqual([]);
   });
 
-  it("Manual → Standard: names auto-apply/RAW IP/shopping/vehicles", () => {
+  it("Manual → Standard: names auto-apply/limb-loss/vehicles, NOT shopping/RAW IP (baseline at Manual)", () => {
     const res = presetChanges("standard", resolvePreset("manual"));
     const ids = res.featuresOn.map((f) => f.id);
     expect(ids).toContain("autoApply");
     expect(ids).toContain("limbLoss");
-    expect(ids).toContain("rawIp");            // Standard now defaults to RAW IP
-    expect(ids).toContain("shopping");
     expect(ids).toContain("vehicles");
+    expect(ids).not.toContain("rawIp");        // RAW IP is baseline (Manual) now, not a Standard upgrade
+    expect(ids).not.toContain("shopping");     // Shopping is baseline (Manual) now
     expect(ids).not.toContain("maximumMetal");
     expect(res.changed.length).toBeGreaterThan(0);
   });

@@ -22,9 +22,11 @@ const MANUAL = {
   multiActionPenaltyEnabled: false, multiActionAutoTrack: false, limbLossEnabled: false, suppressiveFireSaves: false,
   shotgunSpreadEnabled: false, explosivesEnabled: false, areaEffectOcclusion: false, gasGrenadeCloudEnabled: false,
   taserCumPenaltyEnabled: false, acidArmorDotEnabled: false, fireDotEnabled: false, specialMeleeEffectsEnabled: false,
-  // Subsystems — off (IP stays present-but-ignorable: just RAW auto-tracking off; ipHideUI is a
-  // separate manual GM presence choice that presets never touch)
-  shoppingEnabled: false, vehicleControlEnabled: false, vehicleDamageEnabled: false, ipRawTracking: false,
+  // Subsystems — Shopping + Improvement-Point (RAW) tracking are ON at EVERY tier: both are ignorable
+  // if unused (the Model-A neglect detector keeps RAW IP safe as a default), so they belong in the
+  // baseline rather than a tier upgrade. Vehicles stay off until Standard. ipHideUI is a separate
+  // manual GM presence choice that presets never touch.
+  shoppingEnabled: true, vehicleControlEnabled: false, vehicleDamageEnabled: false, ipRawTracking: true,
   // Bookkeeping rules + supplements — off / Core
   restrictMovementOncePerTurn: false, damageAblation: false, damageLayersEnabled: false, applyLayerEVPenalty: false,
   layerRuleSystem: "Core", mmEnabled: false, vehicleRuleSystem: "Core", vehicleArmorDamageEnabled: false,
@@ -34,15 +36,15 @@ const MANUAL = {
   headHitDoubling: true, damageArmorMode: "full", limbModel: "core",
 };
 
-// STANDARD = Manual + full combat automation on + core subsystems + RAW IP (the Model-A redesign
-// makes RAW self-announcing/non-ignorable, so it's a safe default rather than the clunky old system).
+// STANDARD = Manual + full combat automation on + core subsystems. (Shopping + RAW IP are already on
+// from Manual — they're ignorable subsystems available at every tier.)
 const STANDARD_DELTA = {
   damageAutoApply: true, autoRangefinding: true, autoDeathSavePerTurn: true, autoSaveRePrompt: true,
   activeDodgeParryEnabled: true, aimTrackingEnabled: true, waitForTurnEnabled: true, fumbleTableEnabled: true,
   multiActionPenaltyEnabled: true, multiActionAutoTrack: true, limbLossEnabled: true, suppressiveFireSaves: true,
   shotgunSpreadEnabled: true, explosivesEnabled: true, areaEffectOcclusion: true, gasGrenadeCloudEnabled: true,
   taserCumPenaltyEnabled: true, acidArmorDotEnabled: true, fireDotEnabled: true, specialMeleeEffectsEnabled: true,
-  shoppingEnabled: true, vehicleControlEnabled: true, vehicleDamageEnabled: true, ipRawTracking: true,
+  vehicleControlEnabled: true, vehicleDamageEnabled: true,
 };
 
 // BY THE BOOK = Standard + the divisive-but-faithful bookkeeping rules. (IP is already RAW from Standard.)
