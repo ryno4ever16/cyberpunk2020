@@ -7,15 +7,17 @@ import {
 /**
  * IP (Improvement Points) tracker — core logic ([[ip-tracker-design]]).
  *
- * Two stored layers (both additive, migration-safe):
- *   • a skill's `ip`/`IP` = BANKED IP the owner can spend to level up;
+ * Model A dual-bucket store (both additive, migration-safe, always present):
+ *   • a skill's `ip`/`IP` = BANKED IP earmarked to that skill (RAW per-skill attribution);
+ *   • the actor's `ipPool` = a fungible, unattributed IP pool;
  *   • a skill's `ipPending` = IP the GM has attributed but NOT released (hidden from the player
  *     until the GM clicks Apply, which moves ipPending → ip).
- * Plus a GM-only world queue `ipQueue` of skill rolls awaiting an IP decision (the auto-queue),
- * and `ipThrottleCounts` tracking awards-per-skill within the current Apply cycle.
+ * Spendable on skill X = X's bank + the pool; a level-up spends the bank first, then the pool, so
+ * banked RAW IP is never stranded by toggling RAW off. Plus a GM-only world queue `ipQueue` of skill
+ * rolls awaiting an IP decision (RAW auto-tracking), and `ipThrottleCounts` per Apply cycle.
  *
  * RAW cost to raise a skill = current level × 10 × difficulty multiplier (first level = 10;
- * floor of 1×10×mult). Simple mode banks one `ipPool` per actor instead of per-skill IP.
+ * floor of 1×10×mult). RAW on → new IP is attributed per-skill (queue); RAW off → the GM tops up the pool.
  */
 
 const SCOPE = "cyberpunk2020";
@@ -25,6 +27,20 @@ export function ipCost(skill) {
   const level = Number(skill?.system?.level) || 0;
   const mult = Math.max(1, Number(skill?.system?.diffMod) || 1);
   return Math.max(1, level) * 10 * mult;
+}
+
+/**
+ * PURE dual-bucket spend breakdown (Model A): pay `cost` from the skill's own bank first, then from the
+ * fungible pool. So banked RAW IP is spent before pool IP and is never stranded by toggling RAW off.
+ * @returns {{fromBank:number, fromPool:number, newBank:number, newPool:number, affordable:boolean}}
+ */
+export function ipSpendBreakdown(bank, pool, cost) {
+  const b = Math.max(0, Number(bank) || 0);
+  const p = Math.max(0, Number(pool) || 0);
+  const c = Math.max(0, Number(cost) || 0);
+  const fromBank = Math.min(b, c);
+  const fromPool = c - fromBank;
+  return { fromBank, fromPool, newBank: b - fromBank, newPool: p - fromPool, affordable: (b + p) >= c };
 }
 
 /* --------------------------------------------------------------------- */
@@ -232,17 +248,18 @@ export async function applyPending(actor = null) {
 /* --------------------------------------------------------------------- */
 
 /**
- * Raise a skill one level, spending banked IP (RAW: the skill's own ip; Simple: the actor's ipPool).
+ * Raise a skill one level, spending the skill's own bank first then the fungible pool (dual-bucket).
  * Shows a confirm dialog. Honors the skill lock only for raw hand-editing — leveling via this button
  * is always allowed.
  */
 export async function levelUpSkill(actor, skill, { confirm = true } = {}) {
   if (!actor || !skill || skill.type !== "skill") return false;
   if (!ipEnabled()) return false;
-  const simple = !ipRawTracking();
   const cost = ipCost(skill);
-  const have = simple ? (Number(actor.system?.ipPool) || 0) : (Number(skill.system?.ip) || 0);
-  if (have < cost) { ui.notifications?.warn(localize("IpNotEnough", { cost, have })); return false; }
+  const bank = Number(skill.system?.ip) || 0;
+  const pool = Number(actor.system?.ipPool) || 0;
+  const spend = ipSpendBreakdown(bank, pool, cost);   // dual-bucket: bank first, then pool
+  if (!spend.affordable) { ui.notifications?.warn(localize("IpNotEnough", { cost, have: bank + pool })); return false; }
 
   if (confirm) {
     const ok = await foundry.applications.api.DialogV2.confirm({
@@ -255,13 +272,10 @@ export async function levelUpSkill(actor, skill, { confirm = true } = {}) {
   }
 
   const newLevel = (Number(skill.system?.level) || 0) + 1;
-  if (simple) {
-    await actor.update({ "system.ipPool": have - cost });
-    await skill.update({ "system.level": newLevel });
-  } else {
-    const banked = Number(skill.system?.ip) || 0;
-    await skill.update({ "system.level": newLevel, "system.ip": banked - cost, "system.IP": banked - cost });
-  }
+  const skillUpdate = { "system.level": newLevel };
+  if (spend.fromBank > 0) { skillUpdate["system.ip"] = spend.newBank; skillUpdate["system.IP"] = spend.newBank; }
+  await skill.update(skillUpdate);
+  if (spend.fromPool > 0) await actor.update({ "system.ipPool": spend.newPool });
   await postSavePromptCard({
     body: localize("IpLeveledUp", { actor: actor.name, skill: skill.name, level: newLevel, cost }),
     speaker: ChatMessage.getSpeaker({ actor }),

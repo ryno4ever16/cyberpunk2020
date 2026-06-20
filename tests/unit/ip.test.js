@@ -29,6 +29,7 @@
 import { describe, it, expect } from "vitest";
 import {
   ipCost,
+  ipSpendBreakdown,
   ipLockState,
   canEditSkillLevels,
 } from "../../module/ip/ip.js";
@@ -227,5 +228,34 @@ describe("canEditSkillLevels — Node environment (ipEnabled() = true → the lo
 
   it("null actor → true (no flags → no lock)", () => {
     expect(canEditSkillLevels(null)).toBe(true);
+  });
+});
+
+// ─── ipSpendBreakdown (dual-bucket spend: skill bank first, then the fungible pool) ────────────
+
+describe("ipSpendBreakdown", () => {
+  it("spends only the bank when it covers the cost", () => {
+    expect(ipSpendBreakdown(30, 10, 20)).toEqual({ fromBank: 20, fromPool: 0, newBank: 10, newPool: 10, affordable: true });
+  });
+
+  it("spends the bank first, then the pool for the remainder", () => {
+    expect(ipSpendBreakdown(8, 30, 20)).toEqual({ fromBank: 8, fromPool: 12, newBank: 0, newPool: 18, affordable: true });
+  });
+
+  it("spends only the pool when the bank is empty", () => {
+    expect(ipSpendBreakdown(0, 30, 20)).toEqual({ fromBank: 0, fromPool: 20, newBank: 0, newPool: 10, affordable: true });
+  });
+
+  it("exact affordability (bank + pool === cost) drains both to 0", () => {
+    expect(ipSpendBreakdown(7, 13, 20)).toEqual({ fromBank: 7, fromPool: 13, newBank: 0, newPool: 0, affordable: true });
+  });
+
+  it("not affordable when bank + pool < cost", () => {
+    expect(ipSpendBreakdown(5, 5, 20).affordable).toBe(false);
+  });
+
+  it("coerces junk/negatives to 0", () => {
+    expect(ipSpendBreakdown(undefined, null, NaN)).toEqual({ fromBank: 0, fromPool: 0, newBank: 0, newPool: 0, affordable: true });
+    expect(ipSpendBreakdown(-5, -5, 10).affordable).toBe(false);
   });
 });

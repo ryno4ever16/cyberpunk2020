@@ -1275,7 +1275,8 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       if (s.type !== "skill") continue;
       const cost = ipCost(s);
       const banked = Number(s.system?.ip) || 0;
-      const have = simple ? pool : banked;
+      // Dual-bucket (Model A): available = the skill's own bank + the fungible pool, in every mode.
+      const have = banked + pool;
       map[s.id] = { cost, banked, pending: Number(s.system?.ipPending) || 0, canLevel: have >= cost };
     }
     sheetData.ipBySkill = map;
