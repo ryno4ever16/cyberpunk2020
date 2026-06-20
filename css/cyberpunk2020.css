@@ -1001,6 +1001,16 @@ div.statderive .value.rightborder {
 .cyberpunk .result-note { margin-top: 4px; font-size: 0.85em; opacity: 0.75; }
 .cyberpunk .result-note.danger { color: #d1502f; opacity: 1; }
 .cyberpunk .taser-warning { color: #c25e00; font-weight: bold; }
+
+/* Published-shops-only purchase request (GM-whispered chat card + Approve/Deny). */
+.cyberpunk .cp-shop-request-head { font-weight: bold; margin: 0 0 2px; }
+.cyberpunk .cp-shop-request-body { margin: 0 0 6px; }
+.cyberpunk .cp-shop-request-note { opacity: 0.75; font-size: 0.9em; }
+.cyberpunk .cp-shop-request-actions { display: flex; gap: 6px; }
+.cyberpunk .cp-shop-request-actions .cp-shop-request-btn { flex: 1 1 auto; width: auto; }
+.cyberpunk .cp-shop-request-btn.cp-approve { color: #1f9d2f; }
+.cyberpunk .cp-shop-request-btn.cp-deny { color: #d1502f; }
+.cyberpunk .cp-shop-request-status { margin: 4px 0 0; }
 .cyberpunk .stabilize-block {
   margin-top: 6px;
   border-top: 1px solid var(--cp-line, #ccc);

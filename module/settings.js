@@ -213,7 +213,7 @@ export function registerSystemSettings() {
     config: true,
     type: String,
     choices: { catalog: "SETTINGS.ShopBuySourceCatalog", shops: "SETTINGS.ShopBuySourceShops" },
-    default: "catalog"
+    default: "shops"
   });
 
     // Per-supplement catalog visibility overrides { name: true|false }. Un-listed = category default
