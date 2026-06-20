@@ -4,7 +4,6 @@ import { SortOrders, sortSkills } from "./skill-sort.js";
 import { btmFromBT, MARTIAL_ART_KEY_BY_ID, MARTIAL_ART_ID_BY_KEY, FNFF2_ONLY_MARTIAL_ART_IDS, FNFF2_ONLY_MARTIAL_ART_KEYS, isFnff2Enabled, isMartialArtSkillItem, martialArtDisplayName } from "../lookups.js";
 import { properCase, localize, getDefaultSkills, cwHasType, cwIsEnabled, cwIsSkinweave } from "../utils.js"
 import { acpaInitiativeRollData } from "../vehicle/vehicle-acpa.js";
-import { reputationEnabled } from "../settings.js";
 import { createCyberpunkRollCard, renderChatCard } from "../compat.js";
 
 /**
@@ -982,7 +981,6 @@ export class CyberpunkActor extends Actor {
    * GM enforces it). With no/ambiguous target it just posts this actor's Facedown total.
    */
   async rollFacedown() {
-    if (!reputationEnabled()) return;
     const mkRoll = (actor) => makeD10Roll(["@stats.cool.total", "@reputation"], actor.system).evaluate();
 
     const myRoll = await mkRoll(this);
@@ -1014,7 +1012,6 @@ export class CyberpunkActor extends Actor {
    * you; rolling at or under your Rep means they recognize you. GM-facing "does this NPC know me?" check.
    */
   async rollRecognition() {
-    if (!reputationEnabled()) return;
     const rep = Number(this.system?.reputation) || 0;
     const roll = await new Roll("1d10").evaluate();
     const recognized = roll.total <= rep;

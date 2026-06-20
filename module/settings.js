@@ -8,11 +8,6 @@ export function mmEnabled() {
   try { return !!game.settings.get(SCOPE, "mmEnabled"); } catch { return false; }
 }
 
-/** Reputation + Facedown feature (CP2020 p.54). On by default; tables that skip Rep can hide the panel. */
-export function reputationEnabled() {
-  try { return game.settings.get(SCOPE, "reputationEnabled") !== false; } catch { return true; }
-}
-
 /** The active vehicle ruleset, gated by the master MM toggle: forces "Core" whenever MM is off. */
 export function effectiveVehicleRuleSystem() {
   try { return mmEnabled() ? (game.settings.get(SCOPE, "vehicleRuleSystem") || "Core") : "Core"; }
@@ -442,16 +437,6 @@ export function registerSystemSettings() {
   game.settings.register("cyberpunk2020", "autoRangefinding", {
     name: "SETTINGS.AutoRangefinding",
     hint: "SETTINGS.AutoRangefindingHint",
-    scope:   "world",
-    config:  true,
-    type:    Boolean,
-    default: true,
-  });
-
-  // --- Reputation + Facedown (CP2020 p.54) ---
-  game.settings.register("cyberpunk2020", "reputationEnabled", {
-    name: "SETTINGS.ReputationEnabled",
-    hint: "SETTINGS.ReputationEnabledHint",
     scope:   "world",
     config:  true,
     type:    Boolean,

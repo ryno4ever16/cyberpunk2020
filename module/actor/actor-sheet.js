@@ -8,7 +8,7 @@ import { getAutoLayerOrder } from "../combat/armor-layers.js";
 import { openShopForPlayer, purchaseByDrop } from "../shop/catalog.js";
 import { classifyService, payService } from "../shop/services.js";
 import { ipCost, ipLockState, canEditSkillLevels, levelUpSkill, toggleSkillLock } from "../ip/ip.js";
-import { shoppingEnabled, ipEnabled, ipSystem, ipShowPending, reputationEnabled } from "../settings.js";
+import { shoppingEnabled, ipEnabled, ipSystem, ipShowPending } from "../settings.js";
 
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -95,8 +95,6 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       sheetData.ammoTracking = this.actor.getFlag("cyberpunk2020", "ammoTracking") ?? true;
       // Whether to show the "Shop" button on the gear tab (world setting; default off).
       sheetData.showShop = shoppingEnabled();
-      // Reputation + Facedown panel (Combat tab; world setting, default on).
-      sheetData.reputationEnabled = reputationEnabled();
     }
 
     sheetData.cyberwareSegmentsRight = [

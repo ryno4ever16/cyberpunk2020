@@ -6,9 +6,8 @@ import { login, evalGameOrThrow, setupSceneWithToken, waitForCanvasScene, cleanu
  * Reputation + Facedown (CP2020 p.54). Verifies the new social feature end-to-end on the live world:
  *   - the additive `system.reputation` field defaults to 0 and persists;
  *   - Recognition resolves the ≤ Rep (recognized) vs > Rep (not) branches;
- *   - solo Facedown posts a card; targeted Facedown is contested and names the winner + the −3 reminder;
- *   - the reputationEnabled setting gates the rolls (no card when off).
- * Self-cleans (deletes the cards + tagged actors/scene, restores the setting).
+ *   - solo Facedown posts a card; targeted Facedown is contested and names the winner + the −3 reminder.
+ * Self-cleans (deletes the cards + tagged actors/scene).
  */
 
 test.describe.configure({ mode: "serial" });
@@ -29,10 +28,8 @@ test.afterAll(async () => {
   if (gmCtx) await gmCtx.close();
 });
 
-test("Reputation field + Facedown/Recognition rolls + setting gate", async () => {
+test("Reputation field + Facedown/Recognition rolls", async () => {
   const res = await evalGameOrThrow(gmPage, async (arg) => {
-    const SCOPE = "cyberpunk2020";
-    const origEnabled = game.settings.get(SCOPE, "reputationEnabled");
     const createdMsgIds = [];
     const out = {};
 
@@ -52,7 +49,6 @@ test("Reputation field + Facedown/Recognition rolls + setting gate", async () =>
     };
 
     try {
-      await game.settings.set(SCOPE, "reputationEnabled", true);
       const me = game.actors.get(arg.actorId);
 
       // 1. Schema: defaults to 0 and persists.
@@ -90,13 +86,7 @@ test("Reputation field + Facedown/Recognition rolls + setting gate", async () =>
       out.targetCount = game.user.targets.size;
       out.facedownContested = await capture(() => me.rollFacedown());
       out.meName = me.name; out.foeName = foe.name;
-
-      // 5. Setting OFF → rolls no-op (no card).
-      [...game.user.targets].forEach(t => t.setTarget(false, { releaseOthers: false }));
-      await game.settings.set(SCOPE, "reputationEnabled", false);
-      out.facedownDisabled = await capture(() => me.rollFacedown());
     } finally {
-      await game.settings.set(SCOPE, "reputationEnabled", origEnabled);
       if (createdMsgIds.length) await ChatMessage.deleteDocuments(createdMsgIds).catch(() => {});
     }
     return out;
@@ -125,7 +115,4 @@ test("Reputation field + Facedown/Recognition rolls + setting gate", async () =>
   expect(res.facedownContested.found, "contested facedown posts a card").toBe(true);
   expect(res.facedownContested.content, "card shows both combatants").toContain(res.foeName);
   expect(res.facedownContested.content, "winner is the high-Rep roller").toContain(`${res.meName} wins the Facedown`);
-
-  // Setting gate
-  expect(res.facedownDisabled.found, "setting OFF → no card").toBe(false);
 });

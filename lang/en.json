@@ -1564,9 +1564,6 @@
     "SETTINGS.AutoRangefinding": "Combat: Automated Rangefinding",
     "SETTINGS.AutoRangefindingHint": "When enabled, the range category (Point Blank / Close / Medium / Long / Extreme) is automatically determined from the distance between the attacking and target tokens on the canvas, using the scene's configured distance units. The attack modifier is set accordingly. Requires a targeted token.",
 
-    "SETTINGS.ReputationEnabled": "Social: Reputation & Facedown",
-    "SETTINGS.ReputationEnabledHint": "Show the Reputation panel on the Combat tab (a GM-set Rep score, plus Facedown and Recognition roll buttons). Facedown = both sides roll 1d10 + COOL + Reputation; the loser backs down or is at −3 vs that foe until they win a Facedown against them (CP2020 p.54). Turn off to hide it for tables that don't use Reputation.",
-
     "SETTINGS.HeadHitDoubling": "Combat: Head Hit Doubles Damage",
     "SETTINGS.HeadHitDoublingHint": "When enabled, a hit to the Head doubles the FINAL damage — after armor (SP) and BTM are applied. RAW: 'A head hit always doubles damage' (CP2020 p.103, the optional 'He Shrugs Off Head Hits' rule); the book gives no timing, so the wound that actually gets through is what doubles. Disable for groups that skip this rule.",
 

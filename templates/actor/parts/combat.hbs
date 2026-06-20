@@ -16,8 +16,7 @@
 </div>
     </section>
 
-    {{!-- Reputation + Facedown (CP2020 p.54). Gated by the reputationEnabled world setting. --}}
-    {{#if reputationEnabled}}
+    {{!-- Reputation + Facedown (CP2020 p.54). Passive sheet panel; tables that skip Rep just ignore it. --}}
     <section class="reputation-section">
         <div class="field reputation-field">
             <label title="{{CPLocal 'ReputationHint'}}">{{CPLocal "Reputation"}}</label>
@@ -29,7 +28,6 @@
             <button type="button" class="recognition-roll" title="{{CPLocal 'RecognitionHint'}}">👁 {{CPLocal "Recognition"}}</button>
         </div>
     </section>
-    {{/if}}
 
     <section class="armor-section">
         {{!-- TODO: It'd be quite possible to loop through hit locations here, I think. Would work well for other creatures. --}}
