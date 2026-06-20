@@ -18,13 +18,12 @@ test.afterAll(async ({ browser }) => {
   await ctx.close();
 });
 
-test("N1 cyberpsychosis state derives from effective EMP; toggle gates it", async ({ page }) => {
+test("N1 cyberpsychosis state derives from effective EMP", async ({ page }) => {
   await login(page, ACCOUNTS.gm);
   await cleanupTestData(page).catch(() => {});
 
   const R = await evalGameOrThrow(page, async () => {
     const flags = { cyberpunk2020: { __pwtest: true } };
-    await game.settings.set("cyberpunk2020", "cyberpsychosisTracking", true);
 
     const stateFor = async (empBase) => {
       const a = await Actor.create({ name: `__PW__CP${empBase}`, type: "character", flags, system: { stats: { emp: { base: empBase } } } });
@@ -37,13 +36,7 @@ test("N1 cyberpsychosis state derives from effective EMP; toggle gates it", asyn
     const socio     = await stateFor(1);
     const psycho    = await stateFor(0);
 
-    // Toggle off → no derived state at all.
-    await game.settings.set("cyberpunk2020", "cyberpsychosisTracking", false);
-    const off = await Actor.create({ name: "__PW__CPoff", type: "character", flags, system: { stats: { emp: { base: 2 } } } });
-    const offState = off.system.stats.emp.cyberpsychosis ?? null;
-    await game.settings.set("cyberpunk2020", "cyberpsychosisTracking", true); // restore
-
-    return { stable, cold, withdrawn, socio, psycho, offState };
+    return { stable, cold, withdrawn, socio, psycho };
   });
 
   expect(R.stable.state, "EMP 8 → stable").toBe("stable");
@@ -54,5 +47,4 @@ test("N1 cyberpsychosis state derives from effective EMP; toggle gates it", asyn
   expect(R.socio.state, "EMP 1 → sociopathic").toBe("sociopathic");
   expect(R.psycho.state, "EMP 0 → cyberpsychotic").toBe("cyberpsychotic");
   expect(R.psycho.lost, "EMP 0 is lost to the chrome").toBe(true);
-  expect(R.offState, "toggle off → no derived state").toBeNull();
 });

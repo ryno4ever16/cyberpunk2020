@@ -525,10 +525,8 @@ export class CyberpunkActor extends Actor {
     emp.total = preLossEmp - Math.floor(hl / 10);
 
     // Cyberpsychosis state (CP2020 p.73) — derived from effective Empathy after humanity loss.
-    // Humanity loss is always tracked above; this readout is gated by a setting some tables skip.
-    let cpTracking = false;
-    try { cpTracking = game.settings.get("cyberpunk2020", "cyberpsychosisTracking"); } catch (e) { cpTracking = false; }
-    if (cpTracking) {
+    // Humanity loss is always tracked above; this is a passive readout tables that skip it can ignore.
+    {
       const e = emp.total;
       let state, label;
       if      (e >= 4) { state = "stable";         label = localize("CpStateStable"); }
@@ -537,8 +535,6 @@ export class CyberpunkActor extends Actor {
       else if (e === 1) { state = "sociopathic";   label = localize("CpStateSociopathic"); }
       else              { state = "cyberpsychotic"; label = localize("CpStateCyberpsychotic"); }
       emp.cyberpsychosis = { emp: e, state, label, atRisk: e <= 3, lost: e <= 0 };
-    } else {
-      emp.cyberpsychosis = null;
     }
 
     const cwCheckMods = this._getCharacteristicChecksMods();

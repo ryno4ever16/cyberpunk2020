@@ -1635,9 +1635,6 @@
     "SETTINGS.DamageLayersEnabled": "Armor: Show Layer Compliance Panel",
     "SETTINGS.DamageLayersEnabledHint": "Displays a per-location armor layer summary on the Combat tab, showing layer order, hard/soft classification, RAW limit warnings (max 3 layers, max 1 hard), and extra EV penalties per New Rule 1.",
 
-    "SETTINGS.CyberpsychosisTracking": "Character: Cyberpsychosis Tracking",
-    "SETTINGS.CyberpsychosisTrackingHint": "Derives a cyberpsychosis state from the character's current Empathy (after humanity loss from cyberware): EMP 3 = cold, 2 = withdrawn, 1 = sociopathic, 0 or less = cyberpsycho (CP2020 p.73). Shown on the Cyberware tab. Humanity loss itself is always tracked; this only controls the derived state readout.",
-
     "SETTINGS.LimbCripplingDetailed": "Combat: Detailed Crippling Injuries (Listen Up)",
     "SETTINGS.LimbCripplingDetailedHint": "Optional grittier limb rule from Listen Up You Primitive Screwheads. Limb damage is DOUBLED (post-armor, before BTM); 6–12 net to a limb cripples it (unusable), 13+ destroys it (needs replacement). Replaces the Core flat '>8 = severed' limb branch when on. Requires 'Limb Loss & Head Wound Checks' to be enabled. Default OFF (Core rules).",
 

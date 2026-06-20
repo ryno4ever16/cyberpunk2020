@@ -672,16 +672,6 @@ export function registerSystemSettings() {
     default: false,
   });
 
-  // --- Character: Cyberpsychosis tracking (CP2020 p.73) ---
-  game.settings.register("cyberpunk2020", "cyberpsychosisTracking", {
-    name: "SETTINGS.CyberpsychosisTracking",
-    hint: "SETTINGS.CyberpsychosisTrackingHint",
-    scope:   "world",
-    config:  true,
-    type:    Boolean,
-    default: false,
-  });
-
   // --- Combat: Detailed crippling injuries (Listen Up, optional) ---
   game.settings.register("cyberpunk2020", "limbCripplingDetailed", {
     name: "SETTINGS.LimbCripplingDetailed",
