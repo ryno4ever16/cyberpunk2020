@@ -26,6 +26,7 @@ import { preloadHandlebarsTemplates } from "./templates.js";
 import { registerHandlebarsHelpers } from "./handlebars-helpers.js"
 import * as migrations from "./migrate.js";
 import { registerSystemSettings } from "./settings.js"
+import { PresetPicker } from "./dialog/preset-picker.js";
 import { getHtmlElement } from "./compat.js";
 import { registerDamageHooks } from "./combat/damage-hooks.js";
 import { registerMovementGate } from "./combat/movement-gate.js";
@@ -97,6 +98,18 @@ Hooks.once('init', async function () {
 
     // Register System Settings
     registerSystemSettings();
+
+    // GM-only "Settings Presets" menu button — applies one of the 4 playstyle tiers in one click.
+    // Registered here (not in settings.js) so settings.js stays free of ApplicationV2 imports and
+    // remains importable in the Node unit-test environment. See module/presets.js + preset-picker.js.
+    game.settings.registerMenu("cyberpunk2020", "presetMenu", {
+      name: "SETTINGS.PresetMenuName",
+      label: "SETTINGS.PresetMenuLabel",
+      hint: "SETTINGS.PresetMenuHint",
+      icon: "fa-solid fa-sliders",
+      type: PresetPicker,
+      restricted: true,
+    });
 
     registerHandlebarsHelpers();
 
