@@ -277,6 +277,22 @@ Hooks.once("ready", async function () {
 
   if (!game.user.isGM) return;
 
+  // First-run only: offer the settings-preset picker once, so a new GM lands on a sensible playstyle
+  // tier without hunting through System Settings. The flag flips immediately (before the window opens)
+  // so the picker never reappears on later loads even if rendering throws; the GM can always reopen it
+  // from the System Settings "Settings Presets" menu. The Augmented Edition module ports its own
+  // first-run picker (operating on its own settings), so the system defers to it when the module is
+  // active — exactly like the shop/IP hooks above. Guarded so a picker hiccup never blocks migration.
+  try {
+    if (!game.modules.get("cp2020-augmented")?.active &&
+        !game.settings.get("cyberpunk2020", "presetFirstRunDone")) {
+      await game.settings.set("cyberpunk2020", "presetFirstRunDone", true);
+      new PresetPicker().render(true);
+    }
+  } catch (err) {
+    console.error("Cyberpunk2020 | first-run preset picker failed (open it from System Settings)", err);
+  }
+
   // Focused, self-gating ammo-caliber cleanup. Runs on the current world without a version bump
   // and never touches the heavier migrations. Safe to fail — weapons still work via runtime
   // caliber normalization, so a hiccup here can never make a user think they've lost data.

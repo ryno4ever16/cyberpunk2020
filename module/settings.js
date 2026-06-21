@@ -131,6 +131,15 @@ export function registerSystemSettings() {
     default: ""
   });
 
+  // First-run flag for the one-time Settings Presets picker (see the ready hook in cyberpunk2020.js).
+  // Flipped true the first time a GM loads the world so the picker is offered once, never again.
+  game.settings.register("cyberpunk2020", "presetFirstRunDone", {
+    scope: "world",
+    config: false,
+    type: Boolean,
+    default: false
+  });
+
   game.settings.register("cyberpunk2020", "trainedSkillsFirst", {
     name: "SETTINGS.TrainedSkillsFirst",
     hint: "SETTINGS.TrainedSkillsFirstHint",
