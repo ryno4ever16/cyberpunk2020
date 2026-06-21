@@ -2,7 +2,7 @@
   "id": "cyberpunk2020",
   "title": "Cyberpunk 2020",
   "description": "R. Talsorian Games' Cyberpunk 2020 System",
-  "version": "1.2.1-beta",
+  "version": "1.2.6-beta",
   "compatibility": {
     "minimum": 13,
     "verified": 14,
@@ -151,7 +151,7 @@
     },
     {
       "name": "fashonware",
-      "label": "Fashonware",
+      "label": "Fashionware",
       "path": "./packs/fashonware.db",
       "system": "cyberpunk2020",
       "type": "Item"
@@ -579,7 +579,7 @@
   "primaryTokenAttribute": null,
   "secondaryTokenAttribute": null,
   "url": "https://github.com/ryno4ever16/cyberpunk2020",
-  "manifest": "https://raw.githubusercontent.com/ryno4ever16/cyberpunk2020/Beta-v1.2.0/system.json",
-  "download": "https://github.com/ryno4ever16/cyberpunk2020/releases/download/v1.2.1-beta/cyberpunk2020.zip"
+  "manifest": "https://raw.githubusercontent.com/ryno4ever16/cyberpunk2020/beta/system.json",
+  "download": "https://github.com/ryno4ever16/cyberpunk2020/releases/download/v1.2.6-beta/cyberpunk2020.zip"
 }
   
