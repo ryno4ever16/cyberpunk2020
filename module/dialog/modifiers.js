@@ -10,6 +10,10 @@ const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
  */
 export class ModifiersDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
+  // Pin this window above the sheet it was opened from so clicking the sheet doesn't bury it.
+  // Read by module/pin-window.js (registerPinnedSubwindows). See [[pin-window]].
+  static CP_PIN_ON_TOP = true;
+
   /**
    * @param {Object} object  — legacy first argument (actor); kept for call-site compat but not used by the dialog itself
    * @param {Object} options — per-instance options: weapon, modifierGroups, targetTokens, extraMod,

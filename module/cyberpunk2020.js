@@ -41,12 +41,17 @@ import { registerVehicleTargetingHandlers } from "./vehicle/vehicle-targeting.js
 import { registerMissileFlightHooks } from "./vehicle/vehicle-missile-flight.js";
 import { registerPopoutCompat } from "./popout-compat.js";
 import { registerShimmerOnReopen } from "./shimmer.js";
+import { registerPinnedSubwindows } from "./pin-window.js";
 import { openAcpaMeleeDialog, registerAcpaCombatHooks, repairAcpa } from "./vehicle/vehicle-acpa-combat.js";
 
 Hooks.once('init', async function () {
 
     // Shimmer any window that's re-opened while already on screen (actor/item/compendium sheets, …).
     registerShimmerOnReopen();
+
+    // Keep spawned child windows (confirm dialogs + the Attack Modifiers window) floating above the
+    // ordinary window they were opened from, so clicking the parent never buries them.
+    registerPinnedSubwindows();
 
     // Place classes in system namespace for later reference.
     game.cyberpunk = {
