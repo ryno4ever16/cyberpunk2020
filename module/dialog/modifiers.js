@@ -131,6 +131,9 @@ export class ModifiersDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       targetTokens: this._targetTokens,
       defaultValues,
       isRanged: this._weapon?.isRanged?.() ?? false,
+      // Per-actor ammo-tracking flag (default ON). Unchecked here = Free Fire (weapon ignores ammo).
+      // Relocated from the combat-tab Weapons header; the toggle lives in this dialog now.
+      ammoTracking: (this._weapon?.actor?.getFlag?.("cyberpunk2020", "ammoTracking")) ?? true,
       shotsLeft: (this._weapon?._getWeaponSystem?.().shotsLeft) ?? (this._weapon?.system.shotsLeft) ?? 0,
       showAdvDis: this._showAdvDis,
       advantage: this._advantage,
@@ -149,6 +152,21 @@ export class ModifiersDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     for (const inp of root.querySelectorAll('input[type="number"], input[type="text"]')) {
       inp.addEventListener("focus", () => { try { inp.select(); } catch (_) {} });
     }
+
+    // ── AMMO TRACKING / FREE FIRE ───────────────────────────────────────────
+    // Per-actor toggle, relocated here from the combat-tab Weapons header. Unchecked = Free Fire
+    // (the weapon ignores ammo). Writes the same flags.cyberpunk2020.ammoTracking the fire/reload
+    // paths read, so the behaviour is unchanged — only the control moved. The label flips to match.
+    root.querySelector(".cp-ammo-tracking")?.addEventListener("change", async (ev) => {
+      const on = !!ev.target.checked;
+      const label = root.querySelector(".cp-ammo-tracking-label");
+      if (label) label.textContent = localize(on ? "AmmoTracking" : "FreeFire");
+      try {
+        await this._weapon?.actor?.setFlag("cyberpunk2020", "ammoTracking", on);
+      } catch (e) {
+        console.warn("Cyberpunk2020 | ammo-tracking toggle failed", e);
+      }
+    });
 
     // ── RELOAD ──────────────────────────────────────────────────────────────
     root.querySelector(".reload")?.addEventListener("click", async (ev) => {

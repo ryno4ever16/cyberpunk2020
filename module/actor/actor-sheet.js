@@ -91,8 +91,6 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       const StunDeathMod = foundry.utils.getProperty(system, "StunDeathMod") || 0;
       sheetData.StunDeathMod = StunDeathMod;
 
-      // Per-actor ammo tracking (default ON). Off = "Free Fire" (weapons ignore ammo).
-      sheetData.ammoTracking = this.actor.getFlag("cyberpunk2020", "ammoTracking") ?? true;
       // Whether to show the "Shop" button on the gear tab (world setting; default off).
       sheetData.showShop = shoppingEnabled();
     }
@@ -1126,13 +1124,6 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     if (!editable) return;
     if (root.dataset.cpActorCustomControlsBound === "1") return;
     root.dataset.cpActorCustomControlsBound = "1";
-
-    // Ammo-tracking / Free Fire toggle (per-actor flag).
-    root.addEventListener("change", async (event) => {
-      if (event.target?.matches?.(".cp-ammo-tracking")) {
-        await this.actor.setFlag("cyberpunk2020", "ammoTracking", event.target.checked);
-      }
-    });
 
     root.addEventListener("click", async (event) => {
       const target = event.target;

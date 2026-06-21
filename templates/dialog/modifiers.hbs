@@ -26,6 +26,10 @@
                value="{{shotsLeft}}"
                readonly />
       </div>
+      <div class="field full-width cp-ammo-tracking-toggle" title="{{CPLocal 'AmmoTrackingHint'}}">
+        <label class="cp-ammo-tracking-label">{{#if ammoTracking}}{{CPLocal "AmmoTracking"}}{{else}}{{CPLocal "FreeFire"}}{{/if}}</label>
+        <input type="checkbox" class="cp-ammo-tracking" {{#if ammoTracking}}checked{{/if}}>
+      </div>
     </div>
     {{/if}}
 
