@@ -2,7 +2,7 @@ import { makeD10Roll, Multiroll } from "../dice.js";
 import { isFumbleRoll, buildSkillFumbleData } from "../utils.js";
 import { SortOrders, sortSkills } from "./skill-sort.js";
 import { btmFromBT, MARTIAL_ART_KEY_BY_ID, MARTIAL_ART_ID_BY_KEY, FNFF2_ONLY_MARTIAL_ART_IDS, FNFF2_ONLY_MARTIAL_ART_KEYS, isFnff2Enabled, isMartialArtSkillItem, martialArtDisplayName } from "../lookups.js";
-import { properCase, localize, getDefaultSkills, cwHasType, cwIsEnabled, cwIsSkinweave } from "../utils.js"
+import { properCase, localize, getDefaultSkills, cwHasType, cwIsEnabled, cwIsSkinweave, isAwarenessSkill } from "../utils.js"
 import { acpaInitiativeRollData } from "../vehicle/vehicle-acpa.js";
 import { createCyberpunkRollCard, renderChatCard } from "../compat.js";
 
@@ -823,7 +823,7 @@ export class CyberpunkActor extends Actor {
     const parts = [
       CyberpunkActor.realSkillValue(skill),
       skill.system.stat ? `@stats.${skill.system.stat}.total` : null,
-      skill.name === localize("SkillAwarenessNotice") ? "@CombatSenseMod" : null,
+      isAwarenessSkill(skill) ? "@CombatSenseMod" : null,
       extraMod || null
     ].filter(Boolean);
 

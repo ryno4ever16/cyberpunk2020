@@ -267,6 +267,10 @@ export function registerDamageHooks() {
 
 function _hookWeaponFired() {
   Hooks.on("cyberpunk2020.weaponFired", async (payload) => {
+    // Defense-in-depth: if a co-resident automation layer already claimed this shot, stand down so
+    // damage isn't applied twice. The claim is set below, once THIS layer commits — self-coordinating:
+    // whichever layer runs first and commits wins; the others see the claim and return.
+    if (payload.handled) return;
     // Area-effect ammo is owned by the dedicated explosion/spread hooks. Skip the single-target
     // apply path here so the primary target isn't damaged twice. The per-token blast/pattern
     // re-emits plain weaponFired payloads (no effectTypes/spreadMode), which fall through normally.
@@ -293,6 +297,10 @@ function _hookWeaponFired() {
     const gmHandles = game.user.isGM && !ownerOnline && game.users.activeGM?.id === game.user.id;
     if (!isMyShot && !gmHandles) return;
     if (!payload.areaDamages || Object.keys(payload.areaDamages).length === 0) return;
+
+    // This client + layer is committing to apply this shot — claim it (synchronously, before any
+    // await) so a co-resident layer's later weaponFired listener stands down (see the top guard).
+    payload.handled = "cyberpunk2020";
 
     // PATH A: we have a target — open dialog (or auto-apply) immediately
     if (payload.targetTokenId || payload.targetActorId) {

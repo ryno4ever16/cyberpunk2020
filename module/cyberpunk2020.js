@@ -27,7 +27,20 @@ import { registerHandlebarsHelpers } from "./handlebars-helpers.js"
 import * as migrations from "./migrate.js";
 import { registerSystemSettings } from "./settings.js"
 import { PresetPicker } from "./dialog/preset-picker.js";
-import { getHtmlElement } from "./compat.js";
+import { getHtmlElement, createCyberpunkChatMessage, rollToCyberpunkChatMessage, getPublicMessageMode } from "./compat.js";
+
+// Helpers published on game.cyberpunk.api for add-on modules (see the api object below).
+import { localize, localizeParam, tryLocalize, rollLocation } from "./utils.js";
+import {
+    defaultHitLocations, defaultAreaLookup, strengthDamageBonus, isFnff2Enabled,
+    getFnff2DamageBonusSymbol, getMartialActionBonus, martialActions,
+    MARTIAL_ART_ID_BY_KEY, MARTIAL_ART_KEY_BY_ID, FNFF2_ONLY_MARTIAL_ART_KEYS
+} from "./lookups.js";
+import {
+    stringField, numberField, booleanField, arrayField, objectField, htmlField,
+    normalizeArray, normalizeBoolean, mergeDefaults
+} from "./data/schema-helpers.js";
+import { DEFAULT_HIT_LOCATIONS, STAT_KEYS, cloneSystemDefault } from "./constants.js";
 import { registerDamageHooks } from "./combat/damage-hooks.js";
 import { registerMovementGate } from "./combat/movement-gate.js";
 import { registerSaveRollHandlers, postSavePrompts } from "./combat/save-rolls.js";
@@ -64,7 +77,20 @@ Hooks.once('init', async function () {
         // Vehicle API: deploy a scalable handle token, board/disembark crew, and roll control/maneuver.
         vehicles: { deploy: deployVehicleToScene, board: boardVehicle, disembark, controlRoll: openControlRollDialog, applyDamage: openVehicleDamageDialog, weaponToPen: weaponToPenetration, toHitMod: vehicleToHitModifier, fire: openVehicleFireDialog, seedWeapons: seedVehicleWeaponCompendium, seedAcpaSystems: seedAcpaSystemCompendium, acpaMelee: openAcpaMeleeDialog, acpaRepair: repairAcpa },
         // IP tracker API: open the GM Improvement-Points tracker.
-        ip: { openTracker: openIpTracker }
+        ip: { openTracker: openIpTracker },
+        // Public helper API for add-on modules: stable references to existing core helpers, so a
+        // module can reuse the system's functionality instead of duplicating it. Purely additive.
+        api: {
+            i18n:      { localize, localizeParam, tryLocalize },
+            schema:    { stringField, numberField, booleanField, arrayField, objectField, htmlField,
+                         normalizeArray, normalizeBoolean, mergeDefaults },
+            lookups:   { defaultHitLocations, defaultAreaLookup, strengthDamageBonus, isFnff2Enabled,
+                         getFnff2DamageBonusSymbol, getMartialActionBonus, martialActions,
+                         MARTIAL_ART_ID_BY_KEY, MARTIAL_ART_KEY_BY_ID, FNFF2_ONLY_MARTIAL_ART_KEYS },
+            chat:      { createCyberpunkChatMessage, rollToCyberpunkChatMessage, getPublicMessageMode },
+            dice:      { rollLocation },
+            constants: { DEFAULT_HIT_LOCATIONS, STAT_KEYS, cloneSystemDefault }
+        }
     };
 
     // Define custom Document classes

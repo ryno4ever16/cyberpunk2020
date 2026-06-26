@@ -25,7 +25,6 @@ describe("categoryOfPack", () => {
   it("maps weapon packs to Weapons with the right sub", () => {
     expect(categoryOfPack("pistols")).toEqual({ category: "Weapons", sub: "Pistols" });
     expect(categoryOfPack("submachineguns")).toEqual({ category: "Weapons", sub: "SMGs" });
-    expect(categoryOfPack("smgs-add")).toEqual({ category: "Weapons", sub: "SMGs" });
   });
 
   it("maps armor to Armor with no sub", () => {

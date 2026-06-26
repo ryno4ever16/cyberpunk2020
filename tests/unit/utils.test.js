@@ -23,6 +23,8 @@ import {
   cwHasType,
   cwIsEnabled,
   cwIsSkinweave,
+  isCombatSenseSkill,
+  isAwarenessSkill,
   reliabilityThreshold,
   deleteFieldUpdate,
 } from "../../module/utils.js";
@@ -241,6 +243,44 @@ describe("cwIsSkinweave", () => {
     expect(cwIsSkinweave({})).toBe(false);
     expect(cwIsSkinweave(null)).toBe(false);
     expect(cwIsSkinweave(undefined)).toBe(false);
+  });
+});
+
+// ─── isCombatSenseSkill / isAwarenessSkill (by stable _id, never name) ──────────
+
+describe("isCombatSenseSkill", () => {
+  it("detects Combat Sense by its stable _id in both the EN and RU role-skills packs", () => {
+    expect(isCombatSenseSkill({ type: "skill", _id: "BjBZ8zc7wh52MSwK", name: "Combat Sense" })).toBe(true);
+    // RU role-skills pack uses a different _id and a different name — both must resolve.
+    expect(isCombatSenseSkill({ type: "skill", _id: "L2hC8GzV0mRqE7xS", name: "Чувство Боя" })).toBe(true);
+  });
+
+  it("is keyed on _id, not name — a renamed Combat Sense still resolves; a same-named imposter does not", () => {
+    // Renamed by the user: wrong name, right id → still true (the whole point of the fix).
+    expect(isCombatSenseSkill({ type: "skill", _id: "BjBZ8zc7wh52MSwK", name: "My Cool Sense" })).toBe(true);
+    // A different skill the player happened to name "Combat Sense" → false (the old name check broke here).
+    expect(isCombatSenseSkill({ type: "skill", _id: "zzzzzzzzzzzzzzzz", name: "Combat Sense" })).toBe(false);
+  });
+
+  it("resolves via flags.core.sourceId and ignores non-skill items / nullish input", () => {
+    expect(isCombatSenseSkill({ type: "skill", flags: { core: { sourceId: "Compendium.cyberpunk2020.role-skills-en.Item.BjBZ8zc7wh52MSwK" } } })).toBe(true);
+    expect(isCombatSenseSkill({ type: "weapon", _id: "BjBZ8zc7wh52MSwK" })).toBe(false);
+    expect(isCombatSenseSkill(null)).toBe(false);
+    expect(isCombatSenseSkill(undefined)).toBe(false);
+  });
+});
+
+describe("isAwarenessSkill", () => {
+  it("detects Awareness/Notice by its stable _id (shared across EN and RU)", () => {
+    expect(isAwarenessSkill({ type: "skill", _id: "jBfPdSDGwvIEq66p", name: "Awareness/Notice" })).toBe(true);
+    expect(isAwarenessSkill({ type: "skill", _id: "jBfPdSDGwvIEq66p", name: "Внимательность" })).toBe(true);
+  });
+
+  it("does not match other skills or a same-named imposter, and is null-safe", () => {
+    expect(isAwarenessSkill({ type: "skill", _id: "BjBZ8zc7wh52MSwK", name: "Awareness/Notice" })).toBe(false);
+    expect(isAwarenessSkill({ type: "skill", _id: "jBfPdSDGwvIEq66p" })).toBe(true);
+    expect(isAwarenessSkill({})).toBe(false);
+    expect(isAwarenessSkill(null)).toBe(false);
   });
 });
 

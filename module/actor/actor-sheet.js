@@ -1,5 +1,5 @@
 import { martialOptions, martialActionGroups, meleeAttackTypes, meleeBonkOptions, rangedModifiers, weaponTypes, FNFF2_ONLY_MARTIAL_ART_IDS, isFnff2Enabled, ANATOMY_IMAGES, DEFAULT_ANATOMY_KEY } from "../lookups.js"
-import { deleteFieldUpdate, localize, localizeParam, tryLocalize, cwHasType, cwIsEnabled, cwIsSkinweave } from "../utils.js"
+import { deleteFieldUpdate, localize, localizeParam, tryLocalize, cwHasType, cwIsEnabled, cwIsSkinweave, isCombatSenseSkill } from "../utils.js"
 import { ModifiersDialog } from "../dialog/modifiers.js"
 import { SortOrders, sortSkills } from "./skill-sort.js";
 import { getHtmlElement, getRichEditorHTML, itemFromDropData, saveRichEditorHTML } from "../compat.js";
@@ -1004,11 +1004,11 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       }
     }
 
-    const combatSenseItemFind =
-      this.actor.items.find(item => item.type === 'skill' && item.name.includes('Combat'))?.system.level
-      ?? this.actor.items.find(item => item.type === 'skill' && item.name.includes('Боя'))?.system.level
-      ?? 0;
-    await this.actor.update({ "system.CombatSenseMod": Number(combatSenseItemFind) }, { render: false });
+    // Combat Sense (Solo) adds its level to Initiative + Awareness rolls — find it by stable _id,
+    // never by name (the old name match hardcoded the EN + RU spellings and broke in any other locale).
+    const combatSenseLevel =
+      this.actor.items.find(item => isCombatSenseSkill(item))?.system.level ?? 0;
+    await this.actor.update({ "system.CombatSenseMod": Number(combatSenseLevel) }, { render: false });
 
     if (this.rendered) this.render(true);
 

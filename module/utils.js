@@ -451,6 +451,20 @@ const _AIRCRAFT_CONTROL_SKILL_IDS = new Set([
   "lEo2rOVOOSIl3np3"  // Fixed Wing
 ]);
 
+// Combat Sense (Solo special ability): its level is added to Initiative and Awareness/Notice rolls.
+// Keyed by stable _id, never name — names are renamed by users and rewritten by localization. The RU
+// role-skills pack uses a different _id than EN (the EN/RU default-skills packs happen to share ids,
+// but role-skills do not), so both Combat Sense ids are listed.
+const _COMBAT_SENSE_SKILL_IDS = new Set([
+  "BjBZ8zc7wh52MSwK", // Combat Sense   (role-skills-en)
+  "L2hC8GzV0mRqE7xS"  // Чувство Боя    (role-skills-ru)
+]);
+
+// Awareness/Notice — the skill that receives the Combat Sense bonus. EN + RU share this _id.
+const _AWARENESS_SKILL_IDS = new Set([
+  "jBfPdSDGwvIEq66p"  // Awareness/Notice (default-skills-en + default-skills-ru)
+]);
+
 // Control Loss Table
 const _TABLE_CONTROL_LOSS = [
   { min: 1, max: 2, key: "Fumble.ControlLoss.1_2" },
@@ -493,36 +507,35 @@ function _getSkillBaseId(skill) {
   return null;
 }
 
-function _isVehicleControlSkillById(skill) {
+// Shared identity check for "is this a particular skill": match the skill's stable _id (or its
+// compendium sourceId, still an _id) against a set of known ids. Keyed on _id, never name, so renames
+// and localization — which rewrite item names — can't break detection. Used by every is*Skill helper.
+function _skillIdInSet(skill, ids) {
   const baseId = _getSkillBaseId(skill);
-  if (!baseId) return false;
-
-  // Direct match by _id
-  if (_VEHICLE_CONTROL_SKILL_IDS.has(baseId)) return true;
-
-  // Fallback: compendium sourceId (still an _id)
+  if (baseId && ids.has(baseId)) return true;
   const src = skill?.flags?.core?.sourceId;
-  if (src && typeof src === "string") {
-    const srcId = src.split(".").pop();
-    if (_VEHICLE_CONTROL_SKILL_IDS.has(srcId)) return true;
-  }
-
+  if (src && typeof src === "string" && ids.has(src.split(".").pop())) return true;
   return false;
 }
 
+function _isVehicleControlSkillById(skill) {
+  return _skillIdInSet(skill, _VEHICLE_CONTROL_SKILL_IDS);
+}
+
 function _isAircraftControlSkillById(skill) {
-  const baseId = _getSkillBaseId(skill);
-  if (!baseId) return false;
+  return _skillIdInSet(skill, _AIRCRAFT_CONTROL_SKILL_IDS);
+}
 
-  if (_AIRCRAFT_CONTROL_SKILL_IDS.has(baseId)) return true;
+/** True if `skill` is the Combat Sense special ability (by stable _id, EN or RU pack). Its level
+ *  drives system.CombatSenseMod, which is added to Initiative and Awareness/Notice rolls. */
+export function isCombatSenseSkill(skill) {
+  return skill?.type === "skill" && _skillIdInSet(skill, _COMBAT_SENSE_SKILL_IDS);
+}
 
-  const src = skill?.flags?.core?.sourceId;
-  if (src && typeof src === "string") {
-    const srcId = src.split(".").pop();
-    if (_AIRCRAFT_CONTROL_SKILL_IDS.has(srcId)) return true;
-  }
-
-  return false;
+/** True if `skill` is the Awareness/Notice skill (by stable _id) — the recipient of the Combat Sense
+ *  bonus on its rolls. */
+export function isAwarenessSkill(skill) {
+  return skill?.type === "skill" && _skillIdInSet(skill, _AWARENESS_SKILL_IDS);
 }
 
 function _skillTableByStat(stat) {
