@@ -25,7 +25,7 @@
     "equipped": true,
     "source": "Chromebook 1 p.32",
     "surgCode": "N",
-    "humanityCost": "0.5",
+    "humanityCost": "1",
     "cyberwareType": "CYBERHAND",
     "cyberwareSubtype": "OPTION",
     "abbrev": "CDML",

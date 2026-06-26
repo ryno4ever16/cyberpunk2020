@@ -40,7 +40,7 @@
     "concealability": "ConcealJacket",
     "availability": "Common",
     "ammoType": "CAL410",
-    "damage": "2D6",
+    "damage": "2D6+1",
     "rangeDamages": {
       "pointBlank": "",
       "close": "",
@@ -54,7 +54,7 @@
     "shots": "6",
     "rof": "1",
     "reliability": "Standard",
-    "range": "50",
+    "range": "25",
     "attackType": "Auto",
     "attackSkill": "Handgun"
   },

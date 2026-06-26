@@ -25,7 +25,7 @@
     "equipped": true,
     "source": "Chromebook 1 p.34",
     "surgCode": "N",
-    "humanityCost": "1d6+3",
+    "humanityCost": "0",
     "cyberwareType": "CYBERLIMB",
     "cyberwareSubtype": "OPTION",
     "abbrev": "GJ",

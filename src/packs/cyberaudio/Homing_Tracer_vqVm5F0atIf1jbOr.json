@@ -5,7 +5,7 @@
   "system": {
     "flavor": "Can follow tracer up to 1km distant",
     "notes": "",
-    "cost": "100",
+    "cost": "200",
     "weight": null,
     "equipped": true,
     "source": "Cyberpunk 2020 p.88",

@@ -36,7 +36,7 @@
     "equipped": true,
     "source": "Eurosource p.58",
     "weaponType": "Pistol",
-    "accuracy": "2",
+    "accuracy": "1",
     "concealability": "ConcealJacket",
     "availability": "Poor",
     "ammoType": "9 mm",
@@ -53,7 +53,7 @@
     "shotsLeft": "18",
     "shots": "18",
     "rof": "2",
-    "reliability": "VeryReliable",
+    "reliability": "Standard",
     "range": "50",
     "attackType": "Auto",
     "attackSkill": "Handgun"

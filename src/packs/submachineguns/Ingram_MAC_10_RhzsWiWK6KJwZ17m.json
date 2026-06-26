@@ -31,7 +31,7 @@
   "system": {
     "flavor": "A very small SMG used by covert units and terrorists. It can be easily silenced. However, its very large ammo size makes it very difficult to control when on full auto.",
     "notes": "",
-    "cost": "200",
+    "cost": "",
     "weight": "1",
     "equipped": true,
     "source": "Cyberpunk 2020 p.66",

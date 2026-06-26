@@ -5,7 +5,7 @@
   "system": {
     "flavor": "Allows Endurance checks at 2 DIFF level slower",
     "notes": "",
-    "cost": "100",
+    "cost": "200",
     "weight": null,
     "equipped": true,
     "source": "Cyberpunk 2020 p.81",

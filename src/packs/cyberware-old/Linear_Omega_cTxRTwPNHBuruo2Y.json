@@ -25,7 +25,7 @@
     "equipped": true,
     "source": "Cyberpunk 2020 p.79",
     "surgCode": "MA",
-    "humanityCost": "2d6",
+    "humanityCost": "3d6",
     "cyberwareType": "LINEAR FRAMES",
     "cyberwareSubtype": "",
     "abbrev": "OMEGA",

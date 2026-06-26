@@ -10,7 +10,7 @@
     "equipped": true,
     "source": "Cyberpunk 2020 p.88",
     "surgCode": "N",
-    "humanityCost": "1",
+    "humanityCost": "0.5",
     "cyberwareType": "CYBERAUDIO",
     "cyberwareSubtype": "OPTION",
     "abbrev": "LD",

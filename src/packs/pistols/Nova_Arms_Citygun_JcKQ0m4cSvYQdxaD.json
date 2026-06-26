@@ -52,7 +52,7 @@
     "ap": false,
     "shotsLeft": "7",
     "shots": "7",
-    "rof": 3,
+    "rof": 1,
     "reliability": "VeryReliable",
     "range": "50",
     "attackType": "Auto",

@@ -31,8 +31,8 @@
   "system": {
     "flavor": "Hunting rifle made in USA",
     "notes": "",
-    "cost": "330",
-    "weight": "3.5",
+    "cost": "",
+    "weight": "2",
     "equipped": true,
     "source": "Cyberpunk 2020 p.66",
     "weaponType": "Rifle",
@@ -40,7 +40,7 @@
     "concealability": "ConcealNoHide",
     "availability": "Common",
     "ammoType": ".30-06",
-    "damage": "5D6+3",
+    "damage": "5d6+1",
     "rangeDamages": {
       "pointBlank": "",
       "close": "",

@@ -10,7 +10,7 @@
     "equipped": true,
     "source": "Cyberpunk 2020 p.82",
     "surgCode": "N",
-    "humanityCost": "1",
+    "humanityCost": "2",
     "cyberwareType": "NEURALWARE",
     "cyberwareSubtype": "OPTION",
     "abbrev": "DLNK",

@@ -1,6 +1,6 @@
 {
   "_id": "alaT1Zav1cW7j2PH",
-  "name": "Kevlar T-Shirt",
+  "name": "Kevlar T-Shirt/Vest",
   "type": "armor",
   "flags": {},
   "img": "systems/cyberpunk2020/img/armor-icon.svg",
@@ -30,7 +30,7 @@
     "flavor": "Section: Fitted for The Future p.66",
     "notes": "",
     "cost": "90",
-    "weight": "0",
+    "weight": "1",
     "equipped": true,
     "source": "Cyberpunk 2020 p.66",
     "coverage": {

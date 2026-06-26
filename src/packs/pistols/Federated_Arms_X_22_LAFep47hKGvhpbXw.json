@@ -31,15 +31,15 @@
   "system": {
     "flavor": "Light semi-auto pistol made in USA",
     "notes": "",
-    "cost": "150",
-    "weight": "0.75",
+    "cost": "60",
+    "weight": "0.5",
     "equipped": true,
     "source": "Cyberpunk 2020 p.62",
     "weaponType": "Pistol",
     "accuracy": "0",
     "concealability": "ConcealJacket",
     "availability": "Excellent",
-    "ammoType": "6 mm",
+    "ammoType": "6mm",
     "damage": "1D6+1",
     "rangeDamages": {
       "pointBlank": "",

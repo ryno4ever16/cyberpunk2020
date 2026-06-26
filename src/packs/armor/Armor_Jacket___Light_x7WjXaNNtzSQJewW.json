@@ -1,6 +1,6 @@
 {
   "_id": "x7WjXaNNtzSQJewW",
-  "name": "Armor Jacket – Light",
+  "name": "Light Armor Jacket",
   "type": "armor",
   "flags": {},
   "img": "systems/cyberpunk2020/img/armor-icon.svg",
@@ -30,7 +30,7 @@
     "flavor": "Section: Fitted for The Future p.66",
     "notes": "",
     "cost": "150",
-    "weight": "0",
+    "weight": "3",
     "equipped": true,
     "source": "Cyberpunk 2020 p.66",
     "coverage": {

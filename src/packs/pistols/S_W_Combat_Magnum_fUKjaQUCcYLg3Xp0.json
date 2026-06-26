@@ -30,7 +30,7 @@
   "system": {
     "flavor": "Heavy .357 revolver (old gun).",
     "notes": "",
-    "cost": "250",
+    "cost": "",
     "weight": "1",
     "equipped": true,
     "source": "Cyberpunk 2020 p.66",
@@ -39,7 +39,7 @@
     "concealability": "ConcealJacket",
     "availability": "Common",
     "ammoType": ".357",
-    "damage": "2D6+3",
+    "damage": "2d6+3",
     "rangeDamages": {
       "pointBlank": "",
       "close": "",
