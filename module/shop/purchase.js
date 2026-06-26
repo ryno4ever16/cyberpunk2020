@@ -1,4 +1,4 @@
-import { canShop } from "../settings.js";
+import { canShop, getShopPriceOverride } from "../settings.js";
 import { localize } from "../utils.js";
 
 /**
@@ -19,6 +19,55 @@ export const FASHION_STYLES = [
 export function styleMultOf(key) { return FASHION_STYLES.find(s => s.key === key)?.mult ?? 1; }
 /** Stable English display label for a stored style key (unknown/empty → ""). Localize via catalog.js `shopStyleLabel`. */
 export function styleLabelOf(key) { return FASHION_STYLES.find(s => s.key === key)?.label ?? ""; }
+
+/**
+ * Is `raw` a usable price? Coerces to a finite, NON-NEGATIVE number from a non-empty source (0 allowed).
+ * Used for GM-set values (price overrides / the GM-entered request price), where 0 is a deliberate
+ * "free". For the COMPENDIUM cost use `isPositivePrice` instead — see the note in resolveCatalogPrice.
+ * @param {*} raw
+ * @returns {boolean}
+ */
+export function isValidPrice(raw) {
+  if (raw === null || raw === undefined) return false;
+  if (typeof raw === "number") return Number.isFinite(raw) && raw >= 0;
+  const s = String(raw).trim();
+  if (s === "") return false;
+  const n = Number(s);
+  return Number.isFinite(n) && n >= 0;
+}
+
+/** Is `raw` a usable POSITIVE price (> 0)? The trust gate for a base-compendium cost. */
+export function isPositivePrice(raw) {
+  return isValidPrice(raw) && Number(raw) > 0;
+}
+
+/**
+ * Resolve the unit price of a catalog item via a SELF-DISENGAGING precedence:
+ *   1. the compendium cost, if a POSITIVE number  (source: "compendium")
+ *   2. else a GM price override for this _id, if set (0 allowed = free)  (source: "override")
+ *   3. else unpurchasable  (source: "none", price: null)
+ *
+ * ⚠ Why POSITIVE (not just numeric) for the compendium: the item DataModel defaults a missing/blank
+ * `cost` to the number **0** — so `0` means "unpriced", NOT "free" (every genuinely-priced item is >0;
+ * the CP2020 "Old Guns Never Die" / "Varies" / "Free" items legitimately have no fixed price). A bare
+ * `Number(cost)` would sell those real guns for nothing. Only a strictly-positive cost is trusted as a
+ * real price; everything else routes to the GM price flow. A GM can still mark an item genuinely free by
+ * setting an OVERRIDE of 0 (an explicit decision, honored via isValidPrice above).
+ *
+ * The compendium ALWAYS wins over the override, so the override goes dead the instant a real (positive)
+ * cost appears. The override lives in the `shopPriceOverrides` world setting, never the compendium. Pass
+ * a pre-fetched `overrides` map to avoid a settings read per row when resolving the whole catalog index.
+ * @param {*} rawCost            the item's raw `system.cost`
+ * @param {string} itemId        the item `_id` (the override key — stable across rename/localization)
+ * @param {object} [overrides]   optional pre-fetched override map (else read live for this id)
+ * @returns {{price:number|null, purchasable:boolean, source:"compendium"|"override"|"none"}}
+ */
+export function resolveCatalogPrice(rawCost, itemId, overrides) {
+  if (isPositivePrice(rawCost)) return { price: Math.round(Number(rawCost)), purchasable: true, source: "compendium" };
+  const override = overrides ? overrides[itemId] : getShopPriceOverride(itemId);
+  if (isValidPrice(override)) return { price: Math.max(0, Math.round(Number(override))), purchasable: true, source: "override" };
+  return { price: null, purchasable: false, source: "none" };
+}
 
 /**
  * Shopping purchase engine — the generic GEAR path ([[shopping-design]]).

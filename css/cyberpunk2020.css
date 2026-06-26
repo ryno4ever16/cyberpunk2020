@@ -1011,6 +1011,13 @@ div.statderive .value.rightborder {
 .cyberpunk .cp-shop-request-btn.cp-approve { color: #1f9d2f; }
 .cyberpunk .cp-shop-request-btn.cp-deny { color: #d1502f; }
 .cyberpunk .cp-shop-request-status { margin: 4px 0 0; }
+/* Price-request variant: the GM enters a price for an item the compendium leaves unpriced. */
+.cyberpunk .cp-shop-request-price-row { display: flex; align-items: center; gap: 4px; margin: 0 0 6px; }
+.cyberpunk .cp-shop-request-price-label { flex: 0 0 auto; font-weight: bold; }
+.cyberpunk .cp-shop-request-price-row .cp-shop-request-price { flex: 1 1 auto; width: auto; }
+.cyberpunk .cp-shop-request-price-unit { flex: 0 0 auto; opacity: 0.75; }
+/* Catalog price cell for an unpriced item: a muted "GM-priced" chip instead of a free 0eb. */
+.cyberpunk .cp-price-gm { font-style: italic; opacity: 0.7; font-size: 0.9em; }
 .cyberpunk .stabilize-block {
   margin-top: 6px;
   border-top: 1px solid var(--cp-line, #ccc);

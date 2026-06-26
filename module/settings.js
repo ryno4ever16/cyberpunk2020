@@ -58,6 +58,21 @@ export function shopAllowHomebrew() {
 export function shopEnabledSources() {
   try { return game.settings.get(SCOPE, "shopEnabledSources") || {}; } catch { return {}; }
 }
+/** GM price-override map { [item._id]: price } for compendium items the base leaves unpriced. */
+export function getShopPriceOverrides() {
+  try { return game.settings.get(SCOPE, "shopPriceOverrides") || {}; } catch { return {}; }
+}
+/** The GM price override for one item _id, or undefined if none set. */
+export function getShopPriceOverride(itemId) {
+  if (!itemId) return undefined;
+  return getShopPriceOverrides()[itemId];
+}
+/** Persist a GM price override for one item _id (GM only; clamped to a non-negative integer). */
+export async function setShopPriceOverride(itemId, price) {
+  if (!itemId || !game.user?.isGM) return;
+  const map = { ...getShopPriceOverrides(), [itemId]: Math.max(0, Math.round(Number(price) || 0)) };
+  await game.settings.set(SCOPE, "shopPriceOverrides", map);
+}
 
 /** Per-user toggle: show the item source/supplement badge in the shop (default on). */
 export function shopShowSource() {
@@ -247,6 +262,18 @@ export function registerSystemSettings() {
 
     // Per-source enable map { supplementName: true } for PLAYERS. GM-curated via in-shop controls.
   game.settings.register("cyberpunk2020", "shopEnabledSources", {
+    scope: "world",
+    config: false,
+    type: Object,
+    default: {}
+  });
+
+    // GM price overrides for items the compendium leaves unpriced (blank / "varies by design" cost).
+    // Map { [item._id]: price }, GM-written, keyed by _id (stable across rename/localization). A SELF-
+    // DISENGAGING fallback: resolveCatalogPrice (shop/purchase.js) prefers a valid (positive) compendium
+    // cost, so an override goes dead the instant real data appears. Not shown in the menu — written via
+    // the catalog's price-request flow.
+  game.settings.register("cyberpunk2020", "shopPriceOverrides", {
     scope: "world",
     config: false,
     type: Object,

@@ -18,6 +18,9 @@ import {
   styleMultOf,
   styleLabelOf,
   priceFor,
+  isValidPrice,
+  isPositivePrice,
+  resolveCatalogPrice,
 } from "../../module/shop/purchase.js";
 
 // ─── FASHION_STYLES ───────────────────────────────────────────────────────────
@@ -122,5 +125,57 @@ describe("priceFor", () => {
 
   it("numeric-string cost is coerced", () => {
     expect(priceFor({ system: { cost: "250" } }, { styleMult: 2 })).toBe(500);
+  });
+});
+
+// ─── isValidPrice / isPositivePrice ───────────────────────────────────────────
+
+describe("isValidPrice", () => {
+  it("accepts finite non-negative numbers and numeric strings (0 allowed)", () => {
+    expect(isValidPrice(0)).toBe(true);
+    expect(isValidPrice("0")).toBe(true);
+    expect(isValidPrice(500)).toBe(true);
+    expect(isValidPrice("1000")).toBe(true);
+  });
+  it("rejects blank, absent, non-numeric, and negative", () => {
+    expect(isValidPrice("")).toBe(false);
+    expect(isValidPrice("   ")).toBe(false);
+    expect(isValidPrice(null)).toBe(false);
+    expect(isValidPrice(undefined)).toBe(false);
+    expect(isValidPrice("Varies by design")).toBe(false);
+    expect(isValidPrice(-5)).toBe(false);
+    expect(isValidPrice(NaN)).toBe(false);
+  });
+});
+
+describe("isPositivePrice", () => {
+  it("is the >0 trust gate for a compendium cost (0 is NOT positive)", () => {
+    expect(isPositivePrice(0)).toBe(false);
+    expect(isPositivePrice("0")).toBe(false);
+    expect(isPositivePrice("")).toBe(false);
+    expect(isPositivePrice(1)).toBe(true);
+    expect(isPositivePrice("500")).toBe(true);
+  });
+});
+
+// ─── resolveCatalogPrice (precedence: compendium>0 → override≥0 → unpurchasable) ─
+// The DataModel defaults a blank cost to the number 0, so 0 means "unpriced", not "free".
+
+describe("resolveCatalogPrice", () => {
+  it("trusts a POSITIVE compendium cost", () => {
+    expect(resolveCatalogPrice("500", "id", {})).toEqual({ price: 500, purchasable: true, source: "compendium" });
+    expect(resolveCatalogPrice(75, "id", {})).toEqual({ price: 75, purchasable: true, source: "compendium" });
+  });
+  it("treats a 0 / blank / non-numeric compendium cost as unpurchasable (no override)", () => {
+    expect(resolveCatalogPrice(0, "id", {})).toEqual({ price: null, purchasable: false, source: "none" });
+    expect(resolveCatalogPrice("", "id", {})).toEqual({ price: null, purchasable: false, source: "none" });
+    expect(resolveCatalogPrice("Varies by design", "id", {})).toEqual({ price: null, purchasable: false, source: "none" });
+  });
+  it("uses a GM override when the compendium cost is unusable (0 override = free)", () => {
+    expect(resolveCatalogPrice("", "id", { id: 250 })).toEqual({ price: 250, purchasable: true, source: "override" });
+    expect(resolveCatalogPrice(0, "id", { id: 0 })).toEqual({ price: 0, purchasable: true, source: "override" });
+  });
+  it("SELF-DISENGAGES: a positive compendium cost always wins over an override", () => {
+    expect(resolveCatalogPrice("300", "id", { id: 999 })).toEqual({ price: 300, purchasable: true, source: "compendium" });
   });
 });
