@@ -10,7 +10,7 @@
     "equipped": true,
     "source": "Cyberpunk 2020 p.85",
     "surgCode": "N",
-    "humanityCost": "2d6",
+    "humanityCost": "1d6/2",
     "cyberwareType": "BIOWARE",
     "cyberwareSubtype": "",
     "abbrev": "EA",

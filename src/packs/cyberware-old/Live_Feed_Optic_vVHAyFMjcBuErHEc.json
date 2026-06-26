@@ -20,7 +20,7 @@
   "system": {
     "flavor": "2 mile range",
     "notes": "",
-    "cost": 1200,
+    "cost": 1000,
     "weight": 0,
     "equipped": true,
     "source": "Interface 2.1 p.3",

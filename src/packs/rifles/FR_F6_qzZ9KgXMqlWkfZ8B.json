@@ -36,7 +36,7 @@
     "equipped": true,
     "source": "Eurosource p.58",
     "weaponType": "Rifle",
-    "accuracy": "2",
+    "accuracy": "4",
     "concealability": "ConcealNoHide",
     "availability": "Poor",
     "ammoType": "7.62C",

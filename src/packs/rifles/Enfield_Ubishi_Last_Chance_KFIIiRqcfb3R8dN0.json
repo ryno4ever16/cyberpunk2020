@@ -1,6 +1,6 @@
 {
   "_id": "KFIIiRqcfb3R8dN0",
-  "name": "Enfield-Ubishi Last Chance",
+  "name": "Enfield-Ubichi Last Chance",
   "type": "weapon",
   "img": "systems/cyberpunk2020/img/weapon-icon.svg",
   "effects": [],
@@ -39,7 +39,7 @@
     "accuracy": "0",
     "concealability": "ConcealJacket",
     "availability": "Common",
-    "ammoType": "CAL13",
+    "ammoType": "CAL12",
     "damage": "4D6",
     "rangeDamages": {
       "pointBlank": "",

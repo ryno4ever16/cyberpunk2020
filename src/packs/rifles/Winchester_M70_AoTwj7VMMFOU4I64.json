@@ -40,7 +40,7 @@
     "concealability": "ConcealNoHide",
     "availability": "Common",
     "ammoType": ".30-06",
-    "damage": "5D6+1",
+    "damage": "5D6+3",
     "rangeDamages": {
       "pointBlank": "",
       "close": "",

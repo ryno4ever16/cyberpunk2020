@@ -30,15 +30,15 @@
   "system": {
     "flavor": "5.56 bullpup assault rifle (old gun).",
     "notes": "",
-    "cost": "250",
-    "weight": "1",
+    "cost": "530",
+    "weight": "4",
     "equipped": true,
     "source": "Cyberpunk 2020 p.66",
     "weaponType": "Rifle",
     "accuracy": "2",
     "concealability": "ConcealNoHide",
     "availability": "Common",
-    "ammoType": "5.56C",
+    "ammoType": "5.56",
     "damage": "4D6",
     "rangeDamages": {
       "pointBlank": "",

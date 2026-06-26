@@ -20,7 +20,7 @@
   "system": {
     "flavor": "25m beam; batteries 1eb 105 .5 Chr1;IR/UV Flashlight;N 10m range",
     "notes": "",
-    "cost": 25,
+    "cost": 200,
     "weight": 0,
     "equipped": true,
     "source": "Chromebook 1 p.32",

@@ -39,7 +39,7 @@
     "accuracy": "0",
     "concealability": "ConcealJacket",
     "availability": "Common",
-    "ammoType": "10 mm",
+    "ammoType": ".41AE",
     "damage": "2D6+3",
     "rangeDamages": {
       "pointBlank": "",

@@ -10,7 +10,7 @@
     "equipped": true,
     "source": "Cyberpunk 2020 p.93",
     "surgCode": "MA",
-    "humanityCost": "2d6",
+    "humanityCost": "1d6",
     "cyberwareType": "BODY PLATING",
     "cyberwareSubtype": "",
     "abbrev": "SKUL",

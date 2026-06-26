@@ -10,7 +10,7 @@
     "equipped": true,
     "source": "Cyberpunk 2020 p.90",
     "surgCode": "N",
-    "humanityCost": "2d6",
+    "humanityCost": "1",
     "cyberwareType": "CYBERLIMB",
     "cyberwareSubtype": "BUILTIN",
     "abbrev": "CMD",

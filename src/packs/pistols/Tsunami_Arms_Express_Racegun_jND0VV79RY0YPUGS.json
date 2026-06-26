@@ -31,7 +31,7 @@
   "system": {
     "flavor": "Eletrothermal ammo pistol made in Japan",
     "notes": "",
-    "cost": "35300",
+    "cost": "5300",
     "weight": "1",
     "equipped": true,
     "source": "Solo of Fortune 2 p.65",
@@ -52,7 +52,7 @@
     "ap": false,
     "shotsLeft": "24",
     "shots": "24",
-    "rof": "3",
+    "rof": "2",
     "reliability": "VeryReliable",
     "range": "75",
     "attackType": "Auto",

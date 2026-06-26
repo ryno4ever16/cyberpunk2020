@@ -1,6 +1,6 @@
 {
   "_id": "HJNzyQuRoyCdn6Qf",
-  "name": "Medikit",
+  "name": "Medkit",
   "type": "misc",
   "flags": {},
   "img": "icons/svg/mystery-man.svg",
@@ -29,7 +29,7 @@
   "system": {
     "flavor": "Section: Medical p.71",
     "notes": "",
-    "cost": "100",
+    "cost": "50",
     "weight": "0",
     "equipped": true,
     "source": "Cyberpunk 2020 p.71"

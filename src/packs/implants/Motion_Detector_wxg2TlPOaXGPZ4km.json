@@ -10,7 +10,7 @@
     "equipped": true,
     "source": "Cyberpunk 2020 p.84",
     "surgCode": "M",
-    "humanityCost": "2",
+    "humanityCost": "2d6",
     "cyberwareType": "IMPLANT",
     "cyberwareSubtype": "",
     "abbrev": "MD",

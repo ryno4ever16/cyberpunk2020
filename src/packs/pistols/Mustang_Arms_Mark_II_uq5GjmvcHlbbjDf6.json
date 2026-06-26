@@ -53,7 +53,7 @@
     "shotsLeft": "12",
     "shots": "12",
     "rof": "3",
-    "reliability": "VeryReliable",
+    "reliability": "unreliable",
     "range": "50",
     "attackType": "Auto",
     "attackSkill": "Handgun"

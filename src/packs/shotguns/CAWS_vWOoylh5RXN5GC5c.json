@@ -38,7 +38,7 @@
     "weaponType": "Shotgun",
     "accuracy": "0",
     "concealability": "ConcealNoHide",
-    "availability": "Rare",
+    "availability": "Common",
     "ammoType": "00",
     "ammoItemId": "",
     "damage": "4d6",

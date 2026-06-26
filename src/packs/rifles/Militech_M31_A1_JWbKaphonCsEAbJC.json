@@ -36,7 +36,7 @@
     "equipped": true,
     "source": "Chromebook 1 p.45",
     "weaponType": "Rifle",
-    "accuracy": 0,
+    "accuracy": "2",
     "concealability": "ConcealNoHide",
     "availability": "Rare",
     "ammoType": "4.5 mm LP",

@@ -54,7 +54,7 @@
     "shots": "40",
     "rof": "2",
     "reliability": "VeryReliable",
-    "range": "600",
+    "range": "800",
     "attackType": "Auto",
     "attackSkill": "Rifle"
   },

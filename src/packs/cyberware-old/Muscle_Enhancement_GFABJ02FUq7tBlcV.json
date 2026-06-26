@@ -25,7 +25,7 @@
     "equipped": true,
     "source": "Deep Space p.60",
     "surgCode": "N",
-    "humanityCost": "1d2",
+    "humanityCost": "1d6/3",
     "cyberwareType": "BIOWARE",
     "cyberwareSubtype": "",
     "abbrev": "",
