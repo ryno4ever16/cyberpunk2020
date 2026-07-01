@@ -1559,14 +1559,16 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
     let st = null;           // active gesture state
 
     const end = (suppressClick) => {
+      const doc = st?.doc ?? document;            // document the gesture was bound to (popout-aware)
       document.documentElement.classList.remove("cp-tab-dragging"); // always clear the global cursor
+      doc.documentElement.classList.remove("cp-tab-dragging");      // …and the popout's, if any
       if (!st) return;
       clearTimeout(st.timer);
       st.ghost?.remove();
       st.item?.classList.remove("cp-tab-grabbing", "cp-tab-pressing");
-      document.removeEventListener("pointermove", onMove, true);
-      document.removeEventListener("pointerup", onUp, true);
-      document.removeEventListener("pointercancel", onCancel, true);
+      doc.removeEventListener("pointermove", onMove, true);
+      doc.removeEventListener("pointerup", onUp, true);
+      doc.removeEventListener("pointercancel", onCancel, true);
       if (suppressClick) this._cpSuppressTabClick = true;
       st = null;
     };
@@ -1576,13 +1578,16 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
       st.armed = true;
       st.item?.classList.remove("cp-tab-pressing");
       st.item?.classList.add("cp-tab-grabbing");
-      document.documentElement.classList.add("cp-tab-dragging"); // force a grabbing cursor everywhere
-      const ghost = document.createElement("div");
+      // Build the ghost in the document that OWNS the tab (the popout window when the sheet is popped
+      // out via PopOut!, else the main window) so it is visible + correctly positioned over that window.
+      const doc = st.doc;
+      doc.documentElement.classList.add("cp-tab-dragging"); // force a grabbing cursor everywhere
+      const ghost = doc.createElement("div");
       ghost.className = "cp-tab-ghost";
       ghost.textContent = `⇗ ${(st.item?.textContent || "Tab").trim()}`;
       ghost.style.left = `${st.x + 12}px`;
       ghost.style.top = `${st.y + 12}px`;
-      document.body.appendChild(ghost);
+      doc.body.appendChild(ghost);
       st.ghost = ghost;
     };
 
@@ -1625,12 +1630,15 @@ export class CyberpunkActorSheet extends HandlebarsApplicationMixin(foundry.appl
         return;
       }
       end(false); // clear any stale gesture
-      st = { tabKey: item.dataset.tab, item, x: ev.clientX, y: ev.clientY, armed: false, timer: null, ghost: null };
+      // Bind the gesture to the document that owns the tab RIGHT NOW — main window normally, or the
+      // popout window once PopOut! has moved the sheet — so move/up fire and the ghost shows there.
+      const doc = item.ownerDocument || document;
+      st = { tabKey: item.dataset.tab, item, x: ev.clientX, y: ev.clientY, armed: false, timer: null, ghost: null, doc };
       item.classList.add("cp-tab-pressing"); // grab cursor from the moment of press
       st.timer = setTimeout(arm, HOLD_MS);
-      document.addEventListener("pointermove", onMove, true);
-      document.addEventListener("pointerup", onUp, true);
-      document.addEventListener("pointercancel", onCancel, true);
+      doc.addEventListener("pointermove", onMove, true);
+      doc.addEventListener("pointerup", onUp, true);
+      doc.addEventListener("pointercancel", onCancel, true);
     }, true);
 
     // Capture phase: eat the click that follows an armed tear-off or a detached-tab focus so the nav

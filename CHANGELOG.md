@@ -2,10 +2,11 @@
 
 All notable changes to this system are recorded here. Dates are ISO (YYYY-MM-DD).
 
-## [Unreleased] — Foundry v14 compatibility (branch `v14-compat`; DRAFT, not yet released)
+## [2.0.0-beta] — 2026-06-11 — Foundry v14 compatibility + ApplicationV2 UI rewrite
 
 Adds **Foundry v14** support while keeping **v13.350** working from one codebase (runtime
-feature-detection). At release: bump `version` → `1.3.0-beta` and set `compatibility.verified` to 14.
+feature-detection). `compatibility` is now **13 / 14 / 14** (minimum / verified / maximum),
+verified on both v13.350 and v14.364.
 
 ### Added
 - **Foundry v14 support.** All area-effect automation — suppressive fire, gas/chemical clouds,
@@ -17,11 +18,19 @@ feature-detection). At release: bump `version` → `1.3.0-beta` and set `compati
   (damage, penetration, armor, hit locations, control, missiles, indirect fire, targeting),
   core combat (range / armor layers / stun-death saves) + IP cost, shop pricing, and the
   DataModel normalizers.
+- A **rig-portable end-to-end test suite** driving real combat flows (damage, stun/death saves +
+  stabilization, ablation, DoT, choke, limb/head, martial, multi-action, taser/layering/flechette)
+  plus the multiplayer paths (player→GM damage + vehicle-damage relay, two-GM DoT double-apply
+  guard, player suppressive relay) against live v13.350 + v14.364 worlds.
 
 ### Fixed
 - **Vehicle facing at an exact 45° bearing** was misclassified as a *side* hit (taking side
   armor) instead of *front*, due to a floating-point boundary in the facing calculation. Exact
   ±45°/±135° bearings are now correctly front/rear-inclusive.
+- **Death / save status effects** (the "dead" / "unconscious" markers set on a head-death or a
+  failed death/stun save) used `TokenDocument#toggleActiveEffect`, which Foundry removed in v12/v13
+  — so a head-death threw (aborting the damage flow) and save effects were silently never applied.
+  Now applied via `Actor#toggleStatusEffect`. (Surfaced by the new end-to-end combat suite.)
 
 ### Changed
 - **Gas clouds now drift with the wind by default** (`gasCloudAutoMove` defaults ON): a cloud moves
@@ -44,6 +53,12 @@ feature-detection). At release: bump `version` → `1.3.0-beta` and set `compati
   pass before release: dragging an item onto a sheet, saving the ProseMirror **notes** editor, gear
   drag-to-reorder, and clicking an in-sheet delete-confirm. Run the `:30000` E2E suite + a manual
   sheet pass before release.
+
+### Housekeeping
+- `version` → `2.0.0-beta` (major bump signalling the new Foundry platform support + the full
+  ApplicationV2 UI rewrite; world data remains backward-compatible). `manifest` now tracks a stable
+  version-agnostic `beta` branch (so future updates no longer orphan installs); `download` targets
+  the `v2.0.0-beta` release tag. `compatibility` is now `13 / 14 / 14` (minimum / verified / maximum).
 
 ## [1.2.1-beta] — 2026-06-10
 
