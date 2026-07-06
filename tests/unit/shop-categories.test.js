@@ -128,6 +128,14 @@ describe("categoryOfItem", () => {
     expect(categoryOfItem("cyberware", {})).toEqual({ category: "Cyberware", sub: "Other" });
     expect(categoryOfItem("misc", {})).toEqual({ category: "Gear", sub: "Other" });
   });
+
+  it("skill chips (cyberwareType CHIPWARE) sub-categorize as Chipware", () => {
+    expect(categoryOfItem("cyberware", { cyberwareType: "CHIPWARE" })).toEqual({ category: "Cyberware", sub: "Chipware" });
+    expect(categoryOfItem("cyberware", { cyberwareType: "chipware" })).toEqual({ category: "Cyberware", sub: "Chipware" });
+    expect(categoryOfItem("cyberware", { cyberwareType: "CYBEROPTIC" })).toEqual({ category: "Cyberware", sub: "Other" });
+    const cyber = CATEGORIES.find(c => c.key === "Cyberware");
+    expect(cyber.subs).toContain("Chipware");
+  });
 });
 
 // ─── vehicleSubOf (soft-enum class → Vehicles sub-filter) ────────────────────
