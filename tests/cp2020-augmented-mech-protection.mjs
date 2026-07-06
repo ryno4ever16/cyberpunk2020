@@ -1,0 +1,104 @@
+/** P6 protection tags (SPECIAL-MECHANICS-PROPOSAL.md Phase D): the pure aggregation truth table,
+ *  the corrections-wired items, and a REAL gas-cloud per-turn e2e — a masked actor and a bare
+ *  actor stand in a handcrafted gas region, the combat turn ticks, only the bare one saves. */
+import { chromium } from "@playwright/test";
+const BASE = process.env.FVTT_URL || "http://localhost:30004";
+const PW = process.env.FVTT_RIG_PASSWORD || "cp2020-v14-rig";
+async function joinGM(p){await p.goto(BASE+"/join",{waitUntil:"domcontentloaded"});const s=p.locator('select[name="userid"]');await s.waitFor({state:"visible",timeout:30000});const us=await s.locator("option").evaluateAll(o=>o.map(x=>({v:x.value,l:(x.textContent||"").trim()})).filter(x=>x.v));const g=us.find(u=>/gamemaster/i.test(u.l));await s.selectOption(g.v);await p.locator('input[name="password"]').fill(PW);await Promise.all([p.waitForNavigation({url:/\/game/,timeout:45000}).catch(()=>{}),p.locator('button[name="join"]').click()]);await p.waitForFunction(()=>window.game?.ready===true,undefined,{timeout:60000});}
+
+const b = await chromium.launch({ headless: true });
+const p = await b.newPage({ viewport: { width: 1600, height: 900 } });
+const errors = [];
+p.on("pageerror", e => errors.push("pageerror: " + e.message));
+p.on("console", m => { if (m.type() === "error") errors.push("console: " + m.text()); });
+await joinGM(p);
+
+const r = await p.evaluate(async () => {
+  const out = {};
+  const P = await import("/modules/cp2020-augmented/module/mech/protection.js");
+  const sleep = (ms) => new Promise(res => setTimeout(res, ms));
+
+  // (0) PURE truth table.
+  const mk = (equipped, hazards) => ({ system: { equipped, mechProtection: { enabled: true, gas: { immune: false, mod: 0 }, flash: { immune: false, mod: 0 }, sonic: { immune: false, mod: 0 }, ...hazards } } });
+  out.pure = {
+    none: P.hazardProtectionFor([mk(true, {})], "gas"),
+    unequipped: P.hazardProtectionFor([mk(false, { gas: { immune: true, mod: 0 } })], "gas"),
+    immune: P.hazardProtectionFor([mk(true, { gas: { immune: true, mod: 0 } })], "gas"),
+    bestModNoStack: P.hazardProtectionFor([mk(true, { gas: { immune: false, mod: 1 } }), mk(true, { gas: { immune: false, mod: 2 } })], "gas"),
+    decideImmune: P.gasSaveDecisionFor([mk(true, { gas: { immune: true, mod: 0 } })], -3),
+    decideOffset: P.gasSaveDecisionFor([mk(true, { gas: { immune: false, mod: 2 } })], -3),
+    decideCapped: P.gasSaveDecisionFor([mk(true, { gas: { immune: false, mod: 5 } })], -3),
+    decideBare: P.gasSaveDecisionFor([], -3)
+  };
+
+  // (1) Corrections-wired base items.
+  const imp = async (pack, id) => { const d = await game.packs.get(pack).getDocument(id); const it = await Item.create(game.items.fromCompendium(d)); const mp = foundry.utils.deepClone(it.system.mechProtection); await it.delete(); return mp; };
+  out.mask = await imp("cyberpunk2020.tools", "iQcJpq8LofSYbPJO");           // Breathing Mask
+  out.air = await imp("cyberpunk2020.implants", "zOzfWnALVczrmjkZ");         // Independent Air Supply
+  out.dazzle = await imp("cyberpunk2020.cyberoptic", "H7PSx0gcnKET6usp");    // Anti-Dazzle
+
+  // (2) REAL per-turn e2e.
+  for (const a of game.actors.filter(a => a.name.startsWith("__PW__Gas"))) await a.delete().catch(() => {});
+  const scene = game.scenes.viewed ?? game.scenes.active ?? game.scenes.contents[0];
+  const masked = await Actor.create({ name: "__PW__GasMasked", type: "character" });
+  await masked.createEmbeddedDocuments("Item", [{ name: "__PW__Mask", type: "misc",
+    system: { equipped: true, mechProtection: { enabled: true, gas: { immune: true, mod: 0 }, flash: { immune: false, mod: 0 }, sonic: { immune: false, mod: 0 } } } }]);
+  const bare = await Actor.create({ name: "__PW__GasBare", type: "character" });
+  const [tokM] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__GasMasked", actorId: masked.id, actorLink: true, x: 2000, y: 2000 }]);
+  const [tokB] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__GasBare", actorId: bare.id, actorLink: true, x: 2100, y: 2000 }]);
+  const gs = scene.grid?.size ?? 100;
+  const [region] = await scene.createEmbeddedDocuments("Region", [{
+    name: "__PW__GasCloud",
+    shapes: [{ type: "rectangle", x: 1800, y: 1800, width: 6 * gs, height: 6 * gs }],
+    flags: { "cp2020-augmented": { isGasCloud: true, turnsLeft: 3, stunSaveMod: -2, weaponName: "__PW__ Test Gas" } }
+  }]);
+  const combat = await Combat.create({ scene: scene.id, active: true });
+  await combat.createEmbeddedDocuments("Combatant", [{ tokenId: tokM.id, actorId: masked.id }, { tokenId: tokB.id, actorId: bare.id }]);
+  await combat.startCombat();
+  const msgIdsBefore = new Set(game.messages.contents.map(m => m.id));
+  await combat.update({ round: 2, turn: 0 });
+  await sleep(2500);   // the hook is async: card + flags + prompts
+  const newMsgs = game.messages.contents.filter(m => !msgIdsBefore.has(m.id)).map(m => m.content).join("\n");
+  out.e2e = {
+    cardMentionsGas: /__PW__ Test Gas/.test(newMsgs),
+    bareListed: /__PW__GasBare/.test(newMsgs),
+    protectedClause: /sealed breathing gear/.test(newMsgs) && /__PW__GasMasked/.test(newMsgs),
+    bareTaser: foundry.utils.deepClone(bare.getFlag("cp2020-augmented", "taserState") ?? null),
+    maskedTaser: foundry.utils.deepClone(masked.getFlag("cp2020-augmented", "taserState") ?? null),
+    turnsLeftAfter: scene.regions.get(region.id)?.getFlag("cp2020-augmented", "turnsLeft")
+  };
+
+  await combat.delete().catch(() => {});
+  await scene.deleteEmbeddedDocuments("Region", [region.id]).catch(() => {});
+  await scene.deleteEmbeddedDocuments("Token", [tokM.id, tokB.id]).catch(() => {});
+  await masked.delete().catch(() => {});
+  await bare.delete().catch(() => {});
+  return out;
+});
+
+console.log(JSON.stringify(r, null, 1));
+const checks = [
+  ["pure: untagged → no protection", r.pure.none.immune === false && r.pure.none.mod === 0],
+  ["pure: unequipped ignored", r.pure.unequipped.immune === false],
+  ["pure: immune aggregates", r.pure.immune.immune === true],
+  ["pure: best mod, no stacking (1+2 → 2)", r.pure.bestModNoStack.mod === 2],
+  ["decision: immune skips the save", r.pure.decideImmune.skip === true],
+  ["decision: +2 offsets −3 to −1", r.pure.decideOffset.skip === false && r.pure.decideOffset.effMod === -1],
+  ["decision: offset caps at 0 (never a bonus)", r.pure.decideCapped.effMod === 0],
+  ["decision: bare actor keeps the full penalty", r.pure.decideBare.effMod === -3],
+  ["corrections: Breathing Mask = gas immune", r.mask?.enabled === true && r.mask?.gas?.immune === true],
+  ["corrections: Independent Air Supply = gas immune", r.air?.enabled === true && r.air?.gas?.immune === true],
+  ["corrections: Anti-Dazzle = flash immune (gas untouched)", r.dazzle?.flash?.immune === true && r.dazzle?.gas?.immune === false],
+  ["e2e: turn card posted for the cloud", r.e2e.cardMentionsGas === true],
+  ["e2e: bare actor listed for the save", r.e2e.bareListed === true],
+  ["e2e: masked actor in the protected clause", r.e2e.protectedClause === true],
+  ["e2e: bare actor got the −2 penalty state", r.e2e.bareTaser?.mod === -2],
+  ["e2e: masked actor got NO penalty state", r.e2e.maskedTaser === null],
+  ["e2e: cloud ticked down (3 → 2)", r.e2e.turnsLeftAfter === 2],
+  ["0 console errors", errors.length === 0]
+];
+let fail = 0;
+for (const [n, ok] of checks) { console.log(`  ${ok ? "PASS" : "FAIL"}  ${n}`); if (!ok) fail++; }
+if (errors.length) console.log("errors:", errors.slice(0, 6));
+await b.close();
+process.exit(fail ? 1 : 0);
