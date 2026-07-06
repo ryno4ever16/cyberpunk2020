@@ -14,6 +14,8 @@
 import { describe, it, expect } from "vitest";
 import {
   categoryOfPack,
+  categoryOfItem,
+  vehicleSubOf,
   CATEGORIES,
   EXCLUDED_PACKS,
   EXCLUDED_TYPES,
@@ -100,6 +102,86 @@ describe("CATEGORIES", () => {
       "Gear", "Netrunning", "Programs", "Vehicles",
     ]) {
       expect(keys.has(expected)).toBe(true);
+    }
+  });
+});
+
+// ─── categoryOfItem (type-grouped packs categorize from item data) ───────────
+
+describe("categoryOfItem", () => {
+  it("weapons sub-categorize by system.weaponType, unknown types → Other", () => {
+    expect(categoryOfItem("weapon", { weaponType: "Pistol" })).toEqual({ category: "Weapons", sub: "Pistols" });
+    expect(categoryOfItem("weapon", { weaponType: "Heavy" })).toEqual({ category: "Weapons", sub: "Heavy" });
+    expect(categoryOfItem("weapon", { weaponType: "Blunderbuss" })).toEqual({ category: "Weapons", sub: "Other" });
+    expect(categoryOfItem("weapon", {})).toEqual({ category: "Weapons", sub: "Other" });
+  });
+
+  it("vehicles sub-categorize by system.vehicleType via vehicleSubOf", () => {
+    expect(categoryOfItem("vehicle", { vehicleType: "Car" })).toEqual({ category: "Vehicles", sub: "Cars" });
+    expect(categoryOfItem("vehicle", { vehicleType: "" })).toEqual({ category: "Vehicles", sub: "" });
+    expect(categoryOfItem("vehicle", {})).toEqual({ category: "Vehicles", sub: "" });
+  });
+
+  it("non-weapon/vehicle types keep their flat mapping", () => {
+    expect(categoryOfItem("armor", {})).toEqual({ category: "Armor", sub: "" });
+    expect(categoryOfItem("program", {})).toEqual({ category: "Programs", sub: "" });
+    expect(categoryOfItem("cyberware", {})).toEqual({ category: "Cyberware", sub: "Other" });
+    expect(categoryOfItem("misc", {})).toEqual({ category: "Gear", sub: "Other" });
+  });
+});
+
+// ─── vehicleSubOf (soft-enum class → Vehicles sub-filter) ────────────────────
+
+describe("vehicleSubOf", () => {
+  it("maps every canonical VEHICLE_TYPE_SUGGESTIONS value to a sub", () => {
+    // The 18 datalist suggestions (module/lookups.js) — the sheet's soft-enum vocabulary.
+    const canon = {
+      "Car": "Cars", "Cycle": "Cycles", "Truck": "Trucks",
+      "Hovercraft": "Hover", "AV (Aerodyne)": "AVs",
+      "Helicopter": "Aircraft", "Fixed-Wing": "Aircraft", "Osprey": "Aircraft",
+      "Dirigible": "Aircraft", "Ultralight": "Aircraft",
+      "Boat": "Watercraft", "Submarine": "Watercraft",
+      "Spacecraft": "Spacecraft",
+      "Tank": "Military", "APC/IFV": "Military",
+      "RPV/Drone": "Drones", "Construction": "Trucks",
+      "ACPA (Powered Armor)": "ACPA",
+    };
+    for (const [cls, sub] of Object.entries(canon)) {
+      expect(vehicleSubOf(cls), `class "${cls}"`).toBe(sub);
+    }
+  });
+
+  it("normalizes the books' free-text class vocabulary (case-insensitive keywords)", () => {
+    expect(vehicleSubOf("Sports Car")).toBe("Cars");
+    expect(vehicleSubOf("aerodyne")).toBe("AVs");
+    expect(vehicleSubOf("AV-4")).toBe("AVs");
+    expect(vehicleSubOf("Attack Helicopter")).toBe("Aircraft");
+    expect(vehicleSubOf("Hover Tank")).toBe("Hover");     // locomotion wins — MM panzers are hovercraft
+    expect(vehicleSubOf("panzer")).toBe("Hover");
+    expect(vehicleSubOf("Main Battle Tank")).toBe("Military");
+    expect(vehicleSubOf("motorcycle")).toBe("Cycles");
+    expect(vehicleSubOf("Patrol Boat")).toBe("Watercraft");
+    expect(vehicleSubOf("submersible")).toBe("Watercraft");
+    expect(vehicleSubOf("Orbital Shuttle")).toBe("Spacecraft");
+    expect(vehicleSubOf("remote drone")).toBe("Drones");
+    expect(vehicleSubOf("powered armor")).toBe("ACPA");
+  });
+
+  it('empty/blank means unclassified (""), an unrecognized class means "Other"', () => {
+    expect(vehicleSubOf("")).toBe("");
+    expect(vehicleSubOf("   ")).toBe("");
+    expect(vehicleSubOf(null)).toBe("");
+    expect(vehicleSubOf(undefined)).toBe("");
+    expect(vehicleSubOf("Mule")).toBe("Other");
+  });
+
+  it("every non-empty result is a declared Vehicles sub (taxonomy consistency)", () => {
+    const vehicles = CATEGORIES.find(c => c.key === "Vehicles");
+    const probes = ["Car", "Cycle", "Truck", "Hovercraft", "AV (Aerodyne)", "Helicopter",
+      "Boat", "Spacecraft", "Tank", "RPV/Drone", "ACPA (Powered Armor)", "Mule"];
+    for (const p of probes) {
+      const sub = vehicleSubOf(p);
+      expect(vehicles.subs, `sub "${sub}" for "${p}"`).toContain(sub);
     }
   });
 });
