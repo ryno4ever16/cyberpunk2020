@@ -28,7 +28,16 @@ const r = await p.evaluate(async () => {
     decideImmune: P.gasSaveDecisionFor([mk(true, { gas: { immune: true, mod: 0 } })], -3),
     decideOffset: P.gasSaveDecisionFor([mk(true, { gas: { immune: false, mod: 2 } })], -3),
     decideCapped: P.gasSaveDecisionFor([mk(true, { gas: { immune: false, mod: 5 } })], -3),
-    decideBare: P.gasSaveDecisionFor([], -3)
+    decideBare: P.gasSaveDecisionFor([], -3),
+    // Q8 percent gate (kept-book-number: threshold = percent/10, protected on a d10 at or under it).
+    gate70Held: P.percentGateOutcome(70, 7),      // 7 ≤ 7 → held
+    gate70Fail: P.percentGateOutcome(70, 8),      // 8 > 7 → fail
+    gate0: P.percentGateOutcome(0, 1),            // no percent → never gated
+    // Q8 aggregation: best percent, best (lowest) damage multiplier, no stacking.
+    bestPercent: P.hazardProtectionFor([mk(true, { gas: { percent: 50 } }), mk(true, { gas: { percent: 70 } })], "gas"),
+    damageMult: P.hazardProtectionFor([mk(true, { sonic: { damageMult: 0.75 } })], "sonic"),
+    // gas decision surfaces the percent so the caller knows to roll the exposure gate.
+    decidePercent: P.gasSaveDecisionFor([mk(true, { gas: { percent: 70 } })], -2)
   };
 
   // (1) Corrections-wired base items.
@@ -36,6 +45,8 @@ const r = await p.evaluate(async () => {
   out.mask = await imp("cyberpunk2020.tools", "iQcJpq8LofSYbPJO");           // Breathing Mask
   out.air = await imp("cyberpunk2020.implants", "zOzfWnALVczrmjkZ");         // Independent Air Supply
   out.dazzle = await imp("cyberpunk2020.cyberoptic", "H7PSx0gcnKET6usp");    // Anti-Dazzle
+  out.nasal = await imp("cyberpunk2020.implants", "1DFttayJLRcOeS94");       // Nasal Filters (Q8 %)
+  out.damper = await imp("cyberpunk2020.cyberaudio", "fkF5mng29EpC7nvE");    // Level Damper (Q8 ×)
 
   // (2) REAL per-turn e2e.
   for (const a of game.actors.filter(a => a.name.startsWith("__PW__Gas"))) await a.delete().catch(() => {});
@@ -44,8 +55,19 @@ const r = await p.evaluate(async () => {
   await masked.createEmbeddedDocuments("Item", [{ name: "__PW__Mask", type: "misc",
     system: { equipped: true, mechProtection: { enabled: true, gas: { immune: true, mod: 0 }, flash: { immune: false, mod: 0 }, sonic: { immune: false, mod: 0 } } } }]);
   const bare = await Actor.create({ name: "__PW__GasBare", type: "character" });
+  // Q8: two percent-gated actors with DETERMINISTIC thresholds — 100% → d10 always ≤ 10 → held;
+  // 5% → threshold 0.5 → d10 always > 0.5 → fails. Exercises both card clauses + taser outcomes.
+  const filterHeld = await Actor.create({ name: "__PW__GasFilterHeld", type: "character" });
+  await filterHeld.createEmbeddedDocuments("Item", [{ name: "__PW__Filter100", type: "misc",
+    system: { equipped: true, mechProtection: { enabled: true, gas: { immune: false, mod: 0, percent: 100, damageMult: 0 }, flash: { immune: false, mod: 0 }, sonic: { immune: false, mod: 0 } } } }]);
+  const filterFail = await Actor.create({ name: "__PW__GasFilterFail", type: "character" });
+  await filterFail.createEmbeddedDocuments("Item", [{ name: "__PW__Filter5", type: "misc",
+    system: { equipped: true, mechProtection: { enabled: true, gas: { immune: false, mod: 0, percent: 5, damageMult: 0 }, flash: { immune: false, mod: 0 }, sonic: { immune: false, mod: 0 } } } }]);
+  // ⚠ createEmbeddedDocuments return order is NOT input order — create tokens singly.
   const [tokM] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__GasMasked", actorId: masked.id, actorLink: true, x: 2000, y: 2000 }]);
   const [tokB] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__GasBare", actorId: bare.id, actorLink: true, x: 2100, y: 2000 }]);
+  const [tokH] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__GasFilterHeld", actorId: filterHeld.id, actorLink: true, x: 2200, y: 2000 }]);
+  const [tokF] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__GasFilterFail", actorId: filterFail.id, actorLink: true, x: 2300, y: 2000 }]);
   const gs = scene.grid?.size ?? 100;
   const [region] = await scene.createEmbeddedDocuments("Region", [{
     name: "__PW__GasCloud",
@@ -53,11 +75,14 @@ const r = await p.evaluate(async () => {
     flags: { "cp2020-augmented": { isGasCloud: true, turnsLeft: 3, stunSaveMod: -2, weaponName: "__PW__ Test Gas" } }
   }]);
   const combat = await Combat.create({ scene: scene.id, active: true });
-  await combat.createEmbeddedDocuments("Combatant", [{ tokenId: tokM.id, actorId: masked.id }, { tokenId: tokB.id, actorId: bare.id }]);
+  await combat.createEmbeddedDocuments("Combatant", [
+    { tokenId: tokM.id, actorId: masked.id }, { tokenId: tokB.id, actorId: bare.id },
+    { tokenId: tokH.id, actorId: filterHeld.id }, { tokenId: tokF.id, actorId: filterFail.id }
+  ]);
   await combat.startCombat();
   const msgIdsBefore = new Set(game.messages.contents.map(m => m.id));
   await combat.update({ round: 2, turn: 0 });
-  await sleep(2500);   // the hook is async: card + flags + prompts
+  await sleep(3000);   // the hook is async: card + gate rolls + flags + prompts
   const newMsgs = game.messages.contents.filter(m => !msgIdsBefore.has(m.id)).map(m => m.content).join("\n");
   out.e2e = {
     cardMentionsGas: /__PW__ Test Gas/.test(newMsgs),
@@ -65,14 +90,21 @@ const r = await p.evaluate(async () => {
     protectedClause: /sealed breathing gear/.test(newMsgs) && /__PW__GasMasked/.test(newMsgs),
     bareTaser: foundry.utils.deepClone(bare.getFlag("cp2020-augmented", "taserState") ?? null),
     maskedTaser: foundry.utils.deepClone(masked.getFlag("cp2020-augmented", "taserState") ?? null),
+    // Q8: the 100% filter shows a "held" clause + gets NO taser; the 5% filter shows "failed" + a taser.
+    filterHeldClause: /Filters held for/.test(newMsgs) && /__PW__GasFilterHeld/.test(newMsgs),
+    filterFailClause: /Filters failed for/.test(newMsgs) && /__PW__GasFilterFail/.test(newMsgs),
+    filterHeldTaser: foundry.utils.deepClone(filterHeld.getFlag("cp2020-augmented", "taserState") ?? null),
+    filterFailTaser: foundry.utils.deepClone(filterFail.getFlag("cp2020-augmented", "taserState") ?? null),
     turnsLeftAfter: scene.regions.get(region.id)?.getFlag("cp2020-augmented", "turnsLeft")
   };
 
   await combat.delete().catch(() => {});
   await scene.deleteEmbeddedDocuments("Region", [region.id]).catch(() => {});
-  await scene.deleteEmbeddedDocuments("Token", [tokM.id, tokB.id]).catch(() => {});
+  await scene.deleteEmbeddedDocuments("Token", [tokM.id, tokB.id, tokH.id, tokF.id]).catch(() => {});
   await masked.delete().catch(() => {});
   await bare.delete().catch(() => {});
+  await filterHeld.delete().catch(() => {});
+  await filterFail.delete().catch(() => {});
   return out;
 });
 
@@ -86,14 +118,25 @@ const checks = [
   ["decision: +2 offsets −3 to −1", r.pure.decideOffset.skip === false && r.pure.decideOffset.effMod === -1],
   ["decision: offset caps at 0 (never a bonus)", r.pure.decideCapped.effMod === 0],
   ["decision: bare actor keeps the full penalty", r.pure.decideBare.effMod === -3],
+  ["percent gate: 70% roll 7 → held; roll 8 → fails", r.pure.gate70Held.gated === true && r.pure.gate70Fail.gated === false],
+  ["percent gate: 0% is never gated", r.pure.gate0.gated === false],
+  ["aggregate: best percent wins (50/70 → 70)", r.pure.bestPercent.percent === 70],
+  ["aggregate: sonic damage multiplier carried", r.pure.damageMult.damageMult === 0.75],
+  ["decision: gas decision surfaces the percent", r.pure.decidePercent.percent === 70],
   ["corrections: Breathing Mask = gas immune", r.mask?.enabled === true && r.mask?.gas?.immune === true],
   ["corrections: Independent Air Supply = gas immune", r.air?.enabled === true && r.air?.gas?.immune === true],
   ["corrections: Anti-Dazzle = flash immune (gas untouched)", r.dazzle?.flash?.immune === true && r.dazzle?.gas?.immune === false],
+  ["corrections: Nasal Filters = gas 70% (no immune/mod)", r.nasal?.enabled === true && r.nasal?.gas?.percent === 70 && r.nasal?.gas?.immune === false],
+  ["corrections: Level Damper = sonic ×0.75", r.damper?.enabled === true && r.damper?.sonic?.damageMult === 0.75],
   ["e2e: turn card posted for the cloud", r.e2e.cardMentionsGas === true],
   ["e2e: bare actor listed for the save", r.e2e.bareListed === true],
   ["e2e: masked actor in the protected clause", r.e2e.protectedClause === true],
   ["e2e: bare actor got the −2 penalty state", r.e2e.bareTaser?.mod === -2],
   ["e2e: masked actor got NO penalty state", r.e2e.maskedTaser === null],
+  ["e2e: 100% filter shows a held clause", r.e2e.filterHeldClause === true],
+  ["e2e: 100% filter got NO penalty state (protected this turn)", r.e2e.filterHeldTaser === null],
+  ["e2e: 5% filter shows a failed clause", r.e2e.filterFailClause === true],
+  ["e2e: 5% filter got the −2 penalty state (save required)", r.e2e.filterFailTaser?.mod === -2],
   ["e2e: cloud ticked down (3 → 2)", r.e2e.turnsLeftAfter === 2],
   ["0 console errors", errors.length === 0]
 ];
