@@ -79,7 +79,21 @@ const r = await p.evaluate(async () => {
   await sleep(1500);
   let msgs = game.messages.contents.filter(m => !before.has(m.id));
   const hasTerm = (m, n) => (m.rolls ?? []).some(rl => (rl.terms ?? []).some(t => t.constructor?.name === "NumericTerm" && t.number === n));
-  out.fireRolled = { newMsgs: msgs.length, plus2: msgs.some(m => hasTerm(m, 2)) };
+  // The semi-auto card posts via Multiroll.execute() with NO addRoll → msg.rolls is [] on this
+  // path (probe-verified 2026-07-06); the roll's term breakdown lives in the card MARKUP instead
+  // (multi-hit.hbs renders numeric terms as `.roll-result.inactive` spans; the damage inline-roll
+  // span lacks `inactive`, so it's excluded). The folded gear mod is the roll's LAST numeric term
+  // by construction (extraMod is pushed last; accuracy 0 adds no term), so read that back.
+  const lastNumericTermInCard = (m) => {
+    const div = document.createElement("div");
+    div.innerHTML = m.content ?? "";
+    const nums = [...div.querySelectorAll(".roll-result.inactive")]
+      .map(s => s.textContent.trim()).filter(t => /^-?\d+$/.test(t));
+    return nums.length ? Number(nums[nums.length - 1]) : null;
+  };
+  out.fireRolled = { newMsgs: msgs.length,
+    attachedRolls: msgs.length ? (msgs[msgs.length - 1].rolls ?? []).length : -1,
+    lastTerm: msgs.length ? lastNumericTermInCard(msgs[msgs.length - 1]) : null };
 
   // Skill dialog: Medscanner (misc, correction-wired) + a Diagnose Illness skill with askMods OFF —
   // the provider alone opens the dialog; confirm lands +2; a second, unticked run lands nothing.
@@ -146,11 +160,10 @@ const checks = [
   ["e2e: activated link → one provider", r.e2eActiveProviders === 1],
   ["e2e: fire dialog shows the row pre-ticked", r.fireRow.present === true && r.fireRow.ticked === true],
   ["e2e: fire-dialog row label = name (+2)", /Smartgun Link \(\+2\)/.test(r.fireRow.label)],
-  // PARKED (2026-07-06, user call — informational, not asserted): reading the +2 back out of the
-  // posted card's dice terms. The ranged card may attach its breakdown differently than the skill
-  // card (or a 1-in-10 reroll reshapes it); the fold-in code itself is the same line the skill
-  // path PROVES below. Log-only until revisited with the user.
-  ["e2e: (info) ranged card term readback", true || (r.fireRolled.newMsgs > 0 && r.fireRolled.plus2 === true)],
+  // UN-PARKED (2026-07-06): the earlier miss was a readback-location issue, not a lost modifier —
+  // this card's message attaches NO rolls (Multiroll.execute without addRoll), so the term
+  // breakdown is read from the card markup instead. Last numeric term = the folded gear mod.
+  ["e2e: card markup term readback — folded mod is the last numeric term", r.fireRolled.newMsgs > 0 && r.fireRolled.lastTerm === 2],
   ["e2e: provider alone opens the skill dialog (askMods off)", r.skillRow.opened === true && r.skillRow.present === true && r.skillRow.ticked === true],
   ["e2e: confirmed skill roll carries the +2 term", r.skillRolled.newMsgs > 0 && r.skillRolled.plus2 === true],
   ["e2e: unticked row contributes nothing", r.skillUnticked.newMsgs > 0 && r.skillUnticked.plus2 === false],
