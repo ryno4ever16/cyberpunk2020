@@ -56,14 +56,8 @@ const r = await p.evaluate(async () => {
     newCards: game.messages.contents.filter(m => !before.has(m.id)).length };
 
   // Activation of a consumable-tagged Activatable implant: one unit spent + a timer started.
-  // Combat starts FIRST — startCombat's own round change is a tick (the same reading the other
-  // per-turn effects use), so the realistic mid-combat activation is what the spec drives.
-  const scene = game.scenes.viewed ?? game.scenes.active ?? game.scenes.contents[0];
-  const [tok] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__ConsumPunk", actorId: actor.id, actorLink: true, x: 1000, y: 1000 }]);
-  const combat = await Combat.create({ scene: scene.id, active: true });
-  await combat.createEmbeddedDocuments("Combatant", [{ tokenId: tok.id, actorId: actor.id }]);
-  await combat.startCombat(); await sleep(600);
-
+  // Activation happens BEFORE combat begins — the start transition (round 0→1) must NOT tick a
+  // running timer (the begin-combat guard, shared with the damage-hooks per-turn blocks).
   const [imp] = await actor.createEmbeddedDocuments("Item", [{ name: "__PW__Booster", type: "cyberware",
     system: { equipped: true, EffectMode: "Activatable", EffectActive: false,
       CyberWorkType: { Types: ["Characteristic"], Stat: {}, Skill: {}, Checks: {}, ChipSkills: {} },
@@ -75,6 +69,14 @@ const r = await p.evaluate(async () => {
   out.activate = { doses: imp.system.mechConsumable.doses, active: imp.system.EffectActive,
     marker: marker0 ? { turnsLeft: marker0.turnsLeft, itemId: marker0.itemId === imp.id } : null,
     cardTurns: /2 turn/.test(msgs) };
+
+  const scene = game.scenes.viewed ?? game.scenes.active ?? game.scenes.contents[0];
+  const [tok] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__ConsumPunk", actorId: actor.id, actorLink: true, x: 1000, y: 1000 }]);
+  const combat = await Combat.create({ scene: scene.id, active: true });
+  await combat.createEmbeddedDocuments("Combatant", [{ tokenId: tok.id, actorId: actor.id }]);
+  await combat.startCombat(); await sleep(1200);
+  const markerAtStart = (actor.getFlag(SCOPE, "consumableState") ?? [])[0] ?? null;
+  out.startGuard = { turnsLeft: markerAtStart?.turnsLeft ?? null, stillActive: imp.system.EffectActive };
 
   // Round tick: the current combatant's timer counts down; expiry clears the activation state.
   await combat.update({ round: 2, turn: 0 }); await sleep(1500);
@@ -129,6 +131,7 @@ const checks = [
   ["e2e: activation spends one unit and stays on", r.activate.doses === 0 && r.activate.active === true],
   ["e2e: activation starts the timer (2 turns, right item)", r.activate.marker?.turnsLeft === 2 && r.activate.marker?.itemId === true],
   ["e2e: use card states the rolled duration", r.activate.cardTurns === true],
+  ["e2e: begin-combat does NOT tick a running timer (start guard)", r.startGuard.turnsLeft === 2 && r.startGuard.stillActive === true],
   ["e2e: round tick decrements the timer (2 → 1), still on", r.tick1.turnsLeft === 1 && r.tick1.stillActive === true],
   ["e2e: expiry clears the timer flag", r.expiry.flagCleared === true],
   ["e2e: expiry switches the activation off", r.expiry.deactivated === true],
