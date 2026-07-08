@@ -74,6 +74,25 @@ const r = await p.evaluate(async () => {
   const proot = await openCombat(plain);
   out.plainHidden = !proot.querySelector(".cp-fullborg-select");
 
+  // ── SDP-edit clobber fix: editing ONE zone's SDP on the sheet must not heal the OTHER zones (bare
+  //    ObjectField dotted-write hazard, §7). Damage two zones, edit one, assert the other is preserved. ──
+  out.sdpEdit = { err: null };
+  try {
+    await actor.unsetFlag(SCOPE, "fullBorg");   // back to auto (borg via the body item)
+    await actor.update({ "system.sdp.current": { ...(actor.system.sdp.current || {}), Head: 12, Torso: 20 } });
+    await sleep(300);
+    const root2 = await openCombat(actor);
+    const torsoInput = root2.querySelector('input[name="system.sdp.current.Torso"]');
+    out.sdpEdit.hasInput = !!torsoInput;
+    if (torsoInput) {
+      torsoInput.value = "25";
+      torsoInput.dispatchEvent(new Event("change", { bubbles: true }));
+      await sleep(700);
+    }
+    out.sdpEdit.torsoAfter = Number(actor.system?.sdp?.current?.Torso);   // 25 (the edited zone persists)
+    out.sdpEdit.headAfter = Number(actor.system?.sdp?.current?.Head);     // still 12 (NOT healed to 30)
+  } catch (e) { out.sdpEdit.err = e?.message || String(e); }
+
   await actor.sheet.close().catch(() => {});
   await plain.sheet.close().catch(() => {});
   await actor.delete().catch(() => {});
@@ -91,6 +110,8 @@ const checks = [
   ["AUTO → flag cleared (unset), falls back to the body item (borg again)", (r.auto.flag === undefined || r.auto.flag === null) && r.auto.isBorg === true],
   ["select reflects the persisted state after re-render (auto)", r.auto.selNow === "auto"],
   ["plain character (no cyber-SDP) does NOT show the toggle", r.plainHidden === true],
+  ["sheet SDP edit persists the edited zone (Torso → 25)", r.sdpEdit.hasInput === true && r.sdpEdit.torsoAfter === 25],
+  ["sheet SDP edit does NOT heal sibling zones (Head stays 12, not full)", r.sdpEdit.headAfter === 12],
   ["0 console errors", errors.length === 0],
 ];
 let fail = 0;

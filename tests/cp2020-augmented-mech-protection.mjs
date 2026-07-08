@@ -37,7 +37,12 @@ const r = await p.evaluate(async () => {
     bestPercent: P.hazardProtectionFor([mk(true, { gas: { percent: 50 } }), mk(true, { gas: { percent: 70 } })], "gas"),
     damageMult: P.hazardProtectionFor([mk(true, { sonic: { damageMult: 0.75 } })], "sonic"),
     // gas decision surfaces the percent so the caller knows to roll the exposure gate.
-    decidePercent: P.gasSaveDecisionFor([mk(true, { gas: { percent: 70 } })], -2)
+    decidePercent: P.gasSaveDecisionFor([mk(true, { gas: { percent: 70 } })], -2),
+    // Full-conversion borg: intrinsically immune to any gas (Chromebook 2 p.64), no gear needed, and
+    // its immunity is marked (borgSealed) so the cloud card names it as immunity, not "sealed gear".
+    decideBorg: P.gasSaveDecisionFor([], -3, { isFullBorg: true }),
+    decideBorgOverGear: P.gasSaveDecisionFor([mk(true, { gas: { immune: false, mod: 2 } })], -3, { isFullBorg: true }),
+    decideNonBorgBare: P.gasSaveDecisionFor([], -3, { isFullBorg: false })
   };
 
   // (1) Corrections-wired base items.
@@ -115,6 +120,10 @@ const checks = [
   ["pure: immune aggregates", r.pure.immune.immune === true],
   ["pure: best mod, no stacking (1+2 → 2)", r.pure.bestModNoStack.mod === 2],
   ["decision: immune skips the save", r.pure.decideImmune.skip === true],
+  ["decision: gear-sealed is NOT flagged as a borg", !r.pure.decideImmune.borgSealed],
+  ["decision: a full borg skips the save (immune) + borgSealed marker", r.pure.decideBorg.skip === true && r.pure.decideBorg.borgSealed === true],
+  ["decision: borg immunity holds over mere-offset gear (still skip)", r.pure.decideBorgOverGear.skip === true && r.pure.decideBorgOverGear.borgSealed === true],
+  ["decision: a non-borg with no gear must save (not skip, not borg)", r.pure.decideNonBorgBare.skip === false && !r.pure.decideNonBorgBare.borgSealed],
   ["decision: +2 offsets −3 to −1", r.pure.decideOffset.skip === false && r.pure.decideOffset.effMod === -1],
   ["decision: offset caps at 0 (never a bonus)", r.pure.decideCapped.effMod === 0],
   ["decision: bare actor keeps the full penalty", r.pure.decideBare.effMod === -3],
