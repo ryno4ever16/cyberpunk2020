@@ -160,6 +160,36 @@ const r = await p.evaluate(async () => {
   out.spCombine = { head: Number(bsp.system?.hitLocations?.Head?.stoppingPower) || 0 };  // combineArmorSP(20,25)=29
   await bsp.delete().catch(() => {});
 
+  // ── (10) FBC STATS: chassis REF/MA/BODY are SET onto the totals; movement/body dependents re-derived ──
+  const fakeStats = { system: { stats: { ref: { total: 5 }, ma: { total: 8 }, bt: { total: 6 } } } };
+  BG.applyBorgStats(fakeStats, { ref: 15, ma: 25, body: 20 });
+  out.statsPure = {
+    ref: fakeStats.system.stats.ref.total, ma: fakeStats.system.stats.ma.total, bt: fakeStats.system.stats.bt.total,
+    run: fakeStats.system.stats.ma.run, leap: fakeStats.system.stats.ma.leap,
+    carry: fakeStats.system.stats.bt.carry, lift: fakeStats.system.stats.bt.lift, btm: fakeStats.system.stats.bt.modifier,
+  };
+  const fake2 = { system: { stats: { ref: { total: 7 } } } };
+  BG.applyBorgStats(fake2, undefined);          // no stats block ⇒ untouched
+  out.statsNoop = { ref: fake2.system.stats.ref.total };
+
+  for (const a of game.actors.filter(a => a.name.startsWith("__PW__BorgStat"))) await a.delete().catch(() => {});
+  const bst = await Actor.create({ name: "__PW__BorgStatPunk", type: "character" });
+  await bst.createEmbeddedDocuments("Item", [{
+    name: "__PW__StatBody", type: "cyberware",
+    system: { equipped: true, EffectMode: "Permanent" },
+    flags: { "cp2020-augmented": { borgBody: {
+      sp:  { Head:40, Torso:40, lArm:40, rArm:40, lLeg:40, rLeg:40 },
+      sdp: { Head:50, Torso:60, lArm:50, rArm:50, lLeg:50, rLeg:50 },
+      stats: { ref: 15, ma: 25, body: 20 }
+    } } }
+  }]);
+  for (let i = 0; i < 25 && (Number(bst.system?.stats?.ref?.total) || 0) !== 15; i++) await sleep(200);
+  out.statsE2E = {
+    ref: Number(bst.system?.stats?.ref?.total), ma: Number(bst.system?.stats?.ma?.total), bt: Number(bst.system?.stats?.bt?.total),
+    run: Number(bst.system?.stats?.ma?.run), carry: Number(bst.system?.stats?.bt?.carry), btm: Number(bst.system?.stats?.bt?.modifier),
+  };
+  await bst.delete().catch(() => {});
+
   await actor.delete().catch(() => {});
   await flesh.delete().catch(() => {});
   return out;
@@ -187,6 +217,10 @@ const checks = [
   ["a hit over chassis SP: only the remainder reaches SDP (30−25=5 → 35)", r.spPenetrate.cur === 35],
   ["AP halves the chassis SP (12): 30→18 through → 17", r.spAP.cur === 17],
   ["chassis SP combines proportionally with worn armour (20+25 → 29)", r.spCombine.head === 29],
+  ["stats pure: SET ref/ma/bt to the chassis values (15/25/20)", r.statsPure.ref === 15 && r.statsPure.ma === 25 && r.statsPure.bt === 20],
+  ["stats pure: MA/BODY dependents re-derived (run 75, leap 18, carry 200, lift 800, BTM 5)", r.statsPure.run === 75 && r.statsPure.leap === 18 && r.statsPure.carry === 200 && r.statsPure.lift === 800 && r.statsPure.btm === 5],
+  ["stats pure: no stats block ⇒ totals untouched", r.statsNoop.ref === 7],
+  ["stats e2e: a body's stats block SETs the actor totals + dependents", r.statsE2E.ref === 15 && r.statsE2E.ma === 25 && r.statsE2E.bt === 20 && r.statsE2E.run === 75 && r.statsE2E.carry === 200 && r.statsE2E.btm === 5],
   ["0 console errors", errors.length === 0],
 ];
 let fail = 0;
