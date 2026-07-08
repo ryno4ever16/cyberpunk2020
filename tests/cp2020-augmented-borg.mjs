@@ -20,6 +20,7 @@ const r = await p.evaluate(async () => {
   const BG = await import("/modules/cp2020-augmented/module/mech/borg.js");
   const CL = await import("/modules/cp2020-augmented/module/mech/cyberlimb.js");
   const DA = await import("/modules/cp2020-augmented/module/combat/DamageApplicator.js");
+  const U  = await import("/modules/cp2020-augmented/module/utils.js");
   const sleep = (ms) => new Promise(res => setTimeout(res, ms));
   const ZONES = ["Head","Torso","lArm","rArm","lLeg","rLeg"];
 
@@ -114,6 +115,51 @@ const r = await p.evaluate(async () => {
   await sleep(500);
   out.fleshControl = { woundAdvanced: (Number(flesh.system?.damage) || 0) > fw0, notBorg: BG.isFullBorg(flesh) };
 
+  // ── (9) INTRINSIC CHASSIS SP: the borg's built-in SP reduces incoming damage BEFORE the SDP soak ──
+  // (Chr2 p.64 — a full borg is whole-body armour SP 25.) The steps above used ARMOR_MODES.NONE to
+  // isolate SDP routing; here we use FULL so the folded chassis SP actually applies.
+  out.combinePure = { c2925: U.combineArmorSP(20, 25), c025: U.combineArmorSP(0, 25), c2525: U.combineArmorSP(25, 25) };  // 29, 25, 30
+  for (const a of game.actors.filter(a => a.name.startsWith("__PW__BorgSP"))) await a.delete().catch(() => {});
+  const bsp = await Actor.create({ name: "__PW__BorgSPPunk", type: "character" });
+  await bsp.update({ "system.damage": 0, "system.stats.bt.value": 5 });
+  await bsp.createEmbeddedDocuments("Item", [{
+    name: "__PW__SPBody", type: "cyberware",
+    system: { equipped: true, EffectMode: "Permanent" },
+    flags: { "cp2020-augmented": { borgBody: {
+      sp:  { Head:25, Torso:25, lArm:25, rArm:25, lLeg:25, rLeg:25 },
+      sdp: { Head:30, Torso:40, lArm:30, rArm:30, lLeg:30, rLeg:30 }
+    } } }
+  }]);
+  for (let i = 0; i < 25 && (Number(bsp.system?.sdp?.sum?.Torso) || 0) !== 40; i++) await sleep(200);
+  const spCur = (z) => Number(bsp.system?.sdp?.current?.[z]);
+  const spHit = (loc, amt, ap = false) => DA.applyAreaDamages({
+    target: bsp, areaDamages: { [loc]: [{ damage: amt }] },
+    ap, armorMode: DA.ARMOR_MODES.FULL, ablate: false, dryRun: false
+  });
+
+  // (9a) chassis SP surfaces on the derived per-zone armour SP (no worn armour → just the chassis 25).
+  out.spDerived = {
+    hitLoc: Number(bsp.system?.hitLocations?.Torso?.stoppingPower) || 0,   // 25
+    effective: DA.effectiveArmorSP(bsp, "Torso"),                          // 25
+  };
+  // (9b) a hit at/under the chassis SP is shrugged off — no SDP loss (borg toughness). 20 ≤ 25.
+  await spHit("Torso", 20); await sleep(500);
+  out.spStopped = { cur: spCur("Torso") };   // still 40
+  // (9c) a hit OVER the chassis SP: only the penetrating remainder reaches SDP. 30 − 25 = 5 → 40→35.
+  await spHit("Torso", 30); await sleep(500);
+  out.spPenetrate = { cur: spCur("Torso") };  // 35
+  // (9d) AP halves the chassis SP (floor(25/2)=12): raw 30 → 18 through → 35 − 18 = 17.
+  await spHit("Torso", 30, true); await sleep(500);
+  out.spAP = { cur: spCur("Torso") };  // 17
+  // (9e) chassis SP COMBINES proportionally with worn armour (not a flat max): SP20 head layer + 25.
+  await bsp.createEmbeddedDocuments("Item", [{
+    name: "__PW__Helmet", type: "armor",
+    system: { equipped: true, coverage: { Head: { stoppingPower: 20 } } }
+  }]);
+  for (let i = 0; i < 20 && (Number(bsp.system?.hitLocations?.Head?.stoppingPower) || 0) === 25; i++) await sleep(200);
+  out.spCombine = { head: Number(bsp.system?.hitLocations?.Head?.stoppingPower) || 0 };  // combineArmorSP(20,25)=29
+  await bsp.delete().catch(() => {});
+
   await actor.delete().catch(() => {});
   await flesh.delete().catch(() => {});
   return out;
@@ -135,6 +181,12 @@ const checks = [
   ["sheet status covers Head+Torso (head damaged persists); arm destroyed", r.sheetStatus.hasHead === true && r.sheetStatus.hasTorso === true && r.sheetStatus.headDamaged === true && r.sheetStatus.armDestroyed === "destroyed"],
   ["sheet UI: a core-zone (Head) repair button + a destroyed-zone badge render", r.sheetUI.headRepairBtn === true && r.sheetUI.armBadge === true],
   ["flesh control: a non-borg torso hit still advances the wound track", r.fleshControl.woundAdvanced === true && r.fleshControl.notBorg === false],
+  ["combineArmorSP p.99 proportional table (20+25=29, 0+25=25, 25+25=30)", r.combinePure.c2925 === 29 && r.combinePure.c025 === 25 && r.combinePure.c2525 === 30],
+  ["intrinsic SP surfaces on the derived per-zone armour SP (chassis 25)", r.spDerived.hitLoc === 25 && r.spDerived.effective === 25],
+  ["a hit at/under chassis SP (20 ≤ 25) is shrugged off — no SDP loss", r.spStopped.cur === 40],
+  ["a hit over chassis SP: only the remainder reaches SDP (30−25=5 → 35)", r.spPenetrate.cur === 35],
+  ["AP halves the chassis SP (12): 30→18 through → 17", r.spAP.cur === 17],
+  ["chassis SP combines proportionally with worn armour (20+25 → 29)", r.spCombine.head === 29],
   ["0 console errors", errors.length === 0],
 ];
 let fail = 0;
