@@ -89,6 +89,32 @@ const r = await p.evaluate(async () => {
     notDodging: MA.declaredDodgeBonus(false, 3),               // 0 (no dodge declared → no bonus at all)
   };
 
+  // ── (C) no-damage maneuvers: a declared dodge helps vs Grapple (an attack) but NOT vs Escape (a
+  //        self-action). Full rollMartialAttack path via a STUBBED single target — no canvas (the
+  //        headless PIXI draw is flaky), so this stays deterministic. aikido still carries the dodge flag. ──
+  out.noDamage = { err: null };
+  try {
+    try { await game.settings.set(SCOPE, "specialMeleeEffectsEnabled", true); } catch {}
+    const attacker = await mk("__PW__DodgeGrappler", { skills: { Brawling: 8 } });
+    const fake = new Set([{ id: "__pwFakeTok", actor: aikido }]);   // the dodging Aikido defender (key 3)
+    fake.first = () => [...fake][0];
+    const desc = Object.getOwnPropertyDescriptor(game.user, "targets");
+    Object.defineProperty(game.user, "targets", { value: fake, configurable: true });
+    const cardFor = async (action) => {
+      const before = game.messages.size;
+      await MA.rollMartialAttack(attacker, { martialArt: "Brawling", action });
+      await sleep(300);
+      return game.messages.contents.slice(before).map(m => m.content || "").join("\n");
+    };
+    const grappleCard = await cardFor("Grapple");   // incoming attack → dodge applies → +5 (2+3)
+    const escapeCard  = await cardFor("Escape");     // self-action → dodge excluded → no +Dodge
+    out.noDamage.grappleFive = /\+\s*5\s*Dodge/.test(grappleCard);
+    out.noDamage.grappleContested = /class="cp2020ae-martial-defense-detail"|__PW__DodgeAikido/.test(grappleCard);
+    out.noDamage.escapeNoDodge = !/\+\s*\d+\s*Dodge/.test(escapeCard);
+    if (desc) Object.defineProperty(game.user, "targets", desc); else delete game.user.targets;
+    await attacker.delete().catch(() => {});
+  } catch (e) { out.noDamage.err = e?.message || String(e); }
+
   for (const a of [aikido, karate, nonMart, mixed, maWins]) await a.delete().catch(() => {});
   return out;
 });
@@ -104,6 +130,8 @@ const checks = [
   ["caller rule: Aikido dodger → +5 (2 stance + 3 key)", r.helper.aikido === 5],
   ["caller rule: Karate / non-martial / mixed dodger → +2 (stance only)", r.helper.karate === 2 && r.helper.nonMart === 2 && r.helper.mixed === 2],
   ["caller rule: not dodging → +0 (no bonus at all)", r.helper.notDodging === 0],
+  ["no-damage GRAPPLE honors the declared dodge (card shows +5 Dodge)", r.noDamage.grappleFive === true && r.noDamage.grappleContested === true],
+  ["no-damage ESCAPE excludes the dodge (self-action → no +Dodge on the card)", r.noDamage.escapeNoDodge === true],
   ["0 console errors", errors.length === 0],
 ];
 let fail = 0;
