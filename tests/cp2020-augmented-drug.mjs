@@ -85,6 +85,39 @@ const r = await p.evaluate(async () => {
   await S.clearAddiction(actor); await sleep(300);
   out.cleared = { addictionTotal: addiction().total };
 
+  // ── (1b) interactive wear-off save + auto-applied crash (guaranteed fail/pass) ─────
+  // Guaranteed FAIL: 1d10 + COOL(8) tops out at 18, difficulty 99 → always crashes.
+  const [crashDrug] = await actor.createEmbeddedDocuments("Item", [{ name: "__PW__CrashDrug", type: "misc",
+    system: { equipped: true, mechDrug: { enabled: true, statBoosts: [], rollBoosts: [], duration: "1 hour", durationTurns: "",
+      expireSave: { stat: "cool", difficulty: 99, penaltyBoosts: [{ stat: "cool", mod: -2 }], penaltyTurns: "", penalty: "-3 to all skills" },
+      addictionDifficulty: 0, psychosis: "", note: "" } } }]);
+  await sleep(200);
+  await S.takeDrug(crashDrug); await sleep(400);
+  const msgBefore = game.messages.size;
+  await S.endDrug(crashDrug); await sleep(500);               // posts the INTERACTIVE wear-off card
+  const woCard = game.messages.contents[game.messages.size - 1]?.content ?? "";
+  out.saveCard = { interactive: /cp-drug-save-roll/.test(woCard), carriesItem: woCard.includes(crashDrug.id), posted: game.messages.size > msgBefore };
+  await S.executeDrugExpireSave({ actorId: actor.id, itemId: crashDrug.id }); await sleep(600);
+  out.crashApplied = { cool: total("cool"), penaltyMarker: markers().some(m => m.isPenalty && m.itemId === crashDrug.id) };
+  // The crash shows in the strip labelled as a crash.
+  await actor.sheet.render(true); await sleep(800);
+  root = actor.sheet.element;
+  const crashPill = [...(root?.querySelectorAll(".cp-status-pill.cp-kind-drug") ?? [])].map(e => e.textContent.replace(/\s+/g, " ").trim());
+  out.crashPill = crashPill.some(t => /crash/i.test(t) && /COOL/.test(t));
+  await actor.sheet.close().catch(() => {});
+  // Clear the crash (item-sheet Wear-off finds the penalty marker by itemId).
+  await S.endDrug(crashDrug); await sleep(400);
+  out.crashCleared = { cool: total("cool"), noPenalty: !markers().some(m => m.isPenalty) };
+
+  // Guaranteed PASS: difficulty 1 → 1d10 + COOL always ≥ 1 → resisted, no crash.
+  const [passDrug] = await actor.createEmbeddedDocuments("Item", [{ name: "__PW__PassDrug", type: "misc",
+    system: { equipped: true, mechDrug: { enabled: true, statBoosts: [], rollBoosts: [], duration: "1 hour", durationTurns: "",
+      expireSave: { stat: "cool", difficulty: 1, penaltyBoosts: [{ stat: "cool", mod: -2 }], penaltyTurns: "", penalty: "" },
+      addictionDifficulty: 0, psychosis: "", note: "" } } }]);
+  await sleep(200);
+  await S.executeDrugExpireSave({ actorId: actor.id, itemId: passDrug.id }); await sleep(500);
+  out.savePass = { cool: total("cool"), noPenalty: !markers().some(m => m.isPenalty) };
+
   // ── (2) round-tick auto-expiry for a timed drug ───────────────────────────
   const [stim] = await actor.createEmbeddedDocuments("Item", [{ name: "__PW__Stim", type: "misc",
     system: { equipped: true, mechDrug: { enabled: true, statBoosts: [{ stat: "ref", mod: 2 }],
@@ -122,6 +155,11 @@ const checks = [
   ["e2e: wear off lifts the boost + clears the marker (addiction persists)", r.wornOff.cool === 8 && r.wornOff.emp === 5 && r.wornOff.noMarkers && r.wornOff.addictionStillOne],
   ["e2e: re-dose increments the addiction tally (×2)", r.reDose.addictionTotal === 2 && r.reDose.addictionChar === 2],
   ["e2e: clear resets the tally to 0", r.cleared.addictionTotal === 0],
+  ["save: wear-off posts the INTERACTIVE card (Roll button + item id)", r.saveCard.posted && r.saveCard.interactive && r.saveCard.carriesItem],
+  ["save: failed save applies the crash (COOL −2 overlay + penalty marker)", r.crashApplied.cool === 6 && r.crashApplied.penaltyMarker === true],
+  ["save: crash pill shows in the strip labelled 'crash'", r.crashPill === true],
+  ["save: clearing the crash lifts the penalty (COOL back to 8)", r.crashCleared.cool === 8 && r.crashCleared.noPenalty],
+  ["save: passed save applies no crash", r.savePass.cool === 8 && r.savePass.noPenalty],
   ["e2e: timed drug applies REF +2 with turnsLeft 1", r.timedTaken.ref === 8 && r.timedTaken.markerTurns === 1],
   ["e2e: round tick expires the timed drug (boost drops)", r.timedExpired.ref === 6 && r.timedExpired.noMarkers],
   ["0 console errors", errors.length === 0]
