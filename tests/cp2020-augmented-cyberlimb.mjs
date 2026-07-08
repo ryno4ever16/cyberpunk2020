@@ -82,6 +82,20 @@ const r = await p.evaluate(async () => {
   await hit("rArm", 20); await sleep(400);
   out.reHit = { stillDestroyed: limbStatus().rArm === "destroyed", noOverflow: dmg() === woundBeforeRehit };
 
+  // ── (2) Repair UI ─────────────────────────────────────────────────────────
+  const sheetStatus = () => CL.cyberlimbSheetStatus(actor);
+  out.repairBefore = { status: sheetStatus().rArm?.status, damaged: sheetStatus().rArm?.damaged };   // "destroyed", true
+  // The sheet shows the true-status badge + a repair button on the destroyed limb.
+  await actor.sheet.render(true); await sleep(900);
+  const root = actor.sheet.element;
+  const badge = root?.querySelector(".segment-sdp-row .segment-limb-status.cp-limb-destroyed");
+  const repairBtn = root?.querySelector('.cp-cyberlimb-repair[data-zone="rArm"]');
+  out.sheetUI = { badge: !!badge, badgeText: badge?.textContent?.trim() ?? "", repairBtn: !!repairBtn };
+  await actor.sheet.close().catch(() => {});
+  // Repair restores SDP to full and clears the sticky flag.
+  await CL.repairCyberlimb(actor, "rArm"); await sleep(500);
+  out.repaired = { cur: curRArm(), flag: limbStatus().rArm ?? null, status: sheetStatus().rArm?.status ?? "gone" };  // 30, null, "ok"
+
   await actor.delete().catch(() => {});
   return out;
 });
@@ -98,6 +112,9 @@ const checks = [
   ["destroyed → limb flagged destroyed, NO overflow to the wound track", r.destroyed.status === "destroyed" && r.destroyed.noOverflow === true],
   ["a limb-destroying hit fires NO death save (RAW: machinery)", r.destroyed.noDeathSave === true],
   ["re-hitting a destroyed limb soaks nothing + no wound overflow", r.reHit.stillDestroyed === true && r.reHit.noOverflow === true],
+  ["repair UI: destroyed limb reports the true status (not the reset SDP number)", r.repairBefore.status === "destroyed" && r.repairBefore.damaged === true],
+  ["repair UI: sheet shows the destroyed badge + repair button", r.sheetUI.badge === true && /destroyed/i.test(r.sheetUI.badgeText) && r.sheetUI.repairBtn === true],
+  ["repair restores SDP to full + clears the destroyed flag", r.repaired.cur === 30 && r.repaired.flag === null && r.repaired.status === "ok"],
   ["0 console errors", errors.length === 0]
 ];
 let fail = 0;
