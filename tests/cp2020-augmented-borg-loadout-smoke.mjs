@@ -45,13 +45,15 @@ const r = await p.evaluate(async () => {
   out.fbcStats = { ref: Number(actor.system?.stats?.ref?.total), ma: Number(actor.system?.stats?.ma?.total), bt: Number(actor.system?.stats?.bt?.total) };
   out.borgSdp = { head: Number(actor.system?.sdp?.sum?.Head), torso: Number(actor.system?.sdp?.sum?.Torso) };  // Dragoon 50 / 60
 
-  // Sheet render: options show in their zone sections + nest under the body in the cyber tree.
+  // Sheet render: options show in their zone sections; the zoneless chassis has its own pinned strip.
   await actor.sheet.render(true); await sleep(1200);
   const root = actor.sheet.element;
   const zoneLabels = [...(root?.querySelectorAll(".active-cyberware-segment .field.gear label") || [])].map(l => l.textContent.trim());
   out.sheetShowsOptions = zoneLabels.filter(t => /Front Optic Mount|Quick-Change Weapon Mount|Pain Editor/i.test(t)).length;
-  const treeHasBody = !!root?.querySelector('[data-drop-target="cyber-inventory"]')?.textContent?.includes("Dragoon");
-  out.treeHasBodyRoot = treeHasBody;
+  // The flat cyberware tree was removed; the Dragoon body now folds into the Active Cyberware header
+  // (name + ⊗ clear-loadout control), no dedicated segment.
+  const chassis = root?.querySelector('.cp-active-cyber-header .cp-chassis-inline');
+  out.treeHasBodyRoot = !!chassis?.textContent?.includes("Dragoon") && !!chassis?.querySelector('.cp-group-remove');
   await actor.sheet.close().catch(() => {});
 
   // ── Chip sectioning: a re-typed flavor chip is typed Chip in the pack + sections when active ──
@@ -75,13 +77,13 @@ const r = await p.evaluate(async () => {
 console.log(JSON.stringify(r, null, 1));
 const checks = [
   ["compendium packs load", r.packs?.cyber === true && r.packs?.chips === true],
-  ["Dragoon in the pack carries FBC stats (15/25/20) + a 28-option manifest", r.dragoonPack?.hasStats === true && r.dragoonPack?.manifestLen === 28],
-  ["installing the Dragoon materializes its loadout (~28 options)", r.materialized?.count >= 26],
+  ["Dragoon in the pack carries FBC stats (15/25/20) + a 38-spec manifest (mounts, booms + split sensory items)", r.dragoonPack?.hasStats === true && r.dragoonPack?.manifestLen === 38],
+  ["installing the Dragoon materializes its loadout (38 items incl. nested)", r.materialized?.count >= 36],
   ["options land across the expected zones (Head/Arm/Leg/Nervous/Torso)", r.materialized && ["Head","Arm","Leg","Nervous","Torso"].every(z => (r.materialized.zones[z] || 0) > 0)],
   ["FBC chassis SETs REF/MA/BODY (15/25/20)", r.fbcStats?.ref === 15 && r.fbcStats?.ma === 25 && r.fbcStats?.bt === 20],
   ["borg per-zone SDP seeded (Dragoon Head 50 / Torso 60)", r.borgSdp?.head === 50 && r.borgSdp?.torso === 60],
   ["sheet shows materialized options in their zone sections", r.sheetShowsOptions >= 2],
-  ["the body roots the cyberware inventory tree", r.treeHasBodyRoot === true],
+  ["the zoneless chassis renders in the chassis strip with its ⊗ clear control", r.treeHasBodyRoot === true],
   ["a re-typed chip is typed Chip in the re-seeded pack", r.chipPackTyped === true],
   ["that chip, equipped+active, qualifies as a sectioned chip", r.chipSections === true],
   ["the active chip renders in the active-chip area", r.chipInActiveArea === true],

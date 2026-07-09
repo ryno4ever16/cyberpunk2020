@@ -76,21 +76,88 @@ const r = await p.evaluate(async () => {
   await L.materializeLoadout(body); await sleep(400);
   out.idempotent = { count: opts(body.id).length };
 
-  // Uninstall → prune exactly this body's options + clear the guard.
+  // Uninstall PRESERVES the options (non-destructive): they are KEPT but UNEQUIPPED (→ carried), and
+  // the guard is KEPT so a re-install doesn't re-materialize duplicates.
   await body.update({ "system.equipped": false }); await sleep(1400);
+  const unopts = opts(body.id);
   out.uninstalled = {
-    count: opts(body.id).length,
-    flagCleared: body.getFlag("cp2020-augmented", "loadoutInstalled") === undefined,
+    count: unopts.length,                                              // 4 — kept, not deleted
+    allUnequipped: unopts.every(i => i.system?.equipped !== true),
+    flagKept: body.getFlag("cp2020-augmented", "loadoutInstalled") === true,
   };
 
-  // Re-install → fresh materialization.
+  // Re-install → guard held ⇒ no re-materialize; the carried options remain, no duplicates.
   await body.update({ "system.equipped": true }); await sleep(1400);
-  out.reinstalled = { count: opts(body.id).length };
+  out.reinstalled = { count: opts(body.id).length };                   // still 4 (no dupes)
 
-  // Delete the body → the whole loadout goes with it.
+  // Delete the body → the ATTACHED (equipped) options go with the destroyed chassis, but options the
+  // player shelved to Carried SURVIVE (never destroy carried chrome). Re-equip 2 of the 4 carried
+  // options, leave 2 carried, then delete: expect the 2 attached gone and the 2 carried kept.
   const bid = body.id;
+  const carriedNow = actor.items.filter(i => i.getFlag("cp2020-augmented", "loadoutSource") === bid);
+  await actor.updateEmbeddedDocuments("Item", carriedNow.slice(0, 2).map(i => ({ _id: i.id, "system.equipped": true })));
+  await sleep(400);
   await body.delete(); await sleep(1400);
-  out.deleted = { count: actor.items.filter(i => i.getFlag("cp2020-augmented", "loadoutSource") === bid).length };
+  const survivors = actor.items.filter(i => i.getFlag("cp2020-augmented", "loadoutSource") === bid);
+  out.deleted = { count: survivors.length, allCarried: survivors.every(i => i.system?.equipped !== true) };
+
+  // ── (1b) NESTED manifest: a container option (a Front Optic Mount) whose child options parent to the
+  //         MOUNT, not the body (the borg optic-mount → optics structure). Same shape as the Dragoon. ──
+  const nestActor = await Actor.create({ name: "__PW__LoadoutNest", type: "character" });
+  const NESTED = [
+    { key: "mount", name: "__PW__Mount", mountZone: "Head", cyberwareType: "CyberOptic", types: ["Implant"], optionsAvailable: 3 },
+    { parentKey: "mount", name: "__PW__OpticA", mountZone: "Head", cyberwareType: "CyberOptic", isModule: true, allowedParent: "CyberOptic" },
+    { parentKey: "mount", name: "__PW__OpticB", mountZone: "Head", cyberwareType: "CyberOptic", isModule: true, allowedParent: "CyberOptic" },
+  ];
+  const [nbody] = await nestActor.createEmbeddedDocuments("Item", [{
+    name: "__PW__NestBody", type: "cyberware",
+    system: { equipped: false, EffectMode: "Permanent", EffectActive: false, CyberWorkType: {}, CyberBodyType: {}, Module: {} },
+    flags: { "cp2020-augmented": { loadout: NESTED } },
+  }]);
+  await nbody.update({ "system.equipped": true }); await sleep(1400);
+  const nopts = nestActor.items.filter(i => i.getFlag("cp2020-augmented", "loadoutSource") === nbody.id);
+  const mount = nopts.find(i => i.name === "__PW__Mount");
+  const oA = nopts.find(i => i.name === "__PW__OpticA");
+  out.nested = {
+    count: nopts.length,                                                    // 3 (mount + 2 optics)
+    mountIsContainer: Number(mount?.system?.CyberWorkType?.OptionsAvailable) === 3,
+    mountNotModule: !mount?.system?.Module?.IsModule,
+    mountParentBody: mount?.system?.Module?.ParentId === nbody.id,          // mount → body
+    opticParentMount: oA?.system?.Module?.ParentId === mount?.id,           // optic → the MOUNT, not the body
+    opticIsModule: oA?.system?.Module?.IsModule === true,
+    opticSourceBody: oA?.getFlag("cp2020-augmented", "loadoutSource") === nbody.id,  // membership still the body
+  };
+  await nestActor.delete().catch(() => {});
+
+  // ── (1c) MIXED boom manifest: a container with acceptsTypes holds a typed optic AND a typed audio
+  //         child, and the children INHERIT the boom's zone/side (a Torso shoulder boom's contents live
+  //         in the Torso zone with it — the Spyder shoulder-boom structure). ──
+  const boomActor = await Actor.create({ name: "__PW__LoadoutBoom", type: "character" });
+  const BOOMED = [
+    { key: "boom", name: "__PW__Boom", mountZone: "Torso", types: ["Implant"], optionsAvailable: 3, acceptsTypes: ["CyberOptic", "CyberAudio"] },
+    { parentKey: "boom", name: "__PW__BoomOptic", mountZone: "Head", cyberwareType: "CyberOptic", isModule: true, allowedParent: "CyberOptic" },
+    { parentKey: "boom", name: "__PW__BoomAudio", mountZone: "Head", cyberwareType: "CyberAudio", isModule: true, allowedParent: "CyberAudio" },
+  ];
+  const [bbody] = await boomActor.createEmbeddedDocuments("Item", [{
+    name: "__PW__BoomBody", type: "cyberware",
+    system: { equipped: false, EffectMode: "Permanent", EffectActive: false, CyberWorkType: {}, CyberBodyType: {}, Module: {} },
+    flags: { "cp2020-augmented": { loadout: BOOMED } },
+  }]);
+  await bbody.update({ "system.equipped": true }); await sleep(1400);
+  const bopts = boomActor.items.filter(i => i.getFlag("cp2020-augmented", "loadoutSource") === bbody.id);
+  const boomIt = bopts.find(i => i.name === "__PW__Boom");
+  const bOpt = bopts.find(i => i.name === "__PW__BoomOptic");
+  const bAud = bopts.find(i => i.name === "__PW__BoomAudio");
+  out.boom = {
+    count: bopts.length,                                                      // 3 (boom + optic + audio)
+    acceptsOnItem: JSON.stringify(boomIt?.system?.CyberWorkType?.AcceptsTypes) === '["CyberOptic","CyberAudio"]',
+    opticParentBoom: bOpt?.system?.Module?.ParentId === boomIt?.id,
+    audioParentBoom: bAud?.system?.Module?.ParentId === boomIt?.id,
+    opticZoneFollowsBoom: bOpt?.system?.MountZone === "Torso",                // spec said Head; the boom's zone wins
+    audioZoneFollowsBoom: bAud?.system?.MountZone === "Torso",
+    opticKeepsFamily: bOpt?.system?.Module?.AllowedParentCyberwareType === "CyberOptic",  // truthful typing survives
+  };
+  await boomActor.delete().catch(() => {});
 
   // ── (2) Negative: a body with NO manifest materializes nothing ──────────────
   const [plain] = await actor.createEmbeddedDocuments("Item", [{
@@ -121,9 +188,11 @@ const checks = [
   ["e2e: sided limb options carry zone + Left/Right (cyberZones buckets by these)",
     r.installed.armZone === "Arm" && r.installed.armSide === "Right" && r.installed.legZone === "Leg" && r.installed.legSide === "Left"],
   ["e2e: second materialize does not duplicate (idempotent)", r.idempotent.count === 4],
-  ["e2e: uninstall prunes the options + clears the guard", r.uninstalled.count === 0 && r.uninstalled.flagCleared === true],
-  ["e2e: re-install re-materializes cleanly", r.reinstalled.count === 4],
-  ["e2e: deleting the body removes its whole loadout", r.deleted.count === 0],
+  ["e2e: uninstall PRESERVES the options (kept, unequipped) + keeps the guard", r.uninstalled.count === 4 && r.uninstalled.allUnequipped === true && r.uninstalled.flagKept === true],
+  ["e2e: re-install does not duplicate the carried options (guard held)", r.reinstalled.count === 4],
+  ["e2e: deleting the body removes ATTACHED options but keeps CARRIED ones (2 shelved survive)", r.deleted.count === 2 && r.deleted.allCarried === true],
+  ["e2e: NESTED manifest — a mount container holds its optics (optics parent to the MOUNT; membership stays the body)", r.nested.count === 3 && r.nested.mountIsContainer === true && r.nested.mountNotModule === true && r.nested.mountParentBody === true && r.nested.opticParentMount === true && r.nested.opticIsModule === true && r.nested.opticSourceBody === true],
+  ["e2e: MIXED boom manifest — acceptsTypes lands on the container, both families nest under it, children inherit the boom's zone, typing stays truthful", r.boom.count === 3 && r.boom.acceptsOnItem === true && r.boom.opticParentBoom === true && r.boom.audioParentBoom === true && r.boom.opticZoneFollowsBoom === true && r.boom.audioZoneFollowsBoom === true && r.boom.opticKeepsFamily === true],
   ["e2e: a body with no manifest materializes nothing", r.negative.count === 0],
   ["0 console errors", errors.length === 0],
 ];

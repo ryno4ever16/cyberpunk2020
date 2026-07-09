@@ -25,8 +25,8 @@ const r = await p.evaluate(async () => {
   const misc = (id, over = {}) => ({ id, type: "misc", name: "m" + id,
     system: { mechContainer: { installedIn: "", capacity: 0, slotsTaken: 1 }, ...over } });
 
-  const cyEye = cyber("eye", { CyberWorkType: { OptionsAvailable: 3 } });
-  const cyOpt = cyber("opt", { Module: { ParentId: "eye", SlotsTaken: 2 } });
+  const cyEye = cyber("eye", { cyberwareType: "CyberOptic", CyberWorkType: { OptionsAvailable: 3, Types: ["Implant"] } });
+  const cyOpt = cyber("opt", { Module: { ParentId: "eye", SlotsTaken: 2, IsModule: true, AllowedParentCyberwareType: "CyberOptic" } });
   const pouch = misc("pouch", { mechContainer: { installedIn: "", capacity: 2, slotsTaken: 1 } });
   const stored = misc("stored", { mechContainer: { installedIn: "pouch", capacity: 0, slotsTaken: 1 } });
   const list = [cyEye, cyOpt, pouch, stored];
@@ -50,9 +50,30 @@ const r = await p.evaluate(async () => {
   out.guards = {
     selfInstall: C.canInstall(cyEye, cyEye, list),
     intoNonContainer: C.canInstall(cyEye, cyOpt, list),      // opt has capacity 0
-    overCapacity: C.canInstall(cyber("big", { Module: { SlotsTaken: 5 } }), cyEye, list),  // needs 5, has 1
-    fits: C.canInstall(misc("small"), cyEye, list),          // needs 1, has 1
-    cycle: C.wouldCycle(cyEye, cyOpt, list)                  // opt is under eye → installing eye into opt cycles
+    overCapacity: C.canInstall(cyber("big", { Module: { SlotsTaken: 5, IsModule: true, AllowedParentCyberwareType: "CyberOptic" } }), cyEye, list),  // valid optic module, needs 5, has 1 → full
+    fits: C.canInstall(misc("small"), cyEye, list),          // misc child: capacity only, needs 1, has 1
+    cycle: C.wouldCycle(cyEye, cyOpt, list),                 // opt is under eye → installing eye into opt cycles
+    // base AllowedParentCyberwareType model:
+    notModule: C.canInstall(cyber("base", { CyberWorkType: { OptionsAvailable: 0, Types: ["Implant"] } }), cyEye, list),  // not IsModule (a host, e.g. an optic mount) → rejected
+    wrongType: C.canInstall(cyber("armopt", { Module: { SlotsTaken: 1, IsModule: true, AllowedParentCyberwareType: "CyberArm" } }), cyEye, list),  // wants a CyberArm host, eye is CyberOptic → rejected
+    reasonWrongType: C.checkInstall(cyber("armopt2", { Module: { SlotsTaken: 1, IsModule: true, AllowedParentCyberwareType: "CyberArm" } }), cyEye, list).reason
+  };
+
+  // mixed-family mount: CyberWorkType.AcceptsTypes replaces the host's own family in the match,
+  // and its contents follow the mount's placement (the anatomy zone match is skipped for it).
+  const boom = cyber("boom", { cyberwareType: "", MountZone: "Torso", CyberBodyType: { Type: "Torso" },
+    CyberWorkType: { OptionsAvailable: 3, Types: ["Implant"], AcceptsTypes: ["CyberOptic", "CyberAudio"] } });
+  const audMod = cyber("aud", { cyberwareType: "CyberAudio", MountZone: "Head", CyberBodyType: { Type: "Head" },
+    Module: { SlotsTaken: 1, IsModule: true, AllowedParentCyberwareType: "CyberAudio" } });
+  const optMod = cyber("optm", { cyberwareType: "CyberOptic", MountZone: "Head", CyberBodyType: { Type: "Head" },
+    Module: { SlotsTaken: 1, IsModule: true, AllowedParentCyberwareType: "CyberOptic" } });
+  const legMod = cyber("legm", { Module: { SlotsTaken: 1, IsModule: true, AllowedParentCyberwareType: "CyberLeg" } });
+  const boomList = [boom, audMod, optMod, legMod, cyEye];
+  out.acceptsTypes = {
+    audioIntoBoom: C.checkInstall(audMod, boom, boomList).ok,      // listed family → allowed
+    opticIntoBoom: C.checkInstall(optMod, boom, boomList).ok,      // listed family; Head child into a Torso mount → zone match skipped
+    legIntoBoom: C.checkInstall(legMod, boom, boomList).reason,    // family not listed → "wrong-type"
+    audioIntoEye: C.checkInstall(audMod, cyEye, boomList).reason   // truthful typing: an audio module still refuses a cybereye → "wrong-type"
   };
   const tree = C.buildContainerTree(list, (it) => it.type === "cyberware");
   out.tree = {
@@ -95,6 +116,13 @@ const r = await p.evaluate(async () => {
     armUsed: C.usedSlots(items(), arm.id)
   };
 
+  // type restriction e2e: a wrong-allowed-type cyberware module won't install into the eye (stays loose)
+  const armOpt = await mk({ name: "__PW__ArmOptReject", type: "cyberware",
+    system: { equipped: true, Module: { IsModule: true, ParentId: "", SlotsTaken: 1, AllowedParentCyberwareType: "CyberArm" } } });
+  const armOptOk = await C.installItem(armOpt, actor.items.get(eye.id), items());
+  out.typeReject = armOptOk === false && actor.items.get(armOpt.id).system.Module.ParentId === "";
+  await armOpt.delete().catch(() => {});
+
   // capacity guard on a real over-fill: a 2nd option into the single-free-slot arm should fail
   const opt2 = await mk({ name: "__PW__ExtraOpt", type: "cyberware",
     system: { equipped: true, CyberWorkType: { Types: [] }, Module: { IsModule: true, ParentId: "", SlotsTaken: 3 } } });
@@ -114,26 +142,30 @@ const r = await p.evaluate(async () => {
     trinketDetached: trinketAfter?.system?.mechContainer?.installedIn === ""
   };
 
-  // ── (2) Sheet render: the telescoping trees ───────────────────────────────
+  // ── (2) Sheet render: container-node.hbs telescoping in the GEAR tab (its remaining home — the cyber
+  //        tab now telescopes INSIDE the anatomy body map, covered by cp2020-augmented-cyberware-redesign.mjs).
+  //        A misc bag with a nested widget exercises the same partial + the ⏏ uninstall control. ────
+  const bag = await mk({ name: "__PW__Bag", type: "misc", system: { equipped: true, mechContainer: { installedIn: "", capacity: 2, slotsTaken: 1 } } });
+  const widget = await mk({ name: "__PW__Widget", type: "misc", system: { equipped: false, mechContainer: { installedIn: "", capacity: 0, slotsTaken: 1 } } });
+  await C.installItem(widget, bag, items()); await sleep(300);
   await actor.sheet.render(true); await sleep(900);
   const root = actor.sheet.element;
-  // the cyber tab: cybereye node with the low-lite nested under it + a capacity badge
-  const eyeNode = root?.querySelector(`.cp-container-node [data-item-id="${eye.id}"]`)?.closest(".cp-container-node");
+  const bagNode = root?.querySelector(`.cp-container-node [data-item-id="${bag.id}"]`)?.closest(".cp-container-node");
   out.render = {
-    eyeNodePresent: !!eyeNode,
-    optNested: !!eyeNode?.querySelector(`.cp-container-children [data-item-id="${opt.id}"]`),
-    capacityBadge: !!eyeNode?.querySelector(".cp-capacity-badge"),
-    uninstallControl: !!eyeNode?.querySelector(`.cp-container-children [data-item-id="${opt.id}"] .cp-container-uninstall`),
-    deleteX: !!eyeNode?.querySelector(".item-delete")
+    eyeNodePresent: !!bagNode,
+    optNested: !!bagNode?.querySelector(`.cp-container-children [data-item-id="${widget.id}"]`),
+    capacityBadge: !!bagNode?.querySelector(".cp-capacity-badge"),
+    uninstallControl: !!bagNode?.querySelector(`.cp-container-children [data-item-id="${widget.id}"] .cp-container-uninstall`),
+    deleteX: !!bagNode?.querySelector(".item-delete")
   };
 
-  // Clicking the nested option's ⏏ detaches it WITHOUT opening its item sheet (the item-edit row
+  // Clicking the nested item's ⏏ detaches it WITHOUT opening its item sheet (the item-edit row
   // handler must yield to the uninstall control).
   const openBefore = foundry.applications.instances.size;
-  eyeNode?.querySelector(`.cp-container-children [data-item-id="${opt.id}"] .cp-container-uninstall`)?.click();
+  bagNode?.querySelector(`.cp-container-children [data-item-id="${widget.id}"] .cp-container-uninstall`)?.click();
   await sleep(900);
   out.uninstallClick = {
-    optDetached: actor.items.get(opt.id).system.Module.ParentId === "",
+    optDetached: actor.items.get(widget.id).system.mechContainer.installedIn === "",
     noSheetOpened: foundry.applications.instances.size <= openBefore
   };
   await actor.sheet.close().catch(() => {});
@@ -149,6 +181,8 @@ const checks = [
   ["pure: isContainer by capacity", r.accessors.eyeIsContainer === true && r.accessors.optIsContainer === false],
   ["pure: children + used/free slots", r.slots.eyeChildren === 1 && r.slots.eyeUsed === 2 && r.slots.eyeFree === 1 && r.slots.pouchUsed === 1],
   ["pure: guards — self/non-container/over-capacity rejected, fitting allowed", r.guards.selfInstall === false && r.guards.intoNonContainer === false && r.guards.overCapacity === false && r.guards.fits === true],
+  ["pure: type rules — a non-module (host) and a wrong-allowed-type module are rejected", r.guards.notModule === false && r.guards.wrongType === false && r.guards.reasonWrongType === "wrong-type"],
+  ["pure: mixed-family mount — AcceptsTypes admits both listed families (zone follows the mount), rejects an unlisted one, and children stay truthfully typed", r.acceptsTypes.audioIntoBoom === true && r.acceptsTypes.opticIntoBoom === true && r.acceptsTypes.legIntoBoom === "wrong-type" && r.acceptsTypes.audioIntoEye === "wrong-type"],
   ["pure: cycle detected", r.guards.cycle === true],
   ["pure: tree — one cyber root, nested installed child, capacity/used", r.tree.roots === 1 && r.tree.rootId === "eye" && r.tree.rootCap === 3 && r.tree.rootUsed === 2 && r.tree.childCount === 1 && r.tree.childInstalled === true],
   ["pure: descendantIds", r.descendants.length === 1 && r.descendants[0] === "opt"],
@@ -156,9 +190,10 @@ const checks = [
   ["e2e: misc installs into a cyberware compartment (cross-type)", r.installed.holdoutIn === true && r.installed.armUsed === 1],
   ["e2e: misc installs into a misc pouch", r.installed.trinketIn === true],
   ["e2e: over-capacity install rejected", r.overfillRejected === true],
+  ["e2e: a wrong-allowed-type module is refused installation into the eye", r.typeReject === true],
   ["e2e: uninstall detaches to loose", r.uninstalled.holdoutLoose === true],
   ["e2e: deleting a container cascades — child detached, not deleted", r.cascade.trinketSurvives === true && r.cascade.trinketDetached === true],
-  ["render: cybereye node with nested option, capacity badge, uninstall + delete controls", r.render.eyeNodePresent === true && r.render.optNested === true && r.render.capacityBadge === true && r.render.uninstallControl === true && r.render.deleteX === true],
+  ["render: gear container node with nested item, capacity badge, uninstall + delete controls", r.render.eyeNodePresent === true && r.render.optNested === true && r.render.capacityBadge === true && r.render.uninstallControl === true && r.render.deleteX === true],
   ["render: clicking uninstall detaches without opening the item sheet", r.uninstallClick.optDetached === true && r.uninstallClick.noSheetOpened === true],
   ["0 console errors", errors.length === 0]
 ];
