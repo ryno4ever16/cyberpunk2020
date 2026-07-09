@@ -39,6 +39,9 @@ const r = await p.evaluate(async () => {
     chipActive: M.attackModProviders([mkCyber({ CyberWorkType: { Types: ["Chip"], ChipActive: true } }, { attackMod: 1 })]).length,
     skillMatch: M.skillModProviders([mkMisc(true, { skillName: "Diagnose Illness", skillMod: 2 })], "diagnose illness").length,
     skillMiss: M.skillModProviders([mkMisc(true, { skillName: "Diagnose Illness", skillMod: 2 })], "First Aid").length,
+    // multi-skill list (the ParaDactyl/Micromanipulator widening): one row per matching entry
+    listMatch: M.skillModProviders([mkMisc(true, { skillMods: [{ skillName: "Parachuting", mod: 2 }, { skillName: "Hang-Gliding", mod: 2 }] })], "hang-gliding").map(p => p.mod).join(","),
+    listMiss: M.skillModProviders([mkMisc(true, { skillMods: [{ skillName: "Parachuting", mod: 2 }] })], "Athletics").length,
     group: M.gearModGroup([{ id: "abc", name: "Voc Decryptor", mod: 5, auto: false }])[0],
     groupNeg: M.gearModGroup([{ id: "x", name: "Bad Sight", mod: -1, auto: true }])[0].localKey,
     sum: M.gearModSum({ gearMod_a: true, gearMod_b: false }, [{ id: "a", mod: 2 }, { id: "b", mod: 5 }])
@@ -148,6 +151,7 @@ const checks = [
   ["pure: chip without ChipActive → excluded", r.pure.chipInactive === 0],
   ["pure: chip with ChipActive → included", r.pure.chipActive === 1],
   ["pure: skill name matches case-insensitively", r.pure.skillMatch === 1],
+  ["pure: skillMods list yields one row per matching entry", r.pure.listMatch === "2" && r.pure.listMiss === 0],
   ["pure: other skill → no provider", r.pure.skillMiss === 0],
   ["pure: group row shape (label / dataPath / unticked)", r.pure.group.localKey === "Voc Decryptor (+5)" && r.pure.group.dataPath === "gearMod_abc" && r.pure.group.defaultValue === false],
   ["pure: negative mod label", r.pure.groupNeg === "Bad Sight (-1)"],
