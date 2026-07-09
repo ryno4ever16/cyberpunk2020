@@ -31,6 +31,8 @@ const r = await p.evaluate(async () => {
     eqNull: L.equippedChange({ system: { foo: 1 } }),
   };
   const data = L.loadoutItemData({ name: "Opt", mountZone: "Arm", side: "Right", cyberwareType: "CyberArm", humanityCost: "2", description: "d" }, "BODY123");
+  const dataMech = L.loadoutItemData({ name: "OptV", mountZone: "Head", mech: { mechVision: { enabled: true, on: false, mode: "lowlight", range: 20, requiresItem: "" } } }, "BODY123");
+  out.pure.mechRide = dataMech.system?.mechVision?.enabled === true && dataMech.system?.mechVision?.mode === "lowlight";
   out.pureData = {
     type: data.type, equipped: data.system.equipped === true, zone: data.system.MountZone,
     bodyType: data.system.CyberBodyType.Type, side: data.system.CyberBodyType.Location,
@@ -180,6 +182,7 @@ const checks = [
     r.pureData.type === "cyberware" && r.pureData.equipped === true && r.pureData.zone === "Arm"
     && r.pureData.bodyType === "Arm" && r.pureData.side === "Right" && r.pureData.parent === "BODY123"
     && r.pureData.hloss === 0 && r.pureData.cost === 0 && r.pureData.src === "BODY123"],
+  ["pure: a spec's mech payload rides onto the created item verbatim", r.pure.mechRide === true],
   ["e2e: nothing materialized before install", r.beforeInstall.count === 0],
   ["e2e: install materializes all 4 options + sets the guard", r.installed.count === 4 && r.installed.installedFlag === true],
   ["e2e: option lands in its zone, equipped, parented, Humanity not re-charged",
