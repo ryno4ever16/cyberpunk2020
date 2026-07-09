@@ -59,6 +59,11 @@ const r = await p.evaluate(async () => {
   out.taken = { cool: total("cool"), emp: total("emp"), flag: !!actor._mechDrugMods?.cool,
     markerCount: markers().length, addictionTotal: addiction().total, addictionChar: addiction().byDrug["__PW__Char"] };
 
+  // Second dose while active is REFUSED (single-dose rule): call returns false, boost/tally unchanged.
+  const secondTake = await S.takeDrug(char); await sleep(400);
+  out.secondDose = { refused: secondTake === false, cool: total("cool"),
+    markerCount: markers().length, addictionTotal: addiction().total };
+
   // Strip + tooltip surfacing while active.
   await actor.sheet.render(true); await sleep(900);
   let root = actor.sheet.element;
@@ -150,6 +155,7 @@ const checks = [
   ["e2e: baseline clean (no boost/marker/addiction)", r.baseline.cool === 8 && r.baseline.emp === 5 && r.baseline.noFlag && r.baseline.noMarkers && r.baseline.noAddiction],
   ["e2e: take applies COOL +3 / EMP −3 + 1 marker", r.taken.cool === 11 && r.taken.emp === 2 && r.taken.flag === true && r.taken.markerCount === 1],
   ["e2e: take bumps the addiction counter (Char ×1)", r.taken.addictionTotal === 1 && r.taken.addictionChar === 1],
+  ["e2e: second dose while active is refused (boost, marker and tally unchanged)", r.secondDose.refused && r.secondDose.cool === 11 && r.secondDose.markerCount === 1 && r.secondDose.addictionTotal === 1],
   ["surface: drug pill shows the boost, cool tooltip names the drug", r.surface.drugPill && /COOL/.test(r.surface.drugText) && r.surface.coolTipNamesDrug],
   ["surface: addiction pill present with a count", r.surface.addPill && /1/.test(r.surface.addText)],
   ["e2e: wear off lifts the boost + clears the marker (addiction persists)", r.wornOff.cool === 8 && r.wornOff.emp === 5 && r.wornOff.noMarkers && r.wornOff.addictionStillOne],

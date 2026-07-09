@@ -69,8 +69,37 @@ try {
       misc("TEST · Stimulant (3 doses) [P7 consumable]", { mechConsumable: { enabled: true, doses: 3, durationTurns: "1d6+2", note: "+1 REF" } }),
       chip("TEST · Skill Chip: Botany +3 [chip]", { Botany: 3 }),
     ]);
-    const [arm] = await pc.createEmbeddedDocuments("Item", [misc("TEST · Cyberarm Compartment (cap 2) [Q6]", { mechContainer: { installedIn: "", capacity: 2, slotsTaken: 1 } })]);
-    await pc.createEmbeddedDocuments("Item", [misc("TEST · Holdout Pistol (installed) [Q6 child]", { mechContainer: { installedIn: arm.id, capacity: 0, slotsTaken: 1 } })]);
+    const [pouch] = await pc.createEmbeddedDocuments("Item", [misc("TEST · Belt Pouch (misc container, capacity 2) [Q6 container]", { mechContainer: { installedIn: "", capacity: 2, slotsTaken: 1 } })]);
+    await pc.createEmbeddedDocuments("Item", [misc("TEST · Holdout Pistol (in the pouch) [Q6 child]", { mechContainer: { installedIn: pouch.id, capacity: 0, slotsTaken: 1 } })]);
+    // Real cyberarm-compartment chain: base Standard Cyberarm hosting its Storage Space option
+    // (the corrections layer gives it 2 stowed-item slots via compendiumSource), gear stowed inside.
+    let realArmId = "", storeId = "";
+    const limbsPack = game.packs.get("cyberpunk2020.cyberlimbs");
+    if (limbsPack) {
+      const limbDocs = await limbsPack.getDocuments();
+      const armSrc = limbDocs.find(d => /\bcyberarm\b/i.test(d.name));
+      const storeSrc = limbDocs.find(d => d.name === "Storage Space");
+      const fromPack = (d) => ({ ...d.toObject(), _stats: { compendiumSource: d.uuid }, flags: { [SCOPE]: { testFixture: true } } });
+      if (armSrc && storeSrc) {
+        const [realArm] = await pc.createEmbeddedDocuments("Item", [fromPack(armSrc)]);
+        await realArm.update({ "system.equipped": true });
+        const [store] = await pc.createEmbeddedDocuments("Item", [fromPack(storeSrc)]);
+        await store.update({ "system.equipped": true, "system.Module.ParentId": realArm.id });
+        await pc.createEmbeddedDocuments("Item", [misc("TEST · Lockpick Set (stowed in the arm's Storage Space) [Q6 real chain]", { mechContainer: { installedIn: store.id, capacity: 0, slotsTaken: 1 } })]);
+        realArmId = realArm.id; storeId = store.id;
+      }
+    }
+    // cyberware body-map telescoping (redesign): a cybereye HOST + a nested option (indented under it in
+    // the Head zone) + a carried option to drag onto the eye/zone.
+    const cyw = (name, system) => ({ name, type: "cyberware", img: "icons/svg/eye.svg", system: { equipped: true, cost: 0, weight: 0, source: "TEST", surgCode: "N", humanityCost: "0", EffectMode: "Permanent", EffectActive: true, ...system }, flags: { [SCOPE]: { testFixture: true } } });
+    const [eye] = await pc.createEmbeddedDocuments("Item", [cyw("TEST · Cybereye (host, 3 option slots) [telescoping host]", { cyberwareType: "CyberOptic", MountZone: "Head", CyberBodyType: { Type: "Head" }, CyberWorkType: { Types: ["Implant"], OptionsAvailable: 3 } })]);
+    await pc.createEmbeddedDocuments("Item", [
+      cyw("TEST · Low-Lite (nested in the cybereye) [telescoping child]", { cyberwareType: "CyberOptic", MountZone: "Head", CyberBodyType: { Type: "Head" }, Module: { IsModule: true, ParentId: eye.id, SlotsTaken: 1, AllowedParentCyberwareType: "CyberOptic" } }),
+      cyw("TEST · Image Enhance Optic (carried — drag onto the eye) [carried option]", { equipped: false, cyberwareType: "CyberOptic", MountZone: "Head", CyberBodyType: { Type: "Head" }, Module: { IsModule: true, SlotsTaken: 1, AllowedParentCyberwareType: "CyberOptic" } }),
+    ]);
+    // STATUS STRIP demo: a live drug + addiction tally (flag-only influences) so the header strip shows pills.
+    await pc.setFlag(SCOPE, "drugState", [{ itemId: "test-drug", name: "Combat Boost (test)", note: "", statBoosts: [{ stat: "ref", mod: 3 }], rollBoosts: [{ label: "Awareness", mod: 2 }], expireSave: { stat: "", difficulty: 0, penalty: "" }, psychosis: "", turnsLeft: 5 }]);
+    await pc.setFlag(SCOPE, "addictionState", { byDrug: { "Combat Boost (test)": 2 }, total: 2 });
     // Test Borg — import the real Dragoon (loadout materializes + FBC stats) + a re-typed flavor chip.
     const packByName = (n) => game.packs.get(`${SCOPE}.${n}`) || [...game.packs].find(pk => pk.metadata?.name === n);
     let borg = null;
@@ -81,7 +110,14 @@ try {
       const spack = game.packs.get("cyberpunk2020.default-skills-en") || game.packs.get("cyberpunk2020.default-skills");
       if (spack) { const docs = await spack.getDocuments(); await borg.createEmbeddedDocuments("Item", docs.map(d => d.toObject())); }
       const bodyData = (await cyberPack.getDocument(dEntry._id)).toObject(); bodyData.system.equipped = true;
-      await borg.createEmbeddedDocuments("Item", [bodyData]);
+      const [bodyItem] = await borg.createEmbeddedDocuments("Item", [bodyData]);
+      const mats = () => borg.items.filter(x => x.getFlag(SCOPE, "loadoutSource") === bodyItem.id);
+      for (let i = 0; i < 40 && mats().length < 20; i++) await new Promise(r => setTimeout(r, 200));
+      const carry = mats().slice(0, 4).map(x => ({ _id: x.id, "system.equipped": false }));
+      if (carry.length) await borg.updateEmbeddedDocuments("Item", carry);
+      const spare = (await cyberPack.getDocument(dEntry._id)).toObject();
+      spare.system.equipped = false; spare.name = "Dragoon (spare chassis — installing is blocked)";
+      await borg.createEmbeddedDocuments("Item", [spare]);
       const chipPack = packByName("supplement-chipware");
       const cEntry = chipPack ? (await chipPack.getIndex()).find(e => e.name === "Death Trance") : null;
       if (cEntry) { const cd = (await chipPack.getDocument(cEntry._id)).toObject(); cd.system.equipped = true; cd.system.CyberWorkType = { ...(cd.system.CyberWorkType || {}), ChipActive: true }; await borg.createEmbeddedDocuments("Item", [cd]); }
@@ -95,13 +131,13 @@ try {
       const t = await scene.createEmbeddedDocuments("Token", drop);
       tokens = t.length;
     }
-    return { pcId: pc.id, dummyId: dummy.id, armId: arm.id, borgId: borg?.id ?? null, tokens,
+    return { pcId: pc.id, dummyId: dummy.id, pouchId: pouch.id, realArmId, storeId, borgId: borg?.id ?? null, tokens,
       skills: pc.items.filter(i => i.type === "skill").length, playerOwned: !!player };
   });
   log.push(`provisioned: pc=${res.pcId} dummy=${res.dummyId} skills=${res.skills} tokens=${res.tokens} playerOwned=${res.playerOwned}`);
 
   // --- read back + assert mech* persistence ---
-  const v = await gm.evaluate((armId) => {
+  const v = await gm.evaluate((ids) => {
     const pc = game.actors.find(a => a.name === "🧪 Test PC — Wired Gear");
     if (!pc) return { ok: false, why: "Test PC not found" };
     const byTag = t => pc.items.find(i => (i.name || "").includes(t));
@@ -117,10 +153,22 @@ try {
     chk("P6 protect: Gas Mask gas immune", g(byTag("Gas Mask"), "mechProtection.gas.immune") === true, JSON.stringify(g(byTag("Gas Mask"), "mechProtection.gas")));
     chk("P7 consumable: Stimulant doses 3", g(byTag("Stimulant"), "mechConsumable.doses") === 3, g(byTag("Stimulant"), "mechConsumable.doses"));
     chk("chip: Botany +3 ChipSkills", g(byTag("Skill Chip"), "CyberWorkType.ChipSkills.Botany") === 3, JSON.stringify(g(byTag("Skill Chip"), "CyberWorkType.ChipSkills")));
-    chk("Q6 container: compartment capacity 2", g(byTag("Cyberarm Compartment"), "mechContainer.capacity") === 2, g(byTag("Cyberarm Compartment"), "mechContainer.capacity"));
-    chk("Q6 child: holdout installedIn compartment", g(byTag("Holdout Pistol"), "mechContainer.installedIn") === armId, g(byTag("Holdout Pistol"), "mechContainer.installedIn"));
+    chk("Q6 container: pouch capacity 2", g(byTag("Belt Pouch"), "mechContainer.capacity") === 2, g(byTag("Belt Pouch"), "mechContainer.capacity"));
+    chk("Q6 child: holdout installedIn the pouch", g(byTag("Holdout Pistol"), "mechContainer.installedIn") === ids.pouchId, g(byTag("Holdout Pistol"), "mechContainer.installedIn"));
+    if (ids.realArmId) {
+      const store = pc.items.get(ids.storeId);
+      chk("real chain: Storage Space installed in the cyberarm", g(store, "Module.ParentId") === ids.realArmId, g(store, "Module.ParentId"));
+      chk("real chain: corrections gave Storage Space 2 stowed-item slots", g(store, "CyberWorkType.OptionsAvailable") === 2, g(store, "CyberWorkType.OptionsAvailable"));
+      chk("real chain: lockpicks stowed in the Storage Space", g(byTag("Lockpick Set"), "mechContainer.installedIn") === ids.storeId, g(byTag("Lockpick Set"), "mechContainer.installedIn"));
+    } else {
+      chk("real chain: cyberlimbs pack items found", false, "Standard Cyberarm / Storage Space missing");
+    }
+    const eyeItem = byTag("Cybereye");
+    chk("telescoping host: Cybereye has 3 option slots", g(eyeItem, "CyberWorkType.OptionsAvailable") === 3, g(eyeItem, "CyberWorkType.OptionsAvailable"));
+    chk("telescoping child: Low-Lite nested (equipped) in the cybereye", g(byTag("Low-Lite"), "Module.ParentId") === eyeItem?.id && g(byTag("Low-Lite"), "equipped") === true, g(byTag("Low-Lite"), "Module.ParentId"));
+    chk("carried option: Image Enhance Optic is carried (unequipped)", g(byTag("Image Enhance"), "equipped") === false, g(byTag("Image Enhance"), "equipped"));
     return { ok: checks.every(c => c.ok), checks };
-  }, res.armId);
+  }, { pouchId: res.pouchId, realArmId: res.realArmId, storeId: res.storeId });
 
   for (const c of v.checks || []) log.push(`  ${c.ok ? "PASS" : "FAIL"}  ${c.label}  ${c.ok ? "" : "-> got " + c.got}`);
 
@@ -142,11 +190,34 @@ try {
       chk("borg SDP seeded (Torso 60)", Number(borg.system?.sdp?.sum?.Torso) === 60, borg.system?.sdp?.sum?.Torso);
       const dt = borg.items.find(i => i.name === "Death Trance");
       chk("Death Trance chip typed Chip + active", dt && dt.system?.CyberWorkType?.Type === "Chip" && dt.system?.CyberWorkType?.ChipActive === true, dt ? dt.system?.CyberWorkType?.Type : "missing");
+      const carried = opts().filter(o => o.system?.equipped !== true);
+      chk("a few options left CARRIED (unequipped) to show the Carried Options area", carried.length >= 3, carried.length);
+      chk("a spare chassis is present, uninstalled (to try the one-FBC block)", borg.items.some(i => /spare chassis/.test(i.name) && i.system?.equipped !== true));
     }
     return { ok: checks.every(c => c.ok), checks };
   });
   for (const c of vb.checks || []) log.push(`  ${c.ok ? "PASS" : "FAIL"}  [borg] ${c.label}  ${c.ok ? "" : "-> got " + c.got}`);
-  pass = v.ok && vb.ok && !log.some(l => l.startsWith("PAGEERR"));
+
+  // --- verify the STATUS STRIP renders on the Test PC (drug + addiction + wired-gear pills) ---
+  const vs = await gm.evaluate(async () => {
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const pc = game.actors.find(a => a.name === "🧪 Test PC — Wired Gear");
+    const checks = []; const chk = (l, c, g) => checks.push({ label: l, ok: !!c, got: g });
+    if (!pc) { chk("Test PC found", false); return { ok: false, checks }; }
+    await pc.sheet.render(true); await sleep(1000);
+    const root = pc.sheet.element;
+    const details = root?.querySelector("details.cp-status-details");
+    chk("status strip is a collapsible <details> (summary shown, collapsed by default)", !!details && !details.open && !!details.querySelector(".cp-status-summary"), details ? `open=${details.open}` : "no details");
+    const pills = [...(root?.querySelectorAll(".cp-status-strip .cp-status-pill") || [])];
+    const kinds = pills.map(p => [...p.classList].find(c => c.startsWith("cp-kind-")));
+    chk("status strip renders pills", pills.length > 0, `${pills.length} pills: ${JSON.stringify(kinds)}`);
+    chk("drug pill present", kinds.includes("cp-kind-drug"), JSON.stringify(kinds));
+    chk("addiction pill present", kinds.includes("cp-kind-addiction"), JSON.stringify(kinds));
+    await pc.sheet.close().catch(() => {});
+    return { ok: checks.every(c => c.ok), checks };
+  });
+  for (const c of vs.checks || []) log.push(`  ${c.ok ? "PASS" : "FAIL"}  [strip] ${c.label}  ${c.ok ? "" : "-> got " + c.got}`);
+  pass = v.ok && vb.ok && vs.ok && !log.some(l => l.startsWith("PAGEERR"));
 } catch (e) { log.push("ERROR " + (e?.message || e)); }
 finally { await b.close(); }
 
