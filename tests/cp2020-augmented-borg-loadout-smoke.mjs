@@ -37,9 +37,12 @@ const r = await p.evaluate(async () => {
   await body.update({ "system.equipped": true });           // trigger materialization
   // poll for the loadout to materialize
   const opts = () => actor.items.filter(i => i.getFlag("cp2020-augmented", "loadoutSource") === body.id);
-  for (let i = 0; i < 40 && opts().length < 20; i++) await sleep(200);
+  // The expected count is the MANIFEST's own length (assert values, not floors — a spec silently
+  // dropped by materialization must fail this, not slide under a stale floor).
+  const manifestLen = (body.getFlag("cp2020-augmented", "loadout") ?? []).length;
+  for (let i = 0; i < 40 && opts().length < manifestLen; i++) await sleep(200);
   const zones = {}; for (const o of opts()) { const z = String(o.system?.MountZone || ""); zones[z] = (zones[z] || 0) + 1; }
-  out.materialized = { count: opts().length, zones };
+  out.materialized = { count: opts().length, zones, manifestLen };
   // FBC stats seeded in prepareData
   for (let i = 0; i < 25 && (Number(actor.system?.stats?.ref?.total) || 0) !== 15; i++) await sleep(200);
   out.fbcStats = { ref: Number(actor.system?.stats?.ref?.total), ma: Number(actor.system?.stats?.ma?.total), bt: Number(actor.system?.stats?.bt?.total) };
@@ -78,7 +81,7 @@ console.log(JSON.stringify(r, null, 1));
 const checks = [
   ["compendium packs load", r.packs?.cyber === true && r.packs?.chips === true],
   ["Dragoon in the pack carries FBC stats (15/25/20) + a 38-spec manifest (mounts, booms + split sensory items)", r.dragoonPack?.hasStats === true && r.dragoonPack?.manifestLen === 38],
-  ["installing the Dragoon materializes its loadout (38 items incl. nested)", r.materialized?.count >= 36],
+  ["installing the Dragoon materializes its loadout (exactly the manifest's spec count)", r.materialized?.count === r.materialized?.manifestLen && (r.materialized?.manifestLen ?? 0) > 0],
   ["options land across the expected zones (Head/Arm/Leg/Nervous/Torso)", r.materialized && ["Head","Arm","Leg","Nervous","Torso"].every(z => (r.materialized.zones[z] || 0) > 0)],
   ["FBC chassis SETs REF/MA/BODY (15/25/20)", r.fbcStats?.ref === 15 && r.fbcStats?.ma === 25 && r.fbcStats?.bt === 20],
   ["borg per-zone SDP seeded (Dragoon Head 50 / Torso 60)", r.borgSdp?.head === 50 && r.borgSdp?.torso === 60],

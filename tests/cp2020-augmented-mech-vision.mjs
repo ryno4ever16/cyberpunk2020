@@ -75,7 +75,10 @@ const r = await p.evaluate(async () => {
   const root = ir.sheet.element instanceof HTMLElement ? ir.sheet.element : ir.sheet.element?.[0];
   out.sheet = {
     enabledBox: !!root?.querySelector('input[name="system.mechVision.enabled"]'),
-    modeSel: root?.querySelectorAll('select[name="system.mechVision.mode"] option').length ?? 0,
+    // The select's option VALUES must equal the engine's mode list exactly (the select is derived
+    // from MODE_TABLE, so a mode missing here would be silently rewritten on the next submit).
+    modeValues: [...(root?.querySelectorAll('select[name="system.mechVision.mode"] option') ?? [])].map(o => o.value),
+    engineModes: Object.keys((await import("/modules/cp2020-augmented/module/mech/vision.js")).MODE_TABLE),
     activeBox: !!root?.querySelector('input[name="system.mechVision.on"]'),
     rawLeak: /CYBERPUNK\.Mech/.test(root?.textContent ?? "")
   };
@@ -100,7 +103,10 @@ const checks = [
   ["both on: longest-range device governs (40m)", r.bothOn.range === 40],
   ["all off: base sight restored + flag cleared", r.restored.mode === "basic" && r.restored.range === 5 && r.restored.baseFlag === false],
   ["corrections: imported Infrared optic is an infrared device", r.imported.mv?.enabled === true && r.imported.mv?.mode === "infrared"],
-  ["sheet: vision fields render (4 mode options), no raw keys", r.sheet.enabledBox && r.sheet.modeSel === 4 && r.sheet.activeBox && r.sheet.rawLeak === false],
+  ["sheet: vision fields render, mode select == engine MODE_TABLE keys, no raw keys",
+    r.sheet.enabledBox && r.sheet.activeBox && r.sheet.rawLeak === false
+    && Array.isArray(r.sheet.modeValues) && r.sheet.modeValues.length === r.sheet.engineModes.length
+    && r.sheet.engineModes.every((m, i) => r.sheet.modeValues[i] === m)],
   ["0 console errors", errors.length === 0]
 ];
 let fail = 0;

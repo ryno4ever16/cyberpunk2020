@@ -10,8 +10,12 @@
  * Run:  FVTT_URL=http://localhost:30004 FVTT_RIG_PASSWORD=cp2020-v14-rig node cp2020-augmented-provision-test-actors.mjs
  */
 import { chromium } from "@playwright/test";
+import { readFileSync } from "node:fs";
 const BASE = process.env.FVTT_URL || "http://localhost:30004";
 const GM_PW = process.env.FVTT_RIG_PASSWORD || "cp2020-v14-rig";
+// SINGLE SOURCE of the fixture list: run the durable macro itself rather than a hand-copy that drifts.
+const MACRO_PATH = process.env.CP2020_PROVISIONER
+  || "C:/Users/randa/AppData/Local/FoundryVTT/Data/modules/cp2020-augmented/import-staging/test-fixtures/provision-test-actors.js";
 
 async function joinAs(page, match, pws) {
   await page.goto(BASE + "/join", { waitUntil: "domcontentloaded" });
@@ -38,110 +42,25 @@ try {
   await joinAs(gm, /gamemaster/i, [GM_PW]);
   await gm.waitForFunction(() => window.canvas?.ready === true, undefined, { timeout: 30000 }).catch(() => {});
 
-  // --- run the provisioner (mirrors import-staging/test-fixtures/provision-test-actors.js) ---
-  const res = await gm.evaluate(async () => {
-    const FOLDER = "🧪 Automation Test Fixtures", SCOPE = "cp2020-augmented";
-    for (const f of game.folders.filter(f => f.name === FOLDER && f.type === "Actor")) {
-      const ids = f.contents.map(a => a.id); if (ids.length) await Actor.deleteDocuments(ids); await f.delete();
-    }
-    const folder = await Folder.create({ name: FOLDER, type: "Actor" });
-    const misc = (name, system) => ({ name, type: "misc", img: "icons/svg/item-bag.svg",
-      system: { equipped: true, cost: 0, weight: 0, source: "TEST", ...system }, flags: { [SCOPE]: { testFixture: true } } });
-    const chip = (name, cs) => ({ name, type: "cyberware", img: "icons/svg/chest.svg",
-      system: { equipped: true, cost: 0, weight: 0, source: "TEST", surgCode: "N", humanityCost: "0", cyberwareType: "CHIPWARE",
-        cyberwareSubtype: "OPTION", EffectMode: "Permanent", EffectActive: true,
-        CyberWorkType: { Type: "Chip", Types: ["Chip"], ChipSkills: cs, ChipActive: true } }, flags: { [SCOPE]: { testFixture: true } } });
+  // --- run the REAL provisioner macro (single source: import-staging/test-fixtures/provision-test-actors.js)
+  // so this keeper can never drift from the durable macro. It is an idempotent async IIFE using only page
+  // globals, so eval-in-page runs it exactly as pasting it into a Foundry Script macro would; the
+  // verification below resolves every id it needs by name, so it needs nothing back from the run. ---
+  const macroSrc = readFileSync(MACRO_PATH, "utf8");
+  await gm.evaluate(async (src) => { await eval(src); }, macroSrc);
+  log.push("provisioner macro executed (single-sourced from " + MACRO_PATH.split(/[\\/]/).pop() + ")");
 
-    const player = game.users.find(u => !u.isGM); const ownership = { default: 0 };
-    if (player) ownership[player.id] = 3; else ownership.default = 3;
-    const pc = await Actor.create({ name: "🧪 Test PC — Wired Gear", type: "character", folder: folder.id, ownership });
-    if (!pc.items.some(i => i.type === "skill")) {
-      const pack = game.packs.get("cyberpunk2020.default-skills-en") || game.packs.get("cyberpunk2020.default-skills");
-      if (pack) { const docs = await pack.getDocuments(); await pc.createEmbeddedDocuments("Item", docs.map(d => d.toObject())); }
-    }
-    await pc.createEmbeddedDocuments("Item", [
-      misc("TEST · Medscanner (+2 Diagnose Illness) [P5 skill]", { mechRollMods: { enabled: true, attackMod: 0, skillName: "Diagnose Illness", skillMod: 2, auto: true } }),
-      misc("TEST · Targeting Scope (+1 attack) [P5 atk]", { mechRollMods: { enabled: true, attackMod: 1, skillName: "", skillMod: 0, auto: true } }),
-      misc("TEST · Personality Moddy (INT +2) [Q7 stat]", { mechStatMods: { enabled: true, mods: [{ stat: "int", mod: 2, combatMod: 0, context: "any", cap: 0, floor: 0, isSet: false, set: 0 }] } }),
-      misc("TEST · IR Goggles (infrared) [P4 vision]", { mechVision: { enabled: true, on: true, mode: "infrared", range: 20, requiresItem: "" } }),
-      misc("TEST · Flashlight (cone) [P3 light]", { mechLight: { enabled: true, on: true, shape: "cone", bright: 10, dim: 20, angle: 45, color: "" } }),
-      misc("TEST · Gas Mask (gas immune) [P6 protect]", { mechProtection: { enabled: true, gas: { immune: true, mod: 0, percent: 0, damageMult: 0 }, flash: { immune: false, mod: 0, percent: 0, damageMult: 0 }, sonic: { immune: false, mod: 0, percent: 0, damageMult: 0 } } }),
-      misc("TEST · Stimulant (3 doses) [P7 consumable]", { mechConsumable: { enabled: true, doses: 3, durationTurns: "1d6+2", note: "+1 REF" } }),
-      chip("TEST · Skill Chip: Botany +3 [chip]", { Botany: 3 }),
-    ]);
-    const [pouch] = await pc.createEmbeddedDocuments("Item", [misc("TEST · Belt Pouch (misc container, capacity 2) [Q6 container]", { mechContainer: { installedIn: "", capacity: 2, slotsTaken: 1 } })]);
-    await pc.createEmbeddedDocuments("Item", [misc("TEST · Holdout Pistol (in the pouch) [Q6 child]", { mechContainer: { installedIn: pouch.id, capacity: 0, slotsTaken: 1 } })]);
-    // Real cyberarm-compartment chain: base Standard Cyberarm hosting its Storage Space option
-    // (the corrections layer gives it 2 stowed-item slots via compendiumSource), gear stowed inside.
-    let realArmId = "", storeId = "";
-    const limbsPack = game.packs.get("cyberpunk2020.cyberlimbs");
-    if (limbsPack) {
-      const limbDocs = await limbsPack.getDocuments();
-      const armSrc = limbDocs.find(d => /\bcyberarm\b/i.test(d.name));
-      const storeSrc = limbDocs.find(d => d.name === "Storage Space");
-      const fromPack = (d) => ({ ...d.toObject(), _stats: { compendiumSource: d.uuid }, flags: { [SCOPE]: { testFixture: true } } });
-      if (armSrc && storeSrc) {
-        const [realArm] = await pc.createEmbeddedDocuments("Item", [fromPack(armSrc)]);
-        await realArm.update({ "system.equipped": true });
-        const [store] = await pc.createEmbeddedDocuments("Item", [fromPack(storeSrc)]);
-        await store.update({ "system.equipped": true, "system.Module.ParentId": realArm.id });
-        await pc.createEmbeddedDocuments("Item", [misc("TEST · Lockpick Set (stowed in the arm's Storage Space) [Q6 real chain]", { mechContainer: { installedIn: store.id, capacity: 0, slotsTaken: 1 } })]);
-        realArmId = realArm.id; storeId = store.id;
-      }
-    }
-    // cyberware body-map telescoping (redesign): a cybereye HOST + a nested option (indented under it in
-    // the Head zone) + a carried option to drag onto the eye/zone.
-    const cyw = (name, system) => ({ name, type: "cyberware", img: "icons/svg/eye.svg", system: { equipped: true, cost: 0, weight: 0, source: "TEST", surgCode: "N", humanityCost: "0", EffectMode: "Permanent", EffectActive: true, ...system }, flags: { [SCOPE]: { testFixture: true } } });
-    const [eye] = await pc.createEmbeddedDocuments("Item", [cyw("TEST · Cybereye (host, 3 option slots) [telescoping host]", { cyberwareType: "CyberOptic", MountZone: "Head", CyberBodyType: { Type: "Head" }, CyberWorkType: { Types: ["Implant"], OptionsAvailable: 3 } })]);
-    await pc.createEmbeddedDocuments("Item", [
-      cyw("TEST · Low-Lite (nested in the cybereye) [telescoping child]", { cyberwareType: "CyberOptic", MountZone: "Head", CyberBodyType: { Type: "Head" }, Module: { IsModule: true, ParentId: eye.id, SlotsTaken: 1, AllowedParentCyberwareType: "CyberOptic" } }),
-      cyw("TEST · Image Enhance Optic (carried — drag onto the eye) [carried option]", { equipped: false, cyberwareType: "CyberOptic", MountZone: "Head", CyberBodyType: { Type: "Head" }, Module: { IsModule: true, SlotsTaken: 1, AllowedParentCyberwareType: "CyberOptic" } }),
-    ]);
-    // STATUS STRIP demo: a live drug + addiction tally (flag-only influences) so the header strip shows pills.
-    await pc.setFlag(SCOPE, "drugState", [{ itemId: "test-drug", name: "Combat Boost (test)", note: "", statBoosts: [{ stat: "ref", mod: 3 }], rollBoosts: [{ label: "Awareness", mod: 2 }], expireSave: { stat: "", difficulty: 0, penalty: "" }, psychosis: "", turnsLeft: 5 }]);
-    await pc.setFlag(SCOPE, "addictionState", { byDrug: { "Combat Boost (test)": 2 }, total: 2 });
-    // Test Borg — import the real Dragoon (loadout materializes + FBC stats) + a re-typed flavor chip.
-    const packByName = (n) => game.packs.get(`${SCOPE}.${n}`) || [...game.packs].find(pk => pk.metadata?.name === n);
-    let borg = null;
-    const cyberPack = packByName("supplement-cyberware");
-    const dEntry = cyberPack ? (await cyberPack.getIndex()).find(e => e.name === "Dragoon") : null;
-    if (dEntry) {
-      borg = await Actor.create({ name: "🦾 Test Borg — Dragoon (loadout + FBC stats)", type: "character", folder: folder.id, ownership });
-      const spack = game.packs.get("cyberpunk2020.default-skills-en") || game.packs.get("cyberpunk2020.default-skills");
-      if (spack) { const docs = await spack.getDocuments(); await borg.createEmbeddedDocuments("Item", docs.map(d => d.toObject())); }
-      const bodyData = (await cyberPack.getDocument(dEntry._id)).toObject(); bodyData.system.equipped = true;
-      const [bodyItem] = await borg.createEmbeddedDocuments("Item", [bodyData]);
-      const mats = () => borg.items.filter(x => x.getFlag(SCOPE, "loadoutSource") === bodyItem.id);
-      for (let i = 0; i < 40 && mats().length < 20; i++) await new Promise(r => setTimeout(r, 200));
-      const carry = mats().slice(0, 4).map(x => ({ _id: x.id, "system.equipped": false }));
-      if (carry.length) await borg.updateEmbeddedDocuments("Item", carry);
-      const spare = (await cyberPack.getDocument(dEntry._id)).toObject();
-      spare.system.equipped = false; spare.name = "Dragoon (spare chassis — installing is blocked)";
-      await borg.createEmbeddedDocuments("Item", [spare]);
-      const chipPack = packByName("supplement-chipware");
-      const cEntry = chipPack ? (await chipPack.getIndex()).find(e => e.name === "Death Trance") : null;
-      if (cEntry) { const cd = (await chipPack.getDocument(cEntry._id)).toObject(); cd.system.equipped = true; cd.system.CyberWorkType = { ...(cd.system.CyberWorkType || {}), ChipActive: true }; await borg.createEmbeddedDocuments("Item", [cd]); }
-    }
-    const dummy = await Actor.create({ name: "🎯 Test Dummy (target)", type: "character", folder: folder.id, ownership: { default: 0 } });
-    const scene = game.scenes.active; let tokens = 0;
-    if (scene) {
-      const mk = async (a, x, y) => (await a.getTokenDocument({ x, y, actorLink: true })).toObject();
-      const drop = [await mk(pc, 1000, 1000), await mk(dummy, 1300, 1000)];
-      if (borg) drop.push(await mk(borg, 1000, 1300));
-      const t = await scene.createEmbeddedDocuments("Token", drop);
-      tokens = t.length;
-    }
-    return { pcId: pc.id, dummyId: dummy.id, pouchId: pouch.id, realArmId, storeId, borgId: borg?.id ?? null, tokens,
-      skills: pc.items.filter(i => i.type === "skill").length, playerOwned: !!player };
-  });
-  log.push(`provisioned: pc=${res.pcId} dummy=${res.dummyId} skills=${res.skills} tokens=${res.tokens} playerOwned=${res.playerOwned}`);
-
-  // --- read back + assert mech* persistence ---
-  const v = await gm.evaluate((ids) => {
+  // --- read back + assert mech* persistence (resolve fixture ids in-page — nothing carried from the run) ---
+  const v = await gm.evaluate(() => {
     const pc = game.actors.find(a => a.name === "🧪 Test PC — Wired Gear");
-    if (!pc) return { ok: false, why: "Test PC not found" };
+    if (!pc) return { ok: false, why: "Test PC not found", checks: [{ label: "Test PC found", ok: false }] };
     const byTag = t => pc.items.find(i => (i.name || "").includes(t));
     const g = (i, p) => p.split(".").reduce((o, k) => o?.[k], i?.system);
+    const pouchId  = byTag("Belt Pouch")?.id ?? "";
+    const realArm  = byTag("Cyberarm");        // base "Standard Cyberarm"
+    const store    = byTag("Storage Space");
+    const realArmId = realArm?.id ?? "";
+    const storeId   = store?.id ?? "";
     const checks = [];
     const chk = (label, cond, got) => checks.push({ label, ok: !!cond, got });
     chk("skills present (Diagnose Illness)", pc.items.some(i => i.type === "skill" && /diagnose illness/i.test(i.name)), pc.items.filter(i => i.type === "skill").length + " skills");
@@ -154,12 +73,11 @@ try {
     chk("P7 consumable: Stimulant doses 3", g(byTag("Stimulant"), "mechConsumable.doses") === 3, g(byTag("Stimulant"), "mechConsumable.doses"));
     chk("chip: Botany +3 ChipSkills", g(byTag("Skill Chip"), "CyberWorkType.ChipSkills.Botany") === 3, JSON.stringify(g(byTag("Skill Chip"), "CyberWorkType.ChipSkills")));
     chk("Q6 container: pouch capacity 2", g(byTag("Belt Pouch"), "mechContainer.capacity") === 2, g(byTag("Belt Pouch"), "mechContainer.capacity"));
-    chk("Q6 child: holdout installedIn the pouch", g(byTag("Holdout Pistol"), "mechContainer.installedIn") === ids.pouchId, g(byTag("Holdout Pistol"), "mechContainer.installedIn"));
-    if (ids.realArmId) {
-      const store = pc.items.get(ids.storeId);
-      chk("real chain: Storage Space installed in the cyberarm", g(store, "Module.ParentId") === ids.realArmId, g(store, "Module.ParentId"));
+    chk("Q6 child: holdout installedIn the pouch", g(byTag("Holdout Pistol"), "mechContainer.installedIn") === pouchId, g(byTag("Holdout Pistol"), "mechContainer.installedIn"));
+    if (realArmId && storeId) {
+      chk("real chain: Storage Space installed in the cyberarm", g(store, "Module.ParentId") === realArmId, g(store, "Module.ParentId"));
       chk("real chain: corrections gave Storage Space 2 stowed-item slots", g(store, "CyberWorkType.OptionsAvailable") === 2, g(store, "CyberWorkType.OptionsAvailable"));
-      chk("real chain: lockpicks stowed in the Storage Space", g(byTag("Lockpick Set"), "mechContainer.installedIn") === ids.storeId, g(byTag("Lockpick Set"), "mechContainer.installedIn"));
+      chk("real chain: lockpicks stowed in the Storage Space", g(byTag("Lockpick Set"), "mechContainer.installedIn") === storeId, g(byTag("Lockpick Set"), "mechContainer.installedIn"));
     } else {
       chk("real chain: cyberlimbs pack items found", false, "Standard Cyberarm / Storage Space missing");
     }
@@ -168,7 +86,7 @@ try {
     chk("telescoping child: Low-Lite nested (equipped) in the cybereye", g(byTag("Low-Lite"), "Module.ParentId") === eyeItem?.id && g(byTag("Low-Lite"), "equipped") === true, g(byTag("Low-Lite"), "Module.ParentId"));
     chk("carried option: Image Enhance Optic is carried (unequipped)", g(byTag("Image Enhance"), "equipped") === false, g(byTag("Image Enhance"), "equipped"));
     return { ok: checks.every(c => c.ok), checks };
-  }, { pouchId: res.pouchId, realArmId: res.realArmId, storeId: res.storeId });
+  });
 
   for (const c of v.checks || []) log.push(`  ${c.ok ? "PASS" : "FAIL"}  ${c.label}  ${c.ok ? "" : "-> got " + c.got}`);
 
@@ -181,9 +99,12 @@ try {
     if (borg) {
       const body = borg.items.find(i => i.name === "Dragoon");
       const opts = () => borg.items.filter(x => x.getFlag("cp2020-augmented", "loadoutSource") === body?.id);
-      for (let i = 0; i < 40 && opts().length < 26; i++) await sleep(200);
+      const manifestLen = (body?.getFlag("cp2020-augmented", "loadout") ?? []).length;
+      // Materialization is multi-pass — wait for the count to STABILIZE, then assert the EXACT manifest
+      // length (a silently dropped spec must fail here, not slide under a floor — testing policy).
+      { let last = -1, stable = 0; for (let i = 0; i < 80 && stable < 3; i++) { await sleep(200); const n = opts().length; if (n > 0 && n === last) stable++; else { stable = 0; last = n; } } }
       const zones = {}; for (const o of opts()) { const z = String(o.system?.MountZone || ""); zones[z] = (zones[z] || 0) + 1; }
-      chk("loadout materialized (>=26 options)", opts().length >= 26, opts().length);
+      chk(`loadout materialized (exactly the ${manifestLen}-spec manifest)`, manifestLen > 0 && opts().length === manifestLen, `${opts().length}/${manifestLen}`);
       chk("options across Head/Arm/Leg/Nervous/Torso", ["Head", "Arm", "Leg", "Nervous", "Torso"].every(z => (zones[z] || 0) > 0), JSON.stringify(zones));
       for (let i = 0; i < 25 && (Number(borg.system?.stats?.ref?.total) || 0) !== 15; i++) await sleep(200);
       chk("FBC stats SET (REF 15 / MA 25 / BODY 20)", borg.system?.stats?.ref?.total === 15 && borg.system?.stats?.ma?.total === 25 && borg.system?.stats?.bt?.total === 20, `${borg.system?.stats?.ref?.total}/${borg.system?.stats?.ma?.total}/${borg.system?.stats?.bt?.total}`);

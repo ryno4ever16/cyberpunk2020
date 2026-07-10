@@ -86,6 +86,43 @@ const r = await p.evaluate(async () => {
   await keptSpace?.delete().catch(() => {});
   await space.delete().catch(() => {});
 
+  // ── (1b) id-form keys · gate axes beyond ChipActive · IP-preserving prune ─
+  // The sheets write skill-item _IDs as ChipSkills keys (the packs write names): an id key must
+  // grant the NAMED skill, not a skill named the raw id. The running gate is three-axis, so an
+  // unequip (ChipActive untouched) prunes like a deactivation; accrued IP counts as trained.
+  const U = await import("/modules/cp2020-augmented/module/utils.js");
+  const skillIdx = await U.getSkillIndex();
+  // Pick an index skill the actor LACKS: a fresh character is pre-populated with the default
+  // skill set, and an id key for a skill it already HAS grants nothing (that's correct engine
+  // behavior) — the leg must exercise the CREATE path.
+  const actorSkillNames = new Set(actor.items.filter(i => i.type === "skill").map(i => i.name));
+  const idxEntry = skillIdx.find(e => !actorSkillNames.has(e.name)) ?? skillIdx[0];
+  const [idChip] = await actor.createEmbeddedDocuments("Item", [{ name: "__PW__IdChip", type: "cyberware",
+    system: { equipped: true, EffectMode: "Permanent", EffectActive: false,
+      CyberWorkType: { Types: ["Chip"], ChipActive: false,
+        ChipSkills: { [idxEntry.id]: 2, "Highrider Culture": 1 }, Stat: {}, Skill: {} } } }]);
+  await idChip.update({ "system.CyberWorkType.ChipActive": true }); await sleep(1500);
+  const idGrant = skillNamed(idxEntry.name);
+  out.idKey = {
+    indexName: idxEntry.name,
+    created: !!idGrant,
+    noJunkIdSkill: !skillNamed(idxEntry.id),
+    flagged: !!idGrant?.getFlag("cp2020-augmented", "chipGranted"),
+    untrainedSibling: !!skillNamed("Highrider Culture")
+  };
+
+  await idGrant?.update({ "system.ip": 5 }); await sleep(400);
+  await idChip.update({ "system.equipped": false }); await sleep(1500);   // gate axis: equipped, not ChipActive
+  const ipKept = skillNamed(idxEntry.name);
+  out.unequipPrune = {
+    ipKept: !!ipKept,
+    ip: Number(ipKept?.system?.ip) || 0,
+    flagCleared: ipKept ? ipKept.getFlag("cp2020-augmented", "chipGranted") === undefined : null,
+    untrainedGone: !skillNamed("Highrider Culture")
+  };
+  await ipKept?.delete().catch(() => {});
+  await idChip.delete().catch(() => {});
+
   // ── (2) Choose-chip: activate → real dialog → rewrite + grant ─────────────
   const [lang] = await actor.createEmbeddedDocuments("Item", [{ name: "__PW__LangChip", type: "cyberware",
     system: { equipped: true, EffectMode: "Permanent", EffectActive: false,
@@ -141,6 +178,9 @@ const checks = [
   ["e2e: base override drives the granted skills to chip level", r.granted.spaceEffective === 2 && r.granted.cultureEffective === 1],
   ["e2e: deactivation removes the untrained granted skills", r.deactivated.spaceGone === true && r.deactivated.cultureGone === true],
   ["e2e: a trained granted skill survives deactivation (flag cleared)", r.trainedKept.spaceKept === true && r.trainedKept.spaceLevel === 3 && r.trainedKept.flagCleared === true && r.trainedKept.cultureGone === true],
+  ["id-key: an id-form ChipSkills key grants the NAMED skill (no raw-id skill created)", r.idKey.created === true && r.idKey.noJunkIdSkill === true && r.idKey.flagged === true && r.idKey.untrainedSibling === true],
+  ["gate: unequip alone runs the prune (untrained granted skill removed)", r.unequipPrune.untrainedGone === true],
+  ["prune: accrued IP counts as trained (kept, flag dropped, IP intact)", r.unequipPrune.ipKept === true && r.unequipPrune.ip === 5 && r.unequipPrune.flagCleared === true],
   ["choose: activation shows the pick-a-skill dialog", r.choosePromptShown === true],
   ["choose: the pick rewrites ChipSkills + grants the skill at chip level", r.chooseResolved.chipSkillsRewritten === true && r.chooseResolved.skillGranted === true && r.chooseResolved.skillEffective === 2 && r.chooseResolved.originalStashed === true],
   ["reset: restores the (choose) marker + clears the stash", r.reset.markerRestored === true && r.reset.resolvedGone === true && r.reset.flagCleared === true],

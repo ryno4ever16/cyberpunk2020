@@ -96,6 +96,51 @@ const r = await p.evaluate(async () => {
   await CL.repairCyberlimb(actor, "rArm"); await sleep(500);
   out.repaired = { cur: curRArm(), flag: limbStatus().rArm ?? null, status: sheetStatus().rArm?.status ?? "gone" };  // 30, null, "ok"
 
+  // ── (3) M19 zone gate + notice ────────────────────────────────────────────
+  // A mod source installed IN the right arm (side resolved through its parent — no own Location).
+  const [armTool] = await actor.createEmbeddedDocuments("Item", [{ name: "__PW__ArmToolMod", type: "cyberware",
+    system: { equipped: true, EffectMode: "Permanent", MountZone: "Arm",
+      CyberBodyType: { Type: "", Location: "" },
+      Module: { IsModule: true, ParentId: actor.items.find(i => i.name === "__PW__RCyberarm").id, SlotsTaken: 1 },
+      mechRollMods: { enabled: true, attackMod: 0, skillName: "Awareness", skillMod: 2, auto: true } } }]);
+  await sleep(400);
+  const itemsNow = () => actor.items.contents;
+  out.zoneResolve = {
+    viaParent: CL.implantZoneOf(armTool, itemsNow()),                       // "rArm" (parent's side)
+    zoneless: CL.implantZoneOf({ type: "cyberware", system: { MountZone: "Nervous" } }, []),  // ""
+    nonCw: CL.inDestroyedZone(actor, { type: "misc", system: {} }, itemsNow())                // false
+  };
+  // Intact limb: the source is in the contributing list + reaches the provider builder.
+  const RM = await import("/modules/cp2020-augmented/module/mech/roll-mods.js");
+  const inList = () => CL.contributingItems(actor).some(i => i.id === armTool.id);
+  const inProviders = () => RM.skillModProviders(CL.contributingItems(actor), "Awareness").some(p => p.id === armTool.id);
+  out.gateIntact = { inList: inList(), inProviders: inProviders() };
+  // Negative case first: with both arms OK, the use event posts NO zone-state card.
+  const noticeBodyFor = (state) => game.i18n.format("CYBERPUNK.CyberlimbArmNoticeBody", {
+    name: actor.name, limb: game.i18n.localize("CYBERPUNK.rArm"),
+    state: game.i18n.localize(state === "destroyed" ? "CYBERPUNK.CyberlimbStatusDestroyed" : "CYBERPUNK.CyberlimbStatusUseless") });
+  const noticeCount = (since, state) => game.messages.contents.slice(since).filter(m => (m.content || "").includes(noticeBodyFor(state))).length;
+  const q1 = game.messages.size;
+  Hooks.callAll("cyberpunk2020.weaponFired", { attackerId: actor.id, areaDamages: {} });
+  await sleep(600);
+  out.noticeIntact = { cards: noticeCount(q1, "destroyed") + noticeCount(q1, "useless") };
+  // Zone destroyed: the gate flips everywhere off one filter; the strip mirrors it.
+  await hit("rArm", 40); await sleep(500);
+  const ST = await import("/modules/cp2020-augmented/module/mech/status.js");
+  out.gateWrecked = {
+    zoneState: limbStatus().rArm,                                            // "destroyed"
+    inList: inList(), inProviders: inProviders(),                            // false, false
+    stripRow: ST.activeInfluencesFor(actor).some(rw => rw.itemId === armTool.id)  // false
+  };
+  // The use event now posts the zone-state card exactly once.
+  const q2 = game.messages.size;
+  Hooks.callAll("cyberpunk2020.weaponFired", { attackerId: actor.id, areaDamages: {} });
+  await sleep(600);
+  out.noticeWrecked = { cards: noticeCount(q2, "destroyed") };
+  // Repair lifts the gate — the source contributes again.
+  await CL.repairCyberlimb(actor, "rArm"); await sleep(500);
+  out.gateRepaired = { inList: inList(), inProviders: inProviders() };
+
   await actor.delete().catch(() => {});
   return out;
 });
@@ -115,6 +160,12 @@ const checks = [
   ["repair UI: destroyed limb reports the true status (not the reset SDP number)", r.repairBefore.status === "destroyed" && r.repairBefore.damaged === true],
   ["repair UI: sheet shows the destroyed badge + repair button", r.sheetUI.badge === true && /destroyed/i.test(r.sheetUI.badgeText) && r.sheetUI.repairBtn === true],
   ["repair restores SDP to full + clears the destroyed flag", r.repaired.cur === 30 && r.repaired.flag === null && r.repaired.status === "ok"],
+  ["M19 zone resolution: parent-side resolve, zoneless mount, non-cyberware exempt", r.zoneResolve.viaParent === "rArm" && r.zoneResolve.zoneless === "" && r.zoneResolve.nonCw === false],
+  ["M19 gate intact: in-zone source contributes (list + provider row)", r.gateIntact.inList === true && r.gateIntact.inProviders === true],
+  ["M19 notice negative: no zone-state card while both arms are ok", r.noticeIntact.cards === 0],
+  ["M19 gate wrecked: destroyed zone drops the source from list, providers, and strip", r.gateWrecked.zoneState === "destroyed" && r.gateWrecked.inList === false && r.gateWrecked.inProviders === false && r.gateWrecked.stripRow === false],
+  ["M19 notice: the use event posts the zone-state card exactly once", r.noticeWrecked.cards === 1],
+  ["M19 repair lifts the gate: the source contributes again", r.gateRepaired.inList === true && r.gateRepaired.inProviders === true],
   ["0 console errors", errors.length === 0]
 ];
 let fail = 0;

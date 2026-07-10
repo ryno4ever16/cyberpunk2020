@@ -57,6 +57,19 @@ const r = await p.evaluate(async () => {
     out.live.radNormal = A.resolveAreaDamagesSync({ ...base })[0]?.spFull;                       // 16
     out.live.radTyped  = A.resolveAreaDamagesSync({ ...base, damageType: "radiation" })[0]?.spFull; // 6
 
+    // Typed-SP CYBERWARE (the borg radiation-shielding shape): no conventional Locations SP, so
+    // it must stay silent on normal hits and fold its typed rating on a matching hit (the
+    // contributor scan admits equipped cyberware with a typed entry regardless of Locations).
+    await actor.deleteEmbeddedDocuments("Item", actor.items.map(i => i.id));
+    await actor.createEmbeddedDocuments("Item", [
+      { name: "PROBE rad shielding", type: "cyberware",
+        system: { equipped: true, CyberWorkType: { Types: ["Implant"] }, mechTypedSP: { type: "radiation", sp: 6 } } },
+      { name: "PROBE vest", type: "armor",
+        system: { equipped: true, armorType: "Soft", coverage: cov(10) } },
+    ]);
+    out.live.cwNormal = A.resolveAreaDamagesSync({ ...base })[0]?.spFull;                          // 10 — shielding silent
+    out.live.cwRad    = A.resolveAreaDamagesSync({ ...base, damageType: "radiation" })[0]?.spFull; // 10+6 → 15 (diff 4 = +5)
+
     // ── (2) UI: the dialog template renders the damage-type select ─────────
     const rt = foundry?.applications?.handlebars?.renderTemplate ?? renderTemplate;
     const html = await rt("modules/cp2020-augmented/templates/dialog/damage-dialog.hbs", {
@@ -89,6 +102,8 @@ const checks = {
   liveHeatSkipsCoat: r.live?.heatSP === 18,
   liveRadNormal: r.live?.radNormal === 16,
   liveRadTypedReplaces: r.live?.radTyped === 6,
+  liveCwTypedSilentOnNormal: r.live?.cwNormal === 10,
+  liveCwTypedFoldsOnMatch: r.live?.cwRad === 15,
   uiSelect: r.ui?.selectRendered === true && r.ui?.optionCount === 4 && r.ui?.normalSelected === true,
   uiNoRawKeys: r.ui?.noRawKeys === true,
   noConsoleErrors: errors.length === 0,
