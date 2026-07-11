@@ -133,6 +133,16 @@ const r = await p.evaluate(async () => {
       hasLongTermBtn: !!panel?.querySelector(".cp-rad-longterm"),
       noRawKey: !/CYBERPUNK\./.test(panel?.textContent || ""),
     };
+    // (5b) REAL GESTURE: clicking the panel Apply button opens the apply-dose dialog (proves the
+    // _cpActivateRadiationControls listener → openApplyDoseDialog wiring, not just button presence).
+    panel?.querySelector(".cp-rad-apply")?.click();
+    let dlg = null;
+    for (let i = 0; i < 25 && !dlg; i++) { await sleep(100); dlg = document.querySelector(".cp-rad-dialog"); }
+    out.applyGesture = { opened: !!dlg, hasRadsField: !!dlg?.querySelector(".cp-rad-rads") };
+    const dlgApp = [...foundry.applications.instances.values()].find(a => a.element?.querySelector?.(".cp-rad-dialog"));
+    await dlgApp?.close?.();
+    await sleep(200);
+
     await game.settings.set(SCOPE, "radiationEnabled", false);
     await ps.sheet.render(true);
     await sleep(400);
@@ -201,6 +211,7 @@ ok("panel shows history 130", r.panel?.showsHistory, r.panel);
 ok("panel shows RSP 6", r.panel?.showsRsp, r.panel);
 ok("panel has apply/longterm/clear/cure", r.panel?.hasApplyBtn && r.panel?.hasLongTermBtn && r.panel?.hasClearBtn && r.panel?.hasCureBtn, r.panel);
 ok("panel no raw CYBERPUNK. key", r.panel?.noRawKey, r.panel);
+ok("panel Apply button opens dialog (gesture)", r.applyGesture?.opened && r.applyGesture?.hasRadsField, r.applyGesture);
 ok("panel hidden when disabled", r.panelHiddenWhenOff, r.panelHiddenWhenOff);
 
 // console
