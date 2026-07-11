@@ -70,6 +70,12 @@ const r = await p.evaluate(async () => {
     // a non-Awareness skill gets nothing even while piloting
     const refSkill = trooper.items.get("PACombatSense001");
     out.awOtherSkill = PA.paAwarenessBonus(trooper, refSkill);          // 0
+    // (L17 fix) while piloting, the pilot's OWN init bonus is suppressed (the suit rolls full PACS)
+    out.initWhilePiloting = PA.paInitBonus(trooper);                    // 0
+    // (L16 fix) in-suit Awareness nets out the Solo Combat Sense the base rollSkill adds → ends at + PACS
+    await trooper.update({ "system.CombatSenseMod": 4 });               // pretend a Solo Combat Sense 4
+    out.awNetOut = PA.paAwarenessBonus(trooper, awSkill);              // 6 − 4 = 2 (base adds 4 → net +6)
+    await trooper.update({ "system.CombatSenseMod": 0 });
 
     // ── (2B) PA Pilot raises the maneuver cap (pilotPAManeuver) but NOT init ───
     // suit currently links the trooper (PACS 6, no PA Pilot): maneuver == PACS, init uses PACS.
@@ -114,6 +120,8 @@ ok("isPilotingAcpa false before link", r.pilotingBefore === false, r.pilotingBef
 ok("isPilotingAcpa true after link", r.pilotingAfter === true, r.pilotingAfter);
 ok("full PACS (6) on Awareness while piloting", r.awPiloting === 6, r.awPiloting);
 ok("no bonus on a non-Awareness skill", r.awOtherSkill === 0, r.awOtherSkill);
+ok("in-suit: pilot's own init bonus suppressed (L17)", r.initWhilePiloting === 0, r.initWhilePiloting);
+ok("in-suit Awareness nets out Solo Combat Sense (L16)", r.awNetOut === 2, r.awNetOut);
 // (2B)
 eq("PACS-only pilot: maneuver==init==6", [r.suitPacsOnly?.pacs, r.suitPacsOnly?.maneuver], [6, 6]);
 eq("PACS6+Pilot8: init 6, maneuver max=8", [r.suitBoth?.pacs, r.suitBoth?.maneuver], [6, 8]);
