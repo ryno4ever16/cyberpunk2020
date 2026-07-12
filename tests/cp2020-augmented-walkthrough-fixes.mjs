@@ -505,7 +505,9 @@ const legF = await p.evaluate(async () => {
     out.ok.rendered600x780 = suit.sheet.position?.width === 600 && suit.sheet.position?.height === 780;
     const body = sr?.querySelector(".sheet-body");
     out.ok.sheetBodyPresent = !!body;
-    if (body) { body.scrollTop = 20; await sleep(120); out.nums.scrollTop = body.scrollTop; out.ok.scrollSticks = body.scrollTop >= 0; }
+    // Run-4: ">= 0" was a tautology. The honest form: when the body actually overflows, a written
+    // scrollTop must STICK at its value; a non-overflowing body legitimately reports 0 and passes.
+    if (body) { body.scrollTop = 20; await sleep(120); out.nums.scrollTop = body.scrollTop; out.ok.scrollSticks = (body.scrollHeight <= body.clientHeight) || body.scrollTop === 20; }
     const pilot = sr?.querySelector('select[name="system.pilotId"]');
     out.ok.pilotSelectPresent = !!pilot;
     out.ok.pilotSelectReachable = pilot ? pilot.offsetParent !== null : false;

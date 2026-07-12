@@ -87,9 +87,14 @@ const r = await p.evaluate(async () => {
   ok("b4_jumpStanding", ss.jumpStanding === acpa.acpaJumpM(ss.runM, {}));
   ok("b4_jumpRunning", ss.jumpRunning === acpa.acpaJumpM(ss.runM, { running: true }));
 
-  // Non-ACPA + character actors are untouched by the getRollData wrap.
+  // Non-ACPA + character actors are untouched by the getRollData wrap: the pilot's rolldata must
+  // carry their OWN ref total and no suit initiative terms (the fixture pilot has Combat Sense 0,
+  // so a leaked suit SIB/PACS would surface as a non-zero CombatSenseMod). (Run-4: the previous
+  // form of this assertion was a tautology that could never fail.)
   const rdPilot = pilotFresh.getRollData();
-  ok("b2_pilot_rolldata_untouched", rdPilot?.CombatSenseMod === undefined || typeof rdPilot?.stats?.ref?.total === "number");
+  ok("b2_pilot_rolldata_untouched",
+    rdPilot?.stats?.ref?.total === pilotFresh.system.stats.ref.total
+    && (Number(rdPilot?.CombatSenseMod) || 0) === 0);
 
   // ── C — quick-kill end-to-end on an unpiloted suit (chat card says Quick Kill) ──
   await suit.update({ "system.pilotId": "", "system.acpaCombatModel": "quickkill" });

@@ -25,7 +25,11 @@ const r = await p.evaluate(async () => {
   const waitDlg = async (d) => { for (let i = 0; i < 80 && !d?.element?.querySelector("#cp-vf-pen"); i++) await sleep(50); };
   // cleanup prior run
   for (const a of game.actors.filter(a => a.name.startsWith("__PW__ACPAF"))) await a.delete().catch(() => {});
+  // Run-4: capture the prior world settings and restore them at the end (the spec used to leave
+  // its mutations behind).
+  const _priorSettings = {};
   try {
+    for (const k of ["mmEnabled", "vehicleDamageEnabled", "vehicleRuleSystem"]) _priorSettings[k] = game.settings.get("cp2020-augmented", k);
     await game.settings.set("cp2020-augmented", "mmEnabled", true);
     await game.settings.set("cp2020-augmented", "vehicleDamageEnabled", true);
     await game.settings.set("cp2020-augmented", "vehicleRuleSystem", "MaximumMetal");
@@ -99,8 +103,10 @@ const r = await p.evaluate(async () => {
     const acpaLink = aR?.querySelector("#cp-vf-link");
     const acpaOther = aR?.querySelector("#cp-vf-other");
     ok("f3_acpa_link_row_hidden", !acpaLink);
-    ok("f3_acpa_firecontrol_prefill_0", acpaOther?.value === "0");
-    out.f3acpa = { hasLink: !!acpaLink, other: acpaOther?.value };
+    // Run-4 hardening: the fire-control INPUT is now absent for ACPA (a 0 prefill alone still left
+    // an editable field that could re-enter the to-hit past the purity gate).
+    ok("f3_acpa_firecontrol_input_absent", !acpaOther);
+    out.f3acpa = { hasLink: !!acpaLink, hasOther: !!acpaOther };
     try { await dlgAcpa?.close(); } catch {}
 
     // (c) plain vehicle with the same fields → link row present + checked, fire-control prefilled 5.
@@ -147,6 +153,7 @@ const r = await p.evaluate(async () => {
   } catch (e) { out.f2err = String(e?.message || e); }
 
   for (const a of created) await a.delete().catch(() => {});
+  try { for (const [k, v] of Object.entries(_priorSettings)) await game.settings.set("cp2020-augmented", k, v); } catch {}
   return out;
 });
 

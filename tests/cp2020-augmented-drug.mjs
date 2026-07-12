@@ -89,8 +89,9 @@ const r = await p.evaluate(async () => {
   out.reDose = { addictionTotal: addiction().total, addictionChar: addiction().byDrug["__PW__Char"] };
   await S.endDrug(char); await sleep(400);
 
-  // Clear the tally.
-  await S.clearAddiction(actor); await sleep(300);
+  // Clear the tally (per-drug clear of the only remaining drug drops the flag — clearAddiction, the
+  // whole-tally wipe, was removed as dead code; clearAddictionFor is the live path).
+  await S.clearAddictionFor(actor, "__PW__Char"); await sleep(300);
   out.cleared = { addictionTotal: addiction().total };
 
   // ── (1b) interactive wear-off save + auto-applied crash (guaranteed fail/pass) ─────
@@ -252,6 +253,86 @@ const r = await p.evaluate(async () => {
     out.stripError = String(e?.message ?? e);
     out.perDrugClear ??= {}; out.stripUi ??= {}; out.stripWearOff ??= {}; out.lastClear ??= {};
   }
+
+  // ── (7) double-TAKE (timing): two takeDrug() calls fired WITHOUT awaiting the first (Promise.all)
+  // must accept exactly ONE dose — the active-dose guard is inside the serialized write, so the
+  // second call sees the first's marker. RED on the old code (sync guard outside the queue → both
+  // pass → 2 "took" cards + a double addiction bump).
+  try {
+    for (const a of game.actors.filter(a => a.name.startsWith("__PW__DrugDbl"))) await a.delete().catch(() => {});
+    const dbl = await Actor.create({ name: "__PW__DrugDbl", type: "character" });
+    await dbl.update({ "system.stats.cool.base": 8 });
+    const [dblDrug] = await dbl.createEmbeddedDocuments("Item", [{ name: "__PW__DblDrug", type: "misc",
+      system: { equipped: true, mechDrug: { enabled: true, statBoosts: [{ stat: "cool", mod: 2 }],
+        rollBoosts: [], duration: "1 hour", durationTurns: "", expireSave: { stat: "", difficulty: 0, penalty: "" },
+        addictionDifficulty: 15, psychosis: "", note: "" } } }]);
+    await sleep(200);
+    const mBeforeDbl = game.messages.size;
+    const [r1, r2] = await Promise.all([S.takeDrug(dblDrug), S.takeDrug(dblDrug)]);
+    await sleep(700);
+    const tookCards = game.messages.contents.slice(mBeforeDbl).filter(m => /__PW__DblDrug/.test(m.content || "")).length;
+    out.doubleTake = {
+      markerCount: S.drugMarkersFor(dbl).filter(m => m.itemId === dblDrug.id && !m.isPenalty).length,
+      addictionTotal: S.addictionStateFor(dbl).total,
+      tookCards,
+      oneAcceptedOneRefused: (r1 === true) !== (r2 === true)   // exactly one true, one false
+    };
+    await dbl.delete().catch(() => {});
+  } catch (e) { out.doubleTakeError = String(e?.message ?? e); out.doubleTake ??= {}; }
+
+  // ── (8) double WEAR-OFF (timing): two endDrug() calls fired concurrently must post exactly ONE
+  // wear-off card (the closure reports whether it removed the marker; the card follows only then).
+  // For an expireSave drug that means exactly one live Roll button. RED on the old code (card posted
+  // unconditionally → 2 cards → 2 Roll buttons).
+  try {
+    for (const a of game.actors.filter(a => a.name.startsWith("__PW__DrugWo"))) await a.delete().catch(() => {});
+    const woActor = await Actor.create({ name: "__PW__DrugWo", type: "character" });
+    await woActor.update({ "system.stats.cool.base": 8 });
+    const [woDrug] = await woActor.createEmbeddedDocuments("Item", [{ name: "__PW__WoDrug", type: "misc",
+      system: { equipped: true, mechDrug: { enabled: true, statBoosts: [], rollBoosts: [], duration: "1 hour", durationTurns: "",
+        expireSave: { stat: "cool", difficulty: 15, penaltyBoosts: [{ stat: "cool", mod: -2 }], penaltyTurns: "", penalty: "-3 to all skills" },
+        addictionDifficulty: 0, psychosis: "", note: "" } } }]);
+    await sleep(200);
+    await S.takeDrug(woDrug); await sleep(400);
+    const mBeforeWo = game.messages.size;
+    const [e1, e2] = await Promise.all([S.endDrug(woDrug), S.endDrug(woDrug)]);
+    await sleep(700);
+    const woCards = game.messages.contents.slice(mBeforeWo).filter(m => (m.content || "").includes(woDrug.id));
+    out.doubleWearOff = {
+      cards: woCards.length,
+      rollButtons: woCards.filter(m => /cp-drug-save-roll/.test(m.content || "")).length,
+      oneRemovedOneNoop: (e1 === true) !== (e2 === true),
+      markerGone: S.drugMarkersFor(woActor).length === 0
+    };
+    await woActor.delete().catch(() => {});
+  } catch (e) { out.doubleWearOffError = String(e?.message ?? e); out.doubleWearOff ??= {}; }
+
+  // ── (9) DOTTED drug name: a name with "." (Foundry expands "." in an object-flag KEY into a nested
+  // path) must not shatter the flat byDrug map — the tally shows the REAL name, per-drug clear works,
+  // and the stored flag stays flat (exactly one byDrug key, no "Dr"/"Stim" split). RED on the old
+  // code (raw name key → nested flag → real name missing, key count ≠ 1).
+  try {
+    for (const a of game.actors.filter(a => a.name.startsWith("__PW__DrugDot"))) await a.delete().catch(() => {});
+    const dot = await Actor.create({ name: "__PW__DrugDot", type: "character" });
+    const dotName = "__PW__Dr. Stim";
+    const [dotDrug] = await dot.createEmbeddedDocuments("Item", [{ name: dotName, type: "misc",
+      system: { equipped: true, mechDrug: { enabled: true, statBoosts: [], rollBoosts: [], duration: "1 hour", durationTurns: "",
+        expireSave: { stat: "", difficulty: 0, penalty: "" }, addictionDifficulty: 15, psychosis: "", note: "" } } }]);
+    await sleep(200);
+    await S.takeDrug(dotDrug); await sleep(400);
+    const adDot = S.addictionStateFor(dot);
+    const storedDot = dot.getFlag("cp2020-augmented", "addictionState");
+    out.dotName = {
+      realName: adDot.byDrug[dotName] === 1,                          // decoded real name visible to consumers
+      total: adDot.total,                                             // 1
+      flatKeyCount: Object.keys(storedDot?.byDrug ?? {}).length,      // exactly 1 (not nested into Dr/Stim)
+      noNestedDr: !("Dr" in (storedDot?.byDrug ?? {}))
+    };
+    await S.clearAddictionFor(dot, dotName); await sleep(300);
+    out.dotClear = { flagGone: dot.getFlag("cp2020-augmented", "addictionState") == null };
+    await dot.delete().catch(() => {});
+  } catch (e) { out.dotError = String(e?.message ?? e); out.dotName ??= {}; out.dotClear ??= {}; }
+
   return out;
 });
 
@@ -285,6 +366,10 @@ const checks = [
   ["strip: a LIVE drug pill has a wear-off ×", r.stripUi.liveDrugX === true],
   ["strip: clicking the drug × wears the dose off (marker gone + card posted)", r.stripWearOff.markerGone && r.stripWearOff.cardPosted],
   ["strip: clearing the last drug drops the addiction flag", r.lastClear.flagGone === true],
+  ["timing: concurrent double-take accepts exactly ONE dose (1 marker, addiction 1, 1 card, 1 accepted)", r.doubleTake.markerCount === 1 && r.doubleTake.addictionTotal === 1 && r.doubleTake.tookCards === 1 && r.doubleTake.oneAcceptedOneRefused === true],
+  ["timing: concurrent double wear-off posts exactly ONE card with ONE Roll button", r.doubleWearOff.cards === 1 && r.doubleWearOff.rollButtons === 1 && r.doubleWearOff.oneRemovedOneNoop === true && r.doubleWearOff.markerGone === true],
+  ["dotted name: real name visible, flat single byDrug key, no nested Dr/Stim split", r.dotName.realName === true && r.dotName.total === 1 && r.dotName.flatKeyCount === 1 && r.dotName.noNestedDr === true],
+  ["dotted name: per-drug clear by the real name drops the flag", r.dotClear.flagGone === true],
   ["0 console errors", errors.length === 0]
 ];
 let fail = 0;
