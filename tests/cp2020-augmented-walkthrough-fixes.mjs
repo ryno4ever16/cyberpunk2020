@@ -534,9 +534,279 @@ const legF = await p.evaluate(async () => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════════════════════
+// Shared fixture: the provisioned ACPA suit + its linked pilot, in the world's MaximumMetal mode.
+// Legs g/h/i open the maneuver dialog via the REAL header [data-action="controlRoll"] button and
+// measure geometry / preselect / badge. The suit is a persistent fixture (never created/deleted by
+// this keeper); only h3 mutates system.pilotId and restores it in a finally.
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+const DAI_NAME = "🦿 ACPA Suit — DaiOni";
+
+// ── LEG g — maneuver-dialog geometry (condition-column alignment, resizable window, scroll behaviour)
+const legG = await p.evaluate(async (DAI_NAME) => {
+  const out = { ok: {}, nums: {}, notes: {} };
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+  const SCOPE = "cp2020-augmented";
+  const findDlg = () => [...(foundry.applications?.instances?.values?.() ?? [])]
+    .find(a => a?.element?.querySelector?.(".vehicle-control-dialog"));
+  let dlgApp = null, actor = null;
+  const restore = {};
+  try {
+    // Pin the ruleset to MaximumMetal so the {{#if isMM}} condition column + resizable dialog render,
+    // regardless of the world's current toggle. Capture + restore.
+    for (const k of ["mmEnabled", "vehicleRuleSystem", "vehicleControlEnabled"]) {
+      try { restore[k] = game.settings.get(SCOPE, k); } catch { restore[k] = undefined; }
+    }
+    await game.settings.set(SCOPE, "mmEnabled", true);
+    await game.settings.set(SCOPE, "vehicleRuleSystem", "MaximumMetal");
+    await game.settings.set(SCOPE, "vehicleControlEnabled", true);
+
+    actor = game.actors.find(a => a.name === DAI_NAME);
+    out.notes.actorFound = !!actor;
+    if (!actor) throw new Error("DaiOni fixture not found");
+
+    await actor.sheet.render(true); await sleep(800);
+    const sheetRoot = actor.sheet.element;
+    const hdrBtn = sheetRoot?.querySelector('[data-action="controlRoll"]');
+    out.notes.headerBtnFound = !!hdrBtn;
+    if (!hdrBtn) throw new Error("controlRoll header button not found on the sheet");
+    hdrBtn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    for (let i = 0; i < 50 && !dlgApp; i++) { await sleep(150); dlgApp = findDlg(); }
+    if (!dlgApp) throw new Error("control dialog did not open");
+    await sleep(300);
+    const dlgRoot = dlgApp.element;
+    const content = dlgRoot.querySelector(".vehicle-control-dialog");
+    const fieldset = content.querySelector("fieldset");
+    const cbIds = ["#cp-ctl-cantsee", "#cp-ctl-multitask", "#cp-ctl-slippery", "#cp-ctl-icy", "#cp-ctl-cyberlink"];
+    const cbs = cbIds.map(id => content.querySelector(id));
+    out.nums.checkboxCount = cbs.filter(Boolean).length;
+    const labels = cbs.map(c => c?.closest("label")).filter(Boolean);
+
+    // g1 — the 5 checkboxes share one left edge (±1px)
+    const lefts = cbs.map(c => c.getBoundingClientRect().left);
+    out.nums.checkboxLefts = lefts.map(x => Math.round(x * 100) / 100);
+    out.nums.leftSpread = Math.round((Math.max(...lefts) - Math.min(...lefts)) * 100) / 100;
+    out.ok.checkboxLeftsEqual = (Math.max(...lefts) - Math.min(...lefts)) <= 1;
+
+    // g2 — each condition label row spans the fieldset content box (±4px)
+    const fcs = getComputedStyle(fieldset);
+    const innerW = fieldset.clientWidth - parseFloat(fcs.paddingLeft) - parseFloat(fcs.paddingRight);
+    out.nums.fieldsetInnerW = Math.round(innerW * 100) / 100;
+    const labelW = labels.map(l => l.getBoundingClientRect().width);
+    out.nums.labelWidths = labelW.map(w => Math.round(w * 100) / 100);
+    out.nums.maxLabelDelta = Math.round(Math.max(...labelW.map(w => Math.abs(w - innerW))) * 100) / 100;
+    out.ok.labelRowsSpanFieldset = labelW.every(w => Math.abs(w - innerW) <= 4);
+
+    // g3 — consecutive condition-row vertical gaps ≤ 12px
+    const rects = labels.map(l => l.getBoundingClientRect()).sort((a, b) => a.top - b.top);
+    const gaps = [];
+    for (let i = 1; i < rects.length; i++) gaps.push(rects[i].top - rects[i - 1].bottom);
+    out.nums.rowGaps = gaps.map(g => Math.round(g * 100) / 100);
+    out.nums.maxRowGap = gaps.length ? Math.round(Math.max(...gaps) * 100) / 100 : 0;
+    out.ok.rowGapsTight = gaps.every(g => g <= 12);
+
+    // g4 — the window is resizable + a resize handle exists in the DOM
+    out.ok.windowResizable = dlgApp.options?.window?.resizable === true;
+    const handle = dlgRoot.querySelector(".window-resize-handle");
+    out.ok.resizeHandleExists = !!handle;
+
+    // g5 — shrink to 300: the content div is the scroller (overflow-y:auto, VALUES scrollHeight>clientHeight)
+    await dlgApp.setPosition({ height: 300 }); await sleep(350);
+    const cs300 = getComputedStyle(content);
+    out.notes.overflowY300 = cs300.overflowY;
+    out.nums.scroll300 = { scrollH: content.scrollHeight, clientH: content.clientHeight };
+    out.ok.overflowAutoAt300 = cs300.overflowY === "auto";
+    out.ok.scrollsAt300 = content.scrollHeight > content.clientHeight;
+
+    // g6 — at 300 the footer bbox is fully inside the window frame (pinned, not clipped off-frame)
+    const footer = dlgRoot.querySelector("footer.form-footer, .form-footer, .window-content footer");
+    out.notes.footerFound = !!footer;
+    const fr = dlgRoot.getBoundingClientRect();
+    const ftr = footer?.getBoundingClientRect();
+    out.nums.frameBottom = Math.round(fr.bottom); out.nums.footerBottom = ftr ? Math.round(ftr.bottom) : null;
+    out.ok.footerInsideFrame = !!ftr && ftr.top >= fr.top - 1 && ftr.bottom <= fr.bottom + 1
+      && ftr.left >= fr.left - 1 && ftr.right <= fr.right + 1;
+
+    // g7 — NEGATIVE: at a tall height (620) the scroller shows no phantom scrollbar (scrollH≈clientH)
+    await dlgApp.setPosition({ height: 620 }); await sleep(350);
+    out.nums.scroll620 = { scrollH: content.scrollHeight, clientH: content.clientHeight };
+    out.nums.scroll620Delta = content.scrollHeight - content.clientHeight;
+    out.ok.noPhantomScrollAt620 = (content.scrollHeight - content.clientHeight) <= 2;
+
+    await dlgApp.close().catch(() => {});
+    await actor.sheet.close().catch(() => {});
+  } catch (e) { out.THROWN = String(e?.stack || e); }
+  finally {
+    try { if (dlgApp) await dlgApp.close().catch(() => {}); } catch {}
+    try { if (actor?.sheet?.rendered) await actor.sheet.close().catch(() => {}); } catch {}
+    for (const [k, v] of Object.entries(restore)) if (v !== undefined) { try { await game.settings.set(SCOPE, k, v); } catch {} }
+  }
+  return out;
+}, DAI_NAME);
+
+// ── LEG h — driver preselect honors the vehicle's linked pilot (openControlRollDialog pulls pilotId
+//            to the front of the candidate list); NEGATIVE with pilotId cleared; duplicate guard.
+const legH = await p.evaluate(async (DAI_NAME) => {
+  const out = { ok: {}, nums: {}, notes: {} };
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+  const SCOPE = "cp2020-augmented";
+  const findDlg = () => [...(foundry.applications?.instances?.values?.() ?? [])]
+    .find(a => a?.element?.querySelector?.(".vehicle-control-dialog"));
+  let actor = null, origPilotId = null, pilotRestored = false;
+  const settingRestore = {};
+  const openDialog = async () => {
+    const sheetRoot = actor.sheet.element;
+    const hdrBtn = sheetRoot?.querySelector('[data-action="controlRoll"]');
+    if (!hdrBtn) throw new Error("controlRoll header button not found");
+    hdrBtn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    let app = null;
+    for (let i = 0; i < 50 && !app; i++) { await sleep(150); app = findDlg(); }
+    if (!app) throw new Error("control dialog did not open");
+    await sleep(250);
+    return app;
+  };
+  try {
+    for (const k of ["mmEnabled", "vehicleRuleSystem", "vehicleControlEnabled"]) {
+      try { settingRestore[k] = game.settings.get(SCOPE, k); } catch { settingRestore[k] = undefined; }
+    }
+    await game.settings.set(SCOPE, "mmEnabled", true);
+    await game.settings.set(SCOPE, "vehicleRuleSystem", "MaximumMetal");
+    await game.settings.set(SCOPE, "vehicleControlEnabled", true);
+
+    actor = game.actors.find(a => a.name === DAI_NAME);
+    if (!actor) throw new Error("DaiOni fixture not found");
+    origPilotId = actor.system?.pilotId ?? "";
+    out.notes.origPilotId = origPilotId;
+    const pilot = origPilotId ? game.actors.get(origPilotId) : null;
+    out.notes.pilotName = pilot?.name ?? null;
+    const pilotRefTotal = pilot ? Number(pilot.system?.stats?.ref?.total) || 0 : null;
+    out.nums.pilotRefTotal = pilotRefTotal;
+    out.ok.fixtureHasPilot = !!origPilotId && !!pilot;
+
+    await actor.sheet.render(true); await sleep(800);
+
+    // ── h1: pilotId set → first driver option IS the linked pilot AND is the selected option ──
+    let app = await openDialog();
+    let driverSel = app.element.querySelector("#cp-ctl-driver");
+    out.notes.firstOptionValue = driverSel?.options?.[0]?.value ?? null;
+    out.notes.selectedValue = driverSel?.value ?? null;
+    out.ok.firstOptionIsPilot = driverSel?.options?.[0]?.value === origPilotId;
+    out.ok.pilotIsSelected = driverSel?.value === origPilotId && driverSel?.selectedIndex === 0;
+
+    // ── h2: the REF prefill equals the linked actor's ref.total (VALUE) ──
+    const refIn = app.element.querySelector("#cp-ctl-ref");
+    out.nums.refPrefill = refIn ? Number(refIn.value) : null;
+    out.ok.refPrefillMatchesPilot = refIn && Number(refIn.value) === pilotRefTotal;
+
+    // ── h4: duplicate guard — the pilot appears exactly ONCE in the option list ──
+    const pilotOptCount = [...(driverSel?.options ?? [])].filter(o => o.value === origPilotId).length;
+    out.nums.pilotOptionCount = pilotOptCount;
+    out.ok.pilotAppearsOnce = pilotOptCount === 1;
+    await app.close().catch(() => {}); await sleep(200);
+
+    // ── h3 NEGATIVE: clear pilotId → first option is the natural first candidate, NOT forced to the
+    //     former pilot. Compute the natural candidate order the same way _candidateDrivers does. ──
+    await actor.update({ "system.pilotId": "" }); await sleep(200);
+    await actor.sheet.render(true); await sleep(500);
+    const boarded = (canvas?.tokens?.placeables ?? [])
+      .filter(t => t.document?.flags?.[SCOPE]?.boardedVehicle === actor.id && t.actor).map(t => t.actor);
+    const owned = game.actors.filter(a => (a.type === "character" || a.type === "npc") && a.isOwner && !a.getFlag(SCOPE, "missileProxy"));
+    const seen = new Set(); const natural = [];
+    for (const a of [...boarded, ...owned]) { if (seen.has(a.id)) continue; seen.add(a.id); natural.push(a); }
+    const naturalFirstId = natural[0]?.id ?? null;
+    out.notes.naturalFirstId = naturalFirstId;
+
+    const app2 = await openDialog();
+    const driverSel2 = app2.element.querySelector("#cp-ctl-driver");
+    out.notes.clearedFirstOption = driverSel2?.options?.[0]?.value ?? null;
+    // "Not forced to the former pilot" = the ordering equals the natural discovery order (no unshift
+    // of the old pilot). If the natural first HAPPENS to be the old pilot, that is still correct
+    // un-forced order — so the honest mechanism check is options[0] === naturalFirstId.
+    out.ok.negOrderNotForced = driverSel2?.options?.[0]?.value === naturalFirstId;
+    out.notes.negFirstDiffersFromPilot = driverSel2?.options?.[0]?.value !== origPilotId;
+    await app2.close().catch(() => {}); await sleep(150);
+
+    // restore pilotId + assert it took
+    await actor.update({ "system.pilotId": origPilotId }); await sleep(200);
+    pilotRestored = true;
+    out.ok.pilotIdRestored = (actor.system?.pilotId ?? "") === origPilotId;
+
+    await actor.sheet.close().catch(() => {});
+  } catch (e) { out.THROWN = String(e?.stack || e); }
+  finally {
+    // Guarantee pilotId restoration even on a mid-leg throw.
+    try {
+      if (actor && !pilotRestored && origPilotId != null && (actor.system?.pilotId ?? "") !== origPilotId) {
+        await actor.update({ "system.pilotId": origPilotId }).catch(() => {});
+      }
+    } catch {}
+    try { for (const app of [...(foundry.applications?.instances?.values?.() ?? [])]) if (app?.element?.querySelector?.(".vehicle-control-dialog")) await app.close().catch(() => {}); } catch {}
+    try { if (actor?.sheet?.rendered) await actor.sheet.close().catch(() => {}); } catch {}
+    for (const [k, v] of Object.entries(settingRestore)) if (v !== undefined) { try { await game.settings.set(SCOPE, k, v); } catch {} }
+  }
+  return out;
+}, DAI_NAME);
+
+// ── LEG i — ruleset badge + countermeasures hint on the DaiOni sheet render.
+const legI = await p.evaluate(async (DAI_NAME) => {
+  const out = { ok: {}, nums: {}, notes: {} };
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+  const SCOPE = "cp2020-augmented";
+  let actor = null;
+  const settingRestore = {};
+  try {
+    for (const k of ["mmEnabled", "vehicleRuleSystem"]) {
+      try { settingRestore[k] = game.settings.get(SCOPE, k); } catch { settingRestore[k] = undefined; }
+    }
+    await game.settings.set(SCOPE, "mmEnabled", true);
+    await game.settings.set(SCOPE, "vehicleRuleSystem", "MaximumMetal");
+
+    actor = game.actors.find(a => a.name === DAI_NAME);
+    if (!actor) throw new Error("DaiOni fixture not found");
+    await actor.sheet.render(true); await sleep(800);
+    const root = actor.sheet.element;
+
+    // i1 — the header ruleset field carries the badge span and NO input look-alike
+    const badge = root.querySelector("span.cp-ruleset-badge");
+    out.notes.badgeFound = !!badge;
+    const field = badge?.closest(".field");
+    out.ok.badgeIsSpan = !!badge && badge.tagName.toLowerCase() === "span";
+    out.ok.fieldHasNoInput = !!field && field.querySelector("input") === null;
+
+    // i2 — badge text is the LOCALIZED name ("Maximum Metal"), not the raw "MaximumMetal" key value
+    const badgeText = (badge?.textContent ?? "").trim();
+    const localizedMM = game.i18n.localize("CYBERPUNK.Vehicle.RulesetNameMM");
+    out.notes.badgeText = badgeText;
+    out.notes.localizedMM = localizedMM;
+    out.ok.badgeTextLocalized = badgeText === localizedMM && badgeText === "Maximum Metal";
+    out.ok.badgeNotRawKey = badgeText !== "MaximumMetal";
+
+    // i3 — the badge is not clipped (scrollWidth <= clientWidth). .field is display:flex so the span
+    //       is a flex item with real box metrics.
+    out.nums.badgeScrollW = badge?.scrollWidth ?? null;
+    out.nums.badgeClientW = badge?.clientWidth ?? null;
+    out.nums.badgeRectW = badge ? Math.round(badge.getBoundingClientRect().width * 100) / 100 : null;
+    out.ok.badgeNotClipped = !!badge && badge.scrollWidth <= badge.clientWidth + 1;
+
+    // i4 — the countermeasures hint paragraph carries the new "declared loadout" sentence
+    const cmHint = root.querySelector(".cp-cm-hint");
+    out.notes.cmHintFound = !!cmHint;
+    const cmText = (cmHint?.textContent ?? "");
+    out.notes.cmHintText = cmText.slice(0, 200);
+    out.ok.cmHintDeclaredLoadout = /declared loadout/.test(cmText);
+
+    await actor.sheet.close().catch(() => {});
+  } catch (e) { out.THROWN = String(e?.stack || e); }
+  finally {
+    try { if (actor?.sheet?.rendered) await actor.sheet.close().catch(() => {}); } catch {}
+    for (const [k, v] of Object.entries(settingRestore)) if (v !== undefined) { try { await game.settings.set(SCOPE, k, v); } catch {} }
+  }
+  return out;
+}, DAI_NAME);
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
 // Node-side assertions
 // ══════════════════════════════════════════════════════════════════════════════════════════════
-const legs = { a: legA, b: legB, c: legC, d: legD, e: legE, f: legF };
+const legs = { a: legA, b: legB, c: legC, d: legD, e: legE, f: legF, g: legG, h: legH, i: legI };
 const checks = [];
 const add = (leg, name, cond) => checks.push({ leg, name, ok: !!cond });
 for (const [k, v] of Object.entries(legs)) if (v.THROWN) checks.push({ leg: k, name: `leg ${k} did not throw`, ok: false, got: v.THROWN });
@@ -621,6 +891,36 @@ add("f", "f: weapon-sheet no clipped labels", legF.ok?.noClippedLabels);
 add("f", "f: weapon window title reads 'Weapon:' not TYPES.Item", legF.ok?.titleHasWeapon);
 add("f", "f: TYPES.Item.weapon key resolves to 'Weapon'", legF.ok?.typesKeyResolves);
 
+// g — maneuver-dialog geometry
+add("g", "g: dialog opened via the header controlRoll button", legG.notes?.headerBtnFound && !legG.THROWN);
+add("g", "g: all 5 condition checkboxes present", legG.nums?.checkboxCount === 5);
+add("g", "g1: the 5 checkboxes share one left edge (±1px)", legG.ok?.checkboxLeftsEqual);
+add("g", "g2: each condition row spans the fieldset content box (±4px)", legG.ok?.labelRowsSpanFieldset);
+add("g", "g3: consecutive condition-row gaps ≤ 12px", legG.ok?.rowGapsTight);
+add("g", "g4: the dialog window is resizable", legG.ok?.windowResizable);
+add("g", "g4: a .window-resize-handle exists", legG.ok?.resizeHandleExists);
+add("g", "g5: at height 300 the content computes overflow-y auto", legG.ok?.overflowAutoAt300);
+add("g", "g5: at height 300 scrollHeight > clientHeight (scrolls)", legG.ok?.scrollsAt300);
+add("g", "g6: at height 300 the footer bbox sits inside the window frame", legG.ok?.footerInsideFrame);
+add("g", "g7: NEGATIVE — at height 620 no phantom scrollbar (scrollH≈clientH)", legG.ok?.noPhantomScrollAt620);
+
+// h — driver preselect honors the linked pilot
+add("h", "h: fixture has a linked pilot", legH.ok?.fixtureHasPilot);
+add("h", "h1: first driver option IS the linked pilot", legH.ok?.firstOptionIsPilot);
+add("h", "h1: the linked pilot is the selected option (index 0)", legH.ok?.pilotIsSelected);
+add("h", "h2: REF prefill equals the linked actor's ref.total", legH.ok?.refPrefillMatchesPilot);
+add("h", "h4: duplicate guard — pilot appears exactly ONCE", legH.ok?.pilotAppearsOnce);
+add("h", "h3: NEGATIVE — cleared pilotId → first option = natural candidate (not forced)", legH.ok?.negOrderNotForced);
+add("h", "h3: pilotId restored after the negative case", legH.ok?.pilotIdRestored);
+
+// i — ruleset badge + countermeasures hint
+add("i", "i1: ruleset field renders span.cp-ruleset-badge (a span, not input)", legI.ok?.badgeIsSpan);
+add("i", "i1: the ruleset field carries NO input element", legI.ok?.fieldHasNoInput);
+add("i", "i2: badge text is the localized 'Maximum Metal'", legI.ok?.badgeTextLocalized);
+add("i", "i2: badge is NOT the raw 'MaximumMetal' key value", legI.ok?.badgeNotRawKey);
+add("i", "i3: badge scrollWidth ≤ clientWidth (not clipped)", legI.ok?.badgeNotClipped);
+add("i", "i4: countermeasures hint includes 'declared loadout'", legI.ok?.cmHintDeclaredLoadout);
+
 // Filter documented CORE/canvas artifacts (not module regressions), per test-harness.md:
 //  • v14 combat-tracker "'turn' in undefined" (CombatTracker._onRender core guard defect).
 //  • "reading 'addChild'" — a token drawn while the headless canvas is mid-init (scene-activate timing).
@@ -636,7 +936,7 @@ if (!legE.notes?.rearmFound) parked.push("e: GM re-arm PARKED (control not found
 
 let pass = 0, fail = 0;
 for (const c of checks) { console.log(`  ${c.ok ? "PASS" : "FAIL"}  ${c.name}${c.ok ? "" : (c.got ? "  " + String(c.got).slice(0, 220) : "")}`); c.ok ? pass++ : fail++; }
-console.log("\n  numbers:", JSON.stringify({ a: legA.nums, b: legB.nums, c: legC.nums, d: legD.nums, e: legE.nums, f: legF.nums }, null, 0));
+console.log("\n  numbers:", JSON.stringify({ a: legA.nums, b: legB.nums, c: legC.nums, d: legD.nums, e: legE.nums, f: legF.nums, g: legG.nums, h: legH.nums, i: legI.nums }, null, 0));
 console.log("  notes:", JSON.stringify(Object.fromEntries(Object.entries(legs).map(([k, v]) => [k, v.notes]).filter(([, n]) => n && Object.keys(n).length))));
 if (errors.length) console.log("  console errors (all):", errors.slice(0, 10));
 if (parked.length) { console.log("\n  PARKED / observations:"); for (const pk of parked) console.log("   • " + pk); }
