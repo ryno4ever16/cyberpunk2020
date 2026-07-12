@@ -170,6 +170,40 @@ const r = await p.evaluate(async () => {
     if (scene && tok) await scene.deleteEmbeddedDocuments("Token", [tok.id]).catch(() => {});
   }
   await actor.delete().catch(() => {});
+
+  // ── (5) full-borg card honesty: a chassis-set stat boost must be announced as IGNORED on the
+  // "took" card, never inside the Grants clause (the old card said "Grants REF +3 …" then
+  // contradicted itself in the trailing advisory — misread as the boost applying). The suppression
+  // itself (totals) was already correct; these legs pin the CARD.
+  for (const a of game.actors.filter(a => a.name.startsWith("__PW__DrugBorg"))) await a.delete().catch(() => {});
+  const borg = await Actor.create({ name: "__PW__DrugBorg", type: "character" });
+  await borg.update({ "system.stats.cool.base": 6, "system.stats.ref.base": 5 });
+  await borg.createEmbeddedDocuments("Item", [{ name: "__PW__Chassis", type: "cyberware",
+    system: { equipped: true },
+    flags: { "cp2020-augmented": { borgBody: {
+      sdp: { Head: 20, Torso: 40, lArm: 25, rArm: 25, lLeg: 25, rLeg: 25 },
+      sp: { Head: 25, Torso: 25, lArm: 25, rArm: 25, lLeg: 25, rLeg: 25 },
+      stats: { ref: 15, ma: 25, body: 20 } } } } }]);
+  await sleep(400);
+  const [borgStim] = await borg.createEmbeddedDocuments("Item", [{ name: "__PW__BorgStim", type: "misc",
+    system: { equipped: true, mechDrug: { enabled: true,
+      statBoosts: [{ stat: "ref", mod: 3 }, { stat: "cool", mod: 2 }],
+      rollBoosts: [], duration: "10 minutes", durationTurns: "", expireSave: { stat: "", difficulty: 0, penalty: "" },
+      addictionDifficulty: 0, psychosis: "", note: "" } } }]);
+  await sleep(200);
+  const nBefore = game.messages.size;
+  await S.takeDrug(borgStim); await sleep(600);
+  const rawCard = game.messages.contents.slice(nBefore).map(m => m.content || "").join(" ");
+  const plainCard = rawCard.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
+  out.borgCard = {
+    ref: borg.system.stats.ref.total, cool: borg.system.stats.cool.total,
+    grantsCool: /Grants[^.]*COOL \+2/.test(plainCard),
+    grantsNoRef: !/Grants[^.]*REF \+3/.test(plainCard),
+    refIgnored: /REF \+3[^.]*ignored/i.test(plainCard),
+    advisoryWarnStyled: /result-warn/.test(rawCard),
+    plain: plainCard.slice(0, 220),
+  };
+  await borg.delete().catch(() => {});
   return out;
 });
 
@@ -195,6 +229,9 @@ const checks = [
   ["e2e: timed drug applies REF +2 with turnsLeft 1", r.timedTaken.ref === 8 && r.timedTaken.markerTurns === 1],
   ["e2e: round tick expires the timed drug (boost drops)", r.timedExpired.ref === 6 && r.timedExpired.noMarkers],
   ["e2e: a 3-turn countdown persists + decrements every tick (3→2→1→expiry)", r.timed3.start === 3 && r.timed3.after1 === 2 && r.timed3.after2 === 1 && r.timed3.expired === true],
+  ["fbc: card grants only the applied boost (COOL +2), never the chassis-set REF", r.borgCard.grantsCool && r.borgCard.grantsNoRef],
+  ["fbc: chassis-set boost explicitly announced as ignored + warn-styled advisory", r.borgCard.refIgnored && r.borgCard.advisoryWarnStyled],
+  ["fbc: totals — chassis REF 15 stands (no +3), COOL 6→8 applies", r.borgCard.ref === 15 && r.borgCard.cool === 8],
   ["0 console errors", errors.length === 0]
 ];
 let fail = 0;
