@@ -117,6 +117,124 @@ const r = await p.evaluate(async () => {
   ok("d_sheet_no_rawkey", !/CYBERPUNK\.Vehicle\.Acpa/.test(root?.textContent || ""));
   await suitDoc.sheet.close().catch(() => {});
 
+  // ════════════════════════════════════════════════════════════════════════════════════════════
+  // E/F/G — Detailed-resolver PILOT ROUTING for a DESTROYED enclosed system / internal weapon
+  //   (MM p.55: "any damage not absorbed by the system's SOP passes on to the PILOT" — NOT the frame),
+  //   plus the pilot's OWN worn armor + BTM reducing that overflow (external designer clarification).
+  //   Deterministic via a queue-driven CONFIG.Dice.randomUniform (a1a5 harness); v14 maps a die face as
+  //   Math.ceil((1−u)·faces), so force a d10=k with u = 1 − (k−0.5)/10. Suit str30 → Toughness −8 (abs 8).
+  // ════════════════════════════════════════════════════════════════════════════════════════════
+  const origRU = CONFIG.Dice.randomUniform;
+  const origMR = Math.random;
+  const D = (k) => 1 - (k - 0.5) / 10;     // force a d10 = k
+  let Q = [];
+  const capSettings = {};
+  const setS = async (k, v) => { try { capSettings[k] = game.settings.get("cp2020-augmented", k); } catch {} try { await game.settings.set("cp2020-augmented", k, v); } catch {} };
+  const efgCreated = [];
+  try {
+    CONFIG.Dice.randomUniform = () => (Q.length ? Q.shift() : 0.05);
+    // self-check the override drives Roll; fall back to also stubbing Math.random.
+    Q = [D(8)];
+    let sc = await new Roll("1d10").evaluate();
+    if (sc.total !== 8) { Math.random = () => (Q.length ? Q.shift() : 0.05); Q = [D(8)]; sc = await new Roll("1d10").evaluate(); }
+    ok("efg_dice_override", sc.total === 8);
+
+    // Ablation ON + FULL armor mode so the pilot-armor ablation step (which mirrors the personnel gate)
+    // is observable in leg E; restored in finally.
+    await setS("damageAblation", true);
+    await setS("damageArmorMode", "full");
+    await setS("vehicleDamageEnabled", true);
+
+    const LOCS = ["Head", "Torso", "rArm", "lArm", "rLeg", "lLeg"];
+    const armorItem = (name, torsoSP) => ({ name, type: "armor",
+      system: { equipped: true, armorType: "Soft",
+        coverage: Object.fromEntries(LOCS.map(k => [k, { stoppingPower: String(k === "Torso" ? torsoSP : 0), ablation: 0 }])) } });
+    const mkPilot = async (name, torsoSP) => {
+      const a = await Actor.create({ name, type: "character" }); efgCreated.push(a);
+      await a.update({ "system.stats.bt.base": 5 });   // BODY 5 → BTM 2 (btmFromBT)
+      if (torsoSP > 0) await a.createEmbeddedDocuments("Item", [armorItem(name + " Armor", torsoSP)]);
+      return game.actors.get(a.id);
+    };
+    const mkSuit = async (name, pilotId, items = []) => {
+      const a = await Actor.create({ name, type: "cp2020-augmented.vehicle",
+        system: { isACPA: true, str: 30, acpaCombatModel: "detailed", pilotId,
+          sp: { front: 5, side: 5, rear: 5, top: 5, bottom: 5 },
+          // Seed frameSDP to full (str30: acpaAreaSDP) so the frame is a LIVE sink — an all-zero/absent
+          // frame reads as already-destroyed and spills to the pilot, masking the routing change. With a
+          // live torso 23, OLD code consumes it (frame changes) while NEW code leaves it untouched.
+          frameSDP: { head: 8, rArm: 8, lArm: 8, rLeg: 15, lLeg: 15, torso: 23 } } });
+      efgCreated.push(a);
+      if (items.length) await a.createEmbeddedDocuments("Item", items);
+      return game.actors.get(a.id);
+    };
+    const torsoFrame = (id) => Number(game.actors.get(id).system.frameSDP?.torso);
+    const torsoSP = (a) => Number(a.items.find(i => i.type === "armor")?.system?.coverage?.Torso?.stoppingPower);
+
+    // ── E — DESTROYED ENCLOSED SYSTEM → pilot; pilot wound = overflow − pilotSP − BTM, floor 1; armor ablated.
+    //   sdp = 36 − 5 − 8 = 23 penetrates. Enclosed (torso, sdp 5) DESTROYED → overflow 23 − 5 = 18 to the
+    //   pilot. Pilot torso armor SP 6 → afterSP 18 − 6 = 12, − BTM 2 → net 10. Frame torso UNCHANGED (the
+    //   overflow no longer bites the frame). Armor ablated 6 → 5 (penetrating hit, ablation ON).
+    {
+      const pE = await mkPilot("__PW__ACPA E Pilot", 6);
+      const btmE = Number(pE.system?.stats?.bt?.modifier) || 0;
+      const sE = await mkSuit("__PW__ACPA E Suit", pE.id,
+        [{ name: "__PW__ACPA E Sys", type: "cp2020-augmented.acpaSystem",
+           system: { mount: "internal", area: "torso", sdp: 5, category: "utility" } }]);
+      const frameBefore = torsoFrame(sE.id), spBefore = torsoSP(game.actors.get(pE.id)), dmgBefore = Number(pE.system.damage) || 0;
+      Q = [D(8), D(5)];   // loc=8 Torso · systemHit=5 enclosed
+      await dmg.applyVehicleDamageMM(sE, { basePen: 4, facing: "front", rawDamage: 36 });
+      await new Promise(res => setTimeout(res, 250));
+      const pAfter = game.actors.get(pE.id);
+      const dmgAfter = Number(pAfter.system.damage) || 0, frameAfter = torsoFrame(sE.id), spAfter = torsoSP(pAfter);
+      out.efgE = { btm: btmE, dmgBefore, dmgAfter, delta: dmgAfter - dmgBefore, frameBefore, frameAfter, spBefore, spAfter };
+      ok("e_enclosed_pilot_wound_10", (dmgAfter - dmgBefore) === 10);   // 18 − 6 SP − 2 BTM = 10
+      ok("e_enclosed_frame_untouched", frameAfter === frameBefore);
+      ok("e_enclosed_pilot_btm_2", btmE === 2);
+      ok("e_enclosed_armor_ablated_6to5", spBefore === 6 && spAfter === 5);
+    }
+
+    // ── F — DESTROYED INTERNAL WEAPON → pilot (unarmored). Weapon (torso, sdp 5, NO shots) destroyed,
+    //   overflow 18 → pilot with no armor: afterSP 18, − BTM 2 → net 16. Frame torso UNCHANGED.
+    {
+      const pF = await mkPilot("__PW__ACPA F Pilot", 0);
+      const btmF = Number(pF.system?.stats?.bt?.modifier) || 0;
+      const sF = await mkSuit("__PW__ACPA F Suit", pF.id,
+        [{ name: "__PW__ACPA F Gun", type: "cp2020-augmented.vehicleWeapon",
+           system: { area: "torso", sdp: 5, penetration: 4, weaponClass: "directFire" } }]);
+      const frameBefore = torsoFrame(sF.id), dmgBefore = Number(pF.system.damage) || 0;
+      Q = [D(8), D(8)];   // loc=8 Torso · systemHit=8 weapons
+      await dmg.applyVehicleDamageMM(sF, { basePen: 4, facing: "front", rawDamage: 36 });
+      await new Promise(res => setTimeout(res, 250));
+      const pAfter = game.actors.get(pF.id);
+      const dmgAfter = Number(pAfter.system.damage) || 0, frameAfter = torsoFrame(sF.id);
+      out.efgF = { btm: btmF, dmgBefore, dmgAfter, delta: dmgAfter - dmgBefore, frameBefore, frameAfter };
+      ok("f_weapon_pilot_wound_16", (dmgAfter - dmgBefore) === 16);   // 18 − 0 SP − 2 BTM = 16
+      ok("f_weapon_frame_untouched", frameAfter === frameBefore);
+    }
+
+    // ── G — PILOT ARMOR ABSORBS the overflow (SP ≥ overflow → NO wound, armor NOT ablated: a stopped hit
+    //   does not ablate, per the personnel gate). Uses the no-system-in-area route (System Hit → enclosed,
+    //   none mounted → the whole 23 passes to the pilot), so pilot armor SP 25 ≥ 23 → afterSP 0 → no wound.
+    {
+      const pG = await mkPilot("__PW__ACPA G Pilot", 25);
+      const sG = await mkSuit("__PW__ACPA G Suit", pG.id, []);   // NO systems/weapons in the area
+      const dmgBefore = Number(pG.system.damage) || 0, spBefore = torsoSP(game.actors.get(pG.id));
+      Q = [D(8), D(5)];   // loc=8 Torso · systemHit=5 enclosed (none mounted → to pilot)
+      await dmg.applyVehicleDamageMM(sG, { basePen: 4, facing: "front", rawDamage: 36 });
+      await new Promise(res => setTimeout(res, 250));
+      const pAfter = game.actors.get(pG.id);
+      const dmgAfter = Number(pAfter.system.damage) || 0, spAfter = torsoSP(pAfter);
+      out.efgG = { dmgBefore, dmgAfter, delta: dmgAfter - dmgBefore, spBefore, spAfter };
+      ok("g_pilot_armor_absorbs_no_wound", (dmgAfter - dmgBefore) === 0);   // 23 − 25 SP ≤ 0 → no wound
+      ok("g_absorb_armor_unablated_25", spBefore === 25 && spAfter === 25);
+    }
+  } finally {
+    CONFIG.Dice.randomUniform = origRU;
+    Math.random = origMR;
+    for (const [k, v] of Object.entries(capSettings)) { try { await game.settings.set("cp2020-augmented", k, v); } catch {} }
+    for (const a of efgCreated) await a.delete().catch(() => {});
+  }
+
   // cleanup
   await suit.delete().catch(() => {});
   await pilot.delete().catch(() => {});
@@ -127,6 +245,9 @@ console.log("\n===== ACPA FNFF build (Units B pt.2 / C / D) =====");
 console.log("  pilot:", JSON.stringify(r.pilot));
 console.log("  derived:", JSON.stringify(r.derived));
 console.log("  quick-kill result:", JSON.stringify(r.qkResult), r.qkError ? ("ERR: " + r.qkError) : "");
+if (r.efgE) console.log("  E (enclosed→pilot):", JSON.stringify(r.efgE));
+if (r.efgF) console.log("  F (weapon→pilot):  ", JSON.stringify(r.efgF));
+if (r.efgG) console.log("  G (armor absorbs): ", JSON.stringify(r.efgG));
 for (const [k, v] of Object.entries(r.checks)) console.log(`  ${v ? "✅" : "❌"} ${k}`);
 console.log("  page errors:", errors.length ? errors.slice(0, 5) : "none");
 
