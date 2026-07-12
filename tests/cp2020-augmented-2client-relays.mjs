@@ -75,7 +75,7 @@ try {
     for (const t of scene.tokens.filter(t => t.name?.startsWith("__PW__") || t.flags?.["cp2020-augmented"]?.missile)) await t.delete().catch(()=>{});
     const F0 = (d)=> d.flags?.["cp2020-augmented"] ?? {};
     for (const coll of [scene.templates, scene.regions]) if (coll) for (const d of [...coll]) if (F0(d).isExplosion||F0(d).isGasCloud||F0(d).isSpreadZone||F0(d).isSuppressiveZone) await d.delete().catch(()=>{});
-    try { await game.settings.set("cp2020-augmented", "mmEnabled", true); } catch(e){}
+    let mmPrev; try { mmPrev = game.settings.get("cp2020-augmented", "mmEnabled"); await game.settings.set("cp2020-augmented", "mmEnabled", true); } catch(e){}
 
     const player = game.users.find(u => u.role === 1);
     const npc = await Actor.create({ name: "__PW__NPC", type: "character" });
@@ -86,6 +86,8 @@ try {
     const [npcTok] = await scene.createEmbeddedDocuments("Token", [mk(npc, 1400)]);
     return {
       playerName: player.name, pcId: pc.id, npcId: npc.id, pcTokenId: pcTok.id, npcTokenId: npcTok.id,
+      mmPrev,
+      npcBtm: Number(npc.system.stats?.bt?.modifier) || 0,   // exact-delta derivation (Torso net = max(1, dmg−BTM))
       baseline: {
         npcDamage: Number(npc.system.damage) || 0,
         isExplosion: COUNT_AREAS("isExplosion"), isGasCloud: COUNT_AREAS("isGasCloud"),
@@ -119,7 +121,9 @@ try {
                      areaDamages: { Torso: [{ damage: 20 }] }, weaponName: "PW Rifle" });
   {
     const r = await pollGM(`(id)=>Number(game.actors.get(id).system.damage)||0`, S.npcId, S.baseline.npcDamage);
-    results.A2_damage = { pass: r.v > S.baseline.npcDamage, detail: `npc damage ${S.baseline.npcDamage}→${r.v} in ${r.ms}ms` };
+    // Exact delta (a double-apply must fail): Torso hit 20, bare NPC (SP 0) → net = max(1, 20 − BTM), no doubling.
+    const expected = S.baseline.npcDamage + Math.max(1, 20 - S.npcBtm);
+    results.A2_damage = { pass: r.v === expected, detail: `npc damage ${S.baseline.npcDamage}→${r.v} (expected ${expected}, BTM ${S.npcBtm}) in ${r.ms}ms` };
   }
 
   // ===== A4a: explosion =====
@@ -127,7 +131,7 @@ try {
                      areaDamages: { Torso: [{ damage: 15 }] }, blastRadius: 5, weaponName: "PW Grenade" });
   {
     const r = await pollGM(COUNT_AREAS.toString(), "isExplosion", S.baseline.isExplosion);
-    results.A4a_explosion = { pass: r.v > S.baseline.isExplosion, detail: `isExplosion areas ${S.baseline.isExplosion}→${r.v} in ${r.ms}ms` };
+    results.A4a_explosion = { pass: r.v === S.baseline.isExplosion + 1, detail: `isExplosion areas ${S.baseline.isExplosion}→${r.v} (expected +1) in ${r.ms}ms` };
   }
 
   // ===== A4b: gas cloud (no areaDamages → only the cloud path runs) =====
@@ -135,7 +139,7 @@ try {
                      blastRadius: 4, dotTurns: 3, stunSaveMod: -2, weaponName: "PW Gas" });
   {
     const r = await pollGM(COUNT_AREAS.toString(), "isGasCloud", S.baseline.isGasCloud);
-    results.A4b_gas = { pass: r.v > S.baseline.isGasCloud, detail: `isGasCloud areas ${S.baseline.isGasCloud}→${r.v} in ${r.ms}ms` };
+    results.A4b_gas = { pass: r.v === S.baseline.isGasCloud + 1, detail: `isGasCloud areas ${S.baseline.isGasCloud}→${r.v} (expected +1) in ${r.ms}ms` };
   }
 
   // ===== A4c: shotgun spread =====
@@ -143,7 +147,7 @@ try {
                      spreadDamageMedium: "3d6", weaponName: "PW Shotgun" });
   {
     const r = await pollGM(COUNT_AREAS.toString(), "isSpreadZone", S.baseline.isSpreadZone);
-    results.A4c_spread = { pass: r.v > S.baseline.isSpreadZone, detail: `isSpreadZone areas ${S.baseline.isSpreadZone}→${r.v} in ${r.ms}ms` };
+    results.A4c_spread = { pass: r.v === S.baseline.isSpreadZone + 1, detail: `isSpreadZone areas ${S.baseline.isSpreadZone}→${r.v} (expected +1) in ${r.ms}ms` };
   }
 
   // ===== A5: guided missile launch (player imports the module fn and calls it) =====
@@ -159,17 +163,19 @@ try {
   log.push(`player launchMissile: ${launched}`);
   {
     const r = await pollGM(`()=>{const s=game.scenes.active??canvas.scene;return s.tokens.filter(t=>t.flags?.["cp2020-augmented"]?.missile).length;}`, null, S.baseline.missileTokens);
-    results.A5_missile = { pass: r.v > S.baseline.missileTokens, detail: `missile tokens ${S.baseline.missileTokens}→${r.v} in ${r.ms}ms` };
+    results.A5_missile = { pass: r.v === S.baseline.missileTokens + 1, detail: `missile tokens ${S.baseline.missileTokens}→${r.v} (expected +1) in ${r.ms}ms` };
   }
 
   // ---- cleanup ----
-  await gm.evaluate(async () => {
+  await gm.evaluate(async (mmPrev) => {
     const scene = game.scenes.active ?? canvas.scene;
     for (const t of scene.tokens.filter(t => t.name?.startsWith("__PW__") || t.flags?.["cp2020-augmented"]?.missile)) await t.delete().catch(()=>{});
     const F = (d)=> d.flags?.["cp2020-augmented"] ?? {};
     for (const coll of [scene.templates, scene.regions]) if (coll) for (const d of [...coll]) if (F(d).isExplosion||F(d).isGasCloud||F(d).isSpreadZone||F(d).isSuppressiveZone) await d.delete().catch(()=>{});
     for (const a of game.actors.filter(a => a.name?.startsWith("__PW__") || a.name === "Missile")) await a.delete().catch(()=>{});
-  }).catch(() => {});
+    // Restore the captured mmEnabled setting (don't leave the world flag flipped for the next keeper).
+    try { if (mmPrev !== undefined) await game.settings.set("cp2020-augmented", "mmEnabled", mmPrev); } catch (e) {}
+  }, S.mmPrev).catch(() => {});
 } catch (e) {
   log.push("ERROR: " + e.message);
 } finally {

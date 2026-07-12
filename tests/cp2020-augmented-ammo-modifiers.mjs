@@ -62,10 +62,11 @@ const r = await p.evaluate(async () => {
   const fx = SEAM.ammoEffectFields(bow);
   out.seam = { penDamageMult: fx.penDamageMult, storedModifier: arrow.system?.modifier };
 
-  // ── (3) shop purchase guard (incompatible → Standard) ─────────────────────
-  await SHOP.purchaseAmmo(actor, { caliber: "9mm", modifier: "broadhead", boxes: 1 }); await sleep(300);
+  // ── (3) shop purchase guard: an incompatible load (arrow "broadhead" on a bullet caliber) is REFUSED
+  //        (warn + no item created), matching the item-sheet modifier picker — NOT coerced to Standard. ──
+  const buyGuardRet = await SHOP.purchaseAmmo(actor, { caliber: "9mm", modifier: "broadhead", boxes: 1 }); await sleep(300);
   const boughtBullet = (actor.itemTypes?.ammo ?? []).find(a => a.system?.caliber === "9mm");
-  out.buyGuard = { modifier: boughtBullet?.system?.modifier, pen: boughtBullet?.system?.penDamageMult };  // coerced → standard/1
+  out.buyGuard = { rejected: buyGuardRet === false, madeItem: !!boughtBullet };
   await SHOP.purchaseAmmo(actor, { caliber: "Arrow", modifier: "broadhead", boxes: 1 }); await sleep(300);
   const boughtArrow = (actor.itemTypes?.ammo ?? []).filter(a => a.system?.caliber === "Arrow").find(a => a.system?.modifier === "broadhead");
   out.buyArrow = { modifier: boughtArrow?.system?.modifier, pen: boughtArrow?.system?.penDamageMult };
@@ -104,7 +105,7 @@ const checks = [
   ["mech: Target halves armor (soft+hard 0.5)", r.mech.targetSoft === 0.5 && r.mech.targetHard === 0.5],
   ["mech: Stundart forces stun save at −2", r.mech.stundartStun === true && r.mech.stundartMod === -2],
   ["seam: loaded Broadhead arrow carries penDamageMult 2 into weaponFired", r.seam.penDamageMult === 2 && r.seam.storedModifier === "broadhead"],
-  ["buy guard: broadhead on 9mm coerces to Standard (pen 1)", r.buyGuard.modifier === "standard" && r.buyGuard.pen === 1],
+  ["buy guard: broadhead on 9mm is REFUSED (arrow load, no bullet ammo created)", r.buyGuard.rejected === true && r.buyGuard.madeItem === false],
   ["buy: broadhead on Arrow keeps the load (pen 2)", r.buyArrow.modifier === "broadhead" && r.buyArrow.pen === 2],
   ["dropdown: bullet ammo hides Broadhead, shows Armor-Piercing", r.bulletDropdown.hasBroadhead === false && r.bulletDropdown.hasAP === true],
   ["dropdown: arrow ammo shows Broadhead+Target, hides Armor-Piercing", r.arrowDropdown.hasBroadhead === true && r.arrowDropdown.hasTarget === true && r.arrowDropdown.hasAP === false],

@@ -46,6 +46,7 @@ try {
     const M = "/modules/cp2020-augmented/module";
     const out = { checks: [] };
     const ok = (name, cond, got) => out.checks.push({ name, pass: !!cond, got });
+    let a = null;
     try {
       // H1 — the DamageApplied string resolves {name} to the target
       const u = await import(`${M}/utils.js`);
@@ -55,7 +56,9 @@ try {
 
       // H2 — resolved death-save threshold shifts 1:1 with the FORCED mortal level
       const SR = await import(`${M}/combat/save-rolls.js`);
-      const a = await Actor.create({ name: "GRIG DeathSave", type: "character" });
+      // Pre-clean a prior run's leftover (non-__PW__ name → not caught by a shared sweep).
+      for (const x of game.actors.filter(x => x.name === "GRIG DeathSave")) await x.delete().catch(() => {});
+      a = await Actor.create({ name: "GRIG DeathSave", type: "character" });
       const bt = Number(a.system?.stats?.bt?.total) || 0;
       const sceneId = window.canvas?.scene?.id ?? "";
       // The card always shows "... vs threshold <b>N</b>" (flavor: "need ≤ N"); parse that, not the verdict.
@@ -63,9 +66,10 @@ try {
       const drive = async (forcedMortal) => {
         const n0 = game.messages.size;
         await SR.executeDeathSave({ actorId: a.id, tokenId: null, sceneId, mortalLevel: forcedMortal });
-        // find the death-save-result card among messages posted by this call (a status msg may post after)
-        const fresh = game.messages.contents.slice(n0);
-        const card = fresh.reverse().find(m => /death-save-result|threshold/.test(m?.content || "")) ?? game.messages.contents.at(-1);
+        // find the death-save-result card among THIS actor's messages posted by this call (scope to the
+        // fixture's speaker so a stray card from a leftover combat can't be sampled as the result).
+        const fresh = game.messages.contents.slice(n0).filter(m => m.speaker?.actor === a.id);
+        const card = [...fresh].reverse().find(m => /death-save-result|threshold/.test(m?.content || "")) ?? fresh.at(-1);
         await a.update({ "system.damage": 0 }).catch(() => {});
         return thresholdFrom(card?.content) ?? thresholdFrom(card?.flavor);
       };
@@ -75,8 +79,8 @@ try {
       ok(`H2 bt read (${bt}) + thresholds parsed`, Number.isFinite(t0) && Number.isFinite(tD), `t0=${t0}, t${D}=${tD}`);
       ok(`H2 threshold(0) = bt`, t0 === bt, `${t0} vs bt ${bt}`);
       ok(`H2 threshold shifts by forced mortal (Δ=${D})`, (t0 - tD) === D, `t0-tD = ${t0 - tD}`);
-      await a.delete();
     } catch (e) { out.error = e?.stack || e?.message || String(e); }
+    finally { try { if (a) await a.delete(); } catch {} }
     return out;
   });
 

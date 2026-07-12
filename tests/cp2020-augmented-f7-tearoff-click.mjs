@@ -46,6 +46,7 @@ try {
       const src = await (await fetch(`${M}/actor/actor-sheet.js`, { cache: "no-store" })).text();
       ok("actor-sheet only suppresses on an on-nav release", /const releasedOnNav = /.test(src) && /end\(armed && releasedOnNav\)/.test(src), true);
 
+      for (const x of game.actors.filter(x => x.name === "RIG F7 Tearoff")) await x.delete().catch(() => {});   // pre-sweep prior run
       actor = await Actor.create({ name: "RIG F7 Tearoff", type: "character" });
       await actor.sheet.render(true);
       const sheet = actor.sheet;

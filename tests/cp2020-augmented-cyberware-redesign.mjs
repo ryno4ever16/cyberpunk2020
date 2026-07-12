@@ -119,12 +119,14 @@ const r = await p.evaluate(async () => {
     const borg = await Actor.create({ name: "__PW__RedesignBorg", type: "character" });
     const [body] = await borg.createEmbeddedDocuments("Item", [dragoon.toObject()]);
     await body.update({ "system.equipped": true });
+    const borgManifestLen = (body.getFlag("cp2020-augmented", "loadout") ?? []).length;
     const opts = () => borg.items.filter(i => i.getFlag("cp2020-augmented", "loadoutSource") === body.id);
     // Materialization is multi-pass (parents, then nested children level-by-level): wait until the
     // count STABILIZES, not just crosses a threshold, or the baseline samples a partial (pre-nesting)
     // set and the subsequent ⊗/delete acts on a still-growing option list.
     { let last = -1, stable = 0; for (let i = 0; i < 80 && stable < 3; i++) { await sleep(200); const n = opts().length; if (n > 0 && n === last) stable++; else { stable = 0; last = n; } } }
     out.borg_materialized = opts().length;
+    out.borg_manifestLen = borgManifestLen;
 
     await borg.sheet.render(true); await sleep(900);
     let broot = borg.sheet.element;
@@ -223,7 +225,7 @@ const checks = [
   ["drag-off: the drop target is genuinely outside any drop zone", r.dragoff_targetHasNoDropZone === true],
   ["drag-off: dragging an equipped implant off the map uninstalls it to Carried", r.dragoff_armCarried === true && r.dragoff_armInCarried === true],
   // Gesture D — borg chassis ⊗
-  ["borg: the loadout materialized", (r.borg_materialized || 0) >= 20],
+  ["borg: the loadout materialized (exactly the manifest spec count)", r.borg_materialized === r.borg_manifestLen && (r.borg_manifestLen || 0) > 0],
   ["borg: the chassis folds into the Active Cyberware header (name + ⊗), no number", r.borg_chassisPresent === true && r.borg_clearCtrlFound === true && r.borg_chassisNoNumber === true],
   ["borg: loadout options render as nodes in their anatomy zones", (r.borg_optionsRenderInZones || 0) > 0],
   ["borg: clicking ⊗ opens a confirm dialog", r.borg_dialogAppeared === true],

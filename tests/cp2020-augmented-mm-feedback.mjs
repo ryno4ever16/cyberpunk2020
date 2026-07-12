@@ -48,14 +48,23 @@ const r = await p.evaluate(async () => {
     const marker = () => [{ name: "__PW__MMFDrug", statBoosts: [{ stat: "ref", mod: 3 }, { stat: "cool", mod: 2 }], turnsLeft: 5 }];
 
     const borg = await Actor.create({ name: "__PW__MMFBorg", type: "character" });
-    await borg.setFlag(SCOPE, "fullBorg", true);                 // three-state detect: flag true → full borg
+    // B3.12 refinement (2026-07-11): the FBC drug-skip gates on borgSetStatKeys — the stats the CHASSIS
+    // actually SETS — not on isFullBorg alone. A bare fullBorg flag (no body stats block) leaves the
+    // physical stats on the meat value, so a drug still moves them. Use a body item WITH a stats block so
+    // the chassis genuinely SETS REF (borgSetStatKeys has "ref") → the REF boost is correctly dropped.
+    await borg.createEmbeddedDocuments("Item", [{
+      name: "__PW__MMFBody", type: "cyberware",
+      system: { equipped: true, EffectMode: "Permanent" },
+      flags: { "cp2020-augmented": { borgBody: {
+        sdp: { Head: 30, Torso: 40, lArm: 30, rArm: 30, lLeg: 30, rLeg: 30 },
+        stats: { ref: 14, ma: 10, body: 12 } } } }
+    }]);
     await borg.setFlag(SCOPE, "drugState", marker());
-    borg.prepareData();
-    await sleep(50);
+    for (let i = 0; i < 20 && (Number(borg.system?.stats?.ref?.total) || 0) !== 14; i++) await sleep(150);
     const bm = borg._mechDrugMods || {};
     out.borgDrug = {
       isFullBorg: (await import("/modules/cp2020-augmented/module/mech/borg.js")).isFullBorg(borg),  // true
-      refDropped: !("ref" in bm),      // true — chassis-set stat, boost ignored
+      refDropped: !("ref" in bm),      // true — chassis-set stat (stats block SETs REF), boost ignored
       coolApplied: "cool" in bm,       // true — non-physical, boost applies
     };
 

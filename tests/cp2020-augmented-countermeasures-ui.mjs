@@ -69,6 +69,7 @@ try {
       // ---- behavioural ----
       prevMM = game.settings.get(SCOPE, "mmEnabled");
       await game.settings.set(SCOPE, "mmEnabled", true);
+      for (const x of game.actors.filter(x => x.name === "RIG CM Tank")) await x.delete().catch(() => {});   // pre-sweep prior run
       actor = await Actor.create({ name: "RIG CM Tank", type: "cp2020-augmented.vehicle" });
       await actor.sheet.render(true);
       await waitFor(() => actor.sheet?.element?.querySelector("input.cp-cm-box"));

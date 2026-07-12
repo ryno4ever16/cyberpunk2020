@@ -80,6 +80,8 @@ const r = await p.evaluate(async () => {
   out.timers = S.timerRows({ flags: { [SCOPE]: { consumableState: [{ itemId: "x", name: "Dose", note: "+1 REF", turnsLeft: 2 }] } } })[0] ?? null;
 
   // ── (1) E2E: real actor, real sheet ────────────────────────────────────────
+  // Pre-clean a leftover ACTIVE combat from a crashed prior run (it would feed per-turn hooks here).
+  for (const c of [...game.combats].filter(c => c.combatants.some(cb => cb.actor?.name?.startsWith("__PW__")))) await c.delete().catch(() => {});
   for (const a of game.actors.filter(a => a.name.startsWith("__PW__VisPunk"))) await a.delete().catch(() => {});
   const actor = await Actor.create({ name: "__PW__VisPunk", type: "character" });
 
@@ -137,9 +139,12 @@ const r = await p.evaluate(async () => {
     iconInert: (icon?.changes ?? []).length === 0
   };
 
-  const scene = game.scenes.viewed ?? game.scenes.active ?? game.scenes.contents[0];
-  const [tok] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__VisPunk", actorId: actor.id, actorLink: true, x: 800, y: 800 }]);
-  const combat = await Combat.create({ scene: scene.id, active: true });
+  // Combat is active:true — tear it down in finally so a mid-run throw never leaks an active combat.
+  let scene = null, tok = null, combat = null;
+  try {
+  scene = game.scenes.viewed ?? game.scenes.active ?? game.scenes.contents[0];
+  [tok] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__VisPunk", actorId: actor.id, actorLink: true, x: 800, y: 800 }]);
+  combat = await Combat.create({ scene: scene.id, active: true });
   await combat.createEmbeddedDocuments("Combatant", [{ tokenId: tok.id, actorId: actor.id }]);
   await combat.startCombat(); await sleep(1000);
   await combat.update({ round: 2, turn: 0 }); await sleep(1200);
@@ -149,8 +154,10 @@ const r = await p.evaluate(async () => {
     iconPruned: !(actor.effects?.contents ?? []).some(e => e.getFlag(SCOPE, "consumableItemId"))
   };
 
-  await combat.delete().catch(() => {});
-  await scene.deleteEmbeddedDocuments("Token", [tok.id]).catch(() => {});
+  } finally {
+    if (combat) await combat.delete().catch(() => {});
+    if (scene && tok) await scene.deleteEmbeddedDocuments("Token", [tok.id]).catch(() => {});
+  }
   await sheet.close().catch(() => {});
   await actor.delete().catch(() => {});
   return out;

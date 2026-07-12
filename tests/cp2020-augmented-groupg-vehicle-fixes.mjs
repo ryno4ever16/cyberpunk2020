@@ -44,7 +44,10 @@ try {
     const M = "/modules/cp2020-augmented/module";
     const out = { checks: [] };
     const ok = (name, cond, got) => out.checks.push({ name, pass: !!cond, got });
+    let veh = null, pilot = null, suit = null;
     try {
+      // Pre-clean a prior run's leftover GRIG fixtures (non-__PW__ names → not caught by a shared sweep).
+      for (const x of game.actors.filter(x => x.name?.startsWith("GRIG "))) await x.delete().catch(() => {});
       const sysMod = await import(`${M}/vehicle/vehicle-acpa-systems.js`);
       const ctrl   = await import(`${M}/vehicle/vehicle-control.js`);
       const mis    = await import(`${M}/vehicle/vehicle-missiles.js`);
@@ -78,26 +81,27 @@ try {
 
       // G7 — area damage on a vehicle actor routes to the vehicle resolver (returns [])
       const DA = await import(`${M}/combat/DamageApplicator.js`);
-      const veh = await Actor.create({ name: "GRIG Area Suit", type: "cp2020-augmented.vehicle", system: { isACPA: true, str: 20 } });
+      veh = await Actor.create({ name: "GRIG Area Suit", type: "cp2020-augmented.vehicle", system: { isACPA: true, str: 20 } });
       const res = await DA.applyAreaDamages({ target: veh, areaDamages: { Torso: [{ damage: 15 }] }, ap: false });
       ok("G7 vehicle target routed (empty return)", Array.isArray(res) && res.length === 0, JSON.stringify(res)?.slice(0, 40));
-      await veh.delete();
 
       // G6 — suit effectiveRef re-derives on pilot REF change (updateActor hook)
-      const pilot = await Actor.create({ name: "GRIG Pilot", type: "character" });
+      pilot = await Actor.create({ name: "GRIG Pilot", type: "character" });
       await pilot.update({ "system.stats.ref.base": 2 });   // ref.total derives from .base (not .value)
-      const suit = await Actor.create({ name: "GRIG Linked Suit", type: "cp2020-augmented.vehicle", system: { isACPA: true, str: 20, pilotId: pilot.id } });
+      suit = await Actor.create({ name: "GRIG Linked Suit", type: "cp2020-augmented.vehicle", system: { isACPA: true, str: 20, pilotId: pilot.id } });
       const eref0 = suit.system.effectiveRef;
       const pilotRef0 = pilot.system?.stats?.ref?.total;
       await pilot.update({ "system.stats.ref.base": 7 });
       await new Promise(r => setTimeout(r, 400));
       const eref1 = suit.system.effectiveRef;
       const pilotRef1 = pilot.system?.stats?.ref?.total;
-      ok("G6 pilot ref.total actually changed (setup)", pilotRef0 !== pilotRef1, `${pilotRef0}->${pilotRef1}`);
-      ok("G6 suit effectiveRef re-derived after pilot change", eref0 !== eref1, `${eref0}->${eref1}`);
-      await suit.delete(); await pilot.delete();
+      // Exact: default Advanced control (refMod 0, maxRef 10) on STR 20 → effectiveRef = clamp(pilotRef, 0..10).
+      ok("G6 pilot ref.total 2→7 (base-derived)", pilotRef0 === 2 && pilotRef1 === 7, `${pilotRef0}->${pilotRef1}`);
+      ok("G6 suit effectiveRef 2→7 (clamp(pilotRef+0, 0..10))", eref0 === 2 && eref1 === 7, `${eref0}->${eref1}`);
     } catch (e) {
       out.error = e?.stack || e?.message || String(e);
+    } finally {
+      for (const d of [suit, pilot, veh]) { try { if (d) await d.delete(); } catch {} }
     }
     return out;
   });

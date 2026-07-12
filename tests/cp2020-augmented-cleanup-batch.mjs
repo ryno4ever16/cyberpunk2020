@@ -45,8 +45,12 @@ const r = await p.evaluate(async () => {
   const [body] = await actor.createEmbeddedDocuments("Item", [dragoon.toObject()]);
   await body.update({ "system.equipped": true });
   const opts = () => actor.items.filter(i => i.getFlag("cp2020-augmented", "loadoutSource") === body.id);
-  for (let i = 0; i < 40 && opts().length < 20; i++) await sleep(200);
+  // Assert the MANIFEST's own spec count, not a floor — a spec silently dropped by materialization must
+  // fail this, not slide under a stale >=20. Multi-pass materialization: wait for the count to STABILIZE.
+  const manifestLen = (body.getFlag("cp2020-augmented", "loadout") ?? []).length;
+  { let last = -1, stable = 0; for (let i = 0; i < 80 && stable < 3; i++) { await sleep(200); const n = opts().length; if (n > 0 && n === last) stable++; else { stable = 0; last = n; } } }
   out.materializedCount = opts().length;
+  out.manifestLen = manifestLen;
 
   // ── item 4: equipping a SECOND borg body is rejected (stays unequipped) ──────────────────────────
   await guard("item4", async () => {
@@ -168,7 +172,7 @@ const checks = [
   ["item3: a borgBody item classifies to the FBC shop category", r.item3_classify?.category === "FBC"],
   ["item3: FBC is a top-level category; a normal cyberware still classifies to Cyberware", r.item3_inList === true && r.item3_normalStillCyber?.category === "Cyberware"],
   ["item3: the catalog index projects the borgBody flag (so classification runs)", r.item3_indexHasFlag === true],
-  ["setup: the Dragoon loadout materialized", (r.materializedCount || 0) >= 20],
+  ["setup: the Dragoon loadout materialized (exactly the manifest spec count)", r.materializedCount === r.manifestLen && (r.manifestLen || 0) > 0],
   ["item4: a second equipped body is vetoed (stays unequipped)", r.item4_secondEquipped === false],
   ["item7: EMP true value is negative but the display reads 0", Number(r.item7_empTrue) < 0 && r.item7_empShown === "0"],
   ["item5: an anatomy zone header shows a used/total badge with total 5 (Dragoon arm, factory+free)", r.item5_hasArmTotal5 === true],

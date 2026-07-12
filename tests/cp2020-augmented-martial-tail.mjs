@@ -56,6 +56,7 @@ try {
       try { await import(`${M}/martial/martial-sheet.js`); } catch { injectorGone = true; }
       ok("dead martial-sheet.js injector is gone", injectorGone, injectorGone);
       // the on-sheet martial panel (V2 combat tab) still renders
+      for (const x of game.actors.filter(x => x.name === "RIG Martial Panel")) await x.delete().catch(() => {});   // pre-sweep prior run
       actor = await Actor.create({ name: "RIG Martial Panel", type: "character" });
       await actor.sheet.render(true);
       await waitFor(() => actor.sheet?.element?.querySelector('[data-tab="combat"], .tab[data-tab="combat"], .martial-panel'));

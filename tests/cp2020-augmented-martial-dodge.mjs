@@ -39,7 +39,7 @@ const r = await p.evaluate(async () => {
   };
   const mk = async (name, { arts = [], skills = {}, dodging = false } = {}) => {
     const a = await Actor.create({ name, type: "character" });
-    await a.update({ "system.stats.ref.value": 6 });
+    await a.update({ "system.stats.ref.base": 6 });   // ref.total derives from .base, not .value
     for (const [n, lvl] of Object.entries(skills)) await setSkill(a, n, lvl);
     if (arts.length) await a.createEmbeddedDocuments("Item", arts);
     if (dodging) await a.setFlag(SCOPE, "dodging", true);
@@ -79,7 +79,7 @@ const r = await p.evaluate(async () => {
   out.mixedNoCompose  = { key: dMix.dodgeKeyBonus, skillVal: dMix.skillVal };                       // key 0, lvl 8 (Athletics chosen)
   out.martialWins     = { key: dWin.dodgeKeyBonus, skillVal: dWin.skillVal };                       // key 3, lvl 5 (art chosen)
 
-  // ── (B) the caller's additive rule, as the pure helper rollMartialAttack applies (no canvas) ──
+  // ── (B) the caller's additive rule via the pure helper declaredDodgeBonus (no canvas) ──
   // declaredDodgeBonus(isDodging, chosenArtKey): +2 generic stance plus the chosen art's Dodge key.
   out.helper = {
     aikido: MA.declaredDodgeBonus(true, dAik.dodgeKeyBonus),   // 2 + 3 = 5
@@ -89,31 +89,75 @@ const r = await p.evaluate(async () => {
     notDodging: MA.declaredDodgeBonus(false, 3),               // 0 (no dodge declared → no bonus at all)
   };
 
-  // ── (C) no-damage maneuvers: a declared dodge helps vs Grapple (an attack) but NOT vs Escape (a
-  //        self-action). Full rollMartialAttack path via a STUBBED single target — no canvas (the
-  //        headless PIXI draw is flaky), so this stays deterministic. aikido still carries the dodge flag. ──
-  out.noDamage = { err: null };
+  // ── (C) the OFFERED contest (unit ①): declare posts an offer card; the roll is a chosen click;
+  //        the GM's outcome buttons apply/decline; nothing is written at declare time. Buttons are
+  //        driven as REAL DOM clicks through the delegated handler (verify-gestures). The old
+  //        rollMartialAttack no-damage leg is gone — that export was deleted; the +Dodge fold it
+  //        checked is now covered by the offer contest's result-card fold below (resultShowsDodgeFold). ──
+  out.offer = { err: null };
   try {
+    // The no-damage leg used to arm this gate; set it here now that that leg is gone.
     try { await game.settings.set(SCOPE, "specialMeleeEffectsEnabled", true); } catch {}
-    const attacker = await mk("__PW__DodgeGrappler", { skills: { Brawling: 8 } });
-    const fake = new Set([{ id: "__pwFakeTok", actor: aikido }]);   // the dodging Aikido defender (key 3)
-    fake.first = () => [...fake][0];
-    const desc = Object.getOwnPropertyDescriptor(game.user, "targets");
-    Object.defineProperty(game.user, "targets", { value: fake, configurable: true });
-    const cardFor = async (action) => {
-      const before = game.messages.size;
-      await MA.rollMartialAttack(attacker, { martialArt: "Brawling", action });
-      await sleep(300);
-      return game.messages.contents.slice(before).map(m => m.content || "").join("\n");
+    try { ui.sidebar?.expand?.(); ui.sidebar?.activateTab?.("chat"); } catch {}
+    const attacker2 = await mk("__PW__DodgeOfferAtk", { skills: { Brawling: 6 } });
+
+    // SkillDodgeEscape candidate: the base's canonical skill now counts in the selection.
+    const dnE = await mk("__PW__DodgeEscapeOnly", { skills: { "Dodge & Escape": 7 } });
+    const dDE = await MA.rollMeleeDefense(dnE, { dodging: false });
+    out.offer.dodgeEscape = { skillName: dDE.skillName, skillVal: dDE.skillVal };  // "Dodge & Escape", 7
+
+    // Gate + shape: an offer posts for a contested maneuver, never for the self-action; off-gate = no card.
+    const flagOf = () => aikido.getFlag(SCOPE, "grappledBy") ?? null;
+    const btnFor = async (cls) => {
+      await sleep(600); ui.chat?.render?.(true); await sleep(400);
+      return [...document.querySelectorAll(`${cls}[data-target-actor-id="${aikido.id}"]`)].pop() ?? null;
     };
-    const grappleCard = await cardFor("Grapple");   // incoming attack → dodge applies → +5 (2+3)
-    const escapeCard  = await cardFor("Escape");     // self-action → dodge excluded → no +Dodge
-    out.noDamage.grappleFive = /\+\s*5\s*Dodge/.test(grappleCard);
-    out.noDamage.grappleContested = /class="cp2020ae-martial-defense-detail"|__PW__DodgeAikido/.test(grappleCard);
-    out.noDamage.escapeNoDodge = !/\+\s*\d+\s*Dodge/.test(escapeCard);
-    if (desc) Object.defineProperty(game.user, "targets", desc); else delete game.user.targets;
-    await attacker.delete().catch(() => {});
-  } catch (e) { out.noDamage.err = e?.message || String(e); }
+    const offered = await MA.postMartialDefenseOffer({ attackerActor: attacker2, targetActor: aikido, action: "Grapple" });
+    out.offer.posts = offered === true;
+    out.offer.noWriteAtDeclare = flagOf() === null;
+    out.offer.escapeNotOffered = (await MA.postMartialDefenseOffer({ attackerActor: attacker2, targetActor: aikido, action: "Escape" })) === false;
+    const gateWas = game.settings.get(SCOPE, "specialMeleeEffectsEnabled");
+    await game.settings.set(SCOPE, "specialMeleeEffectsEnabled", false);
+    out.offer.gateOff = (await MA.postMartialDefenseOffer({ attackerActor: attacker2, targetActor: aikido, action: "Grapple" })) === false;
+    await game.settings.set(SCOPE, "specialMeleeEffectsEnabled", gateWas);
+
+    // The chosen roll: a real click on the offer's roll button → the result card (breakdown + outcome
+    // buttons + the opposed roll attached). The dodging Aikido defender's clause shows the +5 fold.
+    const rollBtn = await btnFor(".cp-martial-defense-roll");
+    out.offer.rollBtnFound = !!rollBtn;
+    const beforeRoll = game.messages.size;
+    rollBtn?.click(); await sleep(800);
+    const resultMsg = game.messages.contents.slice(beforeRoll).find(m => (m.content || "").includes("cp-martial-defense-lands"));
+    out.offer.resultPosts = !!resultMsg;
+    out.offer.resultHasRoll = (resultMsg?.rolls?.length ?? 0) >= 1;
+    out.offer.resultShowsDodgeFold = /\+5/.test(resultMsg?.content ?? "");
+
+    // Outcome: [lands] writes the status through the single-home apply path.
+    const landsBtn = await btnFor(".cp-martial-defense-lands");
+    landsBtn?.click(); await sleep(600);
+    out.offer.landsApplies = flagOf() === attacker2.id;
+    await aikido.unsetFlag(SCOPE, "grappledBy").catch(() => {});
+
+    // Outcome: [evaded] posts the notice and writes nothing.
+    await MA.postMartialDefenseOffer({ attackerActor: attacker2, targetActor: aikido, action: "Grapple" });
+    const rollBtn2 = await btnFor(".cp-martial-defense-roll");
+    rollBtn2?.click(); await sleep(800);
+    const beforeEvade = game.messages.size;
+    const evadeBtn = await btnFor(".cp-martial-defense-evaded");
+    evadeBtn?.click(); await sleep(600);
+    out.offer.evadedNoWrite = flagOf() === null;
+    out.offer.evadedNotice = game.messages.contents.slice(beforeEvade).some(m => /evades/i.test(m.content || ""));
+
+    // Outcome: [apply] skips the contest entirely (the old on-declare, one click away).
+    await MA.postMartialDefenseOffer({ attackerActor: attacker2, targetActor: aikido, action: "Grapple" });
+    const applyBtn = await btnFor(".cp-martial-defense-apply");
+    applyBtn?.click(); await sleep(600);
+    out.offer.applySkipsContest = flagOf() === attacker2.id;
+    await aikido.unsetFlag(SCOPE, "grappledBy").catch(() => {});
+
+    await attacker2.delete().catch(() => {});
+    await dnE.delete().catch(() => {});
+  } catch (e) { out.offer.err = e?.message || String(e); }
 
   for (const a of [aikido, karate, nonMart, mixed, maWins]) await a.delete().catch(() => {});
   return out;
@@ -130,8 +174,12 @@ const checks = [
   ["caller rule: Aikido dodger → +5 (2 stance + 3 key)", r.helper.aikido === 5],
   ["caller rule: Karate / non-martial / mixed dodger → +2 (stance only)", r.helper.karate === 2 && r.helper.nonMart === 2 && r.helper.mixed === 2],
   ["caller rule: not dodging → +0 (no bonus at all)", r.helper.notDodging === 0],
-  ["no-damage GRAPPLE honors the declared dodge (card shows +5 Dodge)", r.noDamage.grappleFive === true && r.noDamage.grappleContested === true],
-  ["no-damage ESCAPE excludes the dodge (self-action → no +Dodge on the card)", r.noDamage.escapeNoDodge === true],
+  ["canonical Dodge & Escape skill counts in the selection (stable key + level 7)", r.offer.dodgeEscape?.skillName === "DodgeEscape" && r.offer.dodgeEscape?.skillVal === 7],
+  ["offer: declare posts the card, writes NO state; self-action + off-gate post nothing", r.offer.posts === true && r.offer.noWriteAtDeclare === true && r.offer.escapeNotOffered === true && r.offer.gateOff === true],
+  ["offer: the chosen roll posts the result card with the opposed roll + the +5 fold", r.offer.rollBtnFound === true && r.offer.resultPosts === true && r.offer.resultHasRoll === true && r.offer.resultShowsDodgeFold === true],
+  ["outcome: [lands] applies the status via the single-home path", r.offer.landsApplies === true],
+  ["outcome: [evaded] posts the notice and writes nothing", r.offer.evadedNoWrite === true && r.offer.evadedNotice === true],
+  ["outcome: [apply] skips the contest (one-click old behavior)", r.offer.applySkipsContest === true],
   ["0 console errors", errors.length === 0],
 ];
 let fail = 0;

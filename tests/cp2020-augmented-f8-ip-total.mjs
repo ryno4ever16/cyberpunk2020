@@ -54,6 +54,7 @@ try {
       await game.settings.set(SCOPE, "ipRawTracking", true);
       await game.settings.set(SCOPE, "ipQueue", []);
 
+      for (const x of game.actors.filter(x => x.name === "RIG F8 IP")) await x.delete().catch(() => {});   // pre-sweep prior run
       actor = await Actor.create({ name: "RIG F8 IP", type: "character" });
       const skill = actor.items.find(i => i.type === "skill");
       ok("character has a rollable skill", !!skill, skill?.name);

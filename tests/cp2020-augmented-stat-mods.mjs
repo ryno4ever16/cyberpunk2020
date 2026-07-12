@@ -46,6 +46,8 @@ const r = await p.evaluate(async () => {
   };
 
   // ── (1) prepareDerivedData wrapper on a real actor ────────────────────────
+  // Pre-clean a leftover ACTIVE combat from a crashed prior run (it would feed per-turn hooks here).
+  for (const c of [...game.combats].filter(c => c.combatants.some(cb => cb.actor?.name?.startsWith("__PW__")))) await c.delete().catch(() => {});
   for (const a of game.actors.filter(a => a.name.startsWith("__PW__Moddy"))) await a.delete().catch(() => {});
   const actor = await Actor.create({ name: "__PW__ModdyPunk", type: "character" });
   await actor.update({ "system.stats.cool.base": 8, "system.stats.emp.base": 5, "system.stats.int.base": 7 });
@@ -90,15 +92,18 @@ const r = await p.evaluate(async () => {
       mechStatMods: { enabled: true, mods: [E({ stat: "int", context: "split", mod: -2, combatMod: 2 })] } } }]);
   await sleep(500);
   out.splitOutCombat = { int: total("int"), base: actor.system.stats.int.base };   // 7 − 2 = 5
-  const scene = game.scenes.viewed ?? game.scenes.active ?? game.scenes.contents[0];
-  const [tok] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__Moddy", actorId: actor.id, actorLink: true, x: 1500, y: 1500 }]);
-  const combat = await Combat.create({ scene: scene.id, active: true });
+  // Combat is active:true — tear it down in finally so a mid-run throw never leaks an active combat.
+  let scene = null, tok = null, combat = null;
+  try {
+  scene = game.scenes.viewed ?? game.scenes.active ?? game.scenes.contents[0];
+  [tok] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__Moddy", actorId: actor.id, actorLink: true, x: 1500, y: 1500 }]);
+  combat = await Combat.create({ scene: scene.id, active: true });
   await combat.createEmbeddedDocuments("Combatant", [{ tokenId: tok.id, actorId: actor.id }]);
   await combat.startCombat();
   // poll for the context refresh (combat hooks re-prep the actor)
   for (let i = 0; i < 25 && total("int") !== 9; i++) await sleep(200);
   out.splitInCombat = { int: total("int") };     // 7 + 2 = 9
-  await combat.delete().catch(() => {});
+  await combat.delete().catch(() => {}); combat = null;   // deleted mid-test → null so finally won't double-delete
   for (let i = 0; i < 25 && total("int") !== 5; i++) await sleep(200);
   out.splitAfterCombat = { int: total("int") };  // back to 5
 
@@ -113,7 +118,10 @@ const r = await p.evaluate(async () => {
     intTipNamesModdy: /__PW__Soldier/.test(intTip)
   };
   await actor.sheet.close().catch(() => {});
-  await scene.deleteEmbeddedDocuments("Token", [tok.id]).catch(() => {});
+  } finally {
+    if (combat) await combat.delete().catch(() => {});
+    if (scene && tok) await scene.deleteEmbeddedDocuments("Token", [tok.id]).catch(() => {});
+  }
   await actor.delete().catch(() => {});
 
   // ── (3) The wired chips carry their moddy data (source) ───────────────────

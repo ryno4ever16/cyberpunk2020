@@ -81,7 +81,9 @@ const r = await p.evaluate(async () => {
   const msgBefore = game.messages.size;
   const woundBefore = dmg();
   await hit("Torso", 40); await sleep(700);                          // 30 remaining - 40 → 0
-  const newMsgs = game.messages.contents.slice(msgBefore).map(m => m.content || "");
+  // Scope the death-save scan to THIS fixture's speaker so a stray card (e.g. a leftover combat's) can't
+  // masquerade as a flesh death save on the borg.
+  const newMsgs = game.messages.contents.slice(msgBefore).filter(m => m.speaker?.actor === actor.id).map(m => m.content || "");
   out.coreDeath = {
     status: limbStatus().Torso,                                     // "destroyed"
     dead: dead(),                                                   // true

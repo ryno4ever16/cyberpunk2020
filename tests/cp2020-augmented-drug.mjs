@@ -39,6 +39,9 @@ const r = await p.evaluate(async () => {
   out.boostSummary = S.boostSummary({ statBoosts: [{ stat: "cool", mod: 3 }, { stat: "emp", mod: -3 }], rollBoosts: [{ label: "Awareness", mod: 3 }] });
 
   // ── (1) full lifecycle on a real actor ────────────────────────────────────
+  // Pre-clean: a leftover ACTIVE combat from a crashed prior run feeds per-turn drug ticks into THIS
+  // run — sweep combats tied to our fixtures too, not just the actors.
+  for (const c of [...game.combats].filter(c => c.combatants.some(cb => cb.actor?.name?.startsWith("__PW__")))) await c.delete().catch(() => {});
   for (const a of game.actors.filter(a => a.name.startsWith("__PW__Drug"))) await a.delete().catch(() => {});
   const actor = await Actor.create({ name: "__PW__DrugPunk", type: "character" });
   await actor.update({ "system.stats.cool.base": 8, "system.stats.emp.base": 5, "system.stats.ref.base": 6 });
@@ -100,7 +103,8 @@ const r = await p.evaluate(async () => {
   await S.takeDrug(crashDrug); await sleep(400);
   const msgBefore = game.messages.size;
   await S.endDrug(crashDrug); await sleep(500);               // posts the INTERACTIVE wear-off card
-  const woCard = game.messages.contents[game.messages.size - 1]?.content ?? "";
+  // Scope to THIS drug's card, not the global last message (a status/other card may post after it).
+  const woCard = game.messages.contents.slice(msgBefore).reverse().find(m => (m.content || "").includes(crashDrug.id))?.content ?? "";
   out.saveCard = { interactive: /cp-drug-save-roll/.test(woCard), carriesItem: woCard.includes(crashDrug.id), posted: game.messages.size > msgBefore };
   await S.executeDrugExpireSave({ actorId: actor.id, itemId: crashDrug.id }); await sleep(600);
   out.crashApplied = { cool: total("cool"), penaltyMarker: markers().some(m => m.isPenalty && m.itemId === crashDrug.id) };
@@ -123,26 +127,48 @@ const r = await p.evaluate(async () => {
   await S.executeDrugExpireSave({ actorId: actor.id, itemId: passDrug.id }); await sleep(500);
   out.savePass = { cool: total("cool"), noPenalty: !markers().some(m => m.isPenalty) };
 
-  // ── (2) round-tick auto-expiry for a timed drug ───────────────────────────
-  const [stim] = await actor.createEmbeddedDocuments("Item", [{ name: "__PW__Stim", type: "misc",
-    system: { equipped: true, mechDrug: { enabled: true, statBoosts: [{ stat: "ref", mod: 2 }],
-      rollBoosts: [], duration: "1 turn", durationTurns: "1", expireSave: { stat: "", difficulty: 0, penalty: "" },
-      addictionDifficulty: 0, psychosis: "", note: "Timed test" } } }]);
-  await sleep(200);
-  const scene = game.scenes.viewed ?? game.scenes.active ?? game.scenes.contents[0];
-  const [tok] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__Drug", actorId: actor.id, actorLink: true, x: 1500, y: 1500 }]);
-  const combat = await Combat.create({ scene: scene.id, active: true });
-  await combat.createEmbeddedDocuments("Combatant", [{ tokenId: tok.id, actorId: actor.id }]);
-  await combat.startCombat();          // round 0→1: the begin-combat guard skips ticking here
-  await sleep(300);
-  await S.takeDrug(stim); await sleep(500);
-  out.timedTaken = { ref: total("ref"), markerTurns: markers().find(m => m.itemId === stim.id)?.turnsLeft };
-  await combat.nextRound();            // round 1→2: prevRound 1 → the tick decrements 1→0 → expires
-  for (let i = 0; i < 25 && markers().length; i++) await sleep(200);
-  out.timedExpired = { ref: total("ref"), noMarkers: markers().length === 0 };
+  // ── (2) round-tick auto-expiry (1-turn) + a 3-turn countdown that PERSISTS every tick ─────────────
+  // Combat is created active:true; a mid-run throw would otherwise leave it feeding later keepers' per-
+  // turn hooks — tear the combat/token down in finally so an exception never leaks an active combat.
+  let scene = null, tok = null, combat = null;
+  try {
+    const [stim] = await actor.createEmbeddedDocuments("Item", [{ name: "__PW__Stim", type: "misc",
+      system: { equipped: true, mechDrug: { enabled: true, statBoosts: [{ stat: "ref", mod: 2 }],
+        rollBoosts: [], duration: "1 turn", durationTurns: "1", expireSave: { stat: "", difficulty: 0, penalty: "" },
+        addictionDifficulty: 0, psychosis: "", note: "Timed test" } } }]);
+    await sleep(200);
+    scene = game.scenes.viewed ?? game.scenes.active ?? game.scenes.contents[0];
+    [tok] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__Drug", actorId: actor.id, actorLink: true, x: 1500, y: 1500 }]);
+    combat = await Combat.create({ scene: scene.id, active: true });
+    await combat.createEmbeddedDocuments("Combatant", [{ tokenId: tok.id, actorId: actor.id }]);
+    await combat.startCombat();          // round 0→1: the begin-combat guard skips ticking here
+    await sleep(300);
+    await S.takeDrug(stim); await sleep(500);
+    out.timedTaken = { ref: total("ref"), markerTurns: markers().find(m => m.itemId === stim.id)?.turnsLeft };
+    await combat.nextRound();            // round 1→2: prevRound 1 → the tick decrements 1→0 → expires
+    for (let i = 0; i < 25 && markers().length; i++) await sleep(200);
+    out.timedExpired = { ref: total("ref"), noMarkers: markers().length === 0 };
 
-  await combat.delete().catch(() => {});
-  await scene.deleteEmbeddedDocuments("Token", [tok.id]).catch(() => {});
+    // FIX(b): a 3-turn timed marker decrements on EVERY tick and persists across rounds — assert the
+    //         FLAG VALUE each tick (3 → 2 → 1 → expiry), not just a final absence.
+    const [stim3] = await actor.createEmbeddedDocuments("Item", [{ name: "__PW__Stim3", type: "misc",
+      system: { equipped: true, mechDrug: { enabled: true, statBoosts: [{ stat: "ref", mod: 2 }],
+        rollBoosts: [], duration: "3 turns", durationTurns: "3", expireSave: { stat: "", difficulty: 0, penalty: "" },
+        addictionDifficulty: 0, psychosis: "", note: "3-turn countdown test" } } }]);
+    await sleep(200);
+    await S.takeDrug(stim3); await sleep(500);
+    const turnsOf = () => markers().find(m => m.itemId === stim3.id)?.turnsLeft ?? null;
+    const start3 = turnsOf();                                                             // 3
+    await combat.nextRound(); for (let i = 0; i < 25 && turnsOf() !== 2; i++) await sleep(200);
+    const after1 = turnsOf();                                                             // 2
+    await combat.nextRound(); for (let i = 0; i < 25 && turnsOf() !== 1; i++) await sleep(200);
+    const after2 = turnsOf();                                                             // 1
+    await combat.nextRound(); for (let i = 0; i < 25 && markers().some(m => m.itemId === stim3.id); i++) await sleep(200);
+    out.timed3 = { start: start3, after1, after2, expired: !markers().some(m => m.itemId === stim3.id) };
+  } finally {
+    if (combat) await combat.delete().catch(() => {});
+    if (scene && tok) await scene.deleteEmbeddedDocuments("Token", [tok.id]).catch(() => {});
+  }
   await actor.delete().catch(() => {});
   return out;
 });
@@ -168,6 +194,7 @@ const checks = [
   ["save: passed save applies no crash", r.savePass.cool === 8 && r.savePass.noPenalty],
   ["e2e: timed drug applies REF +2 with turnsLeft 1", r.timedTaken.ref === 8 && r.timedTaken.markerTurns === 1],
   ["e2e: round tick expires the timed drug (boost drops)", r.timedExpired.ref === 6 && r.timedExpired.noMarkers],
+  ["e2e: a 3-turn countdown persists + decrements every tick (3→2→1→expiry)", r.timed3.start === 3 && r.timed3.after1 === 2 && r.timed3.after2 === 1 && r.timed3.expired === true],
   ["0 console errors", errors.length === 0]
 ];
 let fail = 0;

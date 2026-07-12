@@ -70,7 +70,9 @@ const r = await p.evaluate(async () => {
   const msgBefore = game.messages.size;
   const woundBeforeBig = dmg();
   await hit("rArm", 40); await sleep(600);
-  const newMsgs = game.messages.contents.slice(msgBefore).map(m => m.content || "");
+  // Scope the death-save scan to THIS fixture's speaker so a stray card can't masquerade as a cyberlimb
+  // flesh death save.
+  const newMsgs = game.messages.contents.slice(msgBefore).filter(m => m.speaker?.actor === actor.id).map(m => m.content || "");
   out.destroyed = {
     status: limbStatus().rArm,                                // "destroyed"
     noOverflow: dmg() === woundBeforeBig,                     // wound track NOT advanced

@@ -17,8 +17,26 @@ await joinGM(p);
 const r = await p.evaluate(async () => {
   const out = {};
   const sleep = (ms) => new Promise(res => setTimeout(res, ms));
-  const borg = game.actors.find(a => a.name.startsWith("🦾 Test Borg")) || game.actors.find(a => a.type === "character");
-  if (!borg) return { noActor: true };
+  // Self-contained fixture (#25): build a borg whose cyber tab overflows, instead of depending on a
+  // "Test Borg" actor provisioned by another keeper.
+  for (const a of game.actors.filter(a => a.name?.startsWith("__PW__ScrollBorg"))) await a.delete().catch(() => {});
+  const borg = await Actor.create({ name: "__PW__ScrollBorg", type: "character" });
+  const cyber = game.packs.get("cp2020-augmented.supplement-cyberware") || [...game.packs].find(pk => pk.metadata?.name === "supplement-cyberware");
+  const dEntry = cyber ? (await cyber.getIndex()).find(e => e.name === "Dragoon") : null;
+  if (dEntry) {
+    const dragoon = await cyber.getDocument(dEntry._id);
+    const [body] = await borg.createEmbeddedDocuments("Item", [dragoon.toObject()]);
+    await body.update({ "system.equipped": true });   // materialize its loadout → a tall cyber tab
+    const opts = () => borg.items.filter(i => i.getFlag("cp2020-augmented", "loadoutSource") === body.id);
+    { let last = -1, stable = 0; for (let i = 0; i < 80 && stable < 3; i++) { await sleep(200); const n = opts().length; if (n > 0 && n === last) stable++; else { stable = 0; last = n; } } }
+  } else {
+    const zones = ["Head", "Torso", "Arm", "Leg", "Nervous"];
+    await borg.createEmbeddedDocuments("Item", Array.from({ length: 50 }, (_, i) => ({
+      name: `__PW__Chrome_${i}`, type: "cyberware",
+      system: { equipped: true, EffectMode: "Permanent", MountZone: zones[i % zones.length],
+        CyberWorkType: { Types: ["Implant"], Stat: {}, Skill: {}, ChipSkills: {} } } })));
+  }
+  try {
   await borg.sheet.render(true); await sleep(1200);
   const root = borg.sheet.element;
 
@@ -44,6 +62,9 @@ const r = await p.evaluate(async () => {
   const wc = borg.sheet.element.closest(".window-content") || borg.sheet.element.querySelector?.(".window-content");
   out.windowContentScrollTop = wc?.scrollTop ?? -1;
   await borg.sheet.close().catch(() => {});
+  } finally {
+    await borg.delete().catch(() => {});
+  }
   return out;
 });
 

@@ -54,32 +54,38 @@ const r = await p.evaluate(async () => {
   out.damper = await imp("cyberpunk2020.cyberaudio", "fkF5mng29EpC7nvE");    // Level Damper (Q8 ×)
 
   // (2) REAL per-turn e2e.
+  // Pre-clean a leftover ACTIVE combat from a crashed prior run; tear down all fixtures in finally so a
+  // mid-run throw never leaks the active combat (per-turn hooks) or the gas region.
+  for (const c of [...game.combats].filter(c => c.combatants.some(cb => cb.actor?.name?.startsWith("__PW__")))) await c.delete().catch(() => {});
   for (const a of game.actors.filter(a => a.name.startsWith("__PW__Gas"))) await a.delete().catch(() => {});
-  const scene = game.scenes.viewed ?? game.scenes.active ?? game.scenes.contents[0];
-  const masked = await Actor.create({ name: "__PW__GasMasked", type: "character" });
+  let scene = null, masked = null, bare = null, filterHeld = null, filterFail = null;
+  let tokM = null, tokB = null, tokH = null, tokF = null, region = null, combat = null;
+  try {
+  scene = game.scenes.viewed ?? game.scenes.active ?? game.scenes.contents[0];
+  masked = await Actor.create({ name: "__PW__GasMasked", type: "character" });
   await masked.createEmbeddedDocuments("Item", [{ name: "__PW__Mask", type: "misc",
     system: { equipped: true, mechProtection: { enabled: true, gas: { immune: true, mod: 0 }, flash: { immune: false, mod: 0 }, sonic: { immune: false, mod: 0 } } } }]);
-  const bare = await Actor.create({ name: "__PW__GasBare", type: "character" });
+  bare = await Actor.create({ name: "__PW__GasBare", type: "character" });
   // Q8: two percent-gated actors with DETERMINISTIC thresholds — 100% → d10 always ≤ 10 → held;
   // 5% → threshold 0.5 → d10 always > 0.5 → fails. Exercises both card clauses + taser outcomes.
-  const filterHeld = await Actor.create({ name: "__PW__GasFilterHeld", type: "character" });
+  filterHeld = await Actor.create({ name: "__PW__GasFilterHeld", type: "character" });
   await filterHeld.createEmbeddedDocuments("Item", [{ name: "__PW__Filter100", type: "misc",
     system: { equipped: true, mechProtection: { enabled: true, gas: { immune: false, mod: 0, percent: 100, damageMult: 0 }, flash: { immune: false, mod: 0 }, sonic: { immune: false, mod: 0 } } } }]);
-  const filterFail = await Actor.create({ name: "__PW__GasFilterFail", type: "character" });
+  filterFail = await Actor.create({ name: "__PW__GasFilterFail", type: "character" });
   await filterFail.createEmbeddedDocuments("Item", [{ name: "__PW__Filter5", type: "misc",
     system: { equipped: true, mechProtection: { enabled: true, gas: { immune: false, mod: 0, percent: 5, damageMult: 0 }, flash: { immune: false, mod: 0 }, sonic: { immune: false, mod: 0 } } } }]);
   // ⚠ createEmbeddedDocuments return order is NOT input order — create tokens singly.
-  const [tokM] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__GasMasked", actorId: masked.id, actorLink: true, x: 2000, y: 2000 }]);
-  const [tokB] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__GasBare", actorId: bare.id, actorLink: true, x: 2100, y: 2000 }]);
-  const [tokH] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__GasFilterHeld", actorId: filterHeld.id, actorLink: true, x: 2200, y: 2000 }]);
-  const [tokF] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__GasFilterFail", actorId: filterFail.id, actorLink: true, x: 2300, y: 2000 }]);
+  [tokM] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__GasMasked", actorId: masked.id, actorLink: true, x: 2000, y: 2000 }]);
+  [tokB] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__GasBare", actorId: bare.id, actorLink: true, x: 2100, y: 2000 }]);
+  [tokH] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__GasFilterHeld", actorId: filterHeld.id, actorLink: true, x: 2200, y: 2000 }]);
+  [tokF] = await scene.createEmbeddedDocuments("Token", [{ name: "__PW__GasFilterFail", actorId: filterFail.id, actorLink: true, x: 2300, y: 2000 }]);
   const gs = scene.grid?.size ?? 100;
-  const [region] = await scene.createEmbeddedDocuments("Region", [{
+  [region] = await scene.createEmbeddedDocuments("Region", [{
     name: "__PW__GasCloud",
     shapes: [{ type: "rectangle", x: 1800, y: 1800, width: 6 * gs, height: 6 * gs }],
     flags: { "cp2020-augmented": { isGasCloud: true, turnsLeft: 3, stunSaveMod: -2, weaponName: "__PW__ Test Gas" } }
   }]);
-  const combat = await Combat.create({ scene: scene.id, active: true });
+  combat = await Combat.create({ scene: scene.id, active: true });
   await combat.createEmbeddedDocuments("Combatant", [
     { tokenId: tokM.id, actorId: masked.id }, { tokenId: tokB.id, actorId: bare.id },
     { tokenId: tokH.id, actorId: filterHeld.id }, { tokenId: tokF.id, actorId: filterFail.id }
@@ -87,7 +93,10 @@ const r = await p.evaluate(async () => {
   await combat.startCombat();
   const msgIdsBefore = new Set(game.messages.contents.map(m => m.id));
   await combat.update({ round: 2, turn: 0 });
-  await sleep(3000);   // the hook is async: card + gate rolls + flags + prompts
+  // Condition-wait for the async per-turn hook to settle (the region tick 3→2 is the terminal signal),
+  // then a short settle for the per-actor save cards/flags — instead of a fixed 3s.
+  for (let i = 0; i < 40 && (scene.regions.get(region.id)?.getFlag("cp2020-augmented", "turnsLeft")) !== 2; i++) await sleep(200);
+  await sleep(500);
   const newMsgs = game.messages.contents.filter(m => !msgIdsBefore.has(m.id)).map(m => m.content).join("\n");
   out.e2e = {
     cardMentionsGas: /__PW__ Test Gas/.test(newMsgs),
@@ -103,13 +112,12 @@ const r = await p.evaluate(async () => {
     turnsLeftAfter: scene.regions.get(region.id)?.getFlag("cp2020-augmented", "turnsLeft")
   };
 
-  await combat.delete().catch(() => {});
-  await scene.deleteEmbeddedDocuments("Region", [region.id]).catch(() => {});
-  await scene.deleteEmbeddedDocuments("Token", [tokM.id, tokB.id, tokH.id, tokF.id]).catch(() => {});
-  await masked.delete().catch(() => {});
-  await bare.delete().catch(() => {});
-  await filterHeld.delete().catch(() => {});
-  await filterFail.delete().catch(() => {});
+  } finally {
+    if (combat) await combat.delete().catch(() => {});
+    if (scene && region) await scene.deleteEmbeddedDocuments("Region", [region.id]).catch(() => {});
+    if (scene) { const _tids = [tokM, tokB, tokH, tokF].filter(Boolean).map(t => t.id); if (_tids.length) await scene.deleteEmbeddedDocuments("Token", _tids).catch(() => {}); }
+    for (const d of [masked, bare, filterHeld, filterFail]) { try { if (d) await d.delete(); } catch {} }
+  }
   return out;
 });
 

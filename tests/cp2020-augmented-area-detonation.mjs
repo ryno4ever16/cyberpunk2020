@@ -26,13 +26,24 @@ try {
     for (const coll of [scene.templates,scene.regions]) if(coll) for(const d of [...coll]) if(F(d).isExplosion||F(d).isGasCloud||F(d).isSpreadZone) await d.delete().catch(()=>{});
     for (const a of game.actors.filter(a=>a.name?.startsWith("__PW__"))) await a.delete().catch(()=>{});
     for (const m of [...game.messages].filter(m=>/PW Grenade/.test(m.content||""))) await m.delete().catch(()=>{});
+    // Neutralize the location-doubling settings so the random blast hit-location gives a DETERMINISTIC
+    // net (Head-doubling / Listen-Up limb-doubling would make the delta depend on the rolled location).
+    // Also pin explosivesDetailed OFF: when it is ON the confirm routes through the HEP-concussion path
+    // (SP ignored, BTM applied, then HALVED into permanent + stun → floor((18−2)/2)=8 to the wound
+    // track), not the core range-banded blast this fixture asserts (full 18 at centre → 18−BTM). The
+    // exact-delta assert below is the core-blast value, so the concussion split must be gated out too.
+    let prevHead, prevLimb, prevDetailed;
+    try { prevHead = game.settings.get("cp2020-augmented","headHitDoubling"); await game.settings.set("cp2020-augmented","headHitDoubling",false); } catch(e){}
+    try { prevLimb = game.settings.get("cp2020-augmented","limbModel"); await game.settings.set("cp2020-augmented","limbModel","core"); } catch(e){}
+    try { prevDetailed = game.settings.get("cp2020-augmented","explosivesDetailed"); await game.settings.set("cp2020-augmented","explosivesDetailed",false); } catch(e){}
     const player = game.users.find(u=>u.role===1);
     const npc = await Actor.create({name:"__PW__NPC",type:"character"});
     const pc  = await Actor.create({name:"__PW__PC", type:"character"});
     await pc.update({[`ownership.${player.id}`]:CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER});
     await scene.createEmbeddedDocuments("Token",[{name:pc.name,actorId:pc.id,x:800,y:1000,width:1,height:1}]);
     const [npcTok] = await scene.createEmbeddedDocuments("Token",[{name:npc.name,actorId:npc.id,actorLink:true,x:1400,y:1000,width:1,height:1}]);
-    return { playerName:player.name, pcId:pc.id, npcId:npc.id, npcTokenId:npcTok.id, dmg0:Number(npc.system.damage)||0 };
+    return { playerName:player.name, pcId:pc.id, npcId:npc.id, npcTokenId:npcTok.id, dmg0:Number(npc.system.damage)||0,
+             btm:Number(npc.system.stats?.bt?.modifier)||0, prevHead, prevLimb, prevDetailed };
   });
 
   const pl = await (await b.newContext({viewport:{width:1600,height:900}})).newPage();
@@ -51,10 +62,13 @@ try {
   log.push("GM confirmed blast: " + clicked);
 
   const after = await gm.evaluate(async (d)=>{ const npc=game.actors.get(d.npcId); for(let i=0;i<30;i++){ const v=Number(npc.system.damage)||0; if(v>d.dmg0) return v; await new Promise(r=>setTimeout(r,200)); } return Number(npc.system.damage)||0; }, S);
-  log.push(`target damage after Confirm: ${after} (before ${S.dmg0})`);
-  pass = after > S.dmg0;
+  // Exact delta (a double-apply must fail): core blast base 18 at centre, bare NPC (SP 0), doubling +
+  // concussion-halving neutralized → net = max(1, 18−BTM).
+  const expected = S.dmg0 + Math.max(1, 18 - S.btm);
+  log.push(`target damage after Confirm: ${after} (before ${S.dmg0}, expected ${expected}, BTM ${S.btm})`);
+  pass = after === expected;
 
-  await gm.evaluate(async ()=>{ const s=game.scenes.active??canvas.scene; const F=(d)=>d.flags?.["cp2020-augmented"]??{}; for(const t of s.tokens.filter(t=>t.name?.startsWith("__PW__"))) await t.delete().catch(()=>{}); for(const coll of [s.templates,s.regions]) if(coll) for(const d of [...coll]) if(F(d).isExplosion||F(d).isGasCloud||F(d).isSpreadZone) await d.delete().catch(()=>{}); for(const a of game.actors.filter(a=>a.name?.startsWith("__PW__"))) await a.delete().catch(()=>{}); }).catch(()=>{});
+  await gm.evaluate(async (d)=>{ const s=game.scenes.active??canvas.scene; const F=(x)=>x.flags?.["cp2020-augmented"]??{}; for(const t of s.tokens.filter(t=>t.name?.startsWith("__PW__"))) await t.delete().catch(()=>{}); for(const coll of [s.templates,s.regions]) if(coll) for(const x of [...coll]) if(F(x).isExplosion||F(x).isGasCloud||F(x).isSpreadZone) await x.delete().catch(()=>{}); for(const a of game.actors.filter(a=>a.name?.startsWith("__PW__"))) await a.delete().catch(()=>{}); try{ if(d.prevHead!==undefined) await game.settings.set("cp2020-augmented","headHitDoubling",d.prevHead);}catch(e){} try{ if(d.prevLimb!==undefined) await game.settings.set("cp2020-augmented","limbModel",d.prevLimb);}catch(e){} try{ if(d.prevDetailed!==undefined) await game.settings.set("cp2020-augmented","explosivesDetailed",d.prevDetailed);}catch(e){} }, S).catch(()=>{});
 } catch(e){ log.push("ERROR: "+e.message); } finally { await b.close(); }
 console.log("\n===== BLAST DETONATION (area-flag namespace fix) =====");
 log.forEach(l=>console.log("  • "+l));

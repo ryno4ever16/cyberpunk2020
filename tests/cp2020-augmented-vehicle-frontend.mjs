@@ -61,6 +61,7 @@ const r = await p.evaluate(async () => {
 
   // (2) SHEET, LOCKED pack vehicle with no fuel data: the fuel block is skipped entirely.
   const pack = game.packs.get("cp2020-augmented.supplement-vehicles");
+  const prevPackLocked = pack.locked === true;   // capture original lock state → restore it (don't force-lock)
   await pack.configure({ locked: true });
   const idx = await pack.getIndex({ fields: ["system.fuel", "system.vehicleType"] });
   const noFuel = (e) => !(Number(e.system?.fuel?.max) || Number(e.system?.fuel?.value)
@@ -88,8 +89,10 @@ const r = await p.evaluate(async () => {
     catMod.clearCatalogIndexCache();
     const all = await catMod.getCatalogIndex();
     const row = all.find(x => x.id === target._id);
-    const other = all.find(x => x.type === "vehicle" && x.id !== target._id);
-    out.index = { targetSub: row?.sub ?? null, targetCat: row?.category ?? null, otherSub: other?.sub ?? null };
+    // The pack now ships several AV-typed vehicles, so a blanket "first other vehicle sub === ''" is a
+    // false RED. Anchor the filter check to the catalog's own AV count instead (see #3 below).
+    out.index = { targetSub: row?.sub ?? null, targetCat: row?.category ?? null,
+      avClassCount: all.filter(x => x.category === "Vehicles" && x.sub === "AVs").length };
 
     // (4) SHOP UI: sub chips render localized; clicking one filters to exactly the classed vehicle.
     const cat = new catMod.CatalogBrowser(null, { view: "catalog" });
@@ -115,7 +118,7 @@ const r = await p.evaluate(async () => {
   } finally {
     // (5) REVERT the pack mutation whatever happened above.
     await tdoc.update({ "system.vehicleType": prevType }).catch(() => {});
-    await pack.configure({ locked: true }).catch(() => {});
+    await pack.configure({ locked: prevPackLocked }).catch(() => {});
     catMod.clearCatalogIndexCache();
   }
   await item.delete().catch(() => {});
@@ -150,11 +153,10 @@ const checks = [
   ["locked sheet keeps SDP", r.sheetLocked.sdpStillThere === true],
   ["index: classed vehicle sub = AVs", r.index.targetSub === "AVs"],
   ["index: category Vehicles", r.index.targetCat === "Vehicles"],
-  ["index: unclassed vehicle sub = ''", r.index.otherSub === ""],
   ["ui: 12 vehicle sub chips", r.ui.chipCount === 12],
   ["ui: AVs chip label localized", r.ui.avChipLabel === "AVs"],
   ["ui: no chip label leak", r.ui.chipLabelLeak === false],
-  ["filter: exactly the classed vehicle", r.filtered.count === 1 && r.filtered.hasTarget === true],
+  ["filter: shows exactly the AV-classed vehicles incl. the target", r.filtered.count === r.index.avClassCount && r.filtered.count > 0 && r.filtered.hasTarget === true],
   ["filter: chip toggles active", r.filtered.chipActive === true],
   ["pack mutation reverted", r.reverted === true],
   ["0 console errors", errors.length === 0]

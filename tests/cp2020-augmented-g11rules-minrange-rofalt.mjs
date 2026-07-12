@@ -126,7 +126,7 @@ try {
       const dud = await FL.launchMissile({ scene, shooterToken: shDoc, targetToken: tgDoc, missile: { weaponName: "RIG-Dud", penetration: 6, minRange: 1e9 } });
       ok("dud launch returned a missile token", !!dud, !!dud);
       ok("dud missile flight.armed === false", dud?.flags?.[SCOPE]?.missile?.armed === false, dud?.flags?.[SCOPE]?.missile?.armed);
-      const recent = game.messages.contents.slice(-6).map(m => m.content || "").join(" || ");
+      const recent = game.messages.contents.slice(msgCountBefore).map(m => m.content || "").join(" || ");
       ok("dud launch card shows the won't-arm note", /will not arm/i.test(recent), /will not arm/i.test(recent));
 
       // ARMED: target outside a small minimum range (distM >> 1) → arms.
@@ -140,7 +140,7 @@ try {
       if (dud) await FL.advanceOneMissile(scene, dud.id);
       const dudGone = dud ? !scene.tokens.get(dud.id) : false;
       ok("dud missile removed after impact step", dudGone, dudGone);
-      const afterImpact = game.messages.contents.slice(-(game.messages.size - msgCountBefore || 6)).map(m => m.content || "").join(" || ");
+      const afterImpact = game.messages.contents.slice(msgCountBefore).map(m => m.content || "").join(" || ");
       ok("dud impact posted the DID NOT ARM card", /did not arm/i.test(afterImpact), /did not arm/i.test(afterImpact));
     } catch (e) {
       out.error = e?.stack || e?.message || String(e);

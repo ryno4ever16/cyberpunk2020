@@ -83,7 +83,6 @@ try {
     const pc = await Actor.create({ name: "__PWD__PC", type: "character" });
     out.actor = await openAndProbe(pc, {});                 // just needs to render clean
 
-    const cyb = await Actor.itemTypes ? null : null;
     const cybItem = await Item.create({ name: "__PWD__Cyber", type: "cyberware" });
     out.cyberware = await openAndProbe(cybItem, {});
 

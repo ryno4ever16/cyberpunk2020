@@ -17,6 +17,8 @@ const r = await p.evaluate(async () => {
   const out = {};
   const G = await import("/modules/cp2020-augmented/module/mech/chip-grant.js");
   const sleep = (ms) => new Promise(res => setTimeout(res, ms));
+  // Wait on the grant/prune hook's OBSERVABLE result instead of a fixed sleep.
+  const waitUntil = async (fn, ms = 6000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { if (fn()) return true; } catch {} await sleep(100); } return false; };
   const realVal = (skill) => {
     const d = skill.system;
     return (d.isChipped || d.autoChipped) ? (Number(d.chipLevel) || 0) : (Number(d.level) || 0);
@@ -53,7 +55,8 @@ const r = await p.evaluate(async () => {
   const skillNamed = (n) => actor.items.find(i => i.type === "skill" && i.name === n);
   out.beforeGrant = { hasSpace: !!skillNamed("Space Survival") };
 
-  await space.update({ "system.CyberWorkType.ChipActive": true }); await sleep(1500);
+  await space.update({ "system.CyberWorkType.ChipActive": true });
+  await waitUntil(() => !!skillNamed("Space Survival") && !!skillNamed("Highrider Culture"));
   const spaceSkill = skillNamed("Space Survival");
   const cultureSkill = skillNamed("Highrider Culture");
   out.granted = {
@@ -65,17 +68,20 @@ const r = await p.evaluate(async () => {
     cultureEffective: cultureSkill ? realVal(cultureSkill) : null
   };
 
-  await space.update({ "system.CyberWorkType.ChipActive": false }); await sleep(1500);
+  await space.update({ "system.CyberWorkType.ChipActive": false });
+  await waitUntil(() => !skillNamed("Space Survival") && !skillNamed("Highrider Culture"));
   out.deactivated = {
     spaceGone: !skillNamed("Space Survival"),
     cultureGone: !skillNamed("Highrider Culture")
   };
 
   // Re-activate, then TRAIN one granted skill, then deactivate → the trained one is kept + unflagged.
-  await space.update({ "system.CyberWorkType.ChipActive": true }); await sleep(1500);
+  await space.update({ "system.CyberWorkType.ChipActive": true });
+  await waitUntil(() => !!skillNamed("Space Survival"));
   const reSpace = skillNamed("Space Survival");
   await reSpace.update({ "system.level": 3 }); await sleep(400);
-  await space.update({ "system.CyberWorkType.ChipActive": false }); await sleep(1500);
+  await space.update({ "system.CyberWorkType.ChipActive": false });
+  await waitUntil(() => !skillNamed("Highrider Culture"));   // untrained sibling pruned; the trained one survives
   const keptSpace = skillNamed("Space Survival");
   out.trainedKept = {
     spaceKept: !!keptSpace,
@@ -101,7 +107,8 @@ const r = await p.evaluate(async () => {
     system: { equipped: true, EffectMode: "Permanent", EffectActive: false,
       CyberWorkType: { Types: ["Chip"], ChipActive: false,
         ChipSkills: { [idxEntry.id]: 2, "Highrider Culture": 1 }, Stat: {}, Skill: {} } } }]);
-  await idChip.update({ "system.CyberWorkType.ChipActive": true }); await sleep(1500);
+  await idChip.update({ "system.CyberWorkType.ChipActive": true });
+  await waitUntil(() => !!skillNamed(idxEntry.name));
   const idGrant = skillNamed(idxEntry.name);
   out.idKey = {
     indexName: idxEntry.name,
@@ -112,7 +119,8 @@ const r = await p.evaluate(async () => {
   };
 
   await idGrant?.update({ "system.ip": 5 }); await sleep(400);
-  await idChip.update({ "system.equipped": false }); await sleep(1500);   // gate axis: equipped, not ChipActive
+  await idChip.update({ "system.equipped": false });   // gate axis: equipped, not ChipActive
+  await waitUntil(() => !skillNamed("Highrider Culture"));
   const ipKept = skillNamed(idxEntry.name);
   out.unequipPrune = {
     ipKept: !!ipKept,

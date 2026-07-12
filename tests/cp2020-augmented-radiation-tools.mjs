@@ -26,8 +26,8 @@ const r = await p.evaluate(async () => {
   const radsuit = (sp) => ({ name: "__PW__Radsuit", type: "armor",
     system: { equipped: true, armorType: "", coverage: covAllFalse, mechTypedSP: { type: "radiation", sp } } });
 
-  const origSetting = (() => { try { return game.settings.get(SCOPE, "radiationEnabled"); } catch { return false; } })();
-  await game.settings.set(SCOPE, "radiationEnabled", true);
+  // No radiationEnabled world setting any more — the subsystem is inert until a GM engages it, so there is
+  // nothing to toggle. The GM tools show for any GM; the sheet panel shows only when the actor is irradiated.
   for (const a of game.actors.filter(a => a.name.startsWith("__PW__RadT"))) await a.delete().catch(() => {});
 
   try {
@@ -97,19 +97,14 @@ const r = await p.evaluate(async () => {
     const cEnabled = mkControls();
     const addedEnabled = TOOLS.addRadiationTools(cEnabled);
     out.tools = {
-      addedEnabled,                                        // true
+      addedEnabled,                                        // true (any GM — no toggle)
       hasZone: !!cEnabled.tokens.tools["cp-rad-zone"],
       hasDose: !!cEnabled.tokens.tools["cp-rad-dose"],
       hasEnv: !!cEnabled.tokens.tools["cp-rad-env"],
       zoneTitle: cEnabled.tokens.tools["cp-rad-zone"]?.title,   // CYBERPUNK.RadToolPlaceZone
     };
-    await game.settings.set(SCOPE, "radiationEnabled", false);
-    const cDisabled = mkControls();
-    out.toolsDisabledAdded = TOOLS.addRadiationTools(cDisabled);   // false
-    out.toolsDisabledEmpty = Object.keys(cDisabled.tokens.tools).length;   // 0
-    await game.settings.set(SCOPE, "radiationEnabled", true);
 
-    // ── (5) actor-sheet radiation PANEL: rendered for GM+enabled, gone when off ─────
+    // ── (5) actor-sheet radiation PANEL: shown for a GM when the actor is irradiated ─────
     const ps = await Actor.create({ name: "__PW__RadTPanel", type: "character" });
     await ps.createEmbeddedDocuments("Item", [radsuit(6)]);
     await ps.setFlag(SCOPE, "radExposure", 42);
@@ -143,19 +138,19 @@ const r = await p.evaluate(async () => {
     await dlgApp?.close?.();
     await sleep(200);
 
-    await game.settings.set(SCOPE, "radiationEnabled", false);
+    // (5c) NEGATIVE (the new gate): strip all radiation state → the panel must disappear (no world toggle).
+    await ps.unsetFlag(SCOPE, "radState");
+    await ps.unsetFlag(SCOPE, "radExposure");
+    await ps.unsetFlag(SCOPE, "radHistory");
     await ps.sheet.render(true);
     await sleep(400);
-    out.panelHiddenWhenOff = !ps.sheet.element?.querySelector?.(".cp-radiation-panel");
+    out.panelHiddenNoRad = !ps.sheet.element?.querySelector?.(".cp-radiation-panel");
     await ps.sheet.close();
-    await game.settings.set(SCOPE, "radiationEnabled", true);
 
     // cleanup
     for (const a of [ltActor, cc, env, cosmicActor, ps]) await a.delete().catch(() => {});
   } catch (e) {
     out.THROWN = String(e?.stack || e);
-  } finally {
-    await game.settings.set(SCOPE, "radiationEnabled", origSetting);
   }
   return out;
 });
@@ -197,22 +192,21 @@ ok("flare env dose > 0", r.envFlareExposure > 0, r.envFlareExposure);
 ok("cosmic env dose > 0", r.envCosmicExposure > 0, r.envCosmicExposure);
 
 // (4) scene tools
-ok("tools added (GM+enabled)", r.tools?.addedEnabled === true, r.tools);
+ok("tools added (any GM)", r.tools?.addedEnabled === true, r.tools);
 ok("tool: place zone", r.tools?.hasZone, r.tools);
 ok("tool: apply dose", r.tools?.hasDose, r.tools);
 ok("tool: environmental", r.tools?.hasEnv, r.tools);
 eq("tool title i18n key", r.tools?.zoneTitle, "CYBERPUNK.RadToolPlaceZone");
-ok("tools NOT added when disabled", r.toolsDisabledAdded === false && r.toolsDisabledEmpty === 0, [r.toolsDisabledAdded, r.toolsDisabledEmpty]);
 
 // (5) panel
-ok("panel present (GM+enabled)", r.panel?.present, r.panel);
+ok("panel present (GM + irradiated actor)", r.panel?.present, r.panel);
 ok("panel shows exposure 42", r.panel?.showsExposure, r.panel);
 ok("panel shows history 130", r.panel?.showsHistory, r.panel);
 ok("panel shows RSP 6", r.panel?.showsRsp, r.panel);
 ok("panel has apply/longterm/clear/cure", r.panel?.hasApplyBtn && r.panel?.hasLongTermBtn && r.panel?.hasClearBtn && r.panel?.hasCureBtn, r.panel);
 ok("panel no raw CYBERPUNK. key", r.panel?.noRawKey, r.panel);
 ok("panel Apply button opens dialog (gesture)", r.applyGesture?.opened && r.applyGesture?.hasRadsField, r.applyGesture);
-ok("panel hidden when disabled", r.panelHiddenWhenOff, r.panelHiddenWhenOff);
+ok("panel hidden when actor has no radiation", r.panelHiddenNoRad, r.panelHiddenNoRad);
 
 // console
 ok("0 console errors", errors.length === 0, errors.slice(0, 6));

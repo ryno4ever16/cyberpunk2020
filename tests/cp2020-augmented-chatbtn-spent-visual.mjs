@@ -42,15 +42,37 @@ async function joinAs(page, match, passwords) {
   throw new Error("could not join as " + u.l);
 }
 
-// One representative per chat-card button family (closed enumeration from templates/chat + JS-injected).
+// One representative per chat-card button family — the CLOSED enumeration, regenerated from a
+// templates/chat scan (every `<button class="cp-…">` under templates/chat + the JS-injected apply card).
+// Each wrapper carries the real card's root classes so the spent-visual/user-select CSS scope is tested
+// faithfully (the rule keys on .cyberpunk / .cyberpunk-card / .cp-shop-request).
 const FAMILIES = [
+  // save prompts + area confirms (root .cyberpunk .save-prompt)
   { key: "explosion-confirm", wrapper: 'class="cyberpunk save-prompt"',  inner: '<div class="save-buttons"><button class="cp-confirm-explosion PROBE">Confirm blast</button></div>' },
+  { key: "explosion-scatter", wrapper: 'class="cyberpunk save-prompt"',  inner: '<div class="save-buttons"><button class="cp-confirm-explosion-scatter PROBE">Scatter</button></div>' },
   { key: "spread-confirm",    wrapper: 'class="cyberpunk save-prompt"',  inner: '<div class="save-buttons"><button class="cp-confirm-spread-zone PROBE">Confirm</button></div>' },
   { key: "fire-zone",         wrapper: 'class="cyberpunk save-prompt"',  inner: '<div class="save-buttons"><button class="cp-confirm-fire-zone PROBE">Confirm Fire Zone</button></div>' },
   { key: "evasion",           wrapper: 'class="cyberpunk save-prompt"',  inner: '<div class="save-buttons"><button class="cp-suppression-evasion-roll PROBE">Evade</button></div>' },
-  { key: "death-save",        wrapper: 'class="cyberpunk save-prompt"',  inner: '<div class="save-buttons"><button class="cp-death-save-roll PROBE">Roll</button></div>' },
+  { key: "death-save",        wrapper: 'class="cyberpunk save-prompt death-save-prompt"',  inner: '<div class="save-buttons"><button class="cp-death-save-roll PROBE">Roll</button></div>' },
+  { key: "stun-save",         wrapper: 'class="cyberpunk save-prompt stun-save-prompt"',   inner: '<div class="save-buttons"><button class="cp-stun-save-roll PROBE">Roll</button></div>' },
+  { key: "drug-save",         wrapper: 'class="cyberpunk save-prompt drug-save-prompt"',   inner: '<div class="save-buttons"><button class="cp-drug-save-roll PROBE">Roll</button></div>' },
+  { key: "stabilize",         wrapper: 'class="cyberpunk save-result death-save-result"',  inner: '<div class="save-buttons"><button class="cp-stabilize-roll PROBE">Stabilize</button></div>' },
+  { key: "luck-save",         wrapper: 'class="cyberpunk save-prompt"',  inner: '<div class="save-buttons"><button class="cp-luck-save-roll PROBE">Luck</button></div>' },
+  // martial defense offer + result cards
+  { key: "martial-def-roll",   wrapper: 'class="cyberpunk save-prompt martial-defense-offer"',  inner: '<div class="save-buttons"><button class="cp-martial-defense-roll PROBE">Roll defense</button></div>' },
+  { key: "martial-def-apply",  wrapper: 'class="cyberpunk save-prompt martial-defense-offer"',  inner: '<div class="save-buttons"><button class="cp-martial-defense-apply PROBE">Apply</button></div>' },
+  { key: "martial-def-lands",  wrapper: 'class="cyberpunk save-prompt martial-defense-result"', inner: '<div class="save-buttons"><button class="cp-martial-defense-lands PROBE">Lands</button></div>' },
+  { key: "martial-def-evaded", wrapper: 'class="cyberpunk save-prompt martial-defense-result"', inner: '<div class="save-buttons"><button class="cp-martial-defense-evaded PROBE">Evaded</button></div>' },
+  // vehicle incoming-missile intercept prompt
+  { key: "missile-cm",        wrapper: 'class="cyberpunk save-prompt vehicle-incoming"', inner: '<div class="save-buttons"><button class="cp-missile-cm PROBE">Countermeasure</button></div>' },
+  { key: "missile-evade",     wrapper: 'class="cyberpunk save-prompt vehicle-incoming"', inner: '<div class="save-buttons"><button class="cp-missile-evade PROBE">Evade</button></div>' },
+  { key: "missile-intercept", wrapper: 'class="cyberpunk save-prompt vehicle-incoming"', inner: '<div class="save-buttons"><button class="cp-missile-intercept PROBE">Intercept</button></div>' },
+  // vehicle fire-result apply
   { key: "vehicle-fire",      wrapper: 'class="cyberpunk vehicle-fire-result"', inner: '<button class="cp-vfire-apply PROBE">Apply</button>' },
+  // shop cards (request card scoped by .cp-shop-request; published-link card by .cyberpunk)
   { key: "shop-request",      wrapper: 'class="cp-shop-request"',        inner: '<div class="cp-shop-request-actions"><button class="cp-shop-request-btn cp-approve PROBE">Approve</button></div>' },
+  { key: "shop-link",         wrapper: 'class="cyberpunk cp-shop-publish"', inner: '<button class="cp-shop-open-link PROBE">Browse</button>' },
+  // JS-injected apply-damage card (root .cyberpunk-card)
   { key: "apply-damage",      wrapper: 'class="cyberpunk-card"',         inner: '<button class="cp2020-apply-damage-btn PROBE">Apply Damage</button>' },
 ];
 

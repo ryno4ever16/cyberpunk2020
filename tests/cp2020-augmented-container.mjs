@@ -38,6 +38,9 @@ const r = await p.evaluate(async () => {
     miscCap: C.capacityOf(pouch),                   // mechContainer.capacity
     cyberSlots: C.slotsTakenOf(cyOpt),              // Module.SlotsTaken
     miscSlots: C.slotsTakenOf(stored),              // mechContainer.slotsTaken (default 1)
+    // FIX: a whole-chassis stat upgrade (borgStatDelta flag) occupies 0 zone slots — the "Increased …"
+    // full-borg options ARE the body, not a zone occupant, so the zone badge/gate never over-counts.
+    statDeltaSlots: C.slotsTakenOf({ type: "cyberware", system: { Module: { SlotsTaken: 3 } }, flags: { "cp2020-augmented": { borgStatDelta: { ref: 1 } } } }),
     eyeIsContainer: C.isContainer(cyEye),
     optIsContainer: C.isContainer(cyOpt)
   };
@@ -178,6 +181,7 @@ const checks = [
   ["pure: parent link — cyberware Module.ParentId, misc mechContainer.installedIn", r.accessors.cyberParent === "eye" && r.accessors.miscParent === "pouch"],
   ["pure: capacity — cyberware OptionsAvailable, misc mechContainer.capacity", r.accessors.cyberCap === 3 && r.accessors.miscCap === 2],
   ["pure: slots taken — cyberware SlotsTaken, misc default 1", r.accessors.cyberSlots === 2 && r.accessors.miscSlots === 1],
+  ["pure: a borgStatDelta stat-upgrade occupies 0 zone slots (slotsTakenOf)", r.accessors.statDeltaSlots === 0],
   ["pure: isContainer by capacity", r.accessors.eyeIsContainer === true && r.accessors.optIsContainer === false],
   ["pure: children + used/free slots", r.slots.eyeChildren === 1 && r.slots.eyeUsed === 2 && r.slots.eyeFree === 1 && r.slots.pouchUsed === 1],
   ["pure: guards — self/non-container/over-capacity rejected, fitting allowed", r.guards.selfInstall === false && r.guards.intoNonContainer === false && r.guards.overCapacity === false && r.guards.fits === true],

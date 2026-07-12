@@ -81,6 +81,7 @@ try {
     for (const coll of [scene.templates, scene.regions]) if (coll) for (const d of [...coll]) if (F0(d).isSuppressiveZone) await d.delete().catch(()=>{});
 
     // The firing client (player) checks this world setting BEFORE relaying → must be ON before they join.
+    let savesPrev; try { savesPrev = game.settings.get("cp2020-augmented", "suppressiveFireSaves"); } catch (e) {}
     await game.settings.set("cp2020-augmented", "suppressiveFireSaves", true);
 
     const player = game.users.find(u => u.role === 1);
@@ -99,7 +100,7 @@ try {
     const [npcTok] = await scene.createEmbeddedDocuments("Token", [mk(npc, 1400)]);
     return {
       playerName: player.name, pcId: pc.id, npcId: npc.id, weaponName: wpn.name,
-      pcTokenId: pcTok.id, npcTokenId: npcTok.id,
+      pcTokenId: pcTok.id, npcTokenId: npcTok.id, savesPrev,
       baseline: { isSuppressiveZone: COUNT_AREAS("isSuppressiveZone") },
     };
   }, COUNT_AREAS.toString());
@@ -167,14 +168,15 @@ try {
   }
 
   // ---- cleanup ----
-  await gm.evaluate(async () => {
+  await gm.evaluate(async (savesPrev) => {
     const scene = game.scenes.active ?? canvas.scene;
     for (const t of scene.tokens.filter(t => t.name?.startsWith("__PW__"))) await t.delete().catch(()=>{});
     const F = (d)=> d.flags?.["cp2020-augmented"] ?? {};
     for (const coll of [scene.templates, scene.regions]) if (coll) for (const d of [...coll]) if (F(d).isSuppressiveZone) await d.delete().catch(()=>{});
     for (const a of game.actors.filter(a => a.name?.startsWith("__PW__"))) await a.delete().catch(()=>{});
-    try { await game.settings.set("cp2020-augmented", "suppressiveFireSaves", false); } catch (e) {}
-  }).catch(() => {});
+    // Restore the captured setting rather than hard-resetting to false.
+    try { if (savesPrev !== undefined) await game.settings.set("cp2020-augmented", "suppressiveFireSaves", savesPrev); } catch (e) {}
+  }, S.savesPrev).catch(() => {});
 } catch (e) {
   log.push("ERROR: " + e.message);
 } finally {

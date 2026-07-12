@@ -52,7 +52,10 @@ const r = await p.evaluate(async () => {
   await actor.sheet.render(true); await sleep(1200);
   const root = actor.sheet.element;
   const zoneLabels = [...(root?.querySelectorAll(".active-cyberware-segment .field.gear label") || [])].map(l => l.textContent.trim());
-  out.sheetShowsOptions = zoneLabels.filter(t => /Front Optic Mount|Quick-Change Weapon Mount|Pain Editor/i.test(t)).length;
+  // Count the 3 distinct option KINDS present (not raw labels): the Quick-Change Weapon Mount fans out across
+  // all four limbs on the current Dragoon manifest, so a raw-label count is 6 — assert each named kind renders.
+  out.sheetShowsOptions = ["Front Optic Mount", "Quick-Change Weapon Mount", "Pain Editor"]
+    .filter(pat => zoneLabels.some(t => t.toLowerCase().includes(pat.toLowerCase()))).length;
   // The flat cyberware tree was removed; the Dragoon body now folds into the Active Cyberware header
   // (name + ⊗ clear-loadout control), no dedicated segment.
   const chassis = root?.querySelector('.cp-active-cyber-header .cp-chassis-inline');
@@ -85,7 +88,7 @@ const checks = [
   ["options land across the expected zones (Head/Arm/Leg/Nervous/Torso)", r.materialized && ["Head","Arm","Leg","Nervous","Torso"].every(z => (r.materialized.zones[z] || 0) > 0)],
   ["FBC chassis SETs REF/MA/BODY (15/25/20)", r.fbcStats?.ref === 15 && r.fbcStats?.ma === 25 && r.fbcStats?.bt === 20],
   ["borg per-zone SDP seeded (Dragoon Head 50 / Torso 60)", r.borgSdp?.head === 50 && r.borgSdp?.torso === 60],
-  ["sheet shows materialized options in their zone sections", r.sheetShowsOptions >= 2],
+  ["sheet shows materialized options in their zone sections (all 3 named labels)", r.sheetShowsOptions === 3],
   ["the zoneless chassis renders in the chassis strip with its ⊗ clear control", r.treeHasBodyRoot === true],
   ["a re-typed chip is typed Chip in the re-seeded pack", r.chipPackTyped === true],
   ["that chip, equipped+active, qualifies as a sectioned chip", r.chipSections === true],

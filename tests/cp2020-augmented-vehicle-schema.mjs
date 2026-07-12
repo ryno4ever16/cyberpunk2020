@@ -89,7 +89,10 @@ const ok =
   r.oldFloor.vehicleType === "" && r.oldFloor.crew === 0 && r.oldFloor.decel === 0 &&
   r.oldFloor.fuelUnit === "gal" && r.oldFloor.cargoUnit === "kg" && r.oldFloor.massUnit === "tons" &&
   r.oldFloor.keptMax === 120 &&
-  (!r.packDoc || (r.packDoc.decel === 0 && r.packDoc.fuelUnit === "gal" && r.packDoc.vehicleType === "")) &&
+  // The pack docs are BACKFILLED now (the D4 vehicle-backfill re-seed): the compiled doc must
+  // retain its data under the current schema — the old floats-on-defaults expectation is history
+  // (the in-world old-shape leg above still proves the additive-migration property).
+  (!r.packDoc || (Number(r.packDoc.decel) > 0 && r.packDoc.vehicleType !== "")) &&
   r.sheet.typeInput && r.sheet.datalistOpts >= 10 && r.sheet.crew && r.sheet.body && r.sheet.decel &&
   r.sheet.fuelUnitSel && r.sheet.massSel && r.sheet.cargoSel && r.sheet.fuelEffSuffix &&
   !r.sheet.rawKeyLeak && errors.length === 0;

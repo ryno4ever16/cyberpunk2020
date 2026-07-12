@@ -44,6 +44,8 @@ const r = await p.evaluate(async () => {
   const docs = await pack.getDocuments();
   const packSocket = docs.find(d => d.id === "vfctuWRZxDfVxzV1");
   const packPlugs = docs.find(d => d.id === "x3bHNmrZaN3ZVssf");
+  // Pre-sweep any prior run's fixture (non-__PW__ name → not caught by the shared sweeps).
+  for (const a of game.actors.filter(a => a.name?.startsWith("PROBE chip-limit"))) await a.delete().catch(() => {});
   const actor = await Actor.create({ name: "PROBE chip-limit holder", type: "character" });
   const created = [];
   try {
@@ -93,7 +95,8 @@ const r = await p.evaluate(async () => {
     await extra.update({ "system.CyberWorkType.ChipActive": false }, { render: false });
     out.cap.deactivateFree = extra.system?.CyberWorkType?.ChipActive === false;
     // Close the override confirm the refused attempt opened (it resolves false on close).
-    for (const app of Object.values(foundry.applications.instances ?? {})) {
+    // instances is a Map — iterate its values (Object.values(Map) yields [], leaving the dialog open).
+    for (const app of [...(foundry.applications.instances?.values?.() ?? [])]) {
       if (app?.constructor?.name === "DialogV2") await app.close().catch(() => {});
     }
   } finally {

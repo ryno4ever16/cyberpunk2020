@@ -40,6 +40,8 @@ const r = await p.evaluate(async () => {
   const actor = await Actor.create({ name: "__PW__Q9Punk", type: "character" });
   await actor.update({ "system.stats.cool.base": 6 }); await sleep(200);
   const fdChip = await game.packs.get("cyberpunk2020.chipware")?.getDocument("rGiu9TBJAmowrXIm").catch(() => null);
+  // Assert the fetched pack chip actually carries the wired facedown bonus (corrections layer), not just fetch it.
+  out.fdChipPack = { found: !!fdChip, facedownMod: fdChip ? Number(fdChip.system?.mechRollMods?.facedownMod) : null };
   const [fd] = await actor.createEmbeddedDocuments("Item", [{ name: "__PW__Facedown", type: "cyberware",
     system: { equipped: true, EffectMode: "Permanent", CyberWorkType: { Types: ["Chip"], ChipActive: true, Stat: {}, Skill: {}, ChipSkills: {} },
       mechRollMods: { enabled: true, facedownMod: 1, auto: true } } }]);
@@ -135,6 +137,7 @@ const checks = [
   ["pure: facedownModFor sums active providers", r.pure.facedown.total === 1 && r.pure.facedown.sources.length === 1],
   ["pure: attackModProviders marks dualWieldOnly", r.pure.dualWieldFlag === true],
   ["pure: inactive chip contributes no facedown bonus", r.pure.chipOffExcluded === 0],
+  ["facedown pack chip carries facedownMod 1 (corrections wired)", r.fdChipPack?.found === true && r.fdChipPack?.facedownMod === 1],
   ["facedown e2e: card shows the chip bonus", r.facedownE2E.cardHasChip === true],
   ["facedown e2e: rolled total includes the +1 (self-consistent)", r.facedownE2E.selfConsistent === true && r.facedownE2E.chipVal === 1],
   ["photo memory: a stat with no provider rolls directly (no dialog)", r.statNoProvider.noDialog === true],
