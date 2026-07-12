@@ -204,6 +204,54 @@ const r = await p.evaluate(async () => {
     plain: plainCard.slice(0, 220),
   };
   await borg.delete().catch(() => {});
+
+  // ── (6) per-drug addiction ×s + wear-off × on LIVE drug pills (user-reported 2026-07-12: the
+  // single tally × read as per-drug but wiped the whole history; live drug pills had no × at all
+  // despite the strip's "quick-off on each pill" contract).
+  try {
+    for (const a of game.actors.filter(a => a.name.startsWith("__PW__DrugStrip"))) await a.delete().catch(() => {});
+    const strip = await Actor.create({ name: "__PW__DrugStrip", type: "character" });
+    await strip.setFlag("cp2020-augmented", "addictionState", { byDrug: { "Alpha": 2, "Beta": 1 }, total: 3 });
+    const [liveDrug] = await strip.createEmbeddedDocuments("Item", [{ name: "__PW__LiveDrug", type: "misc",
+      system: { equipped: true, mechDrug: { enabled: true, statBoosts: [{ stat: "cool", mod: 1 }],
+        rollBoosts: [], duration: "1 hour", durationTurns: "", expireSave: { stat: "", difficulty: 0, penalty: "" },
+        addictionDifficulty: 0, psychosis: "", note: "" } } }]);
+    await S.takeDrug(liveDrug); await sleep(500);
+
+    // Engine: per-drug clear removes ONE drug's history and keeps the rest (exact values).
+    await S.clearAddictionFor(strip, "Alpha"); await sleep(300);
+    const ad1 = S.addictionStateFor(strip);
+    out.perDrugClear = { alphaGone: !("Alpha" in ad1.byDrug), betaKept: ad1.byDrug["Beta"] === 1, total: ad1.total };
+
+    // UI: one addiction pill PER DRUG with a GM × carrying the drug name; a LIVE drug pill has a ×.
+    await strip.sheet.render(true); await sleep(1200);
+    const sroot = strip.sheet.element instanceof HTMLElement ? strip.sheet.element : strip.sheet.element?.[0];
+    sroot?.querySelector(".cp-status-details")?.setAttribute("open", "");
+    const addPills = [...(sroot?.querySelectorAll(".cp-status-pill.cp-kind-addiction") ?? [])];
+    const drugPill = [...(sroot?.querySelectorAll(".cp-status-pill.cp-kind-drug") ?? [])].find(p => /LiveDrug/.test(p.textContent));
+    out.stripUi = {
+      addictionPills: addPills.length,
+      betaNamed: /Beta/.test(addPills[0]?.textContent ?? ""),
+      betaX: !!addPills[0]?.querySelector('.cp-pill-off[data-action="clear-addiction"]'),
+      betaXDrugAttr: addPills[0]?.querySelector('.cp-pill-off[data-action="clear-addiction"]')?.dataset?.drug === "Beta",
+      liveDrugX: !!drugPill?.querySelector('.cp-pill-off[data-action="clear-drug"]'),
+    };
+    // Gesture: the live drug's × wears the dose off through the real flow (marker drops + card posts).
+    // The card posts AFTER the flag write inside wearOffMarker, so poll until BOTH have happened —
+    // exiting on the marker alone races the ChatMessage.create.
+    const mBefore2 = game.messages.size;
+    drugPill?.querySelector('.cp-pill-off[data-action="clear-drug"]')?.click();
+    for (let i = 0; i < 40 && (S.drugMarkersFor(strip).length || game.messages.size <= mBefore2); i++) await sleep(200);
+    out.stripWearOff = { markerGone: S.drugMarkersFor(strip).length === 0, cardPosted: game.messages.size > mBefore2 };
+    // Clearing the LAST drug's history drops the whole flag.
+    await S.clearAddictionFor(strip, "Beta"); await sleep(300);
+    out.lastClear = { flagGone: strip.getFlag("cp2020-augmented", "addictionState") == null };
+    await strip.sheet.close().catch(() => {});
+    await strip.delete().catch(() => {});
+  } catch (e) {
+    out.stripError = String(e?.message ?? e);
+    out.perDrugClear ??= {}; out.stripUi ??= {}; out.stripWearOff ??= {}; out.lastClear ??= {};
+  }
   return out;
 });
 
@@ -232,6 +280,11 @@ const checks = [
   ["fbc: card grants only the applied boost (COOL +2), never the chassis-set REF", r.borgCard.grantsCool && r.borgCard.grantsNoRef],
   ["fbc: chassis-set boost explicitly announced as ignored + warn-styled advisory", r.borgCard.refIgnored && r.borgCard.advisoryWarnStyled],
   ["fbc: totals — chassis REF 15 stands (no +3), COOL 6→8 applies", r.borgCard.ref === 15 && r.borgCard.cool === 8],
+  ["strip: per-drug clear removes ONE history, keeps the rest (Alpha gone, Beta ×1, total 1)", r.perDrugClear.alphaGone && r.perDrugClear.betaKept && r.perDrugClear.total === 1],
+  ["strip: one addiction pill PER DRUG, its × carries the drug name (GM)", r.stripUi.addictionPills === 1 && r.stripUi.betaNamed && r.stripUi.betaX && r.stripUi.betaXDrugAttr],
+  ["strip: a LIVE drug pill has a wear-off ×", r.stripUi.liveDrugX === true],
+  ["strip: clicking the drug × wears the dose off (marker gone + card posted)", r.stripWearOff.markerGone && r.stripWearOff.cardPosted],
+  ["strip: clearing the last drug drops the addiction flag", r.lastClear.flagGone === true],
   ["0 console errors", errors.length === 0]
 ];
 let fail = 0;
