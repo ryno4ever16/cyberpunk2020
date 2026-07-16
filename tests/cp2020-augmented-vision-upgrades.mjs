@@ -1,5 +1,5 @@
 /** P4 vision upgrades (Q1c/Q5): the mode-table fidelity split (thermograph = basic + heat sense,
- *  IR = darkvision + heat sense), the heat-sense detection mode's living gate, the UV illuminator
+ *  IR = heat sense only, no terrain — a twin of thermograph), the heat-sense detection mode's living gate, the UV illuminator
  *  dependency chain (corrections → requiresItem → gating), the Q5 governor picker (auto / natural /
  *  device), and the token detection-mode apply/restore round-trip. */
 import { chromium } from "@playwright/test";
@@ -144,8 +144,9 @@ const r = await p.evaluate(async () => {
     return src?.[V.HEAT_SENSE_ID] ?? null;
   };
   await thermo.update({ "system.mechVision.on": true });
-  // The token default visionMode is ALSO "basic", so poll on the parts only the apply writes.
-  const tApply = await waitApplied(() => seerTok._source.sight.range === 25 && !!det());
+  // Thermograph is heat-only (terrainSight false) → sight.range stays 0; poll the parts the apply
+  // DOES write: our heat-sense detection entry + the stored base-sight flag.
+  const tApply = await waitApplied(() => !!det() && seerTok.getFlag(SCOPE, "mechBaseSight") !== undefined);
   out.applyDiag = { tApply, tokensOf: L.tokensOf(punk).length,
     gmMatch: game.users.activeGM?.id === game.user.id,
     socket: game.socket?.connected ?? null,
@@ -191,7 +192,9 @@ const r = await p.evaluate(async () => {
     heatGone: det() === null
   };
   await punk.unsetFlag(SCOPE, "visionPick"); await sleep(1500);
-  out.pickBackToAuto = { range: seerTok._source.sight.range };
+  // auto re-picks the thermograph (longest device): sight radius 0 but the heat entry is back —
+  // the heat entry is what distinguishes "auto → thermograph" from "no override".
+  out.pickBackToAuto = { range: seerTok._source.sight.range, heat: !!det(), overridden: seerTok.getFlag(SCOPE, "mechBaseSight") !== undefined };
 
   // ── (5) Sheet surfaces: picker select + living checkbox ───────────────────
   await punk.sheet.render(true); await sleep(900);
@@ -213,7 +216,7 @@ const r = await p.evaluate(async () => {
 console.log(JSON.stringify(r, null, 1));
 const checks = [
   ["pure: thermograph = basic vision + heat sense", r.table.thermo.heat === true && r.table.thermoResolved === "basic"],
-  ["pure: infrared = darkvision + heat sense", r.table.ir.heat === true && r.table.irResolved === "darkvision"],
+  ["pure: infrared = heat sense only, no terrain sight", r.table.ir.heat === true && r.table.ir.terrainSight === false && r.table.irResolved === "basic"],
   ["pure: lowlight/uv carry no heat sense", r.table.low.heat === false && r.table.uv.heat === false],
   ["pure: living defaults by actor type", r.living.character === true && r.living.npc === true && r.living.vehicle === false],
   ["pure: living flag overrides the type default", r.living.flagOff === false && r.living.flagOn === true],
@@ -225,16 +228,16 @@ const checks = [
   ["pure: governor pick — auto longest / natural null / id chosen / stale falls back", r.pick.auto === "b" && r.pick.natural === null && r.pick.chosen === "a" && r.pick.staleFallsBack === "b"],
   ["detection mode registered (wall-blocked, sight-type)", r.dm.exists === true && r.dm.walls === true && r.dm.typeSight === true],
   ["detection gate on real tokens: living yes, flagged machine no, non-token no", r.canDetect.placeablesDrawn === true && r.canDetect.living === true && r.canDetect.machineFlag === true && r.canDetect.nonToken === true],
-  ["apply: thermograph → basic vision + heat entry at device range", r.thermoApply.visionMode === "basic" && r.thermoApply.range === 25 && r.thermoApply.heatEntry?.range === 25 && r.thermoApply.heatEntry?.enabled === true],
-  ["apply: infrared → darkvision + heat entry", r.irApply.visionMode === "darkvision" && !!r.irApply.heatEntry],
+  ["apply: thermograph → basic vision, NO darkness-sight radius, heat entry at device range", r.thermoApply.visionMode === "basic" && r.thermoApply.range === 0 && r.thermoApply.heatEntry?.range === 25 && r.thermoApply.heatEntry?.enabled === true],
+  ["apply: infrared → basic vision (heat-only) + heat entry", r.irApply.visionMode === "basic" && !!r.irApply.heatEntry],
   ["restore: sight + detection modes + flags all back to base", r.restore.sightBack === true && r.restore.heatGone === true && r.restore.flagsGone === true],
   ["corrections: UV optic carries the illuminator dependency", /IR\/UV Flashlight\|IR Flash/.test(r.uvChain.requiresItem)],
   ["uv device alone does not override sight", r.uvChain.blockedWithoutIlluminator === true],
   ["equipping an illuminator activates the uv device (darkvision)", r.uvLit.visionMode === "darkvision"],
-  ["picker: auto governs by longest range (heat device wins)", r.pickAuto.range === 25 && r.pickAuto.visionMode === "basic" && r.pickAuto.heat === true],
+  ["picker: auto governs by longest range (heat device wins, no sight radius)", r.pickAuto.range === 0 && r.pickAuto.visionMode === "basic" && r.pickAuto.heat === true],
   ["picker: explicit device pick governs (uv, no heat)", r.pickDevice.range === 20 && r.pickDevice.visionMode === "darkvision" && r.pickDevice.heat === false],
   ["picker: natural suspends overrides while devices stay on", r.pickNatural.sightBack === true && r.pickNatural.heatGone === true],
-  ["picker: unset returns to auto", r.pickBackToAuto.range === 25],
+  ["picker: unset returns to auto (thermograph governs: heat back, overridden, no sight radius)", r.pickBackToAuto.range === 0 && r.pickBackToAuto.heat === true && r.pickBackToAuto.overridden === true],
   ["sheet: picker select present with auto/natural + devices", r.sheet.pickerPresent === true && r.sheet.pickerOptions >= 4],
   ["sheet: living checkbox present and defaulted on for a character", r.sheet.livingBox === true && r.sheet.livingChecked === true],
   ["0 console errors", errors.length === 0]

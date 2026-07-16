@@ -37,10 +37,12 @@ const r = await p.evaluate(async () => {
   const [plain] = await actor.createEmbeddedDocuments("Item", [{ name: "__PW__Vis Plain", type: "misc" }]);
   out.modelDefaults = { has: !!plain.system.mechVision, enabled: plain.system.mechVision?.enabled, mode: plain.system.mechVision?.mode };
 
-  // (2) End-to-end on a LINKED token.
+  // (2) End-to-end on a LINKED token. Uses a terrain-sight device (lowlight) so the mechanism
+  // asserts an observable sight.range/mode override; IR/thermograph are heat-only (range 0) and
+  // are covered for their own signature by the corrections + pure-rules checks and the vision-upgrades keeper.
   const [ir] = await actor.createEmbeddedDocuments("Item", [{
-    name: "__PW__Vis IR", type: "misc",
-    system: { equipped: true, mechVision: { enabled: true, on: false, mode: "infrared", range: 20 } }
+    name: "__PW__Vis Dev20", type: "misc",
+    system: { equipped: true, mechVision: { enabled: true, on: false, mode: "lowlight", range: 20 } }
   }]);
   const [amp] = await actor.createEmbeddedDocuments("Item", [{
     name: "__PW__Vis Amp", type: "misc",
@@ -97,9 +99,13 @@ const checks = [
   ["pure: single infrared 20m", r.pure.single?.mode === "infrared" && r.pure.single?.range === 20],
   ["pure: longest range governs", r.pure.longestWins?.mode === "lowlight" && r.pure.longestWins?.range === 40],
   ["mode resolution lands on core-provided modes", r.resolvedProvided === true],
+  // User ruling 2026-07-16: Low Lite must NOT resolve to core's "lightAmplification" — that preset is
+  // tint [0.38,0.8,0.38] at brightness 1 (a blinding green wash). darkvision gives the same
+  // see-in-the-dark result in calm greyscale. Value-assert so the mode can't silently revert.
+  ["lowlight resolves to darkvision, not the green/bright lightAmplification", r.resolved?.low === "darkvision"],
   ["model: fresh misc item gains mechVision defaults", r.modelDefaults.has === true && r.modelDefaults.enabled === false && r.modelDefaults.mode === "lowlight"],
   ["baseline: token sight basic/5, no flag", r.baseline.mode === "basic" && r.baseline.range === 5 && r.baseline.baseFlag === false],
-  ["IR on: sight overridden to device profile + base stored", r.irOn.range === 20 && r.irOn.mode !== "basic" && r.irOn.baseFlag === true],
+  ["device on: sight overridden to device profile + base stored", r.irOn.range === 20 && r.irOn.mode !== "basic" && r.irOn.baseFlag === true],
   ["both on: longest-range device governs (40m)", r.bothOn.range === 40],
   ["all off: base sight restored + flag cleared", r.restored.mode === "basic" && r.restored.range === 5 && r.restored.baseFlag === false],
   ["corrections: imported Infrared optic is an infrared device", r.imported.mv?.enabled === true && r.imported.mv?.mode === "infrared"],
