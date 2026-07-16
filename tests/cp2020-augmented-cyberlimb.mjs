@@ -90,7 +90,11 @@ const r = await p.evaluate(async () => {
   // The sheet shows the true-status badge + a repair button on the destroyed limb.
   await actor.sheet.render(true); await sleep(900);
   const root = actor.sheet.element;
-  const badge = root?.querySelector(".segment-sdp-row .segment-limb-status.cp-limb-destroyed");
+  // NOTE: the badge lives in `.segment-status-row` — its OWN row, a SIBLING of `.segment-sdp-row`
+  // (armor-display.hbs put it there so "DESTROYED" can't collide with the SDP number boxes). The old
+  // selector scoped it under `.segment-sdp-row` and could never match: a STALE-SELECTOR test bug, not
+  // a product bug (repairBtn was true the whole time — the button renders fine).
+  const badge = root?.querySelector(".segment-status-row .segment-limb-status.cp-limb-destroyed");
   const repairBtn = root?.querySelector('.cp-cyberlimb-repair[data-zone="rArm"]');
   out.sheetUI = { badge: !!badge, badgeText: badge?.textContent?.trim() ?? "", repairBtn: !!repairBtn };
   await actor.sheet.close().catch(() => {});

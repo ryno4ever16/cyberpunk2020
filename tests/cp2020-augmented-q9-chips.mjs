@@ -39,8 +39,13 @@ const r = await p.evaluate(async () => {
   for (const a of game.actors.filter(a => a.name.startsWith("__PW__Q9"))) await a.delete().catch(() => {});
   const actor = await Actor.create({ name: "__PW__Q9Punk", type: "character" });
   await actor.update({ "system.stats.cool.base": 6 }); await sleep(200);
-  const fdChip = await game.packs.get("cyberpunk2020.chipware")?.getDocument("rGiu9TBJAmowrXIm").catch(() => null);
-  // Assert the fetched pack chip actually carries the wired facedown bonus (corrections layer), not just fetch it.
+  // NOTE: the Facedown Chip is MODULE-OWNED pack data (src/packs/supplement-chipware/), so it lives in
+  // `cp2020-augmented.supplement-chipware`. The old id here was `cyberpunk2020.chipware` — a SYSTEM-scope
+  // pack that DOES NOT EXIST on the rig, so the optional chain short-circuited to undefined and the assert
+  // failed. Rig-proven: the chip resolves in the module pack carrying facedownMod 1. Stale test reference,
+  // not a product/data bug.
+  const fdChip = await game.packs.get("cp2020-augmented.supplement-chipware")?.getDocument("rGiu9TBJAmowrXIm").catch(() => null);
+  // Assert the fetched pack chip actually carries the wired facedown bonus (module pack data), not just fetch it.
   out.fdChipPack = { found: !!fdChip, facedownMod: fdChip ? Number(fdChip.system?.mechRollMods?.facedownMod) : null };
   const [fd] = await actor.createEmbeddedDocuments("Item", [{ name: "__PW__Facedown", type: "cyberware",
     system: { equipped: true, EffectMode: "Permanent", CyberWorkType: { Types: ["Chip"], ChipActive: true, Stat: {}, Skill: {}, ChipSkills: {} },
